@@ -17,8 +17,13 @@ import React, { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Activity, AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles,
-  ThumbsDown, ThumbsUp, Undo2, ChevronRight, Search,
+  ThumbsDown, ThumbsUp, Undo2, ChevronRight, Search, TrendingUp,
+  Zap, Clock,
 } from "lucide-react";
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
+  CartesianGrid, Legend,
+} from "recharts";
 import { timeAgo } from "../../lib/timeAgo";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -61,8 +66,21 @@ const KIND_FIXABLE = new Set([
   "missing_alt_text",
 ]);
 
+// iter413 — Impact / effort pill colors. Brand-aligned, never the
+// generic Tailwind named shades that the contrast lint rejects.
+const IMPACT_PILL = {
+  high:   "border-brand text-brand",
+  medium: "border-yellow-600 text-yellow-700",
+  low:    "border-line text-ink-muted",
+};
+const EFFORT_PILL = {
+  low:    "border-emerald-600 text-emerald-700",
+  medium: "border-yellow-600 text-yellow-700",
+  high:   "border-red-600 text-red-600",
+};
 
-function ScoreCard({ label, value, sub, tone = "default" }) {
+
+function ScoreCard({ label, value, sub }) {
   const ringColor = value >= 80 ? "stroke-emerald-600"
                   : value >= 60 ? "stroke-yellow-600"
                   : "stroke-red-600";
@@ -96,6 +114,159 @@ function ScoreCard({ label, value, sub, tone = "default" }) {
       <div className="min-w-0">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{label}</div>
         {sub && <div className="text-sm text-ink mt-1 truncate">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+
+
+function RecommendationRow({ rec, onGenerateAll, generating }) {
+  const sev = SEVERITY_STYLES[rec.severity] || SEVERITY_STYLES.low;
+  const impactCls = IMPACT_PILL[rec.impact_label] || IMPACT_PILL.low;
+  const effortCls = EFFORT_PILL[rec.effort_label] || EFFORT_PILL.medium;
+  const mins = rec.effort_minutes;
+  const eta = mins < 60 ? `~${mins}m` : `~${Math.round(mins / 60)}h`;
+
+  return (
+    <div
+      data-testid={`seo-agent-rec-${rec.id}`}
+      className={`border ${sev.border} ${sev.bg} p-4`}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+            <span className={`font-mono text-[10px] uppercase tracking-[0.18em] border px-1.5 py-0.5 ${impactCls}`}>
+              {rec.impact_label} impact
+            </span>
+            <span className={`font-mono text-[10px] uppercase tracking-[0.18em] border px-1.5 py-0.5 ${effortCls}`}>
+              {rec.effort_label} effort
+            </span>
+            {rec.fixable_via_ai && (
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] border border-brand/40 text-brand px-1.5 py-0.5 inline-flex items-center gap-1">
+                <Sparkles size={10} /> AI fixable
+              </span>
+            )}
+          </div>
+          <div className="text-base font-medium text-ink">{rec.title}</div>
+          <div className="text-xs text-ink-muted mt-1 flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <Search size={11} /> {rec.affected_count} affected
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock size={11} /> {eta} est.
+            </span>
+            <span className="inline-flex items-center gap-1 text-emerald-700">
+              <TrendingUp size={11} /> +{rec.expected_traffic_pct}% expected traffic
+            </span>
+          </div>
+        </div>
+        {rec.fixable_via_ai && (
+          <button
+            type="button"
+            onClick={() => onGenerateAll(rec)}
+            disabled={generating === rec.id}
+            data-testid={`seo-agent-rec-generate-all-${rec.id}`}
+            className="text-xs font-mono uppercase tracking-[0.18em] border border-brand text-brand px-3 py-1.5 hover:bg-brand hover:text-paper transition-colors disabled:opacity-50 whitespace-nowrap inline-flex items-center gap-1.5"
+          >
+            {generating === rec.id ? (
+              <><Loader2 size={11} className="animate-spin" /> Queuing {rec.affected_count}…</>
+            ) : (
+              <><Zap size={11} /> Fix all ({rec.affected_count})</>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function ReportingPanel({ history, queueActivity, latestScores }) {
+  // Map history → chart points. recharts wants epoch-friendly labels.
+  const data = (history || []).map((h) => {
+    const d = new Date(h.finished_at);
+    return {
+      date: `${d.getMonth() + 1}/${d.getDate()}`,
+      Overall:   h.scores?.overall ?? 0,
+      Technical: h.scores?.technical ?? 0,
+      Content:   h.scores?.content ?? 0,
+      Authority: h.scores?.authority ?? 0,
+      issues:    h.counts?.total ?? 0,
+    };
+  });
+
+  return (
+    <div className="space-y-4" data-testid="seo-agent-reporting-panel">
+      <div className="grid sm:grid-cols-3 gap-3">
+        <div className="border border-line bg-surface p-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Applied this window</div>
+          <div className="text-2xl font-anton text-emerald-700 mt-1" data-testid="seo-agent-applied-count">
+            {queueActivity?.applied ?? 0}
+          </div>
+        </div>
+        <div className="border border-line bg-surface p-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Rejected</div>
+          <div className="text-2xl font-anton text-ink mt-1">
+            {queueActivity?.rejected ?? 0}
+          </div>
+        </div>
+        <div className="border border-line bg-surface p-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Rolled back</div>
+          <div className="text-2xl font-anton text-red-600 mt-1">
+            {queueActivity?.rolled_back ?? 0}
+          </div>
+        </div>
+      </div>
+
+      <div className="border border-line bg-surface p-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+          Score trend · last 30 days
+        </div>
+        {data.length < 2 ? (
+          <div className="py-12 text-center text-ink-muted text-sm">
+            Need at least two scans to draw a trend. The cron runs nightly at 02:00 UTC —
+            tomorrow&apos;s scan unlocks this chart.
+          </div>
+        ) : (
+          <div style={{ width: "100%", height: 260 }} data-testid="seo-agent-trend-chart">
+            <ResponsiveContainer>
+              <LineChart data={data} margin={{ top: 10, right: 12, left: -10, bottom: 0 }}>
+                <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--color-ink-muted)" }}
+                       axisLine={{ stroke: "var(--color-line)" }} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "var(--color-ink-muted)" }}
+                       axisLine={{ stroke: "var(--color-line)" }} tickLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-line)",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="Overall"   stroke="var(--color-brand)" strokeWidth={2.5} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Technical" stroke="#16a34a" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="Content"   stroke="#dc2626" strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="Authority" stroke="#7c3aed" strokeWidth={1.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      <div className="border border-line bg-surface p-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+          Latest scores
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          {["overall", "technical", "content", "authority"].map((k) => (
+            <div key={k} className="border border-line p-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{k}</div>
+              <div className="text-xl font-anton text-ink mt-0.5">{latestScores?.[k] ?? 0}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -220,22 +391,29 @@ export default function SEOAgentTab() {
   const [issues, setIssues] = useState([]);
   const [queue, setQueue] = useState([]);
   const [queueStatus, setQueueStatus] = useState("pending");
-  const [active, setActive] = useState("overview"); // overview | technical | content | queue
+  const [recommendations, setRecommendations] = useState([]);
+  const [history, setHistory] = useState(null); // { history, queue_activity }
+  const [active, setActive] = useState("overview"); // overview | recommendations | technical | content | reporting | queue
   const [scanning, setScanning] = useState(false);
-  const [generating, setGenerating] = useState(null); // issue id being processed
-  const [busy, setBusy] = useState(null);             // queue id being processed
+  const [generating, setGenerating] = useState(null);    // issue id being processed
+  const [generatingRec, setGeneratingRec] = useState(null); // rec id being processed
+  const [busy, setBusy] = useState(null);                // queue id being processed
   const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const [ovrRes, issRes, qRes] = await Promise.all([
+      const [ovrRes, issRes, qRes, recRes, histRes] = await Promise.all([
         fetch(`${API}/api/admin/seo-agent/overview`, { headers: authHeaders() }),
         fetch(`${API}/api/admin/seo-agent/issues`, { headers: authHeaders() }),
         fetch(`${API}/api/admin/seo-agent/queue?status=${queueStatus}`, { headers: authHeaders() }),
+        fetch(`${API}/api/admin/seo-agent/recommendations`, { headers: authHeaders() }),
+        fetch(`${API}/api/admin/seo-agent/history?days=30`, { headers: authHeaders() }),
       ]);
-      if (ovrRes.ok) setOverview(await ovrRes.json());
-      if (issRes.ok) setIssues((await issRes.json()).issues || []);
-      if (qRes.ok)   setQueue((await qRes.json()).items || []);
+      if (ovrRes.ok)  setOverview(await ovrRes.json());
+      if (issRes.ok)  setIssues((await issRes.json()).issues || []);
+      if (qRes.ok)    setQueue((await qRes.json()).items || []);
+      if (recRes.ok)  setRecommendations((await recRes.json()).recommendations || []);
+      if (histRes.ok) setHistory(await histRes.json());
     } catch (e) {
       toast.error("Could not load SEO Agent data");
     } finally {
@@ -278,6 +456,39 @@ export default function SEOAgentTab() {
     } finally {
       setGenerating(null);
     }
+  };
+
+  // iter413 — Bulk-generate from the Recommendations tab.
+  // For each affected issue_id in the recommendation, fire /generate-fix.
+  // Run with a small concurrency cap (3) so we don't slam the LLM.
+  const generateAllForRecommendation = async (rec) => {
+    setGeneratingRec(rec.id);
+    const ids = rec.issue_ids || [];
+    let success = 0, fail = 0;
+    const CONCURRENCY = 3;
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < ids.length) {
+        const idx = cursor++;
+        const issue_id = ids[idx];
+        try {
+          const r = await fetch(`${API}/api/admin/seo-agent/generate-fix`, {
+            method: "POST", headers: authHeaders(),
+            body: JSON.stringify({ issue_id }),
+          });
+          if (r.ok) success++; else fail++;
+        } catch { fail++; }
+      }
+    };
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    if (success) {
+      toast.success(`${success} AI fix${success === 1 ? "" : "es"} queued · ${fail} failed`);
+      setActive("queue");
+      await refresh();
+    } else {
+      toast.error(`All ${fail} generations failed — check logs`);
+    }
+    setGeneratingRec(null);
   };
 
   const approve = async (entry) => {
@@ -387,10 +598,12 @@ export default function SEOAgentTab() {
       <div className="border-b border-line">
         <div className="flex gap-1 overflow-x-auto" data-testid="seo-agent-tabs">
           {[
-            { id: "overview",  label: "Overview" },
-            { id: "technical", label: `Technical (${counts.technical})` },
-            { id: "content",   label: `Content (${counts.content})` },
-            { id: "queue",     label: `Auto-Fix Queue (${overview?.queue_pending ?? 0})` },
+            { id: "overview",        label: "Overview" },
+            { id: "recommendations", label: `Recommendations (${recommendations.length})` },
+            { id: "technical",       label: `Technical (${counts.technical})` },
+            { id: "content",         label: `Content (${counts.content})` },
+            { id: "reporting",       label: "Reporting" },
+            { id: "queue",           label: `Auto-Fix Queue (${overview?.queue_pending ?? 0})` },
           ].map((t) => (
             <button
               key={t.id}
@@ -450,6 +663,37 @@ export default function SEOAgentTab() {
             </div>
           )}
         </div>
+      ) : active === "recommendations" ? (
+        <div className="space-y-2" data-testid="seo-agent-recommendations-panel">
+          {recommendations.length === 0 ? (
+            <div className="border border-line p-6 text-center text-ink-muted">
+              <CheckCircle2 size={20} className="mx-auto text-emerald-600 mb-2" />
+              <div className="text-sm">
+                No recommendations — clean sweep. The agent ranks fixes by impact / effort whenever the next scan surfaces issues.
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-ink-muted mb-1">
+                Ranked by impact ÷ effort. <Zap size={11} className="inline mb-0.5" /> Fix all queues AI rewrites for every affected item in one click — they still need your approval before going live.
+              </div>
+              {recommendations.map((r) => (
+                <RecommendationRow
+                  key={r.id}
+                  rec={r}
+                  onGenerateAll={generateAllForRecommendation}
+                  generating={generatingRec}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      ) : active === "reporting" ? (
+        <ReportingPanel
+          history={history?.history}
+          queueActivity={history?.queue_activity}
+          latestScores={scores}
+        />
       ) : active === "technical" ? (
         <div className="space-y-2" data-testid="seo-agent-technical-panel">
           {technicalIssues.length === 0 ? (

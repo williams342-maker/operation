@@ -49,6 +49,81 @@ PRODUCT_DESC_MIN = 120
 
 SEVERITY_WEIGHT = {"critical": 10, "high": 5, "medium": 2, "low": 1}
 
+# ──────────────────────────────────────────────────────────────────────
+# Recommendations engine config (iter413)
+# ──────────────────────────────────────────────────────────────────────
+# Per-kind metadata for grouping issues into actionable recommendations.
+# • effort_per_item_min — rough wall-clock minutes per affected item
+#   (used for "Estimated completion time")
+# • traffic_pct_per_fix — heuristic % organic traffic lift from fixing
+#   one instance (sums across affected items, capped at 25%)
+# • fixable_via_ai — does `/generate-fix` support this kind?
+RECOMMENDATION_META = {
+    # Content
+    "missing_meta_description":   {"effort_per_item_min": 2, "traffic_pct_per_fix": 0.20, "fixable_via_ai": True,  "title": "Generate meta descriptions"},
+    "meta_description_too_short": {"effort_per_item_min": 2, "traffic_pct_per_fix": 0.10, "fixable_via_ai": True,  "title": "Expand thin meta descriptions"},
+    "meta_description_too_long":  {"effort_per_item_min": 2, "traffic_pct_per_fix": 0.08, "fixable_via_ai": True,  "title": "Trim truncated meta descriptions"},
+    "missing_product_description":{"effort_per_item_min": 8, "traffic_pct_per_fix": 0.30, "fixable_via_ai": False, "title": "Add product descriptions"},
+    "thin_product_description":   {"effort_per_item_min": 6, "traffic_pct_per_fix": 0.15, "fixable_via_ai": False, "title": "Expand thin product descriptions"},
+    "missing_alt_text":           {"effort_per_item_min": 1, "traffic_pct_per_fix": 0.05, "fixable_via_ai": True,  "title": "Generate image alt text"},
+    "missing_product_image":      {"effort_per_item_min": 15,"traffic_pct_per_fix": 0.50, "fixable_via_ai": False, "title": "Upload missing product images"},
+    # Technical
+    "sitemap_error":   {"effort_per_item_min": 15, "traffic_pct_per_fix": 2.0,  "fixable_via_ai": False, "title": "Restore sitemap availability"},
+    "sitemap_thin":    {"effort_per_item_min": 30, "traffic_pct_per_fix": 1.5,  "fixable_via_ai": False, "title": "Expand sitemap coverage"},
+    "http_error":      {"effort_per_item_min": 20, "traffic_pct_per_fix": 0.40, "fixable_via_ai": False, "title": "Fix pages returning non-200"},
+    "wrong_canonical": {"effort_per_item_min": 10, "traffic_pct_per_fix": 0.30, "fixable_via_ai": False, "title": "Fix canonical URL mismatches"},
+    "noindex_leak":    {"effort_per_item_min": 10, "traffic_pct_per_fix": 0.80, "fixable_via_ai": False, "title": "Remove noindex from indexable pages"},
+    "redirect":        {"effort_per_item_min": 8,  "traffic_pct_per_fix": 0.10, "fixable_via_ai": False, "title": "Resolve canonical redirects"},
+    "soft_404_guard":  {"effort_per_item_min": 30, "traffic_pct_per_fix": 0.50, "fixable_via_ai": False, "title": "Fix soft-404 regressions"},
+    "fetch_error":     {"effort_per_item_min": 15, "traffic_pct_per_fix": 0.10, "fixable_via_ai": False, "title": "Resolve crawl-time fetch errors"},
+}
+
+
+def _build_recommendations(issues: list[dict]) -> list[dict]:
+    """Group raw issues by kind and produce one prioritized recommendation
+    per group. Output is sorted by impact/effort ratio so the highest-ROI
+    items appear first."""
+    by_kind: dict[str, list[dict]] = {}
+    for it in issues:
+        by_kind.setdefault(it["kind"], []).append(it)
+
+    recs: list[dict] = []
+    for kind, group in by_kind.items():
+        meta = RECOMMENDATION_META.get(kind)
+        if not meta:
+            continue
+        n = len(group)
+        # Take the highest severity in the group as the recommendation's severity.
+        sev_order = ["critical", "high", "medium", "low"]
+        top_sev = min((g["severity"] for g in group),
+                      key=lambda s: sev_order.index(s) if s in sev_order else 99)
+        effort_min = n * meta["effort_per_item_min"]
+        traffic_pct = min(25.0, n * meta["traffic_pct_per_fix"])
+        # Impact: severity weight × √count (sub-linear so 200 missing alts
+        # doesn't dwarf 1 critical sitemap error).
+        impact_raw = SEVERITY_WEIGHT[top_sev] * (n ** 0.5)
+        # Effort score 1-100 (lower = better)
+        effort_score = min(100, effort_min)
+        rec_id = f"rec_{kind}"
+        recs.append({
+            "id": rec_id,
+            "kind": kind,
+            "title": meta["title"],
+            "severity": top_sev,
+            "affected_count": n,
+            "effort_minutes": effort_min,
+            "expected_traffic_pct": round(traffic_pct, 1),
+            "fixable_via_ai": meta["fixable_via_ai"],
+            "impact_label": "high" if impact_raw >= 20 else "medium" if impact_raw >= 8 else "low",
+            "effort_label": "low" if effort_min <= 30 else "medium" if effort_min <= 180 else "high",
+            "_score": impact_raw / max(1, effort_score / 30),  # impact-per-effort
+            "issue_ids": [g["id"] for g in group[:200]],
+        })
+    recs.sort(key=lambda r: r["_score"], reverse=True)
+    for r in recs:
+        r.pop("_score", None)
+    return recs
+
 
 def _classify_severity(kind: str) -> str:
     return {
@@ -195,6 +270,10 @@ async def run_seo_agent_scan(trigger: str = "manual") -> dict:
             "detail": it.get("detail", ""),
         })
     critical_count = sum(1 for b in bundled if b["severity"] == "critical")
+    # iter413 — Compute prioritized recommendations from the bundled
+    # issues. Stored alongside the scan so the Recommendations tab
+    # always shows the same snapshot the scores are derived from.
+    recommendations = _build_recommendations(bundled)
 
     run = {
         "id": str(uuid.uuid4()),
@@ -210,6 +289,7 @@ async def run_seo_agent_scan(trigger: str = "manual") -> dict:
             "targets_scanned": total_targets,
         },
         "issues": bundled[:500],  # cap to keep doc reasonable
+        "recommendations": recommendations,
     }
     await db.seo_agent_runs.insert_one({**run})
     logger.info("[seo-agent] %s scan: score=%d, %d issue(s), %d critical",
@@ -371,6 +451,66 @@ async def seo_agent_issues(
     if pillar:
         items = [i for i in items if i.get("pillar") == pillar]
     return {"issues": items, "scanned_at": run.get("finished_at")}
+
+
+@router.get("/admin/seo-agent/recommendations")
+async def seo_agent_recommendations(admin: dict = Depends(current_admin)):
+    """iter413 — Ranked recommendations from the latest scan.
+
+    Each row is one actionable group with impact/effort/expected-traffic
+    metadata. Sorted by impact-per-effort ratio so the highest-ROI items
+    are surfaced first."""
+    run = await db.seo_agent_runs.find_one(
+        {}, {"_id": 0}, sort=[("started_at", -1)],
+    )
+    if not run:
+        return {"recommendations": [], "scanned_at": None}
+    return {
+        "recommendations": run.get("recommendations", []),
+        "scanned_at": run.get("finished_at"),
+    }
+
+
+@router.get("/admin/seo-agent/history")
+async def seo_agent_history(
+    days: int = 30,
+    admin: dict = Depends(current_admin),
+):
+    """iter413 — Time-series of past scan results for the Reporting tab.
+
+    Returns one point per scan (newest → oldest), capped by `days`.
+    Used by the score-trend line chart and the "applied recommendations
+    this week / month" counters."""
+    from datetime import datetime, timedelta, timezone
+    days = max(1, min(180, int(days or 30)))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = db.seo_agent_runs.find(
+        {"finished_at": {"$gte": cutoff}},
+        {"_id": 0, "id": 1, "trigger": 1, "started_at": 1, "finished_at": 1,
+         "scores": 1, "counts": 1},
+    ).sort("finished_at", 1)  # ascending — chart reads left-to-right
+    history = await cursor.to_list(500)
+
+    # Applied / rejected / rolled-back counts inside the same window so
+    # the Reporting tab can show "X recommendations applied this period"
+    applied = await db.seo_agent_queue.count_documents(
+        {"status": "applied", "applied_at": {"$gte": cutoff}},
+    )
+    rejected = await db.seo_agent_queue.count_documents(
+        {"status": "rejected", "rejected_at": {"$gte": cutoff}},
+    )
+    rolled_back = await db.seo_agent_queue.count_documents(
+        {"status": "rolled_back", "rolled_back_at": {"$gte": cutoff}},
+    )
+    return {
+        "history": history,
+        "window_days": days,
+        "queue_activity": {
+            "applied": applied,
+            "rejected": rejected,
+            "rolled_back": rolled_back,
+        },
+    }
 
 
 @router.post("/admin/seo-agent/scan/run")

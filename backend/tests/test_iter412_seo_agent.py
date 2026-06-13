@@ -114,3 +114,67 @@ def test_queue_reject_404_when_missing(headers):
         timeout=15,
     )
     assert r.status_code == 404
+
+
+# iter413 — Recommendations engine + Reporting tab endpoints
+def test_recommendations_returns_ranked_groups(headers):
+    """After the scan in test_manual_scan_then_overview_reflects ran,
+    we should have recommendations grouped by kind and sorted by
+    impact-per-effort ratio."""
+    r = requests.get(f"{API}/admin/seo-agent/recommendations", headers=headers, timeout=15)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert "recommendations" in d
+    recs = d["recommendations"]
+    # Every recommendation has the impact/effort metadata + issue group
+    for rec in recs:
+        assert {"id", "kind", "title", "severity", "affected_count",
+                "effort_minutes", "expected_traffic_pct", "fixable_via_ai",
+                "impact_label", "effort_label", "issue_ids"}.issubset(rec.keys())
+        assert rec["impact_label"] in {"high", "medium", "low"}
+        assert rec["effort_label"] in {"high", "medium", "low"}
+        assert rec["affected_count"] == len(rec["issue_ids"]) or rec["affected_count"] > len(rec["issue_ids"])
+
+
+def test_history_returns_time_series(headers):
+    r = requests.get(f"{API}/admin/seo-agent/history?days=30", headers=headers, timeout=15)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["window_days"] == 30
+    assert isinstance(d["history"], list)
+    assert "queue_activity" in d
+    assert {"applied", "rejected", "rolled_back"}.issubset(d["queue_activity"].keys())
+    # At least the run from test_manual_scan_then_overview_reflects
+    # should be in the history.
+    assert len(d["history"]) >= 1
+    # Every history point carries scores in [0..100]
+    for h in d["history"]:
+        for s in h["scores"].values():
+            assert 0 <= s <= 100
+
+
+def test_history_window_clamps(headers):
+    """days param is clamped to 1..180. Falsy values fall back to the
+    30-day default."""
+    r = requests.get(f"{API}/admin/seo-agent/history?days=99999", headers=headers, timeout=15)
+    assert r.status_code == 200
+    assert r.json()["window_days"] == 180
+
+    # days=0 is falsy → defaults to 30, not 1.
+    r = requests.get(f"{API}/admin/seo-agent/history?days=0", headers=headers, timeout=15)
+    assert r.status_code == 200
+    assert r.json()["window_days"] == 30
+
+    r = requests.get(f"{API}/admin/seo-agent/history?days=1", headers=headers, timeout=15)
+    assert r.status_code == 200
+    assert r.json()["window_days"] == 1
+
+
+def test_recommendations_requires_admin():
+    r = requests.get(f"{API}/admin/seo-agent/recommendations", timeout=10)
+    assert r.status_code in (401, 403)
+
+
+def test_history_requires_admin():
+    r = requests.get(f"{API}/admin/seo-agent/history", timeout=10)
+    assert r.status_code in (401, 403)
