@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Hammer, Check, Mail, BarChart3, Search, X } from "lucide-react";
+import { Check, Mail, BarChart3, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import ProductEditCard from "./ProductEditCard";
 import BatchPriceCheckButton from "./BatchPriceCheckButton";
@@ -287,7 +287,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
 
       {totalAll === 0 ? (
         <EmptyState
-          icon={Hammer}
+          illustration="products"
           eyebrow="◆ Workshop"
           title="Time to build."
           body="Your shop is live but empty. Add your first piece — buyers and our auto-newsletter will see it the moment you publish."

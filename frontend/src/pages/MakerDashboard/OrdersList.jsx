@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { Receipt, ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2, Download, Camera } from "lucide-react";
+import { ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2, Download, Camera } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
 import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking, resendTrackingEmail } from "../../lib/api";
@@ -50,7 +50,7 @@ export default function OrdersList({ orders, onChange }) {
   if (!orders.length) {
     return (
       <EmptyState
-        icon={Receipt}
+        illustration="orders"
         eyebrow="◆ Paid Orders"
         title="No orders yet."
         body="Share your shop link to start moving pieces — every paid order lands here with the buyer's contact info."

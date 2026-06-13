@@ -4,7 +4,7 @@ import { fetchProducts } from "../lib/api";
 import ProductCard from "../components/ProductCard";
 import EmptyState from "../components/EmptyState";
 import { CardSkeleton } from "../components/Skeleton";
-import { Search, Wrench } from "lucide-react";
+import { Search } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 import { CATEGORIES } from "./MakerListingEditor/constants";
 import SupportVeteransStrip from "../components/SupportVeteransStrip";
@@ -424,7 +424,7 @@ export default function ShopPage() {
               </>
             ) : (
               <EmptyState
-                icon={Wrench}
+                illustration="no-results"
                 eyebrow="◆ Empty Workshop"
                 title="No pieces match those filters."
                 body="Try a different category or technique — or commission something custom and we'll match you with a maker."

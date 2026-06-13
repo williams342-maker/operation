@@ -471,3 +471,151 @@ def test_bulk_approve_by_ids_applies_only_listed(headers):
         loop.run_until_complete(cleanup())
     finally:
         loop.close()
+
+
+# iter413i — Bulk rollback (Undo snackbar companion to bulk-approve)
+def test_bulk_rollback_requires_admin():
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-rollback",
+                      json={"ids": ["anything"]}, timeout=10)
+    assert r.status_code in (401, 403)
+
+
+def test_bulk_rollback_validates_payload(headers):
+    """Empty ids must 400."""
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-rollback",
+                      headers=headers, json={"ids": []}, timeout=15)
+    assert r.status_code == 400
+
+
+def test_bulk_rollback_reverses_applied_entries(headers):
+    """End-to-end: seed two pending alt-text entries → bulk-approve →
+    confirm product alts mutated → bulk-rollback → confirm product alts
+    reverted to original AND queue entries marked rolled_back."""
+    import asyncio
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from core import db as _db
+
+    async def seed():
+        product = await _db.products.find_one({"shop_closed": {"$ne": True}}, {"_id": 0})
+        if not product:
+            return None
+        ids = []
+        now = datetime.now(timezone.utc).isoformat()
+        original = product.get("image_alts") or []
+        for i in range(2):
+            qid = "qtest-undo-" + str(_uuid.uuid4())[:8]
+            ids.append(qid)
+            await _db.seo_agent_queue.insert_one({
+                "id": qid, "run_id": "test-run-undo",
+                "issue_id": f"iss-undo-{i}",
+                "issue_kind": "missing_alt_text", "severity": "medium",
+                "target_type": "product", "target_slug": product["slug"],
+                "target_label": product.get("title"),
+                "field": "image_alts",
+                "before": {"image_alts": original},
+                "after": {"image_alts": [f"undo-test-{i}-A", f"undo-test-{i}-B"]},
+                "status": "pending", "generated_at": now,
+            })
+        return product["slug"], original, ids
+
+    loop = asyncio.new_event_loop()
+    try:
+        seeded = loop.run_until_complete(seed())
+    finally:
+        loop.close()
+    if not seeded:
+        pytest.skip("No product to mutate.")
+    slug, original_alts, ids = seeded
+
+    # 1. Bulk-approve both.
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-approve",
+                      headers=headers, json={"ids": ids}, timeout=30)
+    assert r.status_code == 200, r.text
+    assert set(r.json()["applied_ids"]) == set(ids)
+
+    # 2. Bulk-rollback both — undo path.
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-rollback",
+                      headers=headers, json={"ids": ids}, timeout=30)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert set(d["rolled_back_ids"]) == set(ids), d
+    assert d["failed_count"] == 0
+
+    # 3. Verify the product's image_alts reverted to original AND the
+    #    queue rows now show rolled_back status.
+    async def verify():
+        prod = await _db.products.find_one({"slug": slug}, {"_id": 0})
+        entries = await _db.seo_agent_queue.find({"id": {"$in": ids}}, {"_id": 0}).to_list(10)
+        return prod, entries
+
+    loop = asyncio.new_event_loop()
+    try:
+        prod, entries = loop.run_until_complete(verify())
+    finally:
+        loop.close()
+    assert prod.get("image_alts") == original_alts, "rollback did not restore the before snapshot"
+    for e in entries:
+        assert e["status"] == "rolled_back"
+
+    # Cleanup
+    async def cleanup():
+        await _db.seo_agent_queue.delete_many({"id": {"$in": ids}})
+        await _db.seo_agent_audit.delete_many({"queue_id": {"$in": ids}})
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(cleanup())
+    finally:
+        loop.close()
+
+
+def test_bulk_rollback_skips_non_applied(headers):
+    """If a caller passes pending or already-rolled-back ids, the
+    endpoint silently skips them (404 would be wrong — the endpoint is
+    idempotent by design)."""
+    import asyncio
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from core import db as _db
+
+    async def seed():
+        product = await _db.products.find_one({"shop_closed": {"$ne": True}}, {"_id": 0})
+        if not product:
+            return None
+        qid = "qtest-skip-" + str(_uuid.uuid4())[:8]
+        await _db.seo_agent_queue.insert_one({
+            "id": qid, "run_id": "test-run-skip",
+            "issue_id": "iss-skip", "issue_kind": "missing_alt_text",
+            "severity": "medium", "target_type": "product",
+            "target_slug": product["slug"], "target_label": product.get("title"),
+            "field": "image_alts",
+            "before": {"image_alts": []}, "after": {"image_alts": ["x"]},
+            "status": "pending",  # NOT applied — bulk-rollback must ignore.
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return qid
+
+    loop = asyncio.new_event_loop()
+    try:
+        qid = loop.run_until_complete(seed())
+    finally:
+        loop.close()
+    if not qid:
+        pytest.skip("No product to mutate.")
+
+    r = requests.post(f"{API}/admin/seo-agent/queue/bulk-rollback",
+                      headers=headers, json={"ids": [qid]}, timeout=15)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["rolled_back_count"] == 0
+    assert d["failed_count"] == 0  # silently ignored, not flagged as failures
+
+    async def cleanup():
+        await _db.seo_agent_queue.delete_one({"id": qid})
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(cleanup())
+    finally:
+        loop.close()

@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Mail, Check, MessageSquare, ExternalLink, Phone } from "lucide-react";
+import { Mail, Check, ExternalLink, Phone } from "lucide-react";
 import {
   fetchAdminContactMessages,
   adminResolveContactMessage,
@@ -147,7 +147,7 @@ export default function ContactInboxTab() {
           subtitle={filter === "pending"
             ? "Every contact-form submission has been replied to or resolved."
             : "Submissions from the public contact form will appear here."}
-          icon={MessageSquare}
+          illustration="messages"
         />
       ) : (
         <ol className="border border-line divide-y divide-line" data-testid="contact-list">

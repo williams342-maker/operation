@@ -12,7 +12,7 @@
  */
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { Mail, Clock, ChevronDown } from "lucide-react";
+import { Mail, ChevronDown } from "lucide-react";
 import {
   acceptBackorderRequest, declineBackorderRequest, fulfillBackorderRequest,
 } from "../../lib/api";
@@ -34,7 +34,7 @@ export default function BackordersList({ requests, onChange }) {
   if (!requests.length) {
     return (
       <EmptyState
-        icon={Clock}
+        illustration="package"
         eyebrow="◆ Backorders"
         title="No backorder requests."
         body="Once a buyer submits a backorder on one of your 0-stock listings, it lands here for you to accept or decline."

@@ -16,7 +16,7 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Star, ShieldAlert, MessageCircle, Check } from "lucide-react";
+import { ShieldAlert, MessageCircle, Check } from "lucide-react";
 import {
   fetchMakerReviews, postMakerReviewResponse, createReviewDispute,
 } from "../../lib/api";
@@ -93,7 +93,7 @@ export default function ReviewsTab() {
         <EmptyState
           title="No reviews yet."
           subtitle="Reviews appear here once buyers start leaving them on your listings."
-          icon={Star}
+          illustration="reviews"
         />
       ) : (
         <div className="space-y-3">

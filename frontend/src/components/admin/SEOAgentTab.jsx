@@ -626,9 +626,23 @@ export default function SEOAgentTab() {
       if (!r.ok) throw new Error(d.detail || "Bulk approve failed");
       const applied = d.applied_count || 0;
       const failed = d.failed_count || 0;
+      const appliedIds = d.applied_ids || [];
       if (applied > 0) {
+        // iter413i — Undo snackbar. The toast itself stays for 5s with
+        // a single-click "Undo" action that fires bulk-rollback against
+        // exactly the ids that were just applied. After 5s the toast
+        // auto-dismisses and the change is committed for good (the
+        // per-entry Roll back button still works from the Applied
+        // sub-tab indefinitely — Undo is just the fast path).
         toast.success(
           `${successMsg}: ${applied} applied${failed ? ` · ${failed} failed` : ""}`,
+          {
+            duration: 5000,
+            action: {
+              label: "Undo",
+              onClick: () => bulkRollback(appliedIds),
+            },
+          },
         );
       } else if (failed > 0) {
         toast.error(`Bulk approve failed for all ${failed} entries`);
@@ -641,6 +655,32 @@ export default function SEOAgentTab() {
       toast.error(e.message || "Bulk approve failed");
     } finally {
       setBulkBusy(false);
+    }
+  };
+
+  const bulkRollback = async (ids) => {
+    if (!ids || ids.length === 0) return;
+    const toastId = toast.loading(`Rolling back ${ids.length}…`);
+    try {
+      const r = await fetch(`${API}/api/admin/seo-agent/queue/bulk-rollback`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ ids }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Undo failed");
+      const rolled = d.rolled_back_count || 0;
+      const failed = d.failed_count || 0;
+      if (rolled > 0) {
+        toast.success(
+          `Reverted ${rolled}${failed ? ` · ${failed} failed` : ""}`,
+          { id: toastId },
+        );
+      } else {
+        toast.error("Undo failed — nothing rolled back", { id: toastId });
+      }
+      await refresh();
+    } catch (e) {
+      toast.error(e.message || "Undo failed", { id: toastId });
     }
   };
 

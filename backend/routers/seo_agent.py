@@ -1097,6 +1097,75 @@ async def seo_agent_queue_rollback(queue_id: str,
     return {"status": "rolled_back", "id": queue_id}
 
 
+class BulkRollbackReq(BaseModel):
+    # iter413i — Bulk-rollback companion to bulk-approve. Used by the
+    # "Undo (5s)" snackbar so a fat-fingered Shift+A on 50 entries
+    # reverses in one click. Always id-driven — there is no `all_safe`
+    # equivalent because the only meaningful bulk-rollback is "the set
+    # of ids we just applied".
+    ids: list[str]
+
+
+@router.post("/admin/seo-agent/queue/bulk-rollback")
+async def seo_agent_queue_bulk_rollback(req: BulkRollbackReq,
+                                        admin: dict = Depends(current_admin)):
+    """Roll back many applied entries in one call. Used by the Undo
+    snackbar after a bulk approve. Per-id outcomes returned so a
+    mid-batch failure (e.g. product deleted between approve and undo)
+    is visible to the caller.
+
+    Each rollback reuses the same logic as the single-entry endpoint:
+    restore the `before` snapshot to the live record, mark the queue
+    entry `rolled_back`, write an audit row with the values swapped."""
+    if not req.ids:
+        raise HTTPException(400, "Pass at least one id.")
+
+    entries = await db.seo_agent_queue.find(
+        {"id": {"$in": req.ids}, "status": "applied"}, {"_id": 0},
+    ).to_list(500)
+    admin_email = admin.get("email")
+    rolled: list[str] = []
+    failed: list[dict] = []
+    for entry in entries:
+        if entry["target_type"] != "product":
+            failed.append({"id": entry["id"], "error": "Only product rollbacks supported."})
+            continue
+        try:
+            await db.products.update_one(
+                {"slug": entry["target_slug"]},
+                {"$set": {entry["field"]: entry["before"][entry["field"]],
+                          "updated_at": now_iso()}},
+            )
+            rolled_at = now_iso()
+            await db.seo_agent_queue.update_one(
+                {"id": entry["id"]},
+                {"$set": {"status": "rolled_back", "rolled_back_at": rolled_at,
+                          "rolled_back_by": admin_email}},
+            )
+            await db.seo_agent_audit.insert_one({
+                "id": str(uuid.uuid4()),
+                "queue_id": entry["id"],
+                "action": "rollback",
+                "target_type": entry["target_type"],
+                "target_slug": entry["target_slug"],
+                "field": entry["field"],
+                "before": entry["after"],
+                "after": entry["before"],
+                "applied_at": rolled_at,
+                "applied_by": admin_email,
+            })
+            rolled.append(entry["id"])
+        except Exception as e:  # pragma: no cover — defensive
+            failed.append({"id": entry["id"], "error": str(e)})
+    return {
+        "requested": len(req.ids),
+        "rolled_back_count": len(rolled),
+        "failed_count": len(failed),
+        "rolled_back_ids": rolled,
+        "failed": failed,
+    }
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Cron entry point (called from scheduler.py at 02:00 UTC daily)
 # ──────────────────────────────────────────────────────────────────────
