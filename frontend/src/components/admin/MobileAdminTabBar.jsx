@@ -4,7 +4,7 @@ import {
   Search, X, Pin, PinOff,
 } from "lucide-react";
 import {
-  recordTabPick, partitionByPins, togglePin,
+  recordTabPick, partitionByPins, togglePin, getPinnedIds,
 } from "../../lib/adminTabFrecency";
 
 /**
@@ -35,6 +35,11 @@ const PREFERRED_ORDER = [
 export default function MobileAdminTabBar({ visibleTabs = [], current, onPick }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // iter413ab — `pinsTick` bumps on every pin toggle so the
+  // bottom-bar slot computation (which reads pins via getPinnedIds)
+  // re-runs without state thrash. Declared up here so both the slot
+  // memo below AND the sheet partition memo below that can depend on it.
+  const [pinsTick, setPinsTick] = useState(0);
 
   // Lock body scroll while the all-tabs sheet is open so the page
   // behind doesn't scroll-jack when users flick through the list.
@@ -53,11 +58,37 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
     return () => document.removeEventListener("keydown", onKey);
   }, [sheetOpen]);
 
-  // Build the 4 actionable slots, falling back to the first visible
-  // unused tab if any of the preferred IDs are hidden by capabilities.
+  // iter413ab — Auto-promote pinned tabs into the bottom-bar slots.
+  // If admin has 4+ pinned tabs, the bottom bar swaps the hardcoded
+  // PREFERRED_ORDER quick-actions for their top-4 pins. Power users
+  // get a personalized launcher; first-time admins keep the sensible
+  // defaults. The "More" sheet still lists everything regardless of
+  // mode. Re-computes on every pinsTick bump so toggling a pin
+  // updates the bottom bar live.
   const visibleIds = new Set(visibleTabs.map((t) => t.id));
+  const promotedFromPins = (() => {
+    const pinIds = getPinnedIds();
+    // Only fire promote-mode when 4+ pins exist AND they map to
+    // currently-visible tabs (capability-gated tabs may be hidden).
+    const reachable = pinIds.filter((id) => visibleIds.has(id));
+    if (reachable.length < 4) return null;
+    return reachable.slice(0, 4).map((id) => {
+      const tab = visibleTabs.find((t) => t.id === id);
+      const preset = PREFERRED_ORDER.find((p) => p.id === id);
+      return {
+        id,
+        icon: preset?.icon || ListChecks,  // fallback for tabs not in PREFERRED_ORDER
+        label: preset?.label || tab.label,
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  })();
+  // Re-run when pinsTick changes so toggling a pin updates the bottom
+  // bar immediately. Reference pinsTick here to register the dep.
+  void pinsTick;
+
   const used = new Set();
-  const slots = PREFERRED_ORDER.map((slot) => {
+  const slots = promotedFromPins || PREFERRED_ORDER.map((slot) => {
     if (visibleIds.has(slot.id)) {
       used.add(slot.id);
       return slot;
@@ -85,7 +116,6 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
   // tabs always sit at top, in pin-order; everything else follows
   // recency × frequency ranking. Bumping `pinsTick` after a toggle
   // forces re-partitioning without reopening the sheet.
-  const [pinsTick, setPinsTick] = useState(0);
   const { pinned, others } = useMemo(() => {
     if (!sheetOpen) return { pinned: [], others: visibleTabs };
     return partitionByPins(visibleTabs);

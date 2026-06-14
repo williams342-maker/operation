@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { getCheckoutStatus, communityRequestMagic, subscribeNewsletter } from "../lib/api";
 import { useCart } from "../lib/cart";
 import { uetTrack } from "../lib/consent";
+import { trackConversion } from "../lib/googleAdsConversions";
 import PushOptInCard from "../components/PushOptInCard";
 import { SocialShareRow } from "../components/SocialShareButtons";
 
@@ -64,6 +65,17 @@ export default function CheckoutSuccess() {
                   payload.pid = { em: s.email_sha256 };
                 }
                 uetTrack("purchase", payload);
+                // iter413ab — Google Ads purchase conversion. No-op
+                // until the `purchase` label is filled in
+                // CONVERSION_LABELS (admin pastes it from Google Ads →
+                // Tools → Measurement → Conversions). When wired,
+                // fires with the actual order total + currency for
+                // Google's value-based bidding.
+                trackConversion("purchase", {
+                  value: revenue,
+                  currency: (s.currency || "usd").toUpperCase(),
+                  transaction_id: s.transaction_id || s.session_id || null,
+                });
               }
             } catch { /* analytics should never break the success page */ }
           }
