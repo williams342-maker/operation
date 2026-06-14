@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import {
   Activity, AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles,
   ThumbsDown, ThumbsUp, Undo2, ChevronRight, Search, TrendingUp,
-  Zap, Clock,
+  Zap, Clock, ExternalLink, XCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
@@ -512,6 +512,222 @@ function QueueRow({ entry, onApprove, onReject, onRollback, busy, selected, onTo
 }
 
 
+// iter413ad — Pinterest Rich Pin validator panel.
+//
+// Pinterest doesn't expose a public Rich Pins validator API, so the
+// backend fetches the page itself, parses the OG + article:* meta tags,
+// and reports what Pinterest WOULD see. Admin can then click through to
+// Pinterest's own URL Debugger for a final visual confirmation.
+const PIN_QUICK_PAGES = [
+  { label: "Homepage",         path: "/" },
+  { label: "Shop",             path: "/shop" },
+  { label: "Custom Orders",    path: "/custom" },
+  { label: "Free SVG Pack",    path: "/free-svg-pack" },
+  { label: "How Custom Works", path: "/how-custom-orders-work" },
+  { label: "Journal",          path: "/journal" },
+];
+
+function PinterestRichPinValidator() {
+  const SITE = "https://craftersmarket.org";
+  const [url, setUrl] = useState(`${SITE}/`);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const validate = useCallback(async (target) => {
+    const toCheck = (target || url || "").trim();
+    if (!toCheck) {
+      toast.error("Enter a URL to validate.");
+      return;
+    }
+    setBusy(true);
+    setResult(null);
+    try {
+      const r = await fetch(`${API}/api/admin/seo-agent/pinterest-validate`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ url: toCheck }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        toast.error(data?.detail || "Validation failed.");
+        return;
+      }
+      setResult(data);
+      if (data.fetch_error) {
+        toast.error("Could not fetch the URL.");
+      } else if (data.all_required_present) {
+        toast.success("Rich Pin ready — all required tags present.");
+      } else {
+        toast.error(`Missing ${data.missing_required.length} required tag${data.missing_required.length === 1 ? "" : "s"}.`);
+      }
+    } catch {
+      toast.error("Network error while validating.");
+    } finally {
+      setBusy(false);
+    }
+  }, [url]);
+
+  return (
+    <div
+      className="border border-line bg-surface p-4"
+      data-testid="seo-agent-pinterest-validator"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
+            ◆ Pinterest Rich Pins
+          </div>
+          <h3 className="text-base font-medium text-ink mt-1">
+            Validate Rich Pin metadata
+          </h3>
+          <p className="text-xs text-ink-muted mt-1 max-w-prose">
+            Fetches the page as Pinterest&rsquo;s crawler would, then reports which
+            Open Graph + <code className="font-mono text-[11px] text-brand">article:*</code> tags
+            are present. Pinterest&rsquo;s official URL Debugger link appears below the
+            result for a final visual confirmation.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        {PIN_QUICK_PAGES.map((p) => (
+          <button
+            type="button"
+            key={p.path}
+            onClick={() => {
+              const next = `${SITE}${p.path}`;
+              setUrl(next);
+              validate(next);
+            }}
+            disabled={busy}
+            data-testid={`seo-agent-pin-quick-${p.path.replace(/\//g, "-") || "home"}`}
+            className="font-mono text-[10px] uppercase tracking-[0.18em] border border-line px-2.5 py-1 hover:border-brand hover:text-brand transition-colors disabled:opacity-50"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <form
+        onSubmit={(e) => { e.preventDefault(); validate(); }}
+        className="flex flex-wrap items-stretch gap-2 mb-3"
+      >
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://craftersmarket.org/..."
+          data-testid="seo-agent-pin-url-input"
+          className="flex-1 min-w-[260px] font-mono text-sm bg-surface border border-line text-ink px-3 py-2 focus:outline-none focus:border-brand placeholder:text-ink-muted/60"
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          data-testid="seo-agent-pin-validate"
+          className="font-mono text-xs uppercase tracking-[0.22em] border border-brand text-brand px-4 py-2 hover:bg-brand hover:text-paper transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+        >
+          {busy
+            ? <><Loader2 size={12} className="animate-spin" /> Checking…</>
+            : <><Search size={12} /> Validate</>}
+        </button>
+      </form>
+
+      {result && (
+        <div data-testid="seo-agent-pin-result">
+          {/* Status banner */}
+          {result.fetch_error ? (
+            <div className="border border-red-600 bg-red-600/5 p-3 mb-3 flex items-start gap-2">
+              <AlertCircle size={14} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-ink">
+                <strong>Could not fetch the URL.</strong>
+                <div className="text-xs text-ink-muted mt-1 font-mono break-all">{result.fetch_error}</div>
+              </div>
+            </div>
+          ) : result.all_required_present ? (
+            <div className="border border-emerald-600/40 bg-emerald-600/5 p-3 mb-3 flex items-center gap-2">
+              <CheckCircle2 size={14} className="text-emerald-700 flex-shrink-0" />
+              <div className="text-sm text-ink">
+                <strong>Rich Pin ready.</strong> All required tags present
+                {result.og_type ? <> · <code className="font-mono text-[11px] text-brand">og:type = {result.og_type}</code></> : null}
+                {result.rules_applied ? <> · rules: <strong className="text-brand">{result.rules_applied}</strong></> : null}
+              </div>
+            </div>
+          ) : (
+            <div className="border border-yellow-600/40 bg-yellow-600/5 p-3 mb-3 flex items-start gap-2">
+              <AlertCircle size={14} className="text-yellow-700 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-ink">
+                <strong>Missing {result.missing_required.length} required tag{result.missing_required.length === 1 ? "" : "s"}.</strong>
+                {result.status_code && result.status_code !== 200 && (
+                  <> · HTTP <strong>{result.status_code}</strong></>
+                )}
+                <div className="text-xs text-ink-muted mt-1">
+                  Add the missing tags below to your page meta, then re-validate.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Per-tag checklist */}
+          {result.checks.length > 0 && (
+            <div className="border border-line">
+              {result.checks.map((c, idx) => {
+                const ok = c.present;
+                const cls = ok
+                  ? "text-emerald-700"
+                  : c.required ? "text-red-600" : "text-ink-muted";
+                const Icon = ok ? CheckCircle2 : c.required ? XCircle : AlertCircle;
+                return (
+                  <div
+                    key={c.tag}
+                    data-testid={`seo-agent-pin-check-${c.tag.replace(/:/g, "_")}`}
+                    className={`flex items-start gap-3 px-3 py-2 ${idx === 0 ? "" : "border-t border-line"} ${ok ? "" : "bg-surface"}`}
+                  >
+                    <Icon size={14} className={`${cls} flex-shrink-0 mt-1`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="font-mono text-xs text-ink">{c.tag}</code>
+                        {c.required ? (
+                          <span className="font-mono text-[9px] uppercase tracking-[0.18em] border border-brand/40 text-brand px-1 py-0.5">
+                            required
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[9px] uppercase tracking-[0.18em] border border-line text-ink-muted px-1 py-0.5">
+                            recommended
+                          </span>
+                        )}
+                      </div>
+                      {c.value
+                        ? <div className="text-xs text-ink-muted mt-0.5 break-words font-mono">{c.value}</div>
+                        : <div className="text-xs text-ink-muted mt-0.5 italic">— not set —</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pinterest URL Debugger link */}
+          <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-xs text-ink-muted">
+              Final visual check on Pinterest&rsquo;s side:
+            </div>
+            <a
+              href={result.debugger_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="seo-agent-pin-debugger-link"
+              className="font-mono text-xs uppercase tracking-[0.22em] border border-line text-ink px-3 py-1.5 hover:border-brand hover:text-brand transition-colors inline-flex items-center gap-2"
+            >
+              Open Pinterest URL Debugger <ExternalLink size={11} />
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function SEOAgentTab() {
   const [overview, setOverview] = useState(null);
   const [issues, setIssues] = useState([]);
@@ -934,6 +1150,7 @@ export default function SEOAgentTab() {
               <li>Every applied change keeps a before-snapshot, so <strong>Roll back</strong> is always one click away.</li>
             </ul>
           </div>
+          <PinterestRichPinValidator />
           {counts.total === 0 && loaded && (
             <div className="border border-line p-6 text-center text-ink-muted">
               <CheckCircle2 size={20} className="mx-auto text-emerald-600 mb-2" />

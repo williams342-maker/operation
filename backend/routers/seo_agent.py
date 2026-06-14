@@ -713,6 +713,191 @@ async def seo_agent_overview(admin: dict = Depends(current_admin)):
     }
 
 
+# ── Pinterest Rich Pin validator (iter413ad) ───────────────────────────
+# Pinterest does NOT expose a public Rich Pins validator API — the
+# supported flow is their web URL Debugger
+# (developers.pinterest.com/tools/url-debugger/). To give admins a
+# one-click "is this page Rich Pin ready?" answer from inside the SEO
+# Agent dashboard, we fetch the page server-side, parse the
+# Open Graph + article:* meta tags, and report which required tags are
+# present. A link to Pinterest's URL Debugger is included so the admin
+# can do a final visual confirmation in Pinterest itself.
+#
+# Required tags differ by og:type:
+#   article  → og:title, og:description, og:url, og:image, og:type
+#              (strongly recommended: article:author, article:section)
+#   product  → og:title, og:description, og:url, og:image, og:type,
+#              product:price:amount, product:price:currency,
+#              product:availability
+#   other    → article rules applied as the default (Pinterest's
+#              fallback Rich Pin format).
+#
+# Security: we only fetch URLs on the apex marketplace domain to prevent
+# this endpoint from being used as an SSRF proxy.
+_PINTEREST_ALLOWED_HOSTS = {"craftersmarket.org", "www.craftersmarket.org"}
+
+# Allow same-host preview pulls so admins can validate before they push
+# to prod. Frontend defaults the input to the apex domain; the preview
+# host is optional.
+def _pinterest_allowed_hosts() -> set[str]:
+    extra = (os.environ.get("PINTEREST_VALIDATOR_EXTRA_HOSTS") or "").strip()
+    if not extra:
+        return _PINTEREST_ALLOWED_HOSTS
+    return _PINTEREST_ALLOWED_HOSTS | {h.strip().lower() for h in extra.split(",") if h.strip()}
+
+
+_META_TAG_RE = re.compile(
+    r"<meta\s+[^>]*?(?:property|name)\s*=\s*[\"']([^\"']+)[\"'][^>]*?content\s*=\s*[\"']([^\"']*)[\"'][^>]*?>",
+    re.IGNORECASE,
+)
+_META_TAG_RE_REV = re.compile(
+    r"<meta\s+[^>]*?content\s*=\s*[\"']([^\"']*)[\"'][^>]*?(?:property|name)\s*=\s*[\"']([^\"']+)[\"'][^>]*?>",
+    re.IGNORECASE,
+)
+
+
+def _parse_meta_tags(html: str) -> dict[str, str]:
+    """Extract OG / Pinterest-relevant meta tags from HTML.
+
+    Handles both attribute orders (property/name first, content first)
+    since React-rendered HTML can emit either. Lower-cases the keys for
+    consistent lookup; first wins on duplicates (matches what Pinterest
+    actually reads — the first og:image is the chosen Pin image).
+    """
+    out: dict[str, str] = {}
+    for prop, content in _META_TAG_RE.findall(html):
+        key = prop.strip().lower()
+        if key not in out:
+            out[key] = content.strip()
+    for content, prop in _META_TAG_RE_REV.findall(html):
+        key = prop.strip().lower()
+        if key not in out:
+            out[key] = content.strip()
+    return out
+
+
+# Per-og:type required-tag spec. Keep small + boring — Pinterest
+# documents far more optional tags but in practice these are the ones
+# whose absence blocks the Rich Pin badge.
+_RICH_PIN_RULES: dict[str, list[str]] = {
+    "article": ["og:type", "og:title", "og:description", "og:url", "og:image"],
+    "product": [
+        "og:type", "og:title", "og:description", "og:url", "og:image",
+        "product:price:amount", "product:price:currency",
+    ],
+}
+_RICH_PIN_RECOMMENDED: dict[str, list[str]] = {
+    "article": ["article:author", "article:section", "article:published_time"],
+    "product": ["product:availability"],
+}
+
+
+class PinterestValidateReq(BaseModel):
+    url: str
+
+
+@router.post("/admin/seo-agent/pinterest-validate")
+async def seo_agent_pinterest_validate(
+    req: PinterestValidateReq,
+    admin: dict = Depends(current_admin),
+):
+    """Validate that a page exposes the meta tags Pinterest needs to
+    classify it as a Rich Pin. Same-origin only (anti-SSRF). Pinterest
+    has no public validator API, so this is the closest we can ship —
+    we return what Pinterest WOULD see, and link to the URL Debugger
+    for the final manual visual confirmation."""
+    import httpx
+    from urllib.parse import urlparse
+
+    raw = (req.url or "").strip()
+    if not raw:
+        raise HTTPException(400, "URL is required.")
+    if not raw.lower().startswith(("http://", "https://")):
+        raw = "https://" + raw
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        raise HTTPException(400, "Invalid URL.")
+    host = (parsed.hostname or "").lower()
+    if host not in _pinterest_allowed_hosts():
+        raise HTTPException(
+            400,
+            f"URL host '{host or '(empty)'}' is not allowed. "
+            f"Allowed: {', '.join(sorted(_pinterest_allowed_hosts()))}.",
+        )
+
+    # Fetch the page like Pinterest's crawler would (UA helps surface
+    # bot-only redirect or noindex behaviour during validation).
+    try:
+        async with httpx.AsyncClient(
+            timeout=15,
+            follow_redirects=True,
+            headers={"User-Agent": "Pinterestbot/1.0 (+https://www.pinterest.com/bot.html)"},
+        ) as client:
+            r = await client.get(raw)
+            final_url = str(r.url)
+            status_code = r.status_code
+            html = r.text if r.status_code < 400 else ""
+    except httpx.HTTPError as e:
+        return {
+            "url": raw,
+            "fetched_url": None,
+            "status_code": None,
+            "fetch_error": str(e),
+            "og_type": None,
+            "checks": [],
+            "all_required_present": False,
+            "missing_required": [],
+            "debugger_url": f"https://developers.pinterest.com/tools/url-debugger/?link={raw}",
+        }
+
+    metas = _parse_meta_tags(html) if html else {}
+    og_type = (metas.get("og:type") or "").lower() or None
+
+    # Default to article rules when no og:type is declared — that's
+    # also Pinterest's fallback behaviour.
+    rules_key = og_type if og_type in _RICH_PIN_RULES else "article"
+    required_tags = _RICH_PIN_RULES[rules_key]
+    recommended_tags = _RICH_PIN_RECOMMENDED.get(rules_key, [])
+
+    checks: list[dict] = []
+    missing_required: list[str] = []
+    for tag in required_tags:
+        value = metas.get(tag) or ""
+        present = bool(value)
+        if not present:
+            missing_required.append(tag)
+        checks.append({
+            "tag": tag,
+            "required": True,
+            "present": present,
+            "value": value or None,
+        })
+    for tag in recommended_tags:
+        value = metas.get(tag) or ""
+        checks.append({
+            "tag": tag,
+            "required": False,
+            "present": bool(value),
+            "value": value or None,
+        })
+
+    return {
+        "url": raw,
+        "fetched_url": final_url,
+        "status_code": status_code,
+        "fetch_error": None,
+        "og_type": og_type,
+        "rules_applied": rules_key,
+        "checks": checks,
+        "all_required_present": len(missing_required) == 0 and status_code == 200,
+        "missing_required": missing_required,
+        # Direct link admin can click for the final Pinterest-side
+        # visual confirmation (rich pin badge + image preview).
+        "debugger_url": f"https://developers.pinterest.com/tools/url-debugger/?link={raw}",
+    }
+
+
 # ── Autopilot mode config (iter413c/d) ─────────────────────────────────
 class SetModeReq(BaseModel):
     mode: Optional[str] = None

@@ -94,6 +94,13 @@ SMOKE_FILES = {
     # landing pages keep their Pinterest Article Rich Pin badges.
     "test_iter413x_pinterest_rich_pin_contract.py",
 
+    # ── iter413ad — Pinterest Rich Pin validator endpoint ──────────
+    # Pins the POST /api/admin/seo-agent/pinterest-validate contract:
+    # admin-only, anti-SSRF host guard, response shape, tag parser
+    # handles both attribute orders. Backstops the "Validate Rich Pins"
+    # button in the SEO Agent admin dashboard.
+    "test_iter413ad_pinterest_validator_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }
