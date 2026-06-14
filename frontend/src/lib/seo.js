@@ -32,6 +32,12 @@ export function useStructuredData({
   articleAuthor,
   articleSection,
   articlePublishedTime,
+  // iter413p — `noindex=true` tells search engines to skip indexing
+  // this URL variant. Used on filtered listing views (`/shop?category=…`)
+  // where the canonical points to the bare URL and we don't want the
+  // filter variant fighting for ranking against its own canonical.
+  // Resolves GSC "Duplicate, Google chose different canonical".
+  noindex = false,
 }) {
   useEffect(() => {
     const cleanups = [];
@@ -135,7 +141,31 @@ export function useStructuredData({
     // Canonical
     setLink("canonical", url);
 
+    // iter413p — Robots directive. When `noindex` is true (filter
+    // variants of listing pages), tell crawlers to skip indexing but
+    // still follow links so internal linking equity flows. When false,
+    // we DO NOT emit an explicit meta robots tag — that lets the
+    // global default ("index, follow" baked into hosting) apply.
+    if (noindex) {
+      const robotsEl = document.head.querySelector('meta[name="robots"]:not([data-cm-structured])');
+      if (robotsEl) {
+        const prev = robotsEl.getAttribute("content");
+        robotsEl.setAttribute("content", "noindex, follow");
+        cleanups.push(() => prev != null && robotsEl.setAttribute("content", prev));
+      } else {
+        let el = document.head.querySelector('meta[name="robots"][data-cm-structured]');
+        if (!el) {
+          el = document.createElement("meta");
+          el.setAttribute("name", "robots");
+          el.dataset.cmStructured = "1";
+          document.head.appendChild(el);
+        }
+        el.setAttribute("content", "noindex, follow");
+        cleanups.push(() => el.remove());
+      }
+    }
+
     return () => cleanups.forEach((fn) => fn());
   }, [JSON.stringify(jsonLd), title, description, image, url, ogType, twitterCard, imageAlt, siteName,
-      articleAuthor, articleSection, articlePublishedTime]);
+      articleAuthor, articleSection, articlePublishedTime, noindex]);
 }

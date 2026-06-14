@@ -118,21 +118,35 @@ export default function ShopPage() {
     .filter((p) => (cat === "All" || p.category === cat) && (tech === "All" || p.technique === tech))
     .slice(0, 12)
     .map((p) => `https://craftersmarket.org/shop/${p.slug}`);
+  // iter413p — Canonicalize ALL filtered shop views to the bare /shop
+  // URL. Previously each filter variant declared a self-canonical with
+  // its query string, but Google saw these as duplicates of the bare
+  // /shop page (same chrome, overlapping product sets) and chose /shop
+  // as the canonical itself — flagging every filter variant as
+  // "Duplicate, Google chose different canonical" in Search Console.
+  // The textbook fix: every filter variant points its canonical at
+  // /shop AND emits robots="noindex, follow" so the variant doesn't
+  // compete with its own canonical. Link equity from inbound chips
+  // (related-page grids, SEO landing pages) still flows to /shop.
+  const _shopCanonical = "https://craftersmarket.org/shop";
+  const _hasActiveFilter = cat !== "All" || tech !== "All"
+    || (q || "").trim() !== "" || colorF !== "All" || occF !== "All";
   useStructuredData({
     title: cat !== "All"
       ? `${cat} · Shop · Crafters Market`
       : "Shop · Artisan Marketplace · Crafters Market",
     description: _pageDesc,
-    url: `https://craftersmarket.org/shop${cat !== "All" ? `?category=${encodeURIComponent(cat)}` : ""}`,
+    url: _shopCanonical,
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
     imageAlt: cat !== "All" ? `${cat} on Crafters Market` : "Crafters Market shop",
     ogType: "website",
+    noindex: _hasActiveFilter,
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
       name: _catLabel ? `${_catLabel} · Crafters Market` : "Crafters Market Shop",
       description: _pageDesc,
-      url: `https://craftersmarket.org/shop${cat !== "All" ? `?category=${encodeURIComponent(cat)}` : ""}`,
+      url: _shopCanonical,
       isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
       breadcrumb: {
         "@type": "BreadcrumbList",
