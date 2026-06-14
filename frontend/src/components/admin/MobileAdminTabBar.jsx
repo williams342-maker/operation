@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Inbox, FileText, ShieldAlert, ListChecks, MoreHorizontal,
-  Search, X,
+  Search, X, Pin, PinOff,
 } from "lucide-react";
-import { recordTabPick, sortByFrecency } from "../../lib/adminTabFrecency";
+import {
+  recordTabPick, partitionByPins, togglePin,
+} from "../../lib/adminTabFrecency";
 
 /**
  * MobileAdminTabBar — fixed bottom navigation for the admin dashboard
@@ -78,21 +80,31 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
     setQuery("");
   };
 
-  // iter413t — Compute a frecency-sorted snapshot of the tab list ONCE
-  // per sheet-open. We deliberately DO NOT re-sort on every render —
-  // that would shuffle items mid-scroll as the admin's tap promotes a
-  // tab and the sort runs again. Snapshot taken at sheet open + search
-  // filter is applied AFTER sort so the order is preserved within the
-  // filtered result set.
-  const sortedTabs = useMemo(() => {
-    if (!sheetOpen) return visibleTabs;
-    return sortByFrecency(visibleTabs);
+  // iter413v — Partition tabs into PINNED zone + frecency-sorted
+  // ALL-OTHERS zone, snapshotted at sheet-open + on pin-toggle. Pinned
+  // tabs always sit at top, in pin-order; everything else follows
+  // recency × frequency ranking. Bumping `pinsTick` after a toggle
+  // forces re-partitioning without reopening the sheet.
+  const [pinsTick, setPinsTick] = useState(0);
+  const { pinned, others } = useMemo(() => {
+    if (!sheetOpen) return { pinned: [], others: visibleTabs };
+    return partitionByPins(visibleTabs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheetOpen, visibleTabs.length]);
+  }, [sheetOpen, visibleTabs.length, pinsTick]);
 
-  const filteredTabs = query.trim()
-    ? sortedTabs.filter((t) => (t.label || "").toLowerCase().includes(query.trim().toLowerCase()))
-    : sortedTabs;
+  const filterFn = (t) => !query.trim()
+    || (t.label || "").toLowerCase().includes(query.trim().toLowerCase());
+  const filteredPinned = pinned.filter(filterFn);
+  const filteredOthers = others.filter(filterFn);
+  const totalFiltered = filteredPinned.length + filteredOthers.length;
+
+  const handleTogglePin = (e, id) => {
+    // Prevent the row click (which would navigate) from firing.
+    e.stopPropagation();
+    e.preventDefault();
+    togglePin(id);
+    setPinsTick((n) => n + 1);
+  };
 
   return (
     <>
@@ -201,39 +213,96 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
                 />
               </div>
             </div>
-            {/* Tab list */}
+            {/* Tab list — Pinned zone above All-Others zone */}
             <ul
               className="flex-1 overflow-y-auto"
               data-testid="mobile-admin-tabs-sheet-list"
             >
-              {filteredTabs.length === 0 ? (
+              {totalFiltered === 0 ? (
                 <li className="px-4 py-8 text-center font-mono text-xs text-ink-muted">
                   No tabs match &ldquo;{query}&rdquo;.
                 </li>
               ) : (
-                filteredTabs.map((t) => {
-                  const active = current === t.id;
-                  return (
-                    <li key={t.id}>
-                      <button
-                        type="button"
-                        onClick={() => pickFromSheet(t.id)}
-                        className={`w-full text-left px-4 py-3 border-b border-line/50 font-mono text-xs uppercase tracking-[0.2em] transition flex items-center justify-between ${
-                          active ? "text-brand bg-brand/5" : "text-ink hover:bg-surface"
-                        }`}
-                        data-testid={`mobile-admin-tabs-sheet-${t.id}`}
-                      >
-                        <span>{t.label}</span>
-                        {active && <span aria-hidden className="text-brand">●</span>}
-                      </button>
+                <>
+                  {filteredPinned.length > 0 && (
+                    <li
+                      className="px-4 py-2 font-mono text-[9px] uppercase tracking-[0.3em] text-brand bg-surface border-b border-line/50"
+                      data-testid="mobile-admin-tabs-sheet-pinned-header"
+                    >
+                      ◆ Pinned · {filteredPinned.length}
                     </li>
-                  );
-                })
+                  )}
+                  {filteredPinned.map((t) => (
+                    <TabRow
+                      key={`pin-${t.id}`}
+                      tab={t}
+                      pinned
+                      active={current === t.id}
+                      onPick={pickFromSheet}
+                      onTogglePin={handleTogglePin}
+                    />
+                  ))}
+                  {filteredPinned.length > 0 && filteredOthers.length > 0 && (
+                    <li
+                      className="px-4 py-2 font-mono text-[9px] uppercase tracking-[0.3em] text-ink-muted bg-surface border-b border-line/50"
+                      data-testid="mobile-admin-tabs-sheet-others-header"
+                    >
+                      ◆ All Tabs · {filteredOthers.length}
+                    </li>
+                  )}
+                  {filteredOthers.map((t) => (
+                    <TabRow
+                      key={t.id}
+                      tab={t}
+                      pinned={false}
+                      active={current === t.id}
+                      onPick={pickFromSheet}
+                      onTogglePin={handleTogglePin}
+                    />
+                  ))}
+                </>
               )}
             </ul>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Single tab row inside the sheet. Renders the label as a tap target
+ * (selects the tab) and a small pin handle on the right (toggles pin
+ * state without selecting). The pin button uses `stopPropagation` in
+ * the handler so a careful tap on the handle never accidentally
+ * triggers a navigation.
+ */
+function TabRow({ tab, active, pinned, onPick, onTogglePin }) {
+  return (
+    <li className="flex items-stretch border-b border-line/50">
+      <button
+        type="button"
+        onClick={() => onPick(tab.id)}
+        className={`flex-1 text-left px-4 py-3 font-mono text-xs uppercase tracking-[0.2em] transition flex items-center justify-between ${
+          active ? "text-brand bg-brand/5" : "text-ink hover:bg-surface"
+        }`}
+        data-testid={`mobile-admin-tabs-sheet-${tab.id}`}
+      >
+        <span>{tab.label}</span>
+        {active && <span aria-hidden className="text-brand">●</span>}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => onTogglePin(e, tab.id)}
+        aria-label={pinned ? `Unpin ${tab.label}` : `Pin ${tab.label} to top`}
+        title={pinned ? "Unpin" : "Pin to top"}
+        className={`shrink-0 w-12 flex items-center justify-center transition border-l border-line/50 ${
+          pinned ? "text-brand hover:bg-brand/10" : "text-ink-muted hover:text-brand hover:bg-surface"
+        }`}
+        data-testid={`mobile-admin-tabs-sheet-pin-${tab.id}`}
+      >
+        {pinned ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
+      </button>
+    </li>
   );
 }

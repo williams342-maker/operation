@@ -24,6 +24,10 @@ module.exports = {
                                 hover: 'var(--brand-hover)',
                         },
                         line: 'var(--line)',
+                        // iter413w — Warn token surfaces destructive
+                        // confirmations (e.g. "Reset all local prefs").
+                        // Backed by CSS vars in index.css for light + dark.
+                        warn: 'var(--warn)',
                         // Shadcn defaults (kept for existing components).
                         background: 'hsl(var(--background))',
                         foreground: 'hsl(var(--foreground))',

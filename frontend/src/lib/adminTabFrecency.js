@@ -123,3 +123,57 @@ export function countTotalEvents() {
   }
   return n;
 }
+
+// ── Pinned tabs (iter413v) ────────────────────────────────────────────
+// Manual pinning is orthogonal to frecency: pins surface tabs the admin
+// WANTS at the top regardless of usage (e.g. Audit Log — scanned often,
+// rarely clicked). Stored as an ordered list of tab IDs in a separate
+// key so clearing one doesn't clobber the other.
+
+const PINS_KEY = "cm_admin_tab_pins_v1";
+
+function loadPins() {
+  try {
+    const raw = localStorage.getItem(PINS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch { return []; }
+}
+function savePins(arr) {
+  try { localStorage.setItem(PINS_KEY, JSON.stringify(arr)); }
+  catch { /* private mode */ }
+}
+
+export function getPinnedIds() { return loadPins(); }
+export function isPinned(id) { return loadPins().includes(id); }
+export function countPins() { return loadPins().length; }
+
+/** Toggle pin state. Newly pinned IDs append at the END so existing
+ *  pin order is preserved (predictability beats "pop-to-top"). */
+export function togglePin(id) {
+  const pins = loadPins();
+  const idx = pins.indexOf(id);
+  if (idx >= 0) pins.splice(idx, 1);
+  else pins.push(id);
+  savePins(pins);
+  return pins.includes(id);
+}
+
+export function clearPins() {
+  try { localStorage.removeItem(PINS_KEY); }
+  catch { /* ignore */ }
+}
+
+/** Partition + sort: returns { pinned, others } where `pinned` is in
+ *  pin-order (the order the admin pinned them, stable across sessions)
+ *  and `others` is frecency-sorted. */
+export function partitionByPins(tabs) {
+  if (!Array.isArray(tabs)) return { pinned: [], others: [] };
+  const pinIds = loadPins();
+  const byId = new Map(tabs.map((t) => [t.id, t]));
+  const pinned = pinIds.map((id) => byId.get(id)).filter(Boolean);
+  const pinnedSet = new Set(pinIds);
+  const others = sortByFrecency(tabs.filter((t) => !pinnedSet.has(t.id)));
+  return { pinned, others };
+}

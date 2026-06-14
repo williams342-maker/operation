@@ -18,7 +18,7 @@ import {
   DISMISSIBLE_CARDS, countDismissed, restoreAllDismissed,
 } from "../../lib/dismissibleCards";
 import {
-  clearFrecency, countTotalEvents,
+  clearFrecency, countTotalEvents, countPins, clearPins,
 } from "../../lib/adminTabFrecency";
 
 /**
@@ -376,6 +376,7 @@ function Options({ maker, onSaved }) {
       </FormShell>
       <DismissedCardsRestore />
       <AdminTabFrecencyReset />
+      <ResetAllLocalPrefs />
     </div>
   );
 }
@@ -487,6 +488,75 @@ function AdminTabFrecencyReset() {
         >
           <RotateCcw size={11} />
           {count === 0 ? "Nothing to clear" : `Clear (${count} taps)`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// iter413w — Reset all local preferences (master button)
+// ----------------------------------------------------------------------------
+// One-click nuke for every local-only preference at once: dismissed
+// dashboard cards + admin tab frecency + admin tab pins. Useful when:
+//   • Handing the device to a colleague who wrecks your defaults
+//   • Switching browsers / new profile
+//   • Just wanting a clean slate
+// Borrows the destructive-action visual pattern (warn-tone border + red
+// text on the button) so users understand this is broader than the
+// scoped panels above.
+// ============================================================================
+function ResetAllLocalPrefs() {
+  const [counts, setCounts] = useState(() => ({
+    dismissed: countDismissed(),
+    taps: countTotalEvents(),
+    pins: countPins(),
+  }));
+  const total = counts.dismissed + counts.taps + counts.pins;
+  const handleResetAll = () => {
+    const before = { ...counts };
+    restoreAllDismissed({ surface: "maker_settings_reset_all" });
+    clearFrecency();
+    clearPins();
+    setCounts({ dismissed: 0, taps: 0, pins: 0 });
+    toast.success(
+      `Local preferences reset · ${before.dismissed} card${before.dismissed === 1 ? "" : "s"} restored · ${before.taps} tap${before.taps === 1 ? "" : "s"} cleared · ${before.pins} pin${before.pins === 1 ? "" : "s"} removed.`,
+    );
+  };
+  return (
+    <div
+      className="border border-warn/40 bg-warn/5 p-4 md:p-5"
+      data-testid="settings-reset-all-local-prefs"
+    >
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-warn mb-1.5">
+            ⚠ Local prefs · reset all
+          </div>
+          <h3 className="font-mono text-sm text-ink mb-1">
+            Reset all local preferences
+          </h3>
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-xl">
+            One-click reset for everything stored in this browser:
+            dismissed dashboard cards, admin tab frecency, and admin tab
+            pins. Affects only this device — server-side settings (shop
+            info, payouts, payment methods) are unaffected.
+          </p>
+          <ul className="font-mono text-[10px] text-ink-muted mt-2 space-y-0.5">
+            <li>· {counts.dismissed} dismissed card{counts.dismissed === 1 ? "" : "s"} → restore</li>
+            <li>· {counts.taps} recorded tap{counts.taps === 1 ? "" : "s"} → clear</li>
+            <li>· {counts.pins} pinned tab{counts.pins === 1 ? "" : "s"} → remove</li>
+          </ul>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetAll}
+          disabled={total === 0}
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 border border-warn text-warn hover:bg-warn hover:text-paper font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-warn"
+          data-testid="settings-reset-all-local-prefs-button"
+        >
+          <RotateCcw size={11} />
+          {total === 0 ? "Nothing to reset" : `Reset all (${total})`}
         </button>
       </div>
     </div>
