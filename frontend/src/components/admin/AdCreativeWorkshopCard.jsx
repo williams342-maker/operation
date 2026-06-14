@@ -45,7 +45,7 @@ const TONES = [
 export default function AdCreativeWorkshopCard() {
   const [view, setView] = useState("compose"); // "compose" | "drafts"
   const [subjectQuery, setSubjectQuery] = useState("");
-  const [subjects, setSubjects] = useState({ products: [], makers: [] });
+  const [subjects, setSubjects] = useState({ products: [], makers: [], site: [] });
   const [selected, setSelected] = useState(null); // { type, slug, title, image_url }
   const [channels, setChannels] = useState(["google_search", "meta_feed"]);
   const [tone, setTone] = useState("professional");
@@ -65,7 +65,7 @@ export default function AdCreativeWorkshopCard() {
         const r = await adminSearchAdSubjects(subjectQuery, 8);
         if (!cancelled) setSubjects(r);
       } catch {
-        if (!cancelled) setSubjects({ products: [], makers: [] });
+        if (!cancelled) setSubjects({ products: [], makers: [], site: [] });
       }
     }, 220);
     return () => { cancelled = true; clearTimeout(t); };
@@ -302,15 +302,19 @@ function ComposeView(props) {
           <div>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-              <input
+            <input
                 type="text"
                 value={subjectQuery}
                 onChange={(e) => setSubjectQuery(e.target.value)}
-                placeholder="Search products or makers…"
+                placeholder="Search products, makers, or the marketplace itself…"
                 className="w-full bg-paper border border-line focus:border-cyan-400 pl-9 pr-3 py-2 font-mono text-sm text-ink outline-none"
                 data-testid="ad-creative-subject-search"
               />
             </div>
+            {/* iter413r — Site/brand-level subject. Shown first when
+                present so admin can run self-promoting marketplace ads
+                without scrolling past products/makers. */}
+            <SubjectGrid label="Marketplace (brand-level)" items={subjects.site || []} onPick={setSelected} testId="site" />
             <SubjectGrid label="Products" items={subjects.products} onPick={setSelected} testId="products" />
             <SubjectGrid label="Makers"   items={subjects.makers}   onPick={setSelected} testId="makers" />
           </div>

@@ -75,7 +75,11 @@ CHANNEL_SPEC = {
 
 # ── Schemas ────────────────────────────────────────────────────────────
 class GenerateRequest(BaseModel):
-    subject_type: str = Field(..., pattern="^(product|maker)$")
+    # iter413r — `site` subject type lets admin generate brand-level
+    # marketplace ads (Crafters Market itself) alongside per-product and
+    # per-maker ads. The site subject is synthetic — `subject_slug` is
+    # always "crafters-market" for this type.
+    subject_type: str = Field(..., pattern="^(product|maker|site)$")
     subject_slug: str = Field(..., min_length=2, max_length=200)
     channels: list[str] = Field(..., min_length=1)
     tone: str = "professional"
@@ -94,7 +98,40 @@ class GenerateRequest(BaseModel):
 
 
 # ── Subject lookup ─────────────────────────────────────────────────────
+# iter413r — Brand-level "site" subject. Synthetic marketplace metadata
+# used when the admin wants to run a self-promoting brand campaign
+# rather than a product- or maker-specific one. We deliberately keep
+# the description short + on-brand so the LLM has clear copy direction
+# without needing to scrape the homepage at request-time.
+SITE_SUBJECT = {
+    "type": "site",
+    "slug": "crafters-market",
+    "title": "Crafters Market",
+    "tagline": "The American Handmade Marketplace",
+    "description": (
+        "An American handmade marketplace connecting buyers directly with "
+        "independent makers — woodworking, pottery, jewelry, leather goods, "
+        "metalwork, fiber arts, and more. Every piece shipped direct from "
+        "the workshop. No middlemen, no factory-line resellers."
+    ),
+    "value_props": [
+        "Direct from the workshop",
+        "Veteran-owned shops welcome",
+        "Made in the USA",
+        "No resellers, no mass-production",
+        "Support independent craftspeople",
+    ],
+    "image_url": "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    "landing_path": "/",
+}
+
+
 async def _find_subject(stype: str, slug: str) -> dict:
+    if stype == "site":
+        # The site subject is fixed — slug is informational only.
+        # We do NOT 404 on slug mismatch; admin UI passes the canonical
+        # slug and any drift here would just confuse the operator.
+        return dict(SITE_SUBJECT)
     if stype == "product":
         doc = await db.products.find_one({"slug": slug, "status": "published"})
         if not doc:
@@ -171,16 +208,37 @@ def _build_copy_prompt(subject: dict, channels: list[str], tone: str,
             "never keyword-stuff):\n- " + "\n- ".join(seo_keywords[:10]) + "\n"
         )
 
+    # iter413r — Brand-level reframing for the site subject. Without
+    # this, the LLM treats the marketplace's title as if it were a
+    # single product and writes weird product-style copy.
+    brand_block = ""
+    if subject.get("type") == "site":
+        brand_block = (
+            "\nBRAND-LEVEL AD: This subject is the MARKETPLACE ITSELF — "
+            "not a product, not a maker. Copy MUST:\n"
+            "  - Speak to BUYERS (handmade discovery, supporting "
+            "independent American makers, gift-worthy, real craftspeople).\n"
+            "  - Use the marketplace's value props naturally: direct from "
+            "the workshop, no resellers/no mass-production, US makers.\n"
+            "  - NEVER invent specific items, prices, or maker names.\n"
+            "  - Send buyers to the shop landing page (the site root), "
+            "not a product URL.\n"
+        )
+
     return (
         "You are writing platform-compliant ad copy for an artisan marketplace listing.\n\n"
-        f"SUBJECT:\n{subject_block}\n\n"
-        f"TONE: {tone_hint}\n"
+        f"SUBJECT:\n{subject_block}\n"
+        f"{brand_block}"
+        f"\nTONE: {tone_hint}\n"
         f"{seo_block}\n"
         "RULES:\n"
         "1. STRICT character limits — count characters. If a line goes over, rewrite it shorter.\n"
         "2. No emojis, no all-caps, no clickbait phrasing.\n"
         "3. Each variant must be distinct (don't paraphrase the same line 5 times).\n"
         "4. Mention the actual product/maker — never generic filler.\n"
+        "   (For brand-level ads, mention the marketplace's actual value "
+        "    props — Crafters Market, handmade, American makers, direct "
+        "    from workshop. NEVER 'generic filler'.)\n"
         "5. If 'is_veteran_owned' is true, at least one variant per channel should subtly reference it.\n"
         "6. Output VALID JSON only — no prose, no markdown fences.\n\n"
         "CHANNEL SPECS:\n"
@@ -372,7 +430,23 @@ async def list_subjects(q: str = "", limit: int = 12, _: dict = Depends(current_
             "title": d.get("shop_title") or d.get("name") or d["slug"],
             "image_url": d.get("portrait") or d.get("cover") or "",
         })
-    return {"products": products, "makers": makers}
+
+    # iter413r — Synthetic "site" subject for brand-level ads. Surfaced
+    # whenever the query is empty OR matches brand/site terminology so
+    # admin can find it without scrolling past products/makers. Always
+    # present in the response so UI knows to render the brand entry.
+    site_match = (not q) or any(
+        token in q.lower()
+        for token in ("site", "brand", "marketplace", "crafters", "self")
+    )
+    site_entries = [{
+        "type": "site",
+        "slug": SITE_SUBJECT["slug"],
+        "title": f"{SITE_SUBJECT['title']} — {SITE_SUBJECT['tagline']}",
+        "image_url": SITE_SUBJECT["image_url"],
+    }] if site_match else []
+
+    return {"products": products, "makers": makers, "site": site_entries}
 
 
 @router.post("/admin/ad-creative/generate")

@@ -83,6 +83,11 @@ SMOKE_FILES = {
     # Playwright in the backend env.
     "test_iter413p_canonical_contract.py",
 
+    # ── iter413r — Ad Creative Workshop `site` subject ─────────────
+    # Locks down the brand-level subject path so admin can always
+    # generate self-promoting marketplace ads alongside product/maker ads.
+    "test_iter413r_ad_workshop_site_subject.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }
