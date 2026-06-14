@@ -332,7 +332,47 @@ async def _generate_image_variant(subject: dict, draft_id: str, idx: int,
 
     # Compose a documentary-style prompt — never AI-rendered look.
     bits: list[str] = []
-    if subject["type"] == "product":
+    # iter413s — Brand-level image generation. When subject is the
+    # marketplace itself, render a documentary-style multi-craft scene
+    # that reads as "American handmade marketplace" rather than any
+    # single product. Three rotating compositions keep variants distinct.
+    if subject["type"] == "site":
+        bits.append(
+            "Subject: Crafters Market — an American handmade marketplace. "
+            "Render a documentary-style composition that signals BREADTH "
+            "of crafts (no single hero product). The image should feel "
+            "like a magazine spread photographing several maker workshops."
+        )
+        if subject.get("value_props"):
+            bits.append("Brand notes: " + " · ".join(subject["value_props"]))
+        brand_styles = [
+            # idx 0 — Workshop overhead flat-lay (Pinterest favourite)
+            "Overhead flat-lay on weathered oak workbench: a hand-thrown "
+            "ceramic mug, a finished walnut cutting board with planer "
+            "shavings beside it, a coil of brown leather, and a small "
+            "hand-forged iron hook arranged in loose grid. Soft natural "
+            "north-light from above. Subtle workshop ambience — paper "
+            "patterns, a metal ruler, a sliver of sawdust. Square 1:1, "
+            "no text, no watermark, no logo, no people.",
+            # idx 1 — Triptych workshop scene (Meta carousel-friendly)
+            "Three real workshop vignettes composed as a horizontal "
+            "triptych within one square frame: a potter's wheel mid-spin "
+            "on the left, a maker's hands gluing leather in the centre, "
+            "a CNC walnut sign close-up on the right. Warm tungsten + "
+            "natural daylight mix. Slightly out-of-focus backgrounds. "
+            "Documentary style, no AI gloss. Square 1:1, no text, no "
+            "logo, no watermark.",
+            # idx 2 — Single-frame brand collage with shallow depth
+            "Single magazine-style shot through an open workshop door: "
+            "in the foreground a freshly-fired ceramic vase on a wooden "
+            "stool; mid-ground a maker's hands carefully wrapping it in "
+            "kraft paper for shipping; background a sun-lit shelf of "
+            "finished pieces (mugs, leather goods, small wooden boxes). "
+            "Late-afternoon golden light. Shallow depth of field. Real "
+            "photography, no AI artifacts. Square 1:1, no text, no logo.",
+        ]
+        style = brand_styles[idx % len(brand_styles)]
+    elif subject["type"] == "product":
         bits.append(f"Product: {subject.get('title')}")
         if subject.get("description"):
             bits.append(f"Description: {subject['description'][:300]}")
@@ -340,22 +380,30 @@ async def _generate_image_variant(subject: dict, draft_id: str, idx: int,
             bits.append(f"Technique: {subject['technique']}")
         if subject.get("materials"):
             bits.append(f"Materials: {subject['materials']}")
+        styles = [
+            "Lifestyle photo, natural daylight, shallow depth of field, in-context use, "
+            "documentary style. Square 1:1 framing, no text, no watermark.",
+            "Product hero on neutral concrete or oak surface, soft side lighting, "
+            "clean composition, magazine quality. Square 1:1, no text.",
+            "Maker hands-at-work shot, workshop ambiance, slightly out-of-focus background, "
+            "warm tungsten light. Square 1:1, no text.",
+        ]
+        style = styles[idx % len(styles)]
     else:
         bits.append(f"Maker: {subject.get('title')}")
         if subject.get("description"):
             bits.append(f"Bio: {subject['description'][:300]}")
         if subject.get("techniques"):
             bits.append(f"Techniques: {subject['techniques']}")
-
-    styles = [
-        "Lifestyle photo, natural daylight, shallow depth of field, in-context use, "
-        "documentary style. Square 1:1 framing, no text, no watermark.",
-        "Product hero on neutral concrete or oak surface, soft side lighting, "
-        "clean composition, magazine quality. Square 1:1, no text.",
-        "Maker hands-at-work shot, workshop ambiance, slightly out-of-focus background, "
-        "warm tungsten light. Square 1:1, no text.",
-    ]
-    style = styles[idx % len(styles)]
+        styles = [
+            "Lifestyle photo, natural daylight, shallow depth of field, in-context use, "
+            "documentary style. Square 1:1 framing, no text, no watermark.",
+            "Product hero on neutral concrete or oak surface, soft side lighting, "
+            "clean composition, magazine quality. Square 1:1, no text.",
+            "Maker hands-at-work shot, workshop ambiance, slightly out-of-focus background, "
+            "warm tungsten light. Square 1:1, no text.",
+        ]
+        style = styles[idx % len(styles)]
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,

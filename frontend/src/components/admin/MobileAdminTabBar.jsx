@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Inbox, FileText, ShieldAlert, ListChecks, MoreHorizontal,
   Search, X,
 } from "lucide-react";
+import { recordTabPick, sortByFrecency } from "../../lib/adminTabFrecency";
 
 /**
  * MobileAdminTabBar — fixed bottom navigation for the admin dashboard
@@ -69,14 +70,29 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
   }).filter(Boolean);
 
   const pickFromSheet = (id) => {
+    // iter413t — Record the tap for frecency reordering. The next time
+    // the sheet opens, this tab will be promoted toward the top.
+    recordTabPick(id);
     onPick(id);
     setSheetOpen(false);
     setQuery("");
   };
 
+  // iter413t — Compute a frecency-sorted snapshot of the tab list ONCE
+  // per sheet-open. We deliberately DO NOT re-sort on every render —
+  // that would shuffle items mid-scroll as the admin's tap promotes a
+  // tab and the sort runs again. Snapshot taken at sheet open + search
+  // filter is applied AFTER sort so the order is preserved within the
+  // filtered result set.
+  const sortedTabs = useMemo(() => {
+    if (!sheetOpen) return visibleTabs;
+    return sortByFrecency(visibleTabs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetOpen, visibleTabs.length]);
+
   const filteredTabs = query.trim()
-    ? visibleTabs.filter((t) => (t.label || "").toLowerCase().includes(query.trim().toLowerCase()))
-    : visibleTabs;
+    ? sortedTabs.filter((t) => (t.label || "").toLowerCase().includes(query.trim().toLowerCase()))
+    : sortedTabs;
 
   return (
     <>
@@ -93,7 +109,7 @@ export default function MobileAdminTabBar({ visibleTabs = [], current, onPick })
               <button
                 key={id}
                 type="button"
-                onClick={() => onPick(id)}
+                onClick={() => { recordTabPick(id); onPick(id); }}
                 className={`relative flex flex-col items-center gap-0.5 py-2.5 transition ${
                   active
                     ? "text-brand"
