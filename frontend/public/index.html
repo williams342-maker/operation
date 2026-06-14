@@ -266,6 +266,14 @@
         <script>
           gtag('js', new Date());
           gtag('config', 'G-HY3FKJS4JK');
+          /* iter413aa — Google Ads conversion tracking. AW-11257134570
+             rides on the same gtag.js loader as GA4 above. Conversion
+             events (purchase, signup, add-to-cart) are fired from the
+             relevant React surfaces via gtag('event','conversion',
+             {send_to:'AW-11257134570/<LABEL>'}). The AW config call
+             enables the foundational tracking pixel + remarketing
+             audience build-up. */
+          gtag('config', 'AW-11257134570');
         </script>
 
         <!-- Microsoft Advertising UET (iter334d · ti=97249872) -->
