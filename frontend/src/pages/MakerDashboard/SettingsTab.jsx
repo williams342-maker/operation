@@ -17,6 +17,9 @@ import ClipsPanel from "./Settings/ClipsPanel";
 import {
   DISMISSIBLE_CARDS, countDismissed, restoreAllDismissed,
 } from "../../lib/dismissibleCards";
+import {
+  clearFrecency, countTotalEvents,
+} from "../../lib/adminTabFrecency";
 
 /**
  * Etsy-parity Settings tab for the Maker Shop Manager.
@@ -372,6 +375,7 @@ function Options({ maker, onSaved }) {
       />
       </FormShell>
       <DismissedCardsRestore />
+      <AdminTabFrecencyReset />
     </div>
   );
 }
@@ -427,6 +431,62 @@ function DismissedCardsRestore() {
         >
           <RotateCcw size={11} />
           {count === 0 ? "Nothing to restore" : `Restore (${count})`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// iter413u — Clear admin tab frecency
+// ----------------------------------------------------------------------------
+// Sibling of DismissedCardsRestore. Surfaces the count of recorded tab
+// taps + a one-click reset for the mobile admin tab sheet's frecency
+// ordering. Only meaningful for users who use /admin/dashboard on mobile,
+// but it's harmless on the maker side (button disabled when count is 0).
+// Lives in Settings → Options so all "reset local prefs" controls
+// cluster together.
+// ============================================================================
+function AdminTabFrecencyReset() {
+  const [count, setCount] = useState(() => countTotalEvents());
+  const handleClear = () => {
+    clearFrecency();
+    setCount(0);
+    toast.success(
+      "Admin tab order reset. The mobile tab sheet will return to "
+      + "declaration order until you start tapping tabs again.",
+    );
+  };
+  return (
+    <div
+      className="border border-line bg-paper p-4 md:p-5"
+      data-testid="settings-admin-tab-frecency-reset"
+    >
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1.5">
+            ◆ Admin tab order
+          </div>
+          <h3 className="font-mono text-sm text-ink mb-1">
+            Clear admin tab frecency
+          </h3>
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed max-w-xl">
+            On the admin dashboard mobile view (<code className="text-ink">/admin/dashboard</code>),
+            the More-tab sheet promotes tabs you tap most often. Clearing
+            this resets the order back to declaration order — useful if
+            you handed your phone to someone else and they wrecked your
+            ranking, or if you just want a clean slate.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={count === 0}
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] text-ink transition disabled:opacity-40 disabled:cursor-not-allowed"
+          data-testid="settings-clear-tab-frecency"
+        >
+          <RotateCcw size={11} />
+          {count === 0 ? "Nothing to clear" : `Clear (${count} taps)`}
         </button>
       </div>
     </div>

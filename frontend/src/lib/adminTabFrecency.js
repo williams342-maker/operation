@@ -110,3 +110,16 @@ export function clearFrecency() {
   try { localStorage.removeItem(STORAGE_KEY); }
   catch { /* ignore */ }
 }
+
+/** Count the total number of recorded tap events across ALL tabs.
+ *  Used by the Settings → Options "Clear admin tab frecency" panel
+ *  to display a counter (e.g. "Clear (42 taps)") and to disable the
+ *  button when nothing is stored. */
+export function countTotalEvents() {
+  const data = loadRaw();
+  let n = 0;
+  for (const events of Object.values(data)) {
+    if (Array.isArray(events)) n += events.length;
+  }
+  return n;
+}
