@@ -150,14 +150,28 @@ export function isPinned(id) { return loadPins().includes(id); }
 export function countPins() { return loadPins().length; }
 
 /** Toggle pin state. Newly pinned IDs append at the END so existing
- *  pin order is preserved (predictability beats "pop-to-top"). */
+ *  pin order is preserved (predictability beats "pop-to-top"). Fires
+ *  GA4 `tab_pinned` / `tab_unpinned` events (iter413y) so admins can
+ *  build a cohort report on which secondary tabs power-users pin —
+ *  signal for which surfaces deserve promotion into the bottom-bar
+ *  quick-actions. */
 export function togglePin(id) {
   const pins = loadPins();
   const idx = pins.indexOf(id);
   if (idx >= 0) pins.splice(idx, 1);
   else pins.push(id);
   savePins(pins);
-  return pins.includes(id);
+  const pinned = pins.includes(id);
+  try {
+    if (typeof window !== "undefined" && typeof window.gtag === "function") {
+      window.gtag("event", pinned ? "tab_pinned" : "tab_unpinned", {
+        tab_id: id,
+        pinned_count: pins.length,
+        surface: "admin_mobile_tab_sheet",
+      });
+    }
+  } catch { /* gtag is best-effort — never block the UX */ }
+  return pinned;
 }
 
 export function clearPins() {
