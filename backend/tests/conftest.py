@@ -88,6 +88,12 @@ SMOKE_FILES = {
     # generate self-promoting marketplace ads alongside product/maker ads.
     "test_iter413r_ad_workshop_site_subject.py",
 
+    # ── iter413x — Pinterest Rich Pin metadata contract ────────────
+    # Pins OG + article:* tag emission in lib/seo.js + per-page
+    # ogType=article + articleSection declarations so the 10 SEO
+    # landing pages keep their Pinterest Article Rich Pin badges.
+    "test_iter413x_pinterest_rich_pin_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }

@@ -95,6 +95,11 @@ export default function FreeSvgPackPage() {
     image: `${SITE_URL}/seed-designs/mountain-range-silhouette/preview.jpg`,
     imageAlt: "Free CNC starter pack — SVG and DXF design files",
     ogType: "article",
+    // iter413x — Pinterest Rich Pin category badge. Without
+    // `articleSection`, Pinterest's Article Rich Pin renders the card
+    // without a section label and loses the breadcrumb-style affordance.
+    articleAuthor: "Crafters Market",
+    articleSection: "Design Files",
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": [

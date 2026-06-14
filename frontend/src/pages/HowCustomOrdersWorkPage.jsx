@@ -108,6 +108,9 @@ export default function HowCustomOrdersWorkPage() {
     image: `${SITE_URL}/downloads/cnc-garage-builders.png`,
     imageAlt: "How custom orders work on Crafters Market",
     ogType: "article",
+    // iter413x — Pinterest Rich Pin category badge.
+    articleAuthor: "Crafters Market",
+    articleSection: "Custom Orders",
     jsonLd: {
       "@context": "https://schema.org",
       "@graph": [
