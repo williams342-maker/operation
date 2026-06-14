@@ -75,6 +75,14 @@ SMOKE_FILES = {
     # silently breaks (prod bug 2026-02-13).
     "test_iter413k_plus_required_contract.py",
 
+    # ── iter413p regression — Canonical-URL contract for /shop ──────
+    # Pins the GSC "Duplicate, Google chose different canonical" fix
+    # via 3 invariants:  (1) ShopPage canonical = bare /shop,
+    # (2) ShopPage emits noindex on filter variants, (3) sitemap never
+    # lists query-string URLs. Source-grep style so it runs without
+    # Playwright in the backend env.
+    "test_iter413p_canonical_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }
