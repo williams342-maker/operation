@@ -597,3 +597,17 @@ html.admin-compact [data-testid="admin-dashboard"] .space-y-4 > * + * { margin-t
         animation: theme-hint-enter 0.35s ease-out;
     }
 }
+
+/* iter413q — Slide-up animation for the mobile admin tabs sheet.
+ * Used by [data-testid="mobile-admin-tabs-sheet"] via Tailwind's
+ * arbitrary-value animate-[slideUp_0.18s_ease-out]. Honor
+ * reduced-motion preferences. */
+@keyframes slideUp {
+    0%   { transform: translateY(100%); }
+    100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-testid="mobile-admin-tabs-sheet"] > div:last-child {
+        animation: none !important;
+    }
+}
