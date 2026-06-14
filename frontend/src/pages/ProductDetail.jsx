@@ -5,6 +5,7 @@ import { fetchProduct, fetchMaker, fetchBackorderPolicy, http } from "../lib/api
 import { useCart } from "../lib/cart";
 import { etaRange } from "../lib/eta";
 import { uetTrack } from "../lib/consent";
+import { trackConversion } from "../lib/googleAdsConversions";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
@@ -367,6 +368,14 @@ export default function ProductDetail() {
           currency: "USD",
           event_label: p.slug || "unknown_listing",
           event_value: lineRevenue,
+        });
+        // iter413ac — mirror the same event to Google Ads so the AW
+        // pixel can attribute cart adds back to paid keywords. Same
+        // line-revenue figure keeps the two platforms reconciled.
+        trackConversion("add_to_cart", {
+          value: lineRevenue,
+          currency: "USD",
+          items: [{ id: p.slug || p.id, quantity: qty }],
         });
       }
     } catch { /* analytics should never break add-to-cart */ }

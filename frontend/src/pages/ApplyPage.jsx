@@ -3,6 +3,7 @@ import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 import { uetTrack } from "../lib/consent";
+import { trackConversion } from "../lib/googleAdsConversions";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
 
@@ -66,6 +67,12 @@ export default function ApplyPage() {
           event_label: "maker_application",
           event_value: 1,
         });
+      } catch { /* noop */ }
+      // iter413ac — mirror to Google Ads as `signup_maker` so the AW
+      // pixel can attribute completed maker applications back to the
+      // originating ad creative.
+      try {
+        trackConversion("signup_maker", { event_label: "maker_application" });
       } catch { /* noop */ }
     }
     catch (e2) {

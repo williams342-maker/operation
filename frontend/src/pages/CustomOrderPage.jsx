@@ -10,6 +10,7 @@ import {
 } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
+import { trackConversion } from "../lib/googleAdsConversions";
 
 // ============================================================
 //  Category catalog — 7 piece types incl. 3D Printing
@@ -780,6 +781,15 @@ export default function CustomOrderPage() {
       });
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
+      // iter413ac — Google Ads `lead_custom_order` conversion. Budget
+      // band is the highest-signal qualifier we have at this stage so
+      // it's surfaced as event_label for Ads bidding optimization.
+      try {
+        trackConversion("lead_custom_order", {
+          event_label: form.budget || "unspecified",
+          value: 1,
+        });
+      } catch { /* analytics best-effort */ }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Submission failed. Please try again.");
     } finally {

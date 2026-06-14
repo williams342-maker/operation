@@ -3,6 +3,7 @@ import { Mail, MapPin, Instagram, Send, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useStructuredData } from "../lib/seo";
 import { sendContactMessage } from "../lib/api";
+import { trackConversion } from "../lib/googleAdsConversions";
 
 const TOPICS = [
   { id: "general", label: "General question" },
@@ -119,6 +120,12 @@ function ContactForm() {
       });
       setDone(true);
       toast.success("Message received — we'll reply within 24 hours.");
+      // iter413ac — Google Ads `lead_contact` conversion. Topic is sent
+      // as event_label so the Ads dashboard can split "custom_order"
+      // leads from generic "general" inquiries when reporting ROAS.
+      try {
+        trackConversion("lead_contact", { event_label: topic || "general" });
+      } catch { /* analytics best-effort */ }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Couldn't send. Try again.");
     } finally {
