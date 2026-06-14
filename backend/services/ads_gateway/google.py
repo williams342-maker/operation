@@ -221,11 +221,15 @@ def _probe_write_access_sync(refresh_token: str, customer_id: str) -> Optional[s
         budget.name = "CM probe (validate_only)"
         budget.amount_micros = 5_000_000
         budget.delivery_method = client.enums.BudgetDeliveryMethodEnum.STANDARD
-        # validate_only — Google checks our auth + the payload but
-        # doesn't actually create anything.
-        svc.mutate_campaign_budgets(
-            customer_id=customer_id, operations=[op], validate_only=True,
-        )
+        # iter413z — google-ads 30.x removed `validate_only` as a kwarg
+        # on `mutate_campaign_budgets()`; it lives on the request object
+        # now. Pre-30 the kwarg form worked. Build the request first,
+        # then pass `request=...` so the call works across both shapes.
+        request = client.get_type("MutateCampaignBudgetsRequest")
+        request.customer_id = customer_id
+        request.operations.append(op)
+        request.validate_only = True
+        svc.mutate_campaign_budgets(request=request)
         return None
     except Exception as e:
         msg = str(e).lower()
