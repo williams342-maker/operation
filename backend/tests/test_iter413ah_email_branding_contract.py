@@ -84,3 +84,44 @@ def test_shell_respects_frontend_url_env_override():
             os.environ.pop("FRONTEND_URL", None)
         else:
             os.environ["FRONTEND_URL"] = original
+
+
+def test_every_send_function_routes_through_shell():
+    """Every `send_*` function in email_service.py that builds HTML
+    must route through `_shell()` so the brand monogram + tagline is
+    consistent across all transactional emails. iter413ai caught two
+    Founder-lifecycle emails (`send_founder_expiry_warning` and
+    `send_founder_farewell`) that bypassed _shell and were the only
+    transactional surfaces missing the new brand.
+
+    Allowed exceptions:
+      • `send_mailgun_with_attachment` — low-level transport helper,
+        callers pass the html themselves
+      • `send_ops_webhook` — Slack/Discord webhook, not an email
+    """
+    import re
+    import pathlib
+    src = pathlib.Path("/app/backend/email_service.py").read_text()
+    chunks = re.split(r"^(async def \w+|def \w+)", src, flags=re.MULTILINE)
+    allowed = {"send_mailgun_with_attachment", "send_ops_webhook"}
+    missing = []
+    for i in range(1, len(chunks), 2):
+        head = chunks[i]
+        body = chunks[i + 1] if i + 1 < len(chunks) else ""
+        name = re.match(r"(?:async\s+)?def\s+(\w+)", head).group(1)
+        if not name.startswith("send_") or name in allowed:
+            continue
+        has_inline_html = bool(
+            re.search(r"\bhtml\s*=\s*(?:f)?[\"']{3}|\bbody\s*=\s*\(", body)
+        )
+        uses_shell = "_shell(" in body
+        # Either it uses _shell directly or it delegates to a render_*
+        # helper that uses _shell (e.g. render_application_decision_email).
+        delegates_to_renderer = "render_" in body and "_send(" in body
+        if has_inline_html and not (uses_shell or delegates_to_renderer):
+            missing.append(name)
+    assert not missing, (
+        f"These send_* functions skip _shell() and would miss the "
+        f"brand monogram/tagline: {missing}. Either wrap them in "
+        f"_shell() or add them to the `allowed` set with a justification."
+    )

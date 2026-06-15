@@ -2071,9 +2071,19 @@ async def send_founder_expiry_warning(maker_email: str, name: str,
                                        founder_number: int, days_remaining: int):
     """Pre-expiry nudge sent at ~60 days out (month-10 mark) and ~14 days
     out (month-11.5 mark). Gives the maker time to upgrade to Plus
-    before their rate jumps from 3% → 5% on auto-roll."""
+    before their rate jumps from 3% → 5% on auto-roll.
+
+    iter413ai — wrapped in _shell() so this email picks up the brand
+    monogram + tagline alongside every other transactional email.
+    Previously this template built its own chrome and was the only
+    surface still missing the rebrand."""
     site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     subj = f"Your Founder rate ends in {days_remaining} days — Crafters Market"
+    intro = (
+        f"Hey {name} — you've been part of the founding 100 (#{founder_number:03d}) for "
+        f"nearly a year now. We wanted to give you a heads up before your rate changes so "
+        f"there are no surprises."
+    )
     body = (
         "<div style='background:#0a0a0a;border:1px solid #ff4500;padding:18px 20px;margin:0 0 24px'>"
         "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.3em;"
@@ -2085,10 +2095,6 @@ async def send_founder_expiry_warning(maker_email: str, name: str,
         f"After it ends, your commission rate goes from <b style='color:#fafafa'>3%</b> to "
         f"<b style='color:#fafafa'>5%</b> (Standard) unless you upgrade to Crafters Plus.</div>"
         "</div>"
-        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
-        f"Hey {name}, you've been part of the founding 100 for nearly a year now. "
-        "We wanted to give you a heads up before your rate changes so there are no surprises."
-        "</p>"
         "<ul style='font-size:13px;color:#e5e5e5;line-height:1.8;padding-left:20px;margin:0 0 16px'>"
         "<li><b>Stay free at Standard tier</b> — 5% commission, 10 free listings. No action needed.</li>"
         "<li><b>Upgrade to Crafters Plus</b> — 4% commission, 100 free listings/mo, $15/mo boost credit, 24h support SLA. $12/mo.</li>"
@@ -2104,28 +2110,33 @@ async def send_founder_expiry_warning(maker_email: str, name: str,
         "Thank you for helping us launch Crafters Market."
         "</p>"
     )
-    return await _send(maker_email, subj, body)
+    html = _shell(f"{days_remaining} days remaining", intro, body, "Founder · rate change notice")
+    return await _send(maker_email, subj, html)
 
 
 async def send_founder_farewell(maker_email: str, name: str, founder_number: int):
     """Sent the morning after a regular Founder auto-rolls to Standard.
     Tone: warm, grateful, never punitive. The Founder badge persists — only
-    the commission rate changes."""
+    the commission rate changes.
+
+    iter413ai — wrapped in _shell() to inherit the brand monogram +
+    tagline like every other transactional email."""
     site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     subj = "Thank you for being a Founder — Crafters Market"
+    intro = (
+        f"Hey {name} — we wanted to take a moment to say thank you. You shipped your first listings, "
+        f"took your first orders, and helped us learn what Crafters Market should be."
+    )
     body = (
         "<div style='background:#0a0a0a;border:1px solid #262626;padding:18px 20px;margin:0 0 24px'>"
         "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.3em;"
         f"text-transform:uppercase;color:#a3a3a3;margin:0 0 6px'>&#9670; Founder #{founder_number:03d}</div>"
-        "<div style='font-family:Impact,Arial Black,sans-serif;font-size:32px;line-height:1;"
-        "color:#fafafa;margin:0 0 8px'>A year of building together.</div>"
         "<div style='font-size:12px;color:#a3a3a3;line-height:1.55'>"
         "Your Founder window has ended. You're now on Standard &mdash; but your badge stays.</div>"
         "</div>"
-        f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
-        f"Hey {name}, we wanted to take a moment to say thank you. You shipped your first listings, "
-        f"took your first orders, and helped us learn what Crafters Market should be. Your "
-        "&#9670; Founding Maker badge is permanent &mdash; every product card you've ever published wears it forever."
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
+        "Your &#9670; Founding Maker badge is permanent &mdash; every product card you've ever "
+        "published wears it forever."
         "</p>"
         "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 16px'>"
         "Here's what changes today: your commission goes from <b>3%</b> to <b>5%</b>, and your free listing "
@@ -2142,7 +2153,8 @@ async def send_founder_farewell(maker_email: str, name: str, founder_number: int
         "Whatever you choose, we're grateful you bet on us early."
         "</p>"
     )
-    return await _send(maker_email, subj, body)
+    html = _shell("A year of building together.", intro, body, "Founder · year complete")
+    return await _send(maker_email, subj, html)
 
 
 
