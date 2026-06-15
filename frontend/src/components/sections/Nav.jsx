@@ -133,9 +133,16 @@ export default function Nav() {
       <ActivityTicker />
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 flex items-center justify-between py-4">
         <Link to="/" className="flex items-center gap-3 group" data-testid="nav-logo">
-          <div className="w-9 h-9 border border-brand flex items-center justify-center">
-            <span className="font-display text-brand text-xl">CM</span>
-          </div>
+          {/* iter413ag — rebranded monogram. Anvil-shaped CM in brand
+              orange, transparent PNG so it blends on any nav background. */}
+          <img
+            src="/icons/logo-monogram-transparent.png"
+            alt="Crafters Market"
+            width="36"
+            height="36"
+            className="w-9 h-9 object-contain"
+            style={{ imageRendering: "auto" }}
+          />
           <div className="hidden sm:flex flex-col leading-none">
             <span className="font-display text-lg tracking-wide">Crafters Market</span>
             <span className="font-mono text-[10px] text-ink-muted tracking-[0.25em] uppercase mt-1">
@@ -219,7 +226,16 @@ export default function Nav() {
               data-testid="mobile-menu"
             >
             <div className="flex justify-between items-center px-6 py-5 border-b border-line shrink-0">
-              <span className="font-display text-2xl">Crafters Market</span>
+              <div className="flex items-center gap-3">
+                <img
+                  src="/icons/logo-monogram-transparent.png"
+                  alt="Crafters Market"
+                  width="32"
+                  height="32"
+                  className="w-8 h-8 object-contain"
+                />
+                <span className="font-display text-2xl">Crafters Market</span>
+              </div>
               <button onClick={() => setOpen(false)} aria-label="Close menu" data-testid="nav-mobile-close">
                 <X size={24} />
               </button>

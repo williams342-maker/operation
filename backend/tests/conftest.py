@@ -115,6 +115,13 @@ SMOKE_FILES = {
     # silently regress mobile cold-cache LCP by ~120-180ms.
     "test_iter413af_perf_hints_contract.py",
 
+    # ── iter413ag — Rebrand asset wiring contract ──────────────────
+    # Pins the new CM-anvil monogram + tagline rebrand: all favicons
+    # exist at the right sizes, Nav/Footer reference the new monogram
+    # PNG (not the legacy text placeholder), og:image points at the
+    # new 1200x630 horizontal lockup, manifest icon paths unchanged.
+    "test_iter413ag_rebrand_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }

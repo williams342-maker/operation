@@ -101,9 +101,14 @@ export default function Footer() {
         <div className="grid md:grid-cols-12 gap-10 mb-16">
           <div className="md:col-span-5">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 border border-brand flex items-center justify-center">
-                <span className="font-display text-brand text-lg">CM</span>
-              </div>
+              {/* iter413ag — rebranded monogram. */}
+              <img
+                src="/icons/logo-monogram-transparent.png"
+                alt="Crafters Market"
+                width="40"
+                height="40"
+                className="w-10 h-10 object-contain"
+              />
               <span className="font-display text-2xl">Crafters Market</span>
             </div>
             <h3 className="font-display text-4xl md:text-6xl leading-[0.95] mb-6">
@@ -205,6 +210,16 @@ export default function Footer() {
             data-testid="footer-wordmark"
           >
             CRAFTERS MARKET
+          </div>
+          {/* iter413ag — new brand tagline alongside the rebrand. Sits
+              under the giant wordmark so it reads as the literal
+              "byline" of the brand, not a marketing claim. Mono caps
+              for the same chevron-language as the eyebrow above. */}
+          <div
+            className="font-mono text-[10px] uppercase tracking-[0.32em] text-brand mt-3"
+            data-testid="footer-brand-tagline"
+          >
+            Built on craft · Driven by makers
           </div>
         </div>
 

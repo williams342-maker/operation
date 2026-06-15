@@ -81,8 +81,10 @@ def test_boot_loader_div_is_first_body_child_before_root():
 
 
 def test_boot_loader_has_brand_anchored_content():
-    """Loader must include the CM wordmark + EST tag + animated bar so
-    users see a polished branded screen, not a generic spinner."""
+    """Loader must include the CM monogram + Crafters Market wordmark
+    + animated bar so users see a polished branded screen, not a
+    generic spinner. iter413ag rebranded the literal text "CM" into an
+    inline <img> referencing logo-monogram-transparent.png."""
     html = _read(INDEX_HTML)
     # Extract loader block
     m = re.search(
@@ -92,7 +94,8 @@ def test_boot_loader_has_brand_anchored_content():
     )
     assert m, "Could not locate the cm-boot-loader block"
     block = m.group(1)
-    assert "CM" in block, "CM monogram missing from loader"
+    # Monogram is now an <img> referencing the rebranded transparent PNG
+    assert "logo-monogram-transparent" in block, "CM monogram image missing from loader"
     assert "Crafters Market" in block, "Crafters Market wordmark missing from loader"
     assert "cm-boot-bar" in block, "Animated progress bar missing from loader"
 
