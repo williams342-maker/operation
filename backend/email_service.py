@@ -607,16 +607,36 @@ def _items_table(items: list[dict]) -> str:
     )
 
 
-async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items: list[dict]):
+async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items: list[dict],
+                             session_id: str | None = None):
     body = _items_table(items) if items else f"<p style='color:#e5e5e5'>{summary}</p>"
     body += f"<div style='border-top:1px solid #262626;padding-top:14px;display:flex;justify-content:space-between;font-size:14px'><span style='color:#a3a3a3;letter-spacing:0.22em;text-transform:uppercase;font-size:11px'>Total</span> <span style='color:#ff4500;font-family:Impact,sans-serif;font-size:28px;float:right'>${total:.2f}</span></div>"
     body += "<p style='font-size:13px;line-height:1.6;color:#a3a3a3;margin-top:24px'>Your makers have been notified. Each piece is built to order — expect a tracking email within 5–7 business days. Questions? Reply to this email anytime.</p>"
+
+    # iter413aj — Branded PDF receipt link. Wired into the
+    # order-confirmation email so buyers can grab a polished branded
+    # PDF straight from their inbox for records / gifting / expenses.
+    # Endpoint is gated only by the unguessable Stripe session_id.
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    if session_id:
+        pdf_url = f"{site}/api/checkout/{session_id}/receipt.pdf"
+        body += (
+            "<div style='border-top:1px solid #262626;padding-top:18px;margin-top:24px'>"
+            "<p style='font-size:11px;letter-spacing:0.22em;text-transform:uppercase;"
+            "color:#a3a3a3;margin:0 0 6px'>◆ Branded receipt</p>"
+            "<p style='font-size:13px;color:#e5e5e5;line-height:1.6;margin:0 0 12px'>"
+            "Download a polished PDF receipt for your records.</p>"
+            f"<a href='{pdf_url}' style='display:inline-block;background:#ff4500;"
+            "color:#000;padding:10px 18px;font-family:JetBrains Mono,monospace;font-size:11px;"
+            f"letter-spacing:0.22em;text-transform:uppercase;text-decoration:none;font-weight:bold'>"
+            f"Download PDF &rarr;</a>"
+            "</div>"
+        )
 
     # Per-maker review CTA — drives the order-confirmation high-engagement
     # moment into UGC. One CTA per unique maker (deduped).
     seen_makers = set()
     review_buttons = ""
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     for it in items or []:
         slug = it.get("maker_slug")
         name = it.get("maker_name") or slug

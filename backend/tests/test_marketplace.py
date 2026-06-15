@@ -2,11 +2,17 @@
 
 iter411c — Auto-tagged `smoke` via conftest.py SMOKE_FILES so the
 pre-deploy CI gate (`pytest -m smoke`) runs these flows.
+
+iter413ak — Seed restoration is now session-scoped in conftest.py,
+not per-file. Any test that depends on the canonical
+`mountain-range-silhouette` product will see it on first request
+even after sibling tests delete from the collection.
 """
 import os, time, requests, pytest
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://active-project-4.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
+
 
 @pytest.fixture(scope="module")
 def s():
@@ -22,8 +28,13 @@ def test_products_list(s):
     assert r.status_code == 200
     data = r.json()
     assert isinstance(data, list) and len(data) > 0
-    slugs = [p["slug"] for p in data]
-    assert "mountain-range-silhouette" in slugs
+    # iter413ak — Catalog has 100+ products now and /products paginates
+    # to the first 100. Asserting via the slug-specific endpoint is the
+    # reliable way to confirm the canonical seed exists.
+    r2 = s.get(f"{API}/products/mountain-range-silhouette")
+    assert r2.status_code == 200, (
+        f"Canonical seed product missing: GET /products/mountain-range-silhouette → {r2.status_code}"
+    )
 
 def test_get_product(s):
     r = s.get(f"{API}/products/mountain-range-silhouette")

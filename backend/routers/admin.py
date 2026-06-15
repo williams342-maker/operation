@@ -926,6 +926,7 @@ async def admin_refire_order_emails(
         await send_buyer_receipt(
             buyer_email=buyer_email,
             summary=summary, total=total, items=items,
+            session_id=session_id,
         )
         sent.append("buyer_receipt")
     except Exception as e:

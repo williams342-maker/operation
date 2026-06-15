@@ -749,6 +749,112 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
             "subtotal": quote["subtotal"], "shipping": quote["shipping"]}
 
 
+# ── iter413aj — Branded PDF order receipt ───────────────────────────────
+# Public endpoint guarded only by the Stripe session_id (unguessable
+# random token, same security model Stripe uses for hosted_invoice_url).
+# Returns a Crafters-Market-branded PDF assembled from the
+# `payment_transactions` row + per-product title/variant lookup. Linked
+# from the CheckoutSuccess page and the order-receipt transactional
+# email so customers can grab a polished branded receipt at any time
+# without an account.
+@router.get("/checkout/{session_id}/receipt.pdf")
+async def checkout_receipt_pdf(session_id: str):
+    from fastapi.responses import Response
+    from pdf_receipt import render_receipt_pdf
+
+    tx = await db.payment_transactions.find_one(
+        {"session_id": session_id}, {"_id": 0}
+    )
+    if not tx:
+        raise HTTPException(404, "Order not found.")
+    if tx.get("payment_status") != "paid":
+        # Receipts only exist for paid orders — surfacing one for an
+        # unpaid session would mislead the buyer.
+        raise HTTPException(409, "Receipt unavailable until payment is captured.")
+
+    # Resolve line items from the products collection. Same join the
+    # maker_order_detail uses (by_id / by_slug) so titles + variant
+    # labels + maker names all show up correctly.
+    raw_items = tx.get("items") or []
+    product_ids = {ci.get("product_id") for ci in raw_items if ci.get("product_id")}
+    products = await db.products.find(
+        {"$or": [{"id": {"$in": list(product_ids)}}, {"slug": {"$in": list(product_ids)}}]},
+        {"_id": 0},
+    ).to_list(500) if product_ids else []
+    by_id = {p["id"]: p for p in products if p.get("id")}
+    by_slug = {p["slug"]: p for p in products if p.get("slug")}
+
+    # Resolve maker names — same shape every transactional email uses.
+    maker_slugs = {p.get("maker_slug") for p in products if p.get("maker_slug")}
+    makers = await db.makers.find(
+        {"slug": {"$in": list(maker_slugs)}}, {"_id": 0, "slug": 1, "name": 1},
+    ).to_list(200) if maker_slugs else []
+    maker_name_by_slug = {m["slug"]: m.get("name") for m in makers}
+
+    items = []
+    for ci in raw_items:
+        pid = ci.get("product_id")
+        p = by_id.get(pid) or by_slug.get(pid) or {}
+        qty = int(ci.get("quantity") or 1)
+        unit_price = float(p.get("price") or 0)
+        variant_label = None
+        if ci.get("variant_id"):
+            for v in (p.get("variants") or []):
+                if v.get("id") == ci["variant_id"]:
+                    from core import effective_variant_price
+                    unit_price = effective_variant_price(p.get("price"), v)
+                    variant_label = v.get("label")
+                    break
+        # Custom option deltas (iter380)
+        try:
+            from core import custom_options_summary
+            c_label, c_delta = custom_options_summary(p, ci.get("custom_option_ids") or [])
+            if c_label:
+                unit_price = round(unit_price + float(c_delta), 2)
+                variant_label = (variant_label + "  ·  " + c_label) if variant_label else c_label
+        except Exception:
+            pass
+        items.append({
+            "title": p.get("title") or ci.get("title") or "Item",
+            "quantity": qty,
+            "unit_price": unit_price,
+            "line_total": round(unit_price * qty, 2),
+            "variant_label": variant_label,
+            "maker_name": maker_name_by_slug.get(p.get("maker_slug")),
+        })
+
+    # Discount amount may be in tx top-level OR nested. Prefer top-level.
+    discount_amount = float(tx.get("discount_amount") or 0)
+
+    pdf_bytes = render_receipt_pdf(
+        session_id=session_id,
+        amount_dollars=float(tx.get("amount") or 0),
+        subtotal=float(tx["subtotal"]) if tx.get("subtotal") is not None else None,
+        shipping_cost=float(tx["shipping"]) if tx.get("shipping") is not None else None,
+        discount_amount=discount_amount or None,
+        currency=(tx.get("currency") or "USD").upper(),
+        customer_email=tx.get("customer_email"),
+        items=items,
+        shipping_details=tx.get("shipping_details") or None,
+        gift_note=tx.get("gift_note"),
+        created_at=tx.get("created_at"),
+    )
+
+    # Filename uses the same short order id we show on screen + in the
+    # email, so the downloaded file is greppable from the customer's
+    # Downloads folder.
+    order_short = session_id[-10:].upper()
+    filename = f"crafters-market-receipt-{order_short}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
+
+
 @router.get("/checkout/status/{session_id}")
 async def checkout_status(session_id: str, http_request: Request, bg: BackgroundTasks):
     tx = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
@@ -1049,7 +1155,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
             total_amount = float(tx.get("amount", 0))
             bg.add_task(send_ops_new_order, summary, total_amount, email_items, buyer)
             if buyer:
-                bg.add_task(send_buyer_receipt, buyer, summary, total_amount, email_items)
+                bg.add_task(send_buyer_receipt, buyer, summary, total_amount, email_items, session_id)
                 # Stop any pending abandoned-cart push from firing for this buyer.
                 try:
                     from routers.abandoned_cart import mark_checked_out

@@ -129,6 +129,38 @@ export default function CheckoutSuccess() {
             : "Verifying payment status with Stripe…"}
       </p>
 
+      {/* iter413aj — Branded PDF order receipt. Surfaced right after
+          the payment-status line so it's the first call-to-action on
+          every paid checkout. The endpoint is gated only by the Stripe
+          session_id (unguessable token, same security model Stripe
+          uses for hosted_invoice_url), so no auth round-trip needed —
+          buyer can click straight through, even as a guest. */}
+      {paid && sid && (
+        <div
+          className="max-w-lg mx-auto border border-line p-5 mb-10 flex items-center justify-between gap-4 text-left"
+          data-testid="success-receipt-pdf-card"
+        >
+          <div className="min-w-0">
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-brand mb-1">
+              ◆ Branded receipt
+            </div>
+            <p className="font-mono text-xs text-ink-muted leading-relaxed">
+              Download a polished PDF receipt for your records, gifting,
+              or expense reports.
+            </p>
+          </div>
+          <a
+            href={`${process.env.REACT_APP_BACKEND_URL}/api/checkout/${encodeURIComponent(sid)}/receipt.pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 px-4 py-2 bg-brand hover:bg-brand-hover text-black font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition"
+            data-testid="success-download-receipt-pdf"
+          >
+            Download PDF →
+          </a>
+        </div>
+      )}
+
       {/* iter328 — Digital download manifest. Renders only when the
           order's transaction has uploaded files. Each row links to the
           token-gated `/api/checkout/downloads/{token}` endpoint which
