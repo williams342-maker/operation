@@ -32,8 +32,13 @@ async def _client():
 
 
 async def _wipe():
+    """iter413an — Wipe ALL showcase posts (not just iter116-* prefix)
+    because sibling tests in the smoke suite (test_iter117_showcase_analytics,
+    test_showcase_video, etc.) seed their own posts which push iter116's
+    sitewide entry out of the limited-result tiers. Each iter116 test
+    starts with a guaranteed-empty showcase_posts collection."""
     from core import db
-    await db.showcase_posts.delete_many({"id": {"$regex": "^iter116-"}})
+    await db.showcase_posts.delete_many({})
 
 
 async def _seed_post(slug_prefix: str, *, age_minutes: int = 0,

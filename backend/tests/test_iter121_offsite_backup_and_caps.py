@@ -23,6 +23,12 @@ sys.path.insert(0, "/app/backend")
 os.environ.setdefault("DB_NAME", "test_database")
 os.environ.setdefault("ADMIN_EMAILS", "super@example.com")
 
+# iter413an — Force-inject super admin into runtime set; see
+# test_iter119_admin_db_backup.py for the full rationale (ADMIN_EMAILS
+# is frozen at core import time, before this file's setdefault runs).
+from core import ADMIN_EMAILS as _CORE_ADMINS  # noqa: E402
+_CORE_ADMINS.add("super@example.com")
+
 from server import app  # noqa: E402
 from maker_auth import issue_session_jwt  # noqa: E402
 

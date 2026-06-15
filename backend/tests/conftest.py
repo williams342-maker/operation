@@ -222,14 +222,17 @@ SMOKE_FILES = {
     # KEPT IN (verified end-to-end in `yarn predeploy`):
     "test_admin_seo_shipping.py",
 
-    # NOT REINSTATED — pass individually but re-fail in the full suite
-    # due to cross-file admin state pollution (audit-row collisions,
-    # secrets-rotation timing, db-backup file collisions):
-    #   test_iter119_admin_db_backup.py
-    #   test_iter121_offsite_backup_and_caps.py
-    #   test_iter122_secrets_rotation.py
-    #   test_iter116_recent_showcase.py
-    # Tracked in PRD.md backlog — need per-file teardown fixtures.
+    # ── iter413an — Per-file teardown fixes for the 4 admin polluters ──
+    # • test_iter116: _wipe() now clears ALL showcase_posts, not just
+    #   the iter116-* prefix, so sibling tests that seed showcase data
+    #   can't push iter116's sitewide entry out of the tier results.
+    # • test_iter119/121/122: rely on mock_db patches and were running
+    #   green individually. Re-add and see if iter116 fix was the only
+    #   blocker — if not, dropped again with deeper investigation noted.
+    "test_iter116_recent_showcase.py",
+    "test_iter119_admin_db_backup.py",
+    "test_iter121_offsite_backup_and_caps.py",
+    "test_iter122_secrets_rotation.py",
 
     # ── iter413am — Additional files passing after self-healing ────
     # These 7 files now run green inside the full smoke gate.

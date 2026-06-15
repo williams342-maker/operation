@@ -21,6 +21,15 @@ sys.path.insert(0, "/app/backend")
 os.environ.setdefault("DB_NAME", "test_database")
 os.environ.setdefault("ADMIN_EMAILS", "super@example.com")
 
+# iter413an — `core.ADMIN_EMAILS` is computed at module-import time.
+# If `core` was already imported by an earlier test in the smoke suite
+# (e.g. via conftest.py's seed-restoration fixture), the os.environ
+# setdefault above lands AFTER the set was frozen, so super@example.com
+# isn't recognized as a super admin and these tests 403. Force-inject
+# our super admin into the runtime set instead of relying on env timing.
+from core import ADMIN_EMAILS as _CORE_ADMINS  # noqa: E402
+_CORE_ADMINS.add("super@example.com")
+
 from server import app  # noqa: E402
 from maker_auth import issue_session_jwt  # noqa: E402
 
