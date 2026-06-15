@@ -5,6 +5,7 @@ import {
   communityRequestMagic, communityVerifyMagic, communityGoogleExchange,
   fetchCommunityEua,
 } from "../lib/api";
+import { trackConversion } from "../lib/googleAdsConversions";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 const googleSignIn = () => {
@@ -186,6 +187,14 @@ export function CommunityVerify() {
         localStorage.setItem("cm_last_email", r.user.email);
         if (r.user.name) localStorage.setItem("cm_last_name", r.user.name);
         localStorage.setItem("cm_last_signin_at", new Date().toISOString());
+        // iter413al — Google Ads `signup_buyer` conversion fires on
+        // first-time community signups only (returning sign-ins don't
+        // count toward the customer-acquisition target). Wrapped in
+        // try/catch so analytics can never block the welcome redirect.
+        if (r.is_new_signup) {
+          try { trackConversion("signup_buyer", { event_label: "magic_link" }); }
+          catch { /* noop */ }
+        }
         // iter249 — first-time community signups go through the welcome flow.
         navigate(r.is_new_signup ? "/welcome" : "/community", { replace: true });
       } catch (e) { setError(e?.response?.data?.detail || "Could not verify the link."); }
@@ -234,6 +243,13 @@ export function CommunityAuthCallback() {
         localStorage.setItem("cm_last_signin_at", new Date().toISOString());
         // strip hash and navigate
         window.history.replaceState({}, "", window.location.pathname);
+        // iter413al — Google Ads `signup_buyer` conversion for the
+        // Google OAuth signup path. Mirrors the magic-link branch so
+        // both auth paths are attributed to paid keywords.
+        if (r.is_new_signup) {
+          try { trackConversion("signup_buyer", { event_label: "google_oauth" }); }
+          catch { /* noop */ }
+        }
         // iter249 — first-time community signups go through the welcome flow.
         navigate(r.is_new_signup ? "/welcome" : "/community", { replace: true });
       } catch (e) {

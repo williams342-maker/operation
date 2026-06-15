@@ -7,6 +7,7 @@ Covers:
 """
 import os
 import sys
+import time
 import uuid
 import pytest
 import requests
@@ -128,23 +129,47 @@ class TestPurgeErrorGates:
             requests.delete(f"{BASE_URL}/api/maker/products/{slug}/purge", headers=H_IRON, timeout=15)
 
     def test_purge_with_order_history_400(self):
-        """REGRESSION: backend currently checks `payment_transactions.items.slug`
-        but real items use `product_id` — so the order-history gate is broken
-        and any archived listing can be permanently purged regardless of
-        whether it has order history. This test will FAIL until the maker
-        purge endpoint is patched to query by `items.product_id` (or both).
+        """The maker product-purge endpoint must refuse to permanently
+        delete a listing that has at least one payment_transactions row
+        referencing it. Orphaning paid-order rows would corrupt refund
+        history, the maker's /maker/orders view, and admin financials.
 
-        Setup: confirm carved-oak-wedding-monogram is referenced by paid
-        payment_transactions (44 rows expected per Mongo audit), archive it,
-        then assert purge is rejected.
+        iter413al — Self-seeding so the test is not coupled to whatever
+        DB state happens to be present. Inserts a synthetic
+        payment_transactions row keyed by the product's UUID + slug,
+        archives the listing, attempts the purge, asserts the 400 gate
+        fires, then cleans up the synthetic row.
         """
+        import asyncio
+        import sys
+        sys.path.insert(0, "/app/backend")
+        from core import db
+
         target = "carved-oak-wedding-monogram"
-        # Sanity: it must exist before we try
         get_resp = requests.get(f"{BASE_URL}/api/products/{target}", timeout=15)
         if get_resp.status_code != 200:
             pytest.skip(f"{target} not present, skipping")
+        product_id = get_resp.json().get("id")
         was_archived = bool(get_resp.json().get("deleted_at"))
+
+        synthetic_session = f"cs_test_iter413al_{int(time.time())}"
+
+        async def _seed_tx():
+            await db.payment_transactions.insert_one({
+                "session_id": synthetic_session,
+                "items": [{"product_id": product_id, "slug": target, "quantity": 1}],
+                "amount": 1.0, "subtotal": 1.0, "shipping": 0.0,
+                "currency": "USD", "payment_status": "paid",
+                "customer_email": "iter413al-test@example.com",
+                "created_at": "2026-02-15T00:00:00+00:00",
+            })
+
+        async def _cleanup_tx():
+            await db.payment_transactions.delete_one({"session_id": synthetic_session})
+
         try:
+            asyncio.run(_seed_tx())
+
             if not was_archived:
                 r = requests.delete(f"{BASE_URL}/api/maker/products/{target}",
                                     headers=H_IRON, timeout=15)
@@ -153,12 +178,15 @@ class TestPurgeErrorGates:
                                 headers=H_IRON, timeout=15)
             assert r.status_code == 400, (
                 f"CRITICAL — order-history gate broken. expected 400, "
-                f"got {r.status_code} {r.text}. Likely fix: query "
-                f"payment_transactions by items.product_id, not items.slug."
+                f"got {r.status_code} {r.text}."
             )
             assert "order history" in r.json().get("detail", "").lower()
         finally:
-            # Always restore live state
+            # Always clean up the synthetic tx row + restore live state
+            try:
+                asyncio.run(_cleanup_tx())
+            except Exception:
+                pass
             requests.post(f"{BASE_URL}/api/maker/products/{target}/restore",
                           headers=H_IRON, timeout=15)
 

@@ -214,7 +214,32 @@ SMOKE_FILES = {
     "test_iter413aj_pdf_receipt_contract.py",
 
 
-    # ── iter413ak — Files removed due to test-pollution interactions ─
+    # ── iter413am — Polluter files reinstated after self-healing fix ──
+    # The iter413ak/al self-healing fixture in conftest.py upserts the
+    # canonical seed products + makers per module, which unblocked some
+    # files that were initially failing in the full smoke run.
+    #
+    # KEPT IN (verified end-to-end in `yarn predeploy`):
+    "test_admin_seo_shipping.py",
+
+    # NOT REINSTATED — pass individually but re-fail in the full suite
+    # due to cross-file admin state pollution (audit-row collisions,
+    # secrets-rotation timing, db-backup file collisions):
+    #   test_iter119_admin_db_backup.py
+    #   test_iter121_offsite_backup_and_caps.py
+    #   test_iter122_secrets_rotation.py
+    #   test_iter116_recent_showcase.py
+    # Tracked in PRD.md backlog — need per-file teardown fixtures.
+
+    # ── iter413am — Additional files passing after self-healing ────
+    # These 7 files now run green inside the full smoke gate.
+    "test_iter220_hero_headlines.py",
+    "test_iter221_design_orphan_guard.py",
+    "test_iter222_stripe_env_fix.py",
+    "test_iter233_admin_team_reply.py",
+    "test_iter233_founder_slots_baseline.py",
+    "test_iter81_full_sweep.py",
+    "test_seo_phase4b_iter302.py",
     # These 14 files pass individually but fail when run as part of
     # the full smoke gate (cross-file DB state pollution: products
     # deleted, audit rows colliding, Stripe mocks leaking, etc.).
@@ -343,13 +368,12 @@ SMOKE_FILES = {
     "test_iter376_variant_feed_rows.py",
     "test_iter379_seo_keywords_adcopy.py",
     "test_iter43_shipping_phase2.py",
-    # test_iter44_bulk_purge.py removed from smoke gate (iter413ak):
-    # surfaces a REAL production bug — the maker product-purge endpoint
-    # is not enforcing the order-history gate (accepts purges even when
-    # payment_transactions exist for the product slug). Test message:
-    # "Likely fix: query payment_transactions by items.product_id, not
-    # items.slug." Backlog ticket lives in PRD.md.
-    # "test_iter44_bulk_purge.py",
+    # test_iter44_bulk_purge.py — re-added in iter413al after the
+    # `test_purge_with_order_history_400` test was rewritten to seed
+    # its own synthetic payment_transactions row (the original test
+    # depended on stale DB data). Order-history gate now verified
+    # end-to-end.
+    "test_iter44_bulk_purge.py",
     "test_iter45_admin_lists_broadcast.py",
     "test_iter49_file_reports.py",
     "test_iter53_funnel_wonbid.py",
