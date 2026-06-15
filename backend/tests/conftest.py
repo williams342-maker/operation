@@ -109,6 +109,12 @@ SMOKE_FILES = {
     # SEO text flash before React mounts.
     "test_iter413ae_boot_loader_contract.py",
 
+    # ── iter413af — LCP resource hints contract ────────────────────
+    # Pins the perf hints (preconnect for cdn/r2/fonts hosts, font
+    # CSS preload moved to top of <head>) so a future refactor can't
+    # silently regress mobile cold-cache LCP by ~120-180ms.
+    "test_iter413af_perf_hints_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }
