@@ -101,6 +101,14 @@ SMOKE_FILES = {
     # button in the SEO Agent admin dashboard.
     "test_iter413ad_pinterest_validator_contract.py",
 
+    # ── iter413ae — Boot-loader + prerender-hider contract ─────────
+    # Pins the FOUC fix in public/index.html: html.js stamp script,
+    # inline critical CSS hiding [data-prerender] for JS users,
+    # branded loader div before #root, src/index.js fade-out logic.
+    # If any invariant regresses, real users see the raw prerender
+    # SEO text flash before React mounts.
+    "test_iter413ae_boot_loader_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }

@@ -5,6 +5,93 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#0a0a0a" />
 
+        <!-- ────────────────────────────────────────────────────────────
+             iter413ae — Branded boot loader + prerender-fallback hider.
+             The #root element contains a long SEO prerender block (see
+             body bottom) that exists ONLY for JS-less crawlers. Without
+             these styles, real users saw 100-1500ms of that raw text
+             before React mounted and replaced it ("flash of fallback
+             content"). The fix is a paint-blocking inline solution:
+               1. A 1-liner inline <script> stamps `html.js` BEFORE body
+                  parsing, so the CSS rule below applies on first paint.
+               2. The CSS rule hides [data-prerender] for any JS-capable
+                  browser — crawlers without JS still see the full block.
+               3. A full-viewport branded loader paints over everything
+                  while the React bundle is parsed + executed; index.js
+                  flips `body.cm-booted` after first render to fade it.
+             Industry-standard progressive-enhancement pattern. Google
+             explicitly endorses display:none toggled via JS for this
+             purpose (John Mueller, multiple Search Central Q&As). The
+             prerender content remains crawlable for non-JS bots.
+             ──────────────────────────────────────────────────────────── -->
+        <script>document.documentElement.className+=" js";</script>
+        <style>
+          /* Aged Canvas palette — kept inline so loader paints before
+             any stylesheet downloads. Tokens duplicated from
+             tailwind.config.js / index.css: paper #f4ede3, ink #1c160f,
+             ink-muted #6b6253, brand #a85f2b. */
+          html.js [data-prerender="true"] { display: none !important; }
+          html:not(.js) #cm-boot-loader { display: none !important; }
+          #cm-boot-loader {
+            position: fixed; inset: 0; z-index: 2147483647;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column;
+            background: #f4ede3;
+            color: #1c160f;
+            font-family: 'Anton', Impact, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            opacity: 1;
+            transition: opacity 280ms ease-out;
+          }
+          body.cm-booted #cm-boot-loader {
+            opacity: 0; pointer-events: none;
+          }
+          #cm-boot-loader .cm-boot-mark {
+            width: 56px; height: 56px;
+            border: 2px solid #1c160f;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; letter-spacing: 0.04em;
+            margin-bottom: 18px;
+            background: #f4ede3;
+          }
+          #cm-boot-loader .cm-boot-word {
+            font-size: 22px; letter-spacing: 0.32em; text-transform: uppercase;
+            margin: 0; line-height: 1;
+          }
+          #cm-boot-loader .cm-boot-est {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase;
+            color: #6b6253;
+            margin-top: 8px;
+          }
+          #cm-boot-loader .cm-boot-bar {
+            width: 120px; height: 1px;
+            margin-top: 22px;
+            background: rgba(28,22,15,0.12);
+            position: relative; overflow: hidden;
+          }
+          #cm-boot-loader .cm-boot-bar::after {
+            content: ''; position: absolute; inset: 0;
+            background: #a85f2b;
+            transform: translateX(-100%);
+            animation: cm-boot-slide 1.1s ease-in-out infinite;
+          }
+          @keyframes cm-boot-slide {
+            0%   { transform: translateX(-100%); }
+            50%  { transform: translateX(0); }
+            100% { transform: translateX(100%); }
+          }
+          @media (prefers-color-scheme: dark) {
+            #cm-boot-loader { background: #0a0a0a; color: #f4ede3; }
+            #cm-boot-loader .cm-boot-mark { border-color: #f4ede3; background: #0a0a0a; }
+            #cm-boot-loader .cm-boot-est { color: rgba(244,237,227,0.55); }
+            #cm-boot-loader .cm-boot-bar { background: rgba(244,237,227,0.15); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            #cm-boot-loader .cm-boot-bar::after { animation: none; background: #a85f2b; transform: none; }
+            #cm-boot-loader { transition: none; }
+          }
+        </style>
+
         <!-- Primary SEO (iter411 — broadened from CNC/metal-only to the full
              craft roster: woodworking, pottery, jewelry, leather, fiber, +
              the existing metal/CNC/laser categories. Title 63 chars, within
@@ -293,6 +380,18 @@
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
+        <!-- iter413ae — branded boot loader. Painted before React
+             mounts so users never see the prerender SEO block. Hidden
+             from non-JS crawlers via CSS (see <head> styles) so the
+             prerender content remains the only thing they see. The
+             React entry point (src/index.js) flips body.cm-booted
+             after first paint, which fades + removes this loader. -->
+        <div id="cm-boot-loader" aria-hidden="true" role="presentation">
+            <div class="cm-boot-mark">CM</div>
+            <p class="cm-boot-word">Crafters Market</p>
+            <p class="cm-boot-est">Est · 2026</p>
+            <div class="cm-boot-bar"></div>
+        </div>
         <div id="root">
             <!--
               Pre-mount fallback content for crawlers / link previewers that
