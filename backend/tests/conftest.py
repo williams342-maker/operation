@@ -122,6 +122,13 @@ SMOKE_FILES = {
     # new 1200x630 horizontal lockup, manifest icon paths unchanged.
     "test_iter413ag_rebrand_contract.py",
 
+    # ── iter413ah — Transactional email branding contract ──────────
+    # Pins the brand monogram <img> + tagline in the master _shell()
+    # helper that wraps EVERY transactional email. If this regresses,
+    # the whole email fleet silently loses brand consistency at the
+    # highest-stakes brand surface (the customer inbox).
+    "test_iter413ah_email_branding_contract.py",
+
     # ── Contrast lint contract (semantic theme tokens) ──────────────
     "test_contrast_lint.py",
 }

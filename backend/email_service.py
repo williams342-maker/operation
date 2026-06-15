@@ -480,12 +480,34 @@ async def _record_event(row: dict) -> None:
 
 
 def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
+    # iter413ah — Brand monogram + tagline wired into the email shell.
+    # Uses logo-monogram-transparent.png (orange-on-transparent PNG)
+    # so it composites cleanly on the dark email backdrop without an
+    # ugly cream box. Image is served from the production CDN — every
+    # email client fetches assets via absolute URL.
+    #
+    # Layout note: kept as a single <table> row with the monogram in a
+    # fixed-width left cell and the wordmark in a flexible right cell.
+    # Outlook/Yahoo mangle CSS flexbox; tables are the only reliable
+    # primitive across the email client matrix.
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    monogram_url = f"{site}/icons/logo-monogram-transparent.png"
     return f"""
     <div style="background:#0a0a0a;padding:40px 16px;font-family:'JetBrains Mono','Courier New',monospace;color:#e5e5e5">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;margin:0 auto;background:#121212;border:1px solid #262626">
-        <tr><td style="padding:32px 32px 24px;border-bottom:1px solid #262626">
-          <div style="font-size:11px;letter-spacing:0.3em;color:#ff4500;text-transform:uppercase">◆ Crafters Market</div>
-          <h1 style="font-family:Impact,'Arial Black',sans-serif;font-size:42px;line-height:1;margin:14px 0 0;color:#e5e5e5;text-transform:uppercase;letter-spacing:-0.01em">{title}</h1>
+        <tr><td style="padding:28px 32px 24px;border-bottom:1px solid #262626">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td width="56" valign="middle" style="padding-right:16px">
+                <img src="{monogram_url}" alt="Crafters Market" width="48" height="36" style="display:block;border:0;outline:none;width:48px;height:auto;max-width:48px" />
+              </td>
+              <td valign="middle">
+                <div style="font-size:11px;letter-spacing:0.3em;color:#ff4500;text-transform:uppercase;line-height:1">◆ Crafters Market</div>
+                <div style="font-size:9px;letter-spacing:0.32em;color:#737373;text-transform:uppercase;line-height:1;margin-top:6px">Est · 2026</div>
+              </td>
+            </tr>
+          </table>
+          <h1 style="font-family:Impact,'Arial Black',sans-serif;font-size:42px;line-height:1;margin:18px 0 0;color:#e5e5e5;text-transform:uppercase;letter-spacing:-0.01em">{title}</h1>
         </td></tr>
         <tr><td style="padding:24px 32px">
           <p style="font-size:14px;line-height:1.6;color:#a3a3a3;margin:0 0 20px">{intro}</p>
@@ -493,6 +515,9 @@ def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
         </td></tr>
         <tr><td style="padding:20px 32px;border-top:1px solid #262626;font-size:10px;letter-spacing:0.22em;color:#525252;text-transform:uppercase">
           {footer or "Precision craft · delivered."} · craftersmarket.org
+        </td></tr>
+        <tr><td style="padding:14px 32px 22px;font-size:9px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;text-align:center">
+          Built on craft · Driven by makers
         </td></tr>
       </table>
     </div>"""
