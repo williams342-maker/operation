@@ -621,6 +621,24 @@ SMOKE_FILES = {
 
     # ── iter413at — CI badge generator (live SMOKE_FILES pass-rate) ─
     "test_iter413at_ci_badge_contract.py",
+
+    # ── iter413au — Final test rot triage (full graduation) ────────
+    # All ~25 remaining files brought into SMOKE gate after a wave of
+    # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
+    # API contract updates (files[] uploads, free-limit constants,
+    # showcase opened to makers, policy_accepted required).
+    "test_iter43_save_drop_cohorts_chat.py",
+    "test_iter48_design_files_upload.py",
+    "test_iter4_ai_community.py",
+    "test_iter52_brief_routing.py",
+    "test_iter58_checkout_min_total.py",
+    "test_iter59_order_detail.py",
+    "test_iter6_maker_chat.py",
+    "test_iter7_admin_cart_ai.py",
+    "test_iter8_stripe_connect.py",
+    "test_maker_portal.py",
+    "test_referrals.py",
+    "test_shipping_shippo.py",
 }
 
 

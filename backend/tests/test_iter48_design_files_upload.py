@@ -51,7 +51,7 @@ class TestAuthGating:
     def test_no_auth_rejected_401(self, small_svg_bytes):
         r = requests.post(
             f"{API}/community/files/upload",
-            files={"file": ("test.svg", small_svg_bytes, "image/svg+xml")},
+            files=[("files", ("test.svg", small_svg_bytes, "image/svg+xml"))],
             data={"title": "T", "description": "D"},
         )
         assert r.status_code == 401, f"expected 401, got {r.status_code}: {r.text[:200]}"
@@ -60,7 +60,7 @@ class TestAuthGating:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": "Bearer not-a-real-jwt"},
-            files={"file": ("test.svg", small_svg_bytes, "image/svg+xml")},
+            files=[("files", ("test.svg", small_svg_bytes, "image/svg+xml"))],
             data={"title": "T", "description": "D"},
         )
         assert r.status_code in (401, 403), f"got {r.status_code}: {r.text[:200]}"
@@ -72,7 +72,7 @@ class TestMakerUpload:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {maker_jwt}"},
-            files={"file": ("iter48-maker.svg", small_svg_bytes, "image/svg+xml")},
+            files=[("files", ("iter48-maker.svg", small_svg_bytes, "image/svg+xml"))],
             data={
                 "title": "TEST_iter48_maker_upload",
                 "description": "Iter48 maker upload smoke test",
@@ -97,7 +97,7 @@ class TestMakerUpload:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {maker_jwt}"},
-            files={"file": ("notes.txt", b"hello world", "text/plain")},
+            files=[("files", ("notes.txt", b"hello world", "text/plain"))],
             data={
                 "title": "TEST_iter48_bad_type",
                 "description": "should be rejected",
@@ -110,7 +110,7 @@ class TestMakerUpload:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {maker_jwt}"},
-            files={"file": ("empty.svg", b"", "image/svg+xml")},
+            files=[("files", ("empty.svg", b"", "image/svg+xml"))],
             data={
                 "title": "TEST_iter48_empty",
                 "description": "empty body",
@@ -122,7 +122,7 @@ class TestMakerUpload:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {maker_jwt}"},
-            files={"file": ("t.svg", small_svg_bytes, "image/svg+xml")},
+            files=[("files", ("t.svg", small_svg_bytes, "image/svg+xml"))],
             data={"title": "", "description": "no title"},
         )
         assert r.status_code in (400, 422), f"got {r.status_code}: {r.text[:200]}"
@@ -134,7 +134,7 @@ class TestMakerUpload:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {maker_jwt}"},
-            files={"file": ("huge.svg", big, "image/svg+xml")},
+            files=[("files", ("huge.svg", big, "image/svg+xml"))],
             data={"title": "TEST_iter48_oversize", "description": "too big"},
             timeout=120,
         )
@@ -148,7 +148,7 @@ class TestBuyerUpload:
         r = requests.post(
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {buyer_jwt}"},
-            files={"file": ("iter48-buyer.svg", small_svg_bytes, "image/svg+xml")},
+            files=[("files", ("iter48-buyer.svg", small_svg_bytes, "image/svg+xml"))],
             data={
                 "title": "TEST_iter48_buyer_upload",
                 "description": "Iter48 buyer upload smoke test",

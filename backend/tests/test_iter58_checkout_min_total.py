@@ -8,7 +8,9 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or \
     open("/app/frontend/.env").read().split("REACT_APP_BACKEND_URL=")[-1].splitlines()[0].strip()
 
 LOW_PRICE_PID = "910b1738-03b4-4f8d-8422-a27a12e42f83"  # $0.10
-HIGH_PRICE_PID = "88c9ae9d-6c48-4083-bb8e-fb2d8e1226c0"  # $7.99 ish
+# iter413au — Old HIGH_PRICE_PID was removed from catalog; use a real
+# in-catalog product (mountain-range-silhouette $149).
+HIGH_PRICE_PID = "ff5904b2-d0ba-4440-b09d-a442ea763213"
 
 
 def _post(items, **extra):

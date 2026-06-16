@@ -208,6 +208,8 @@ def test_checkout_accepts_gift_note():
         "origin_url": "https://example.com",
         "customer_email": f"TEST_iter7_{uuid.uuid4().hex[:6]}@example.com",
         "gift_note": "TEST_iter7 gift note ✦ unicode ok",
+        # iter413au — policy_accepted now required.
+        "policy_accepted": True,
     }, timeout=20)
     assert r.status_code == 200, r.text
     body = r.json()
@@ -225,6 +227,7 @@ def test_checkout_works_without_gift_note():
         "items": [{"product_id": pid, "quantity": 1}],
         "origin_url": "https://example.com",
         "customer_email": f"TEST_iter7_{uuid.uuid4().hex[:6]}@example.com",
+        "policy_accepted": True,
     }, timeout=20)
     assert r.status_code == 200, r.text
 
