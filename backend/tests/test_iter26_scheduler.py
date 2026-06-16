@@ -15,7 +15,8 @@ def test_scheduler_disabled_via_env(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_scheduler_registers_three_jobs(monkeypatch):
-    """Default boot should register: expire_listings, r2_orphan_sweep, plus_roi_digest."""
+    """Default boot must register the original three jobs (subsequent
+    iters added many more; just enforce the foundational set is present)."""
     import scheduler as sched_mod
     sched_mod._scheduler = None
     monkeypatch.setenv("SCHEDULER_ENABLED", "true")
@@ -23,7 +24,10 @@ async def test_scheduler_registers_three_jobs(monkeypatch):
     try:
         assert s is not None
         ids = {j.id for j in s.get_jobs()}
-        assert ids == {"expire_listings", "r2_orphan_sweep", "plus_roi_digest"}
+        # iter413as — Many additional schedulers added since iter26; assert
+        # subset rather than equality so the test scales with new jobs.
+        for required in ("expire_listings", "r2_orphan_sweep", "plus_roi_digest"):
+            assert required in ids, f"missing required scheduler job: {required}"
     finally:
         sched_mod.shutdown_scheduler()
 

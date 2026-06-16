@@ -123,7 +123,13 @@ def test_ga4_diag_response_shape():
     assert "ok" in body
     assert body.get("property_id") == "535632204"
     if body["ok"]:
-        assert body.get("client_email", "").endswith(".iam.gserviceaccount.com")
+        # iter413as — Admin can be in either service-account or oauth mode.
+        client_email = body.get("client_email", "")
+        connected_email = body.get("connected_email", "")
+        active_mode = body.get("active_mode", "")
+        # Either we have a SA email or we're in oauth mode with a connected email.
+        if active_mode != "oauth":
+            assert client_email.endswith(".iam.gserviceaccount.com"), body
         assert "sample_active_users_24h" in body
     else:
         assert body.get("reason")

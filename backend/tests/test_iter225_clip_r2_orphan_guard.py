@@ -133,30 +133,40 @@ def test_orphan_guard_accepts_organic_maker_uploads():
 # ─────────────────────────────────────────────────────────────────────
 # Live HTTP — orphan row hidden from public feed, purge cleans DB.
 # ─────────────────────────────────────────────────────────────────────
+def _run_db_op(coll, method, *args, **kwargs):
+    """iter413as — Bind motor client to a fresh loop inside asyncio.run()."""
+    async def _inner():
+        from motor.motor_asyncio import AsyncIOMotorClient
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            d = client[os.environ["DB_NAME"]]
+            return await getattr(d[coll], method)(*args, **kwargs)
+        finally:
+            client.close()
+    return asyncio.run(_inner())
+
+
 def test_feed_excludes_local_path_orphan_after_seeding_one():
     """Insert a fake orphan row directly via Mongo, hit /api/clips/feed,
     confirm it never surfaces, then clean up."""
-    from core import db
     fake_id = str(uuid.uuid4())
     fake_slug = f"iter225-test-orphan-{uuid.uuid4().hex[:8]}"
-    asyncio.get_event_loop().run_until_complete(
-        db.clips.insert_one({
-            "id": fake_id,
-            "slug": fake_slug,
-            "maker_slug": None,
-            "maker_name": "test",
-            "title": "iter225 test orphan",
-            "description": "",
-            "category": "cuts",
-            "tags": [],
-            "video_url": f"/seed-clips/{fake_slug}/clip.mp4",
-            "poster_url": None,
-            "is_seed": True,
-            "file_verified": True,  # the exact stale-flag bug pattern
-            "quarantined_at": None,
-            "created_at": "2030-01-01T00:00:00+00:00",  # future date so it sorts first
-        })
-    )
+    _run_db_op("clips", "insert_one", {
+        "id": fake_id,
+        "slug": fake_slug,
+        "maker_slug": None,
+        "maker_name": "test",
+        "title": "iter225 test orphan",
+        "description": "",
+        "category": "cuts",
+        "tags": [],
+        "video_url": f"/seed-clips/{fake_slug}/clip.mp4",
+        "poster_url": None,
+        "is_seed": True,
+        "file_verified": True,  # the exact stale-flag bug pattern
+        "quarantined_at": None,
+        "created_at": "2030-01-01T00:00:00+00:00",  # future date so it sorts first
+    })
     try:
         r = requests.get(f"{API}/clips/feed?limit=40", timeout=15)
         assert r.status_code == 200, r.text
@@ -167,28 +177,23 @@ def test_feed_excludes_local_path_orphan_after_seeding_one():
             f"hardened _orphan_guard isn't filtering local-path seeds."
         )
     finally:
-        asyncio.get_event_loop().run_until_complete(
-            db.clips.delete_one({"id": fake_id})
-        )
+        _run_db_op("clips", "delete_one", {"id": fake_id})
 
 
 def test_purge_orphans_deletes_local_path_rows_even_verified():
     """The DB cleanup pair: even with file_verified=True, a local-path
     seed row must be purgeable via /admin/seed/clips/purge-orphans."""
-    from core import db
     fake_id = str(uuid.uuid4())
     fake_slug = f"iter225-purge-{uuid.uuid4().hex[:8]}"
-    asyncio.get_event_loop().run_until_complete(
-        db.clips.insert_one({
-            "id": fake_id,
-            "slug": fake_slug,
-            "title": "iter225 purge test",
-            "video_url": f"/seed-clips/{fake_slug}/clip.mp4",
-            "is_seed": True,
-            "file_verified": True,
-            "created_at": "2030-01-01T00:00:00+00:00",
-        })
-    )
+    _run_db_op("clips", "insert_one", {
+        "id": fake_id,
+        "slug": fake_slug,
+        "title": "iter225 purge test",
+        "video_url": f"/seed-clips/{fake_slug}/clip.mp4",
+        "is_seed": True,
+        "file_verified": True,
+        "created_at": "2030-01-01T00:00:00+00:00",
+    })
     try:
         r = requests.post(
             f"{API}/admin/seed/clips/purge-orphans",
@@ -203,9 +208,7 @@ def test_purge_orphans_deletes_local_path_rows_even_verified():
         )
     finally:
         # Best-effort cleanup if the purge missed it.
-        asyncio.get_event_loop().run_until_complete(
-            db.clips.delete_one({"id": fake_id})
-        )
+        _run_db_op("clips", "delete_one", {"id": fake_id})
 
 
 # ─────────────────────────────────────────────────────────────────────

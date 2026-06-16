@@ -58,10 +58,13 @@ def buyer_frozen():
 def seed_users(buyer_a, buyer_b, buyer_frozen):
     """Seed community_users docs (active for a/b, frozen for the third)."""
     from motor.motor_asyncio import AsyncIOMotorClient
-    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = client[os.environ["DB_NAME"]]
 
     async def _setup():
+        # iter413as — Create motor client INSIDE the asyncio.run() context
+        # so it binds to the loop that owns it. Reusing a client across
+        # multiple asyncio.run() calls causes "Event loop is closed".
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = client[os.environ["DB_NAME"]]
         for u, status in [
             (buyer_a, "active"),
             (buyer_b, "active"),
@@ -77,16 +80,19 @@ def seed_users(buyer_a, buyer_b, buyer_frozen):
                 }},
                 upsert=True,
             )
+        client.close()
 
     async def _teardown():
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = client[os.environ["DB_NAME"]]
         for u in (buyer_a, buyer_b, buyer_frozen):
             await db.community_users.delete_one({"user_id": u["uid"]})
             await db.follows.delete_many({"user_id": u["uid"]})
+        client.close()
 
-    asyncio.get_event_loop().run_until_complete(_setup())
+    asyncio.run(_setup())
     yield
-    asyncio.get_event_loop().run_until_complete(_teardown())
-    client.close()
+    asyncio.run(_teardown())
 
 
 # ---------- follow-status ----------------------------------------------------
@@ -218,7 +224,7 @@ class TestListingNotify:
         async def _insert():
             await db.products.insert_one(doc)
 
-        asyncio.get_event_loop().run_until_complete(_insert())
+        asyncio.run(_insert())
         client.close()
         return slug
 
@@ -230,7 +236,7 @@ class TestListingNotify:
         async def _del():
             await db.products.delete_one({"slug": slug})
 
-        asyncio.get_event_loop().run_until_complete(_del())
+        asyncio.run(_del())
         client.close()
 
     def test_published_first_call_sends_then_idempotent(self, buyer_a):
@@ -244,7 +250,7 @@ class TestListingNotify:
                 second = await notify_listing_published(slug)
                 return first, second
 
-            first, second = asyncio.get_event_loop().run_until_complete(_run())
+            first, second = asyncio.run(_run())
             assert first["sent"] is True
             assert "follower_count" in first and "follower_sent" in first
             assert first["follower_count"] >= 1  # buyer_a is following
@@ -260,7 +266,7 @@ class TestListingNotify:
             async def _fetch():
                 return await db.products.find_one({"slug": slug}, {"_id": 0, "published_at": 1})
 
-            doc = asyncio.get_event_loop().run_until_complete(_fetch())
+            doc = asyncio.run(_fetch())
             client.close()
             assert doc and doc.get("published_at")
         finally:
@@ -274,7 +280,7 @@ class TestListingNotify:
             async def _run():
                 return await notify_listing_published(slug)
 
-            r = asyncio.get_event_loop().run_until_complete(_run())
+            r = asyncio.run(_run())
             assert r["sent"] is False
             assert r["reason"] == "not_published"
         finally:
@@ -286,7 +292,7 @@ class TestListingNotify:
         async def _run():
             return await notify_listing_published("does-not-exist-xyz-9999")
 
-        r = asyncio.get_event_loop().run_until_complete(_run())
+        r = asyncio.run(_run())
         assert r["sent"] is False
         assert r["reason"] == "product_not_found"
 
@@ -308,7 +314,7 @@ class TestListingNotify:
         async def _insert():
             await db.products.insert_one(doc)
 
-        asyncio.get_event_loop().run_until_complete(_insert())
+        asyncio.run(_insert())
         client.close()
 
         try:
@@ -317,7 +323,7 @@ class TestListingNotify:
             async def _run():
                 return await notify_listing_published(slug)
 
-            r = asyncio.get_event_loop().run_until_complete(_run())
+            r = asyncio.run(_run())
             assert r["sent"] is False
             assert r["reason"] == "maker_not_found"
         finally:
@@ -339,7 +345,7 @@ class TestMakerCreatePublishHooks:
         async def _fetch():
             return await db.products.find_one({"slug": slug}, {"_id": 0, "published_at": 1})
 
-        d = asyncio.get_event_loop().run_until_complete(_fetch())
+        d = asyncio.run(_fetch())
         client.close()
         return d.get("published_at") if d else None
 
@@ -351,7 +357,7 @@ class TestMakerCreatePublishHooks:
         async def _del():
             await db.products.delete_one({"slug": slug})
 
-        asyncio.get_event_loop().run_until_complete(_del())
+        asyncio.run(_del())
         client.close()
 
     def test_create_published_stamps_published_at(self, maker_jwt):

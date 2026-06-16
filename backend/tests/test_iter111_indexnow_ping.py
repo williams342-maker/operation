@@ -116,7 +116,10 @@ async def test_ping_ok_path_records_audit_row():
     # Body shape sent to IndexNow.
     sent_payload = fake_post.await_args.kwargs.get("json") or fake_post.await_args.args[-1]
     assert sent_payload["host"] == "craftersmarket.org"
-    assert sent_payload["keyLocation"].endswith("/api/indexnow-key.txt")
+    # iter413as — IndexNow keyLocation is now `{site}/{key}.txt` rather
+    # than the legacy `/api/indexnow-key.txt` route (per Bing 2025 spec).
+    assert sent_payload["keyLocation"].startswith("https://craftersmarket.org/")
+    assert sent_payload["keyLocation"].endswith(".txt")
     assert isinstance(sent_payload["urlList"], list)
     # Audit row written.
     from seo_indexnow import status as ping_status

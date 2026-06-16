@@ -369,6 +369,24 @@ async def list_top_week_showcase(limit: int = 6):
             continue
         p["views_this_week"] = cnt
         items.append(p)
+    # iter413as — Top up from the lifetime fallback if the aggregation's
+    # top rows resolved to orphan post_ids (rows in showcase_views whose
+    # parent post was deleted/quarantined). Without this, the strip
+    # returns empty even when fallback-eligible posts exist.
+    if len(items) < n:
+        already = {p["id"] for p in items}
+        topup = await db.showcase_posts.find(
+            {
+                **_PUBLIC_FEED_FILTER,
+                **_HAS_IMAGE_FILTER,
+                "id": {"$nin": list(already)},
+                "views": {"$gt": 0},
+            },
+            proj,
+        ).sort("views", -1).limit(n - len(items)).to_list(n)
+        for p in topup:
+            p["views_this_week"] = 0
+            items.append(p)
     # iter278 — Drop visual duplicates (two different posts using the
     # same cover image render as identical tiles). Dedup happens AFTER
     # the rank-order reassembly so we keep the higher-ranked post.

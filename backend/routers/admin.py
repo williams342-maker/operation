@@ -1949,8 +1949,10 @@ async def admin_maker_analytics(slug: str, _: dict = Depends(current_admin)):
 
     # Catalog summary
     products = await db.products.find({"maker_slug": slug}, {"_id": 0}).to_list(500)
-    by_id = {p["id"]: p for p in products}
-    by_slug = {p["slug"]: p for p in products}
+    # iter413as — Some legacy product rows lack the `id` field (only `slug`)
+    # so guard the dict-comp to avoid a 500 on the analytics endpoint.
+    by_id = {p["id"]: p for p in products if p.get("id")}
+    by_slug = {p["slug"]: p for p in products if p.get("slug")}
 
     # Walk paid txs and tally lines belonging to this maker
     paid = await db.payment_transactions.find(

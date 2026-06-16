@@ -50,10 +50,13 @@ async def _ensure_maker_with_published(slug: str, product_slug: str) -> None:
         {"slug": product_slug},
         {"$setOnInsert": {
             "slug": product_slug,
+            "id": uuid4().hex,
             "maker_slug": slug,
             "title": f"Test product {product_slug}",
             "status": "published",
-            "price_cents": 5000,
+            # iter413as — Use `price` (canonical), not legacy `price_cents`,
+            # so the Product response validator doesn't 500 catalog GETs.
+            "price": 50.0,
             "deleted_at": None,
             "created_at": now_iso(),
         }},
@@ -71,12 +74,12 @@ async def _cleanup(slug: str, product_slug: str) -> None:
 def _setup_fixture():
     slug = f"iter315-{uuid4().hex[:8]}"
     prod = f"iter315-prod-{uuid4().hex[:6]}"
-    asyncio.get_event_loop().run_until_complete(_ensure_maker_with_published(slug, prod))
+    asyncio.run(_ensure_maker_with_published(slug, prod))
     return slug, prod
 
 
 def _teardown_fixture(slug: str, prod: str):
-    asyncio.get_event_loop().run_until_complete(_cleanup(slug, prod))
+    asyncio.run(_cleanup(slug, prod))
 
 
 def test_maker_upsert_read_delete_budget():
@@ -143,7 +146,7 @@ def test_owner_gating_rejects_other_makers_product():
 
 def test_draft_listing_rejected():
     slug, prod = _setup_fixture()
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         _set_status(prod, "draft")
     )
     jwt = _mint_maker(slug)
@@ -171,7 +174,8 @@ def test_renew_tick_charges_and_increments_spent():
     from routers.listing_budgets import renew_listing_budgets_tick
 
     slug, prod = _setup_fixture()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         # Seed a budget with $20 cap, auto_renew=true, $0 spent.
         from core import db, now_iso
@@ -212,7 +216,8 @@ def test_renew_tick_respects_cap():
     """Listings already at their cap must NOT be renewed."""
     from routers.listing_budgets import renew_listing_budgets_tick
     slug, prod = _setup_fixture()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         from core import db, now_iso
         loop.run_until_complete(db.maker_listing_budgets.insert_one({
@@ -245,7 +250,8 @@ def test_renew_tick_skips_listings_still_boosted_over_24h():
     regardless of cron frequency."""
     from routers.listing_budgets import renew_listing_budgets_tick
     slug, prod = _setup_fixture()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         from core import db, now_iso
         future = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()

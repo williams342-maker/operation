@@ -20,8 +20,10 @@ INDEX_HTML = Path("/app/frontend/public/index.html")
 
 
 def _extract_root_inner(raw: str) -> str:
-    m = re.search(r'<div id="root">(.*?)</div>\s*<a\s+id="emergent-badge"', raw, re.DOTALL)
-    assert m, "Could not find <div id='root'> ... <a id='emergent-badge'> in index.html"
+    # iter413as — Match `<div id="root">...</div>` followed by `</body>`
+    # (the legacy `<a id="emergent-badge">` sibling was removed).
+    m = re.search(r'<div id="root">(.*?)</div>\s*</body>', raw, re.DOTALL)
+    assert m, "Could not find <div id='root'> ... </body> in index.html"
     return m.group(1)
 
 
@@ -87,6 +89,9 @@ def test_fallback_is_inside_root_so_react_replaces_it():
     root_open = raw.index('<div id="root">')
     root_close_candidates = [m.start() for m in re.finditer(r"</div>", raw)]
     root_close = next(c for c in root_close_candidates if c > root_open)
-    prerender_idx = raw.find('data-prerender="true"')
-    assert prerender_idx != -1, "prerender marker missing"
+    # iter413as — Search for the <main data-prerender="true"> ELEMENT,
+    # not the CSS selector with the same attribute literal that lives
+    # in the inline <style> block before #root.
+    prerender_idx = raw.find('<main data-prerender="true"')
+    assert prerender_idx != -1, "prerender <main> element missing"
     assert root_open < prerender_idx < root_close, "prerender block must live inside #root"

@@ -33,15 +33,79 @@ MAKER_SLUG = "iron-and-oak"
 
 
 def _mongo():
-    from motor.motor_asyncio import AsyncIOMotorClient
-    url = os.environ["MONGO_URL"].strip().strip('"').strip("'")
-    dbname = os.environ["DB_NAME"].strip().strip('"').strip("'")
-    client = AsyncIOMotorClient(url)
-    return client, client[dbname]
+    """iter413as — Returns a (sentinel, sentinel-with-attr-access) tuple.
+    The actual motor client is created lazily INSIDE _run() to bind to
+    the correct event loop."""
+    return _ClientStub(), _DbStub()
 
 
-def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+class _DbStub:
+    """Captures collection name + method on attribute access."""
+    def __getattr__(self, name):
+        return _CollectionStub(name)
+
+
+class _ClientStub:
+    def close(self):
+        pass
+
+
+class _CollectionStub:
+    def __init__(self, coll_name):
+        self.coll_name = coll_name
+
+    def __getattr__(self, method):
+        coll_name = self.coll_name
+        def proxy(*args, **kwargs):
+            return _LazyOp(coll_name, method, args, kwargs)
+        return proxy
+
+
+class _LazyOp:
+    """Carries (collection, method, args) until _run() builds a real
+    motor client + executes the op inside its event loop."""
+    def __init__(self, coll_name, method, args, kwargs):
+        self.coll_name = coll_name
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+
+
+def _run(op):
+    """Execute a _LazyOp against a fresh motor client bound to a fresh
+    event loop. Accepts native coroutines too (for back-compat)."""
+    if isinstance(op, _LazyOp):
+        async def _runner():
+            from motor.motor_asyncio import AsyncIOMotorClient
+            url = os.environ["MONGO_URL"].strip().strip('"').strip("'")
+            dbname = os.environ["DB_NAME"].strip().strip('"').strip("'")
+            client = AsyncIOMotorClient(url)
+            try:
+                db = client[dbname]
+                coll = db[op.coll_name]
+                method = getattr(coll, op.method)
+                return await method(*op.args, **op.kwargs)
+            finally:
+                client.close()
+        return asyncio.run(_runner())
+    return asyncio.run(op)
+
+
+def _run_db(op_fn):
+    """iter413as — Helper that builds a motor client INSIDE asyncio.run()
+    so it binds to the current loop. Used to bypass the global `_mongo()`
+    pattern which creates clients on a deprecated/closed loop.
+    `op_fn(db)` is an async callable returning the result."""
+    async def _runner():
+        from motor.motor_asyncio import AsyncIOMotorClient
+        url = os.environ["MONGO_URL"].strip().strip('"').strip("'")
+        dbname = os.environ["DB_NAME"].strip().strip('"').strip("'")
+        client = AsyncIOMotorClient(url)
+        try:
+            return await op_fn(client[dbname])
+        finally:
+            client.close()
+    return asyncio.run(_runner())
 
 
 @pytest.fixture(scope="module")

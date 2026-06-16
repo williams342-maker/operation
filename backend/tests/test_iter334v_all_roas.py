@@ -122,9 +122,10 @@ async def test_all_roas_zero_spend_returns_null():
 
     prior_ops = await db.ops_settings.find_one({"_id": "bing_ad_spend"})
     await db.ops_settings.delete_one({"_id": "bing_ad_spend"})
-    # Pause any google ad_spend.
+    # iter413as — pause ad_spend across all platforms (not just google);
+    # Meta/Microsoft live syncs persisted spend rows in this env.
     await db.ad_spend.update_many(
-        {"platform": "google"}, {"$rename": {"platform": "_paused_v"}},
+        {}, {"$rename": {"platform": "_paused_v"}},
     )
     try:
         transport = ASGITransport(app=app)
@@ -138,7 +139,7 @@ async def test_all_roas_zero_spend_returns_null():
         assert body["roas"] is None
     finally:
         await db.ad_spend.update_many(
-            {"_paused_v": "google"}, {"$rename": {"_paused_v": "platform"}},
+            {"_paused_v": {"$exists": True}}, {"$rename": {"_paused_v": "platform"}},
         )
         if prior_ops:
             await db.ops_settings.replace_one(

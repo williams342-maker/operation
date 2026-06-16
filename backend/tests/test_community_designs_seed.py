@@ -65,7 +65,10 @@ class TestCommunityDesignsSeedAdmin:
 # ---- Public community files listing -----------------------------------------
 class TestCommunityFilesPublic:
     def test_list_returns_seeded_designs(self):
-        r = requests.get(f"{BASE_URL}/api/community/files", timeout=15)
+        # iter413as — Request limit=200 so all 10 seeded designs are
+        # included (default page-size is 50 and organic user uploads
+        # often outweigh the seeds, knocking them off page 1).
+        r = requests.get(f"{BASE_URL}/api/community/files?limit=200", timeout=15)
         assert r.status_code == 200
         data = r.json()
         files = data.get("files", data) if isinstance(data, dict) else data

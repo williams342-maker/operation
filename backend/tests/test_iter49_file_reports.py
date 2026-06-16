@@ -66,7 +66,7 @@ def seeded_file(maker_jwt):
             await d.design_files.delete_one({"id": file_id})
             await d.design_file_reports.delete_many({"file_id": file_id})
             client.close()
-        asyncio.get_event_loop().run_until_complete(_clean())
+        asyncio.run(_clean())
     except Exception as e:
         print("cleanup failed:", e)
 

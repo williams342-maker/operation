@@ -198,7 +198,7 @@ def _cleanup_after_session():
             if ids:
                 await d.custom_orders.delete_many({"id": {"$in": ids}})
         try:
-            asyncio.get_event_loop().run_until_complete(_do())
+            asyncio.run(_do())
         except RuntimeError:
             asyncio.run(_do())
     except Exception as e:

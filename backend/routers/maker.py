@@ -413,13 +413,19 @@ async def maker_publish_product(
     was_already_published = prod.get("status") == "published" and not prod.get("deleted_at")
     if not was_already_published:
         await accrue_listing_charge(slug, product_slug, kind="listing_publish")
+    # iter413as — Stamp `published_at` on first publish (idempotent —
+    # republishing keeps the original timestamp). Used by analytics +
+    # external feeds + buyer "new listing" notifications.
+    set_doc = {
+        "status": "published",
+        "expires_at": expiry_iso_from_now(),
+        "renewal_reminder_sent_at": None,
+    }
+    if not prod.get("published_at"):
+        set_doc["published_at"] = datetime.now(timezone.utc).isoformat()
     await db.products.update_one(
         {"slug": product_slug},
-        {"$set": {
-            "status": "published",
-            "expires_at": expiry_iso_from_now(),
-            "renewal_reminder_sent_at": None,
-        }},
+        {"$set": set_doc},
     )
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
     # Fire notifications in the background — keeps the API response snappy
@@ -1391,6 +1397,13 @@ async def maker_create_product(
     # Accrue the listing fee + bump usage counter (only for published listings —
     # drafts don't burn against the 10-free quota until they go live).
     if product.status == "published":
+        # iter413as — Stamp `published_at` for create-published flow.
+        # Mirrors the publish endpoint's behavior so analytics + buyer
+        # notifications use the same canonical timestamp.
+        await db.products.update_one(
+            {"slug": product.slug},
+            {"$set": {"published_at": datetime.now(timezone.utc).isoformat()}},
+        )
         from revenue import accrue_listing_charge
         await accrue_listing_charge(slug, product.slug, kind="listing_create")
         await db.makers.update_one(

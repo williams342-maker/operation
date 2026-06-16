@@ -33,9 +33,21 @@ def _mint_admin() -> str:
 ADMIN_H = {"Authorization": f"Bearer {_mint_admin()}"}
 
 
+def _run_db_op(coll, method, *args, **kwargs):
+    """iter413as — Bind motor to a fresh loop inside asyncio.run()."""
+    async def _inner():
+        from motor.motor_asyncio import AsyncIOMotorClient
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            return await getattr(client[os.environ["DB_NAME"]][coll], method)(*args, **kwargs)
+        finally:
+            client.close()
+    return asyncio.run(_inner())
+
+
 def _seed_job(status: str = "done", **extra):
     """Insert a synthetic clip_seed_jobs row directly so we don't pay Sora."""
-    from core import db, now_iso
+    from core import now_iso
     doc = {
         "job_id": f"test-{uuid.uuid4()}",
         "status": status,
@@ -47,15 +59,12 @@ def _seed_job(status: str = "done", **extra):
         "detail": None,
     }
     doc.update(extra)
-    asyncio.get_event_loop().run_until_complete(db.clip_seed_jobs.insert_one(doc))
+    _run_db_op("clip_seed_jobs", "insert_one", doc)
     return doc["job_id"]
 
 
 def _cleanup(job_ids):
-    from core import db
-    asyncio.get_event_loop().run_until_complete(
-        db.clip_seed_jobs.delete_many({"job_id": {"$in": job_ids}})
-    )
+    _run_db_op("clip_seed_jobs", "delete_many", {"job_id": {"$in": job_ids}})
 
 
 def test_recent_jobs_returns_latest_first_and_respects_limit():

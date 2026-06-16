@@ -307,7 +307,7 @@ class TestChatRest:
 # ---------- Chat WebSocket ----------
 class TestChatWS:
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     @pytest.mark.asyncio
     async def test_ws_general_buyer_send_receive(self, buyer_jwt):

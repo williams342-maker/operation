@@ -129,10 +129,10 @@ class TestAdminFeedbackReply:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }
-        asyncio.get_event_loop().run_until_complete(db.beta_feedback.insert_one(doc))
+        asyncio.run(db.beta_feedback.insert_one(doc))
         yield fid
         # Cleanup
-        asyncio.get_event_loop().run_until_complete(db.beta_feedback.delete_one({"id": fid}))
+        asyncio.run(db.beta_feedback.delete_one({"id": fid}))
 
     def test_reply_404_for_missing(self, admin_client):
         r = admin_client.post(
@@ -169,7 +169,7 @@ class TestAdminFeedbackReply:
         # verify db side-effects
         import asyncio
         from core import db
-        doc = asyncio.get_event_loop().run_until_complete(
+        doc = asyncio.run(
             db.beta_feedback.find_one({"id": feedback_id}, {"_id": 0})
         )
         assert doc["replied_at"] is not None
@@ -177,7 +177,7 @@ class TestAdminFeedbackReply:
         assert doc["replied_subject"] == "Thanks!"
 
         # audit log entry created
-        audit = asyncio.get_event_loop().run_until_complete(
+        audit = asyncio.run(
             db.admin_audit.find_one({"feedback_id": feedback_id, "kind": "feedback_reply"}, {"_id": 0})
         )
         assert audit is not None

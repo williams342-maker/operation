@@ -148,7 +148,7 @@ class TestAuditRow:
             )
             return doc
 
-        doc = asyncio.get_event_loop().run_until_complete(_check())
+        doc = asyncio.run(_check())
         assert doc is not None, "admin_audit row missing"
         # cleanup
         session.post(f"{BASE_URL}/api/maker/account/cancel-deletion", json={})

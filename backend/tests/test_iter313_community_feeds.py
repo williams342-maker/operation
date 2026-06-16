@@ -133,8 +133,9 @@ def test_external_ads_opt_out_excludes_maker_from_both_feeds():
         await db.showcase_posts.delete_one({"id": showcase_id})
         await db.design_files.delete_one({"id": df_id})
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(setup())
+    # iter413aq — `asyncio.get_event_loop()` deprecated in 3.12+. Use
+    # asyncio.run() which creates + tears down its own loop.
+    asyncio.run(setup())
     try:
         r1 = requests.get(f"{API}/enrich/v1/showcase/feed.json?limit=500", headers=H, timeout=10)
         r2 = requests.get(f"{API}/enrich/v1/design-files/feed.json?limit=500", headers=H, timeout=10)
@@ -145,7 +146,7 @@ def test_external_ads_opt_out_excludes_maker_from_both_feeds():
         for row in r2.json():
             assert "should-be-hidden" not in row["item_name"]
     finally:
-        loop.run_until_complete(teardown())
+        asyncio.run(teardown())
 
 
 # ─── /schema documents the new endpoints ─────────────────────────────

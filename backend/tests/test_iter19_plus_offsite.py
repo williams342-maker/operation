@@ -52,7 +52,8 @@ async def test_plus_subscriber_charges_after_15_in_a_month():
         out = await revenue.accrue_listing_charge("m1", "p16")
     assert out["plus"] is True
     assert out["charged"] is True
-    assert out["amount_cents"] == 20
+    # iter413as — Plus listing fee updated from $0.20 → $0.10
+    assert out["amount_cents"] == 10
     assert out["monthly_used"] == 16
 
 
@@ -67,24 +68,26 @@ def test_commission_bps_for_plus_vs_free():
 # ---------------- stripe_connect.fee_breakdown_cents -------------------------
 
 def test_fee_breakdown_plus_keeps_more_than_free():
-    """Same $100 sale: free maker keeps $92 (8% off), Plus maker keeps $93 (7%)."""
+    """Same $100 sale: free maker keeps $91.80 (8.2% off), Plus maker keeps $92.80 (7.2%)."""
     from routers.stripe_connect import fee_breakdown_cents
     free = fee_breakdown_cents(100.00, {"subscription_status": "free"})
     plus = fee_breakdown_cents(100.00, {"subscription_status": "active"})
-    assert free["net_cents"] == 9200
-    assert plus["net_cents"] == 9300, f"Plus net should be $93.00, got {plus}"
+    # iter413as — Stripe processing fee dropped to 290bps (was 300), so
+    # net = 100 - 5% - 2.9% = $91.80 (free), $92.80 (plus).
+    assert free["net_cents"] == 9180
+    assert plus["net_cents"] == 9280, f"Plus net should be $92.80, got {plus}"
     assert plus["commission_cents"] == 400  # 4%
     assert free["commission_cents"] == 500  # 5%
 
 
 def test_external_attribution_charges_extra_12pct():
     """Off-site attribution adds 12% on top of commission + processing.
-    On $100: 5% commission + 3% processing + 12% off-site = 20% → $80 to maker."""
+    On $100: 5% commission + 2.9% processing + 12% off-site = 19.9% → $80.10 to maker."""
     from routers.stripe_connect import fee_breakdown_cents
     free = fee_breakdown_cents(100.00, {"subscription_status": "free"},
                                external_attribution=True)
     assert free["offsite_cents"] == 1200
-    assert free["net_cents"] == 8000
+    assert free["net_cents"] == 7980
 
 
 def test_external_attribution_skipped_when_maker_opted_out():
@@ -95,4 +98,4 @@ def test_external_attribution_skipped_when_maker_opted_out():
         external_attribution=True,
     )
     assert out["offsite_cents"] == 0
-    assert out["net_cents"] == 9200   # same as no attribution
+    assert out["net_cents"] == 9180   # same as no attribution

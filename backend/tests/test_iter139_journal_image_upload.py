@@ -110,16 +110,13 @@ class TestMakerBlogFeed:
         assert r.status_code == 200, r.text
         posts = r.json()
         assert isinstance(posts, list)
-        assert len(posts) >= 1
-        # All posts must be created_by the maker
+        # iter413as — Patina blog seed was removed; endpoint just needs to
+        # return a valid list (possibly empty) and ordering when populated.
         for p in posts:
             assert p.get("created_by_maker") == MAKER_SLUG, p
-        # Newest-first ordering
+        # Newest-first ordering (only meaningful when 2+ posts)
         ts = [p.get("created_at") for p in posts]
         assert ts == sorted(ts, reverse=True), f"not sorted desc: {ts}"
-        # Patina post is present
-        slugs = [p.get("slug") for p in posts]
-        assert "how-we-pick-a-patina-that-ages-with-the-house" in slugs
 
     def test_capped_at_12(self, auth_headers):
         # Try requesting more than the cap; backend should cap at 12.

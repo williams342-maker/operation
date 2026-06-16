@@ -13,9 +13,11 @@ What this test does (without calling paid Sora):
 - 404 path: polling an unknown job
 - 422 path: bad model name still rejected synchronously
 """
+import asyncio
 import os
 import sys
 import time
+import pytest
 import requests
 
 sys.path.insert(0, "/app/backend")
@@ -44,11 +46,15 @@ def test_generate_one_returns_job_id_fast(monkeypatch):
     """POST must return < 2s with a job_id. (CF edge timeout proxy)"""
     t0 = time.time()
     r = requests.post(
-        f"{API}/admin/seed/clips/generate-one?model=sora-2-pro",
+        f"{API}/admin/seed/clips/generate-one?model=sora-2",
         headers=ADMIN_H,
         timeout=10,
     )
     elapsed = time.time() - t0
+    # iter413as — sora-2-pro is now gated by SORA_DISABLE_PRO env. Fall
+    # back to sora-2 (base) which remains available.
+    if r.status_code == 422 and "disabled" in r.text:
+        pytest.skip("sora-2 base also disabled in this env")
     assert r.status_code == 200, r.text
     body = r.json()
     assert "job_id" in body and body["status"] in ("queued", "running"), body
@@ -59,14 +65,17 @@ def test_generate_one_returns_job_id_fast(monkeypatch):
     # been hit, the row update just shortcircuits the UI poll.
     # We do this via direct mongo write to mirror what an operator's
     # "cancel" tooling would do.
-    import asyncio
-    from core import db
     async def _kill():
-        await db.clip_seed_jobs.update_one(
-            {"job_id": body["job_id"]},
-            {"$set": {"status": "error", "reason": "cancelled-by-test"}},
-        )
-    asyncio.get_event_loop().run_until_complete(_kill())
+        from motor.motor_asyncio import AsyncIOMotorClient
+        c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            await c[os.environ["DB_NAME"]].clip_seed_jobs.update_one(
+                {"job_id": body["job_id"]},
+                {"$set": {"status": "error", "reason": "cancelled-by-test"}},
+            )
+        finally:
+            c.close()
+    asyncio.run(_kill())
 
 
 def test_job_status_endpoint_404_for_unknown():
@@ -80,29 +89,37 @@ def test_job_status_endpoint_404_for_unknown():
 
 def test_job_status_endpoint_returns_known_job():
     """Seed a row directly so we don't pay Sora, then poll."""
-    import asyncio
     import uuid
-    from core import db, now_iso
+    from core import now_iso
 
     job_id = f"test-{uuid.uuid4()}"
 
     async def _seed():
-        await db.clip_seed_jobs.insert_one({
-            "job_id": job_id,
-            "status": "done",
-            "model": "sora-2-pro",
-            "started_at": now_iso(),
-            "finished_at": now_iso(),
-            "clip": {"slug": "test-clip", "title": "Test Clip", "category": "workshop"},
-            "reason": None,
-            "detail": None,
-        })
+        from motor.motor_asyncio import AsyncIOMotorClient
+        c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            await c[os.environ["DB_NAME"]].clip_seed_jobs.insert_one({
+                "job_id": job_id,
+                "status": "done",
+                "model": "sora-2-pro",
+                "started_at": now_iso(),
+                "finished_at": now_iso(),
+                "clip": {"slug": "test-clip", "title": "Test Clip", "category": "workshop"},
+                "reason": None,
+                "detail": None,
+            })
+        finally:
+            c.close()
 
     async def _cleanup():
-        await db.clip_seed_jobs.delete_one({"job_id": job_id})
+        from motor.motor_asyncio import AsyncIOMotorClient
+        c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            await c[os.environ["DB_NAME"]].clip_seed_jobs.delete_one({"job_id": job_id})
+        finally:
+            c.close()
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(_seed())
+    asyncio.run(_seed())
     try:
         r = requests.get(
             f"{API}/admin/seed/clips/job/{job_id}",
@@ -115,7 +132,7 @@ def test_job_status_endpoint_returns_known_job():
         assert body["clip"]["slug"] == "test-clip"
         assert "_id" not in body  # MongoDB ObjectId must be stripped
     finally:
-        loop.run_until_complete(_cleanup())
+        asyncio.run(_cleanup())
 
 
 def test_generate_one_rejects_unknown_model():

@@ -69,7 +69,7 @@ def _set_maker_charges_enabled(slug: str, value: bool):
     async def run():
         db = await _get_db()
         await db.makers.update_one({"slug": slug}, {"$set": {"stripe_charges_enabled": value}})
-    asyncio.get_event_loop().run_until_complete(run())
+    asyncio.run(run())
 
 
 def _get_maker_stripe_state(slug: str):
@@ -77,7 +77,7 @@ def _get_maker_stripe_state(slug: str):
         db = await _get_db()
         m = await db.makers.find_one({"slug": slug}, {"_id": 0, "stripe_account_id": 1, "stripe_charges_enabled": 1})
         return m or {}
-    return asyncio.get_event_loop().run_until_complete(run())
+    return asyncio.run(run())
 
 
 # =========================================================================

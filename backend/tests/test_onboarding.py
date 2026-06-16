@@ -175,7 +175,7 @@ class TestWelcomeEmailPath:
         try:
             import asyncio
             from core import db
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 db.onboarding_states.delete_many({"user_key": slug})
             )
         except Exception:

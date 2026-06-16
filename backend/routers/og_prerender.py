@@ -240,6 +240,11 @@ async def og_product(slug: str, http_request: Request):
     desc = _truncate(full_desc, 200) \
         or f"Hand-built by {maker or 'a vetted independent maker'} on Crafters Market — curated CNC art, custom signs, and made-to-order originals."
     img = ((doc.get("images") or [None])[0]) or _placeholder_image()
+    # iter413as — Ensure og:image is absolute (Pinterest/Facebook/LinkedIn
+    # crawlers reject relative URLs). Legacy seed images live at
+    # /seed-images/... — prefix with the site origin.
+    if img and not img.startswith(("http://", "https://")):
+        img = f"{_site().rstrip('/')}/{img.lstrip('/')}"
     canonical = f"{_site()}/shop/{slug}"
     site = _site()
 

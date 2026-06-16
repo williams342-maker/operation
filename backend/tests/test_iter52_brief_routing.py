@@ -291,6 +291,6 @@ def _cleanup_after_session():
                 await d.dm_threads.delete_many({"custom_order_id": {"$in": ids}})
                 await d.dm_messages.delete_many({"thread_id": {"$exists": True}})
                 await d.admin_audit.delete_many({"order_id": {"$in": ids}})
-        asyncio.get_event_loop().run_until_complete(_do())
+        asyncio.run(_do())
     except Exception as e:
         print(f"cleanup warning: {e}")

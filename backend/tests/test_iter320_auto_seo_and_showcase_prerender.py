@@ -95,7 +95,9 @@ async def test_bulk_tag_design_files_writes_seo_fields(monkeypatch):
         # No seo_* fields → should be picked up
     })
     from auto_seo_tags import bulk_tag_design_files
-    r = await bulk_tag_design_files(db, limit=5)
+    # iter413as — Larger limit so this row is processed even when other
+    # test files leave untagged design_files rows above it in the queue.
+    r = await bulk_tag_design_files(db, limit=200)
     # Our row should be in the results.
     assert any(row["id"] == rid for row in r["results"])
     row = await db.design_files.find_one({"id": rid})

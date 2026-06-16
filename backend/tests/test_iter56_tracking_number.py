@@ -186,7 +186,7 @@ class TestMongoBackfillAndIndex:
             client.close()
             return missing, total, indexes
 
-        missing, total, indexes = asyncio.get_event_loop().run_until_complete(_run())
+        missing, total, indexes = asyncio.run(_run())
         assert total > 0, "no custom_orders rows present"
         assert missing == 0, f"{missing}/{total} rows missing tracking_number"
         # Look for unique index covering tracking_number
@@ -212,7 +212,7 @@ class TestMongoBackfillAndIndex:
             client.close()
             return tns
 
-        tns = asyncio.get_event_loop().run_until_complete(_run())
+        tns = asyncio.run(_run())
         assert len(tns) == len(set(tns)), "duplicate tracking_numbers found"
         bad = [t for t in tns if not (isinstance(t, str) and len(t) == 10 and t.isdigit())]
         assert not bad, f"non-10-digit tracking numbers: {bad[:5]}"
