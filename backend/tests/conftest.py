@@ -25,6 +25,34 @@ def _ensure_canonical_seed_session():
         from models import Product, Maker
 
         async def _upsert():
+            # iter413ap — Re-install community_designs seed if absent.
+            # Some sibling test (likely admin/maker integration tests
+            # exercising the seed-purge endpoint) wipes is_seed designs
+            # in the suite. Re-install from the JSON fixture is cheap.
+            try:
+                seeded_count = await db.community_designs.count_documents(
+                    {"is_seed": True}
+                )
+                if seeded_count < 10:
+                    import json as _json
+                    from pathlib import Path as _Path
+                    fixture = _Path("/app/backend/data/community_designs_seed.json")
+                    if fixture.exists():
+                        payload = _json.loads(fixture.read_text())
+                        # Fixture shape: {"design_files": [...]} per iter290+
+                        rows = (
+                            payload.get("design_files", [])
+                            if isinstance(payload, dict)
+                            else payload
+                        )
+                        for row in rows:
+                            await db.community_designs.update_one(
+                                {"slug": row["slug"]},
+                                {"$set": row},
+                                upsert=True,
+                            )
+            except Exception:
+                pass  # best-effort
             # iter413ak — Heal ALL canonical seed products (not just the
             # marketplace test's single one). Any test in the smoke set
             # that hits a seed slug needs its product live, not stuck in
@@ -237,9 +265,10 @@ SMOKE_FILES = {
     #     likely cascade benefit from the iter413ak/al/an seed fixture.
     "test_iter114_showcase_multi_image_ai.py",
     "test_iter19_audit_channels.py",
-    # test_iter231_showcase_curation.py — passes alone but pollutes
-    # community_designs collection in the full suite, taking down
-    # test_community_designs_seed. Needs per-file teardown fix.
+    # iter413ap — test_iter231 re-added after per-file _ensure_seed_post
+    # autouse fixture (seeds a minimal showcase_post if iter116's wipe
+    # cleared the collection).
+    "test_iter231_showcase_curation.py",
     "test_iter27_credits_reviews_receipt.py",
     "test_iter28_application_emails_eua.py",
     "test_iter335_13_live_p2_p3.py",

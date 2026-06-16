@@ -21,6 +21,42 @@ def _admin_headers():
     return {"Authorization": f"Bearer {issue_session_jwt('cm-admin', 'admin@craftersmarket.org', role='admin')}"}
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _ensure_seed_post():
+    """iter413ap — Ensure at least one showcase post exists before
+    iter231 runs. The iter116_recent_showcase test's _wipe() clears
+    the showcase_posts collection (necessary for its own tier
+    assertions), so when iter231 runs after iter116 in the smoke
+    suite the admin_list comes back empty and every test below
+    skips/fails. We upsert a single minimal post here; it doesn't
+    affect iter116 because iter116 wipes first."""
+    import asyncio
+    import sys
+    sys.path.insert(0, "/app/backend")
+    from core import db
+    from datetime import datetime, timezone
+
+    async def _seed():
+        count = await db.showcase_posts.count_documents({})
+        if count == 0:
+            await db.showcase_posts.insert_one({
+                "id": "iter231-seed",
+                "title": "Curation Smoke Seed",
+                "body": "Seed post for iter231 curation tests.",
+                "kind": "sitewide",
+                "admin_pinned": False,
+                "admin_hidden": False,
+                "admin_sort_order": 0,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+    try:
+        asyncio.run(_seed())
+    except Exception:
+        pass
+    yield
+
+
 @pytest.fixture(scope="module")
 def admin_list():
     """Pull the current admin showcase list once."""
