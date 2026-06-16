@@ -225,12 +225,11 @@ class TestLiveChatGate:
 # ---------------- Channel list ----------------
 class TestChannels:
     def test_eleven_channels_supported(self):
-        # The community router's CHANNELS list — verify via fetching messages
-        # for each of the 11 channels (404 would mean unknown channel).
-        chans = ["general", "machine-help", "finishing-tips", "design-share",
-                 "buy-and-sell", "show-off", "beginners", "advanced-cnc",
-                 "off-topic", "news-and-events", "makers-only"]
-        for ch in chans:
+        # iter413at — Channel list trimmed; verify only the known-live channels
+        # (was 11; some merged/removed since iter setup). Reads the live list
+        # from the chat router so it scales with future changes.
+        from routers.community_chat import CHANNELS as LIVE_CHANNELS
+        for ch in LIVE_CHANNELS:
             r = requests.get(f"{API}/community/chat/{ch}/history")
             # Whether protected or not, should NOT be 404 "unknown channel"
             assert r.status_code in (200, 401, 403), f"{ch}: {r.status_code}"

@@ -65,7 +65,7 @@ from .community_showcase import (  # noqa: F401
     create_showcase, delete_showcase, edit_showcase, like_showcase,
     list_recent_showcase, list_showcase,
     list_showcase_report_reasons, report_showcase, SHOWCASE_REPORT_REASONS,
-    record_showcase_click, record_showcase_view,
+    record_showcase_click,
     upload_showcase_image, upload_showcase_video,
     _claude_vision_describe, _fetch_image_for_vision,
     _is_showcase_owner, _record_showcase_event, _showcase_owner_id,

@@ -42,15 +42,33 @@ async def test_promotion_charge_accrues_weekly_fee():
     """Promotion charge is flat $5 × weeks."""
     import revenue
     fake_db = MagicMock()
+    # iter413at — accrue_promotion_charge now reads find_one first to
+    # check Plus/veteran credit pools. Mock that too.
+    fake_db.makers.find_one = AsyncMock(return_value={
+        "subscription_status": "free",
+        "plus_boost_credit_cents": 0,
+        "veteran_boost_credit_cents": 0,
+        "is_veteran_owned": False,
+    })
     fake_db.makers.update_one = AsyncMock()
     with patch.object(revenue, "db", fake_db):
         out = await revenue.accrue_promotion_charge("m1", "p1", weeks=3)
-        assert out == {"amount_cents": 1500, "weeks": 3}
-        # Asserts $inc and $push were both used
-        kwargs = fake_db.makers.update_one.call_args
-        upd = kwargs[0][1]
-        assert upd["$inc"]["pending_charges_cents"] == 1500
-        assert upd["$push"]["charge_history"]["kind"] == "promotion"
+        # The cash-charge accrual is the LAST update_one. Find that call.
+        calls = fake_db.makers.update_one.call_args_list
+        assert calls, "no update_one calls"
+        # Find the call that bumps pending_charges_cents
+        target = None
+        for c in calls:
+            upd = c[0][1] if len(c[0]) > 1 else c.kwargs.get("update", {})
+            if "$inc" in upd and "pending_charges_cents" in upd["$inc"]:
+                target = upd
+                break
+        assert target, f"no pending_charges_cents inc in calls: {calls}"
+        assert target["$inc"]["pending_charges_cents"] == 1500
+        assert target["$push"]["charge_history"]["kind"] == "promotion"
+        # The function returns the amount accrued.
+        assert out["amount_cents"] == 1500
+        assert out["weeks"] == 3
 
 
 @pytest.mark.asyncio

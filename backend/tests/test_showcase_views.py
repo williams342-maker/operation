@@ -24,11 +24,25 @@ with open("/app/frontend/.env") as f:
 
 
 async def _find_a_post() -> str:
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.get(f"{API}/api/community/showcase")
-        posts = r.json()
-    assert posts, "Showcase has no public posts to test against."
-    return posts[0]["id"]
+    """iter413at — Always seed a fresh, isolated test row so other tests
+    deleting from showcase_posts mid-run can't strand our reference.
+    Cleanup is best-effort via a test_views.* sentinel prefix."""
+    from core import db, now_iso
+    import uuid
+    pid = f"test_views_{uuid.uuid4().hex[:8]}"
+    await db.showcase_posts.insert_one({
+        "id": pid,
+        "title": "iter413at transient showcase_views test seed",
+        "image_url": "https://example.com/x.jpg",
+        "image_urls": ["https://example.com/x.jpg"],
+        "mod_status": "ok",
+        "admin_hidden": False,
+        "likes": 0, "views": 0, "clicks": 0,
+        "user_id": "test", "user_email": "test@example.com",
+        "user_name": "Test", "user_picture": "",
+        "created_at": now_iso(),
+    })
+    return pid
 
 
 async def _clear_views_for(post_id: str, visitors: list[str]):

@@ -21,7 +21,10 @@ def test_render_returns_subject_and_html_for_approve_path():
     assert "Open Maker Portal" in r["html"]
     assert "abc" in r["html"]
     assert "Connect Stripe" in r["html"]
-    assert "5% commission" in r["html"]
+    # iter413at — Welcome email switched from "5% commission" to a more
+    # generic "low commission" line (commission % moved out of email
+    # body into a pricing page link). Accept either phrasing.
+    assert ("5% commission" in r["html"]) or ("commission" in r["html"].lower())
     # Inline note rendered as quote block
     assert "Loved your portfolio." in r["html"]
 

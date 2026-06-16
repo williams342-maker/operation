@@ -83,6 +83,7 @@ from routers.merchant_rules import router as merchant_rules_router
 from routers.shop_health import router as shop_health_router
 from routers.seo_health import router as seo_health_router
 from routers.seo_agent import router as seo_agent_router  # iter412
+from routers.ci_badge import router as ci_badge_router  # iter413at
 from seed_data import seed_if_empty
 
 app = FastAPI(title="Crafters Market API")
@@ -91,6 +92,7 @@ api = APIRouter(prefix="/api")
 # Mount each domain router under /api
 api.include_router(catalog_router)
 api.include_router(seo_router)
+api.include_router(ci_badge_router)  # iter413at — live CI pass-rate badge
 api.include_router(state_pages_router)
 api.include_router(lead_magnet_router)
 api.include_router(admin_lead_magnet_router)

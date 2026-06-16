@@ -42,6 +42,10 @@ async def _seed_collision(slug_a, slug_b, founder_number):
     """Plant two founders sharing the same founder_number. `slug_a` is
     the OLDER one (seeded) and `slug_b` is the newer collision."""
     from core import db
+    # iter413at — Self-clean any iter326-* leftovers from prior failed
+    # test runs so they don't pollute the repair-numbers aggregation.
+    await db.makers.delete_many({"slug": {"$regex": "^iter326-"}})
+    await db.activity_events.delete_many({"id": {"$regex": "^founder-iter326-"}})
     await db.makers.insert_one({
         "id": str(uuid.uuid4()), "slug": slug_a,
         "name": f"Maker {slug_a}", "initials": "MA",

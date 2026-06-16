@@ -69,7 +69,19 @@ def buyer_jwt():
 
 
 def _stl_bytes():
-    with open("/tmp/test.stl", "rb") as f:
+    """iter413at — Auto-generate a tiny synthetic STL on disk if missing
+    so the test doesn't FileNotFoundError on fresh CI envs."""
+    stl_path = "/tmp/test.stl"
+    if not os.path.exists(stl_path):
+        # 80-byte header + 4-byte triangle count + 50-byte triangle = minimal valid STL.
+        import struct
+        header = b"iter413at synthetic STL" + b" " * (80 - len("iter413at synthetic STL"))
+        body = struct.pack("<I", 1)  # 1 triangle
+        # normal + 3 vertices + attribute byte count (all zeros)
+        triangle = struct.pack("<12fH", 0,0,1, 0,0,0, 1,0,0, 0,1,0, 0)
+        with open(stl_path, "wb") as f:
+            f.write(header + body + triangle)
+    with open(stl_path, "rb") as f:
         return f.read()
 
 

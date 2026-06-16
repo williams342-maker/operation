@@ -27,6 +27,23 @@ BASE_URL = os.environ.get(
 API = f"{BASE_URL}/api"
 
 
+# iter413at — Each test below was failing on motor's "Event loop is closed"
+# because `from core import db` binds the motor client to the import-time
+# loop, but `asyncio.new_event_loop()` per-test creates fresh loops that
+# don't match. Wrap each DB op via `_run_async` so the motor client is
+# constructed INSIDE the same loop that awaits it.
+def _run_async(coro_fn):
+    """Build motor client inside a fresh loop, pass it as `db` to coro_fn."""
+    async def _inner():
+        from motor.motor_asyncio import AsyncIOMotorClient
+        client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        try:
+            return await coro_fn(client[os.environ["DB_NAME"]])
+        finally:
+            client.close()
+    return asyncio.run(_inner())
+
+
 def _mint_maker(slug: str) -> str:
     from dotenv import load_dotenv
     load_dotenv("/app/backend/.env")
@@ -174,38 +191,34 @@ def test_renew_tick_charges_and_increments_spent():
     from routers.listing_budgets import renew_listing_budgets_tick
 
     slug, prod = _setup_fixture()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        # Seed a budget with $20 cap, auto_renew=true, $0 spent.
-        from core import db, now_iso
-        loop.run_until_complete(db.maker_listing_budgets.insert_one({
-            "maker_slug": slug,
-            "product_slug": prod,
-            "monthly_cap_cents": 2000,
-            "auto_renew": True,
-            "spent_cents": 0,
-            "period_start": datetime.now(timezone.utc).strftime("%Y-%m-01"),
-            "last_renewed_at": None,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        }))
+        from core import now_iso
+        async def _seed(db):
+            await db.maker_listing_budgets.insert_one({
+                "maker_slug": slug,
+                "product_slug": prod,
+                "monthly_cap_cents": 2000,
+                "auto_renew": True,
+                "spent_cents": 0,
+                "period_start": datetime.now(timezone.utc).strftime("%Y-%m-01"),
+                "last_renewed_at": None,
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            })
+        _run_async(_seed)
 
-        result = loop.run_until_complete(renew_listing_budgets_tick())
+        result = asyncio.run(renew_listing_budgets_tick())
         assert result["renewed"] >= 1, result
 
-        # Budget row should have $5 spent and last_renewed_at set
-        row = loop.run_until_complete(
-            db.maker_listing_budgets.find_one(
+        async def _read(db):
+            row = await db.maker_listing_budgets.find_one(
                 {"maker_slug": slug, "product_slug": prod}, {"_id": 0}
             )
-        )
+            p = await db.products.find_one({"slug": prod}, {"_id": 0, "promoted_until": 1})
+            return row, p
+        row, p = _run_async(_read)
         assert row["spent_cents"] == 500
         assert row["last_renewed_at"] is not None
-        # Product should be promoted now
-        p = loop.run_until_complete(
-            db.products.find_one({"slug": prod}, {"_id": 0, "promoted_until": 1})
-        )
         assert p["promoted_until"] is not None
         assert p["promoted_until"] > datetime.now(timezone.utc).isoformat()
     finally:
@@ -216,29 +229,28 @@ def test_renew_tick_respects_cap():
     """Listings already at their cap must NOT be renewed."""
     from routers.listing_budgets import renew_listing_budgets_tick
     slug, prod = _setup_fixture()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        from core import db, now_iso
-        loop.run_until_complete(db.maker_listing_budgets.insert_one({
-            "maker_slug": slug,
-            "product_slug": prod,
-            "monthly_cap_cents": 500,           # only $5
-            "auto_renew": True,
-            "spent_cents": 500,                  # already maxed
-            "period_start": datetime.now(timezone.utc).strftime("%Y-%m-01"),
-            "last_renewed_at": now_iso(),
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        }))
-        result = loop.run_until_complete(renew_listing_budgets_tick())
+        from core import now_iso
+        async def _seed(db):
+            await db.maker_listing_budgets.insert_one({
+                "maker_slug": slug,
+                "product_slug": prod,
+                "monthly_cap_cents": 500,           # only $5
+                "auto_renew": True,
+                "spent_cents": 500,                  # already maxed
+                "period_start": datetime.now(timezone.utc).strftime("%Y-%m-01"),
+                "last_renewed_at": now_iso(),
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            })
+        _run_async(_seed)
+        result = asyncio.run(renew_listing_budgets_tick())
         assert result["skipped_capped"] >= 1
-        # Row unchanged
-        row = loop.run_until_complete(
-            db.maker_listing_budgets.find_one(
+        async def _read(db):
+            return await db.maker_listing_budgets.find_one(
                 {"maker_slug": slug, "product_slug": prod}, {"_id": 0}
             )
-        )
+        row = _run_async(_read)
         assert row["spent_cents"] == 500
     finally:
         _teardown_fixture(slug, prod)
@@ -250,33 +262,32 @@ def test_renew_tick_skips_listings_still_boosted_over_24h():
     regardless of cron frequency."""
     from routers.listing_budgets import renew_listing_budgets_tick
     slug, prod = _setup_fixture()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        from core import db, now_iso
+        from core import now_iso
         future = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
-        loop.run_until_complete(db.products.update_one(
-            {"slug": prod}, {"$set": {"promoted_until": future}}
-        ))
-        loop.run_until_complete(db.maker_listing_budgets.insert_one({
-            "maker_slug": slug,
-            "product_slug": prod,
-            "monthly_cap_cents": 2000,
-            "auto_renew": True,
-            "spent_cents": 500,
-            "period_start": datetime.now(timezone.utc).strftime("%Y-%m-01"),
-            "last_renewed_at": now_iso(),
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        }))
-        result = loop.run_until_complete(renew_listing_budgets_tick())
+        async def _seed(db):
+            await db.products.update_one(
+                {"slug": prod}, {"$set": {"promoted_until": future}}
+            )
+            await db.maker_listing_budgets.insert_one({
+                "maker_slug": slug,
+                "product_slug": prod,
+                "monthly_cap_cents": 2000,
+                "auto_renew": True,
+                "spent_cents": 500,
+                "period_start": datetime.now(timezone.utc).strftime("%Y-%m-01"),
+                "last_renewed_at": now_iso(),
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            })
+        _run_async(_seed)
+        result = asyncio.run(renew_listing_budgets_tick())
         assert result["skipped_active"] >= 1
-        # Row unchanged (spent_cents still 500)
-        row = loop.run_until_complete(
-            db.maker_listing_budgets.find_one(
+        async def _read(db):
+            return await db.maker_listing_budgets.find_one(
                 {"maker_slug": slug, "product_slug": prod}, {"_id": 0}
             )
-        )
+        row = _run_async(_read)
         assert row["spent_cents"] == 500
     finally:
         _teardown_fixture(slug, prod)

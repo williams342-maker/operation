@@ -628,34 +628,63 @@ def _visitor_fingerprint(request: Request, client_id: Optional[str]) -> str:
     return f"ipua:{h}"
 
 
+# iter413at — Forward-declared so mark_showcase_viewed (below) can use it.
+# Definition also lives at line ~1106 for legacy `_record_showcase_event`.
+class _ShowcaseEventBody(BaseModel):
+    source: Optional[str] = None
+    # iter413at — Optional client_id (visitor cookie) preferred over
+    # IP+UA fingerprint for dedup. Falls back when absent.
+    client_id: Optional[str] = None
+
+
 @router.post("/community/showcase/{post_id}/view")
 async def mark_showcase_viewed(
     post_id: str,
     request: Request,
-    client_id: Optional[str] = Body(default=None, embed=True),
+    body: _ShowcaseEventBody = Body(default_factory=_ShowcaseEventBody),
 ):
     """Idempotent per (post_id, visitor) within VIEW_DEDUPE_WINDOW_HOURS.
-    Returns `{counted: bool, views: int}` so the frontend can render the
-    fresh number without a separate fetch."""
+    Returns `{counted, views, ok}` so callers can use either contract:
+      • `ok` — boolean (was the row written? false if dedupe'd)
+      • `counted` — alias of `ok` (legacy frontend uses this)
+      • `views` — fresh post counter (lets the UI render without re-fetch)
+
+    iter413at — Merged former `record_showcase_view` (line 1122) into
+    this handler. Writes to BOTH `showcase_views` (used by top-week
+    aggregation) AND `showcase_events` (used by admin analytics), with
+    IP+UA fingerprint dedup (or `client_id` cookie when present) and
+    32-char `source` truncation."""
     post = await db.showcase_posts.find_one({"id": post_id}, {"_id": 0, "views": 1})
     if not post:
+        # iter174 contract: 404 for unknown posts (callers can hide stale tiles).
         raise HTTPException(404, "Post not found")
-    visitor = _visitor_fingerprint(request, client_id)
+    visitor = _visitor_fingerprint(request, body.client_id if body else None)
     cutoff = (
         datetime.now(timezone.utc) - timedelta(hours=VIEW_DEDUPE_WINDOW_HOURS)
     ).isoformat()
-    # Try to claim a fresh view-event row. If one already exists for
-    # this visitor within the window, modified_count==0 and we no-op.
+    # Dedup window: IP+UA fingerprint within last 30min already counted?
     existing = await db.showcase_views.find_one(
         {"post_id": post_id, "visitor": visitor, "ts": {"$gte": cutoff}},
         {"_id": 1},
     )
     if existing:
-        return {"counted": False, "views": int(post.get("views") or 0)}
+        return {"ok": False, "counted": False, "views": int(post.get("views") or 0)}
     await db.showcase_views.insert_one({
         "post_id": post_id,
         "visitor": visitor,
         "ts": now_iso(),
+    })
+    # Also write an event row (admin analytics consumes this collection).
+    # iter413at — Uses `created_at` (matches `_record_showcase_event` /
+    # admin_showcase_analytics aggregation contract) + `fingerprint` field
+    # so dedup queries from /click handler work cross-handler.
+    src = (body.source or "")[:32]
+    await db.showcase_events.insert_one({
+        "post_id": post_id,
+        "kind": "view",
+        "source": src,
+        "fingerprint": visitor,
+        "created_at": now_iso(),
     })
     r = await db.showcase_posts.find_one_and_update(
         {"id": post_id},
@@ -663,7 +692,7 @@ async def mark_showcase_viewed(
         projection={"_id": 0, "views": 1},
         return_document=ReturnDocument.AFTER,
     ) or {}
-    return {"counted": True, "views": int(r.get("views") or 0)}
+    return {"ok": True, "counted": True, "views": int(r.get("views") or 0)}
 
 
 
@@ -1086,8 +1115,9 @@ async def admin_delete_showcase(
 # ============================================================
 # Showcase analytics — view + click events (iter117)
 # ============================================================
-class _ShowcaseEventBody(BaseModel):
-    source: Optional[str] = None
+# iter413at — `_ShowcaseEventBody` moved above `mark_showcase_viewed`
+# (line ~625) so it's resolvable at handler signature time. Kept this
+# module-level area for historical context.
 
 
 async def _record_showcase_event(post_id: str, kind: str, source: Optional[str], request: Request):
@@ -1119,12 +1149,10 @@ async def _record_showcase_event(post_id: str, kind: str, source: Optional[str],
     return True
 
 
-@router.post("/community/showcase/{post_id}/view")
-async def record_showcase_view(post_id: str, request: Request,
-                                body: _ShowcaseEventBody = Body(default=_ShowcaseEventBody())):
-    """Public — fired by `RecentShowcaseStrip` when a tile becomes visible."""
-    ok = await _record_showcase_event(post_id, "view", body.source, request)
-    return {"ok": ok}
+# iter413at — Former `/community/showcase/{post_id}/view` duplicate was
+# removed (was shadowed by `mark_showcase_viewed` at line 631 — dead code
+# since registration order). The merged canonical handler now writes to
+# BOTH `showcase_views` and `showcase_events` collections.
 
 
 @router.post("/community/showcase/{post_id}/click")

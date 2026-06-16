@@ -3,6 +3,36 @@ import { Link } from "react-router-dom";
 import { Instagram, Mail, MapPin } from "lucide-react";
 import { reopenBanner } from "../../lib/consent";
 
+// iter413at — Live CI badge that fetches /api/ci/health on mount.
+// Renders a discreet mono-caps line under the brand tagline. Fails open:
+// hides itself if the endpoint 404s or returns unparseable JSON.
+function CIBadge() {
+  const [stats, setStats] = React.useState(null);
+  React.useEffect(() => {
+    const url = `${process.env.REACT_APP_BACKEND_URL}/api/ci/health`;
+    fetch(url, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && d.passed && setStats(d))
+      .catch(() => {});
+  }, []);
+  if (!stats) return null;
+  const color =
+    stats.status === "green"
+      ? "text-brand"
+      : stats.status === "yellow"
+        ? "text-warn"
+        : "text-danger";
+  return (
+    <div
+      className="font-mono text-[10px] uppercase tracking-[0.32em] text-ink-muted mt-2"
+      data-testid="footer-ci-badge"
+    >
+      <span className={color}>●</span>{" "}
+      {stats.passed.toLocaleString()} tests passing · {stats.pass_rate}% green
+    </div>
+  );
+}
+
 const cols = [
   {
     title: "Shop",

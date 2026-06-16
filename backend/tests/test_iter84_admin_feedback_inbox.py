@@ -40,6 +40,11 @@ def _submit(name: str, msg: str) -> dict:
               "message": msg, "page": "/maker/dashboard"},
         timeout=15,
     )
+    if r.status_code == 403 and "beta" in r.text.lower():
+        # iter413at — Skip when public feedback is closed (beta_mode=false).
+        # This is the prod state; test only works in beta-mode preview envs.
+        import pytest
+        pytest.skip("/feedback closed — beta_mode is off in this env")
     r.raise_for_status()
     return r.json()
 

@@ -56,6 +56,8 @@ async def _wipe_iter117():
     from core import db
     await db.showcase_posts.delete_many({"id": {"$regex": "^iter117-"}})
     await db.showcase_events.delete_many({"post_id": {"$regex": "^iter117-"}})
+    # iter413at — Also clear showcase_views (used by merged view handler dedup).
+    await db.showcase_views.delete_many({"post_id": {"$regex": "^iter117-"}})
 
 
 async def _seed_post(post_id: str, **extra):
@@ -90,7 +92,8 @@ async def test_view_event_increments_counter_and_logs_row():
             headers={"User-Agent": "iter117-ua-A"},
         )
     assert r.status_code == 200
-    assert r.json() == {"ok": True}
+    # iter413at — merged handler returns {ok, counted, views}.
+    assert r.json()["ok"] is True
     # Counter bumped on the post doc.
     post = await db.showcase_posts.find_one({"id": pid}, {"_id": 0, "views": 1})
     assert post["views"] == 1
@@ -177,14 +180,14 @@ async def test_different_user_agents_do_NOT_dedupe():
 @pytest.mark.asyncio(loop_scope="module")
 async def test_event_for_nonexistent_post_returns_ok_false_no_write():
     """A fabricated post ID must NOT silently create event rows or bump
-    a phantom counter — return ok=false and skip the write."""
+    a phantom counter — return 404 and skip the write.
+    iter413at — Changed from {ok:False} to 404 per iter174 ghost contract."""
     from core import db
     await _wipe_iter117()
     pid = "iter117-ghost"
     async with await _client() as c:
         r = await c.post(f"/api/community/showcase/{pid}/view")
-    assert r.status_code == 200
-    assert r.json() == {"ok": False}
+    assert r.status_code == 404
     events = await db.showcase_events.count_documents({"post_id": pid})
     assert events == 0
     await _wipe_iter117()
@@ -239,15 +242,18 @@ async def test_analytics_returns_top_posts_with_views_clicks_ctr_and_source_spli
         r = await c.get("/api/admin/community/showcase/analytics?days=7", headers=headers)
     assert r.status_code == 200
     body = r.json()
-    # Post A leads on views.
-    assert body["rows"][0]["post_id"] == "iter117-A"
-    assert body["rows"][0]["views"] == 3
-    assert body["rows"][0]["clicks"] == 2
+    # iter413at — Cross-test pollution: other test files seed showcase
+    # events in the same time window. Locate our row by post_id rather
+    # than asserting it's at index 0.
+    iter_a = next((r for r in body["rows"] if r["post_id"] == "iter117-A"), None)
+    assert iter_a, f"iter117-A missing from analytics rows: {[r['post_id'] for r in body['rows']]}"
+    assert iter_a["views"] == 3
+    assert iter_a["clicks"] == 2
     # CTR = 2/3 = 66.7%.
-    assert body["rows"][0]["ctr"] == 66.7
+    assert iter_a["ctr"] == 66.7
     # Source split — clicks on A came from "product", views from "home".
     # The analytics endpoint surfaces source breakdown of the VIEW events.
-    src = body["rows"][0]["by_source"]
+    src = iter_a["by_source"]
     assert src.get("home") == 3
     # Totals roll up — we assert >= 4 (not == 4) because real prod
     # showcase events may exist in the same time window during dev runs.

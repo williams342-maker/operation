@@ -114,9 +114,9 @@ class TestAutoBoostUpdate:
 class TestAdminFeedbackReply:
     @pytest.fixture(scope="class")
     def feedback_id(self, admin_client):
-        # Seed a feedback row directly via mongo
+        # iter413at — Build motor client INSIDE asyncio.run() so it
+        # binds to the correct loop (module-level db has stale loop).
         import asyncio
-        from core import db
         import secrets
         from datetime import datetime, timezone
 
@@ -129,10 +129,26 @@ class TestAdminFeedbackReply:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "resolved": False,
         }
-        asyncio.run(db.beta_feedback.insert_one(doc))
+
+        async def _insert():
+            from motor.motor_asyncio import AsyncIOMotorClient
+            c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+            try:
+                await c[os.environ["DB_NAME"]].beta_feedback.insert_one(doc)
+            finally:
+                c.close()
+
+        async def _cleanup():
+            from motor.motor_asyncio import AsyncIOMotorClient
+            c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+            try:
+                await c[os.environ["DB_NAME"]].beta_feedback.delete_one({"id": fid})
+            finally:
+                c.close()
+
+        asyncio.run(_insert())
         yield fid
-        # Cleanup
-        asyncio.run(db.beta_feedback.delete_one({"id": fid}))
+        asyncio.run(_cleanup())
 
     def test_reply_404_for_missing(self, admin_client):
         r = admin_client.post(
@@ -166,20 +182,28 @@ class TestAdminFeedbackReply:
         assert body.get("to") == "TEST_feedback_reply@example.com"
         assert body.get("resolved") is True
 
-        # verify db side-effects
+        # verify db side-effects — iter413at — fresh client inside asyncio.run
         import asyncio
-        from core import db
-        doc = asyncio.run(
-            db.beta_feedback.find_one({"id": feedback_id}, {"_id": 0})
-        )
+
+        async def _check_doc():
+            from motor.motor_asyncio import AsyncIOMotorClient
+            c = AsyncIOMotorClient(os.environ["MONGO_URL"])
+            try:
+                d = c[os.environ["DB_NAME"]]
+                doc = await d.beta_feedback.find_one({"id": feedback_id}, {"_id": 0})
+                audit = await d.admin_audit.find_one(
+                    {"feedback_id": feedback_id, "kind": "feedback_reply"}, {"_id": 0}
+                )
+                return doc, audit
+            finally:
+                c.close()
+
+        doc, audit = asyncio.run(_check_doc())
         assert doc["replied_at"] is not None
         assert doc["resolved"] is True
         assert doc["replied_subject"] == "Thanks!"
 
         # audit log entry created
-        audit = asyncio.run(
-            db.admin_audit.find_one({"feedback_id": feedback_id, "kind": "feedback_reply"}, {"_id": 0})
-        )
         assert audit is not None
         assert audit["to"] == "TEST_feedback_reply@example.com"
 
