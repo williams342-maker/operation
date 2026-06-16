@@ -102,38 +102,39 @@ async def test_credit_packs_handles_missing_listing_credits_field():
 # ────────────────────────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_create_review_validates_required_fields():
-    from fastapi import HTTPException
+    from fastapi import HTTPException, BackgroundTasks
     from routers.catalog import create_review
     from models import ReviewCreate
     with pytest.raises(HTTPException) as exc:
-        await create_review(ReviewCreate(name="", text="great"))
+        await create_review(ReviewCreate(name="", text="great"), bg=BackgroundTasks())
     assert exc.value.status_code == 400
 
 
 @pytest.mark.asyncio
 async def test_create_review_validates_rating_range():
-    from fastapi import HTTPException
+    from fastapi import HTTPException, BackgroundTasks
     from routers.catalog import create_review
     from models import ReviewCreate
     with pytest.raises(HTTPException) as exc:
         await create_review(ReviewCreate(
-            name="A", text="nice", rating=6, maker_slug="x"))
+            name="A", text="nice", rating=6, maker_slug="x"), bg=BackgroundTasks())
     assert exc.value.status_code == 400
 
 
 @pytest.mark.asyncio
 async def test_create_review_requires_some_target():
     """Must specify either maker_slug or product_slug."""
-    from fastapi import HTTPException
+    from fastapi import HTTPException, BackgroundTasks
     from routers.catalog import create_review
     from models import ReviewCreate
     with pytest.raises(HTTPException) as exc:
-        await create_review(ReviewCreate(name="A", text="great", rating=5))
+        await create_review(ReviewCreate(name="A", text="great", rating=5), bg=BackgroundTasks())
     assert exc.value.status_code == 400
 
 
 @pytest.mark.asyncio
 async def test_create_review_persists_with_maker_slug():
+    from fastapi import BackgroundTasks
     from routers.catalog import create_review
     from models import ReviewCreate
     fake_db = MagicMock()
@@ -142,7 +143,7 @@ async def test_create_review_persists_with_maker_slug():
         review = await create_review(ReviewCreate(
             name="Cara", location="Austin, TX", rating=5,
             text="Stunning craftsmanship.", maker_slug="iron-and-oak",
-        ))
+        ), bg=BackgroundTasks())
     assert review.name == "Cara"
     assert review.maker_slug == "iron-and-oak"
     assert review.rating == 5
@@ -158,10 +159,11 @@ async def test_create_review_derives_maker_from_product_when_missing():
     fake_db.products.find_one = AsyncMock(return_value={"maker_slug": "iron-and-oak"})
     fake_db.reviews.insert_one = AsyncMock()
     with patch("routers.catalog.db", fake_db):
+        from fastapi import BackgroundTasks
         review = await create_review(ReviewCreate(
             name="Sam", text="Great piece.", rating=4,
             product_slug="steel-bench",
-        ))
+        ), bg=BackgroundTasks())
     assert review.product_slug == "steel-bench"
     assert review.maker_slug == "iron-and-oak"  # auto-derived
 
@@ -180,7 +182,11 @@ async def test_list_reviews_filters_by_maker_slug():
     with patch("routers.catalog.db", fake_db):
         r = await list_reviews(limit=20, maker_slug="iron-and-oak")
     assert len(r) == 1
-    fake_db.reviews.find.assert_called_with({"maker_slug": "iron-and-oak"}, {"_id": 0})
+    # iter413ao — list_reviews now also filters internal-source vs
+    # public-source reviews (iter300+). Just verify maker_slug ended
+    # up in the final query, not the exact dict shape.
+    call_args = fake_db.reviews.find.call_args
+    assert call_args.args[0]["maker_slug"] == "iron-and-oak"
 
 
 # ────────────────────────────────────────────────────────────────────────

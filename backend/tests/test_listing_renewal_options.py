@@ -215,8 +215,10 @@ async def test_reminder_sweep_targets_manual_only_within_7d_window():
     await db.products.insert_many([dict(d) for d in docs])
     try:
         r = await send_listing_expiry_reminders(days_before=7)
-        # Result includes at least our manual-in-window product
-        assert r["emails_sent"] >= 1
+        # iter413ao — function returns {digests_sent, listings_covered,...}
+        # since it was refactored to send per-maker digests instead of
+        # per-listing emails.
+        assert r.get("listings_covered", 0) >= 1 or r.get("digests_sent", 0) >= 1
         m = await db.products.find_one({"slug": m_slug}, {"_id": 0})
         assert m.get("renewal_reminder_sent_at"), "stamp should be set on manual-in-window"
         a = await db.products.find_one({"slug": a_slug}, {"_id": 0})
@@ -230,6 +232,7 @@ async def test_reminder_sweep_targets_manual_only_within_7d_window():
         m_after = await db.products.find_one({"slug": m_slug}, {"_id": 0})
         assert m_after["renewal_reminder_sent_at"] == m["renewal_reminder_sent_at"]
         # r2 may have >= 0 emails (other live test data), just sanity-check structure
-        assert "emails_sent" in r2
+        # iter413ao — keys renamed when function moved to per-maker digests
+        assert "digests_sent" in r2 or "listings_covered" in r2
     finally:
         await db.products.delete_many({"slug": {"$in": [m_slug, a_slug, far_slug]}})

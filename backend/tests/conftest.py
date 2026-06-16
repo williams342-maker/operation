@@ -222,7 +222,31 @@ SMOKE_FILES = {
     # KEPT IN (verified end-to-end in `yarn predeploy`):
     "test_admin_seo_shipping.py",
 
-    # ── iter413an — Per-file teardown fixes for the 4 admin polluters ──
+    # ── iter413ao — Triage of remaining test-rot files ─────────────
+    # Per-file fixes against the 56-file FAIL bucket from the iter413ak
+    # survey. Each of these had a distinct issue:
+    #   • iter27/28/99: signature drift — handlers now require `bg`,
+    #     `request`, or `(bg, request)` args. Tests updated to pass
+    #     BackgroundTasks() + a synthetic Request.
+    #   • iter19_audit_channels: skipped CHANNELS-constant test
+    #     (constant removed in iter300+ refactor).
+    #   • listing_renewal_options: function renamed `emails_sent` →
+    #     `digests_sent`/`listings_covered` when moved to per-maker
+    #     digest aggregation. Both keys accepted.
+    #   • iter114/231/335/377/378: now pass cleanly with no fix —
+    #     likely cascade benefit from the iter413ak/al/an seed fixture.
+    "test_iter114_showcase_multi_image_ai.py",
+    "test_iter19_audit_channels.py",
+    # test_iter231_showcase_curation.py — passes alone but pollutes
+    # community_designs collection in the full suite, taking down
+    # test_community_designs_seed. Needs per-file teardown fix.
+    "test_iter27_credits_reviews_receipt.py",
+    "test_iter28_application_emails_eua.py",
+    "test_iter335_13_live_p2_p3.py",
+    "test_iter377_seo_autofix.py",
+    "test_iter378_seo_wins.py",
+    "test_iter99_p2_features.py",
+    "test_listing_renewal_options.py",
     # • test_iter116: _wipe() now clears ALL showcase_posts, not just
     #   the iter116-* prefix, so sibling tests that seed showcase data
     #   can't push iter116's sitewide entry out of the tier results.

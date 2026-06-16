@@ -17,14 +17,16 @@ def event_loop():
 # ---------------- Coming Soon waitlist ----------------
 @pytest.mark.asyncio(loop_scope="module")
 async def test_coming_soon_signup_idempotent():
+    from fastapi import BackgroundTasks
     from core import db
     from routers.coming_soon import join_coming_soon_waitlist, _SignupBody
     email = "test+coming-soon-idem@example.com"
     await db.coming_soon_waitlist.delete_many({"email": email})
     body = _SignupBody(email=email, category="Neon & Light")
-    r1 = await join_coming_soon_waitlist(body)
+    # iter413ao — join_coming_soon_waitlist now requires bg param
+    r1 = await join_coming_soon_waitlist(body, bg=BackgroundTasks())
     assert r1["ok"] is True and r1["already"] is False
-    r2 = await join_coming_soon_waitlist(body)
+    r2 = await join_coming_soon_waitlist(body, bg=BackgroundTasks())
     assert r2["ok"] is True and r2["already"] is True
     rows = await db.coming_soon_waitlist.count_documents({"email": email})
     assert rows == 1
@@ -33,9 +35,10 @@ async def test_coming_soon_signup_idempotent():
 
 @pytest.mark.asyncio(loop_scope="module")
 async def test_coming_soon_rejects_unknown_category():
+    from fastapi import BackgroundTasks
     from routers.coming_soon import join_coming_soon_waitlist, _SignupBody
     body = _SignupBody(email="x@y.com", category="Diamond Mining")
-    r = await join_coming_soon_waitlist(body)
+    r = await join_coming_soon_waitlist(body, bg=BackgroundTasks())
     assert r["ok"] is False
     assert r["error"] == "unknown_category"
 
