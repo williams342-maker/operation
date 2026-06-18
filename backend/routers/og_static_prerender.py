@@ -346,7 +346,7 @@ def _org_jsonld(site: str) -> dict:
         "description": "A vetted marketplace for American CNC, plasma, laser, and wood makers.",
         "sameAs": [
             "https://www.pinterest.com/craftersmarket/",
-            "https://www.instagram.com/craftersmarket/",
+            "https://www.instagram.com/team_craftersmarket/",
         ],
     }
 

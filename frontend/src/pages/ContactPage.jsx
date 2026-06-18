@@ -55,7 +55,7 @@ export default function ContactPage() {
           <div className="space-y-6">
             <Block icon={<Mail />} title="Email" value="team@craftersmarket.org" href="mailto:team@craftersmarket.org" />
             <Block icon={<MapPin />} title="Service area" value="Continental US — ships nationwide" />
-            <Block icon={<Instagram />} title="Instagram" value="@craftersmarket" href="https://instagram.com/" />
+            <Block icon={<Instagram />} title="Instagram" value="@team_craftersmarket" href="https://instagram.com/team_craftersmarket" />
 
             <div className="pt-6 border-t border-line">
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">

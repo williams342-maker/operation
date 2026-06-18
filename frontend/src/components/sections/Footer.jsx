@@ -185,7 +185,15 @@ export default function Footer() {
                 <MapPin size={14} className="text-brand" /> Continental US · Ships nationwide
               </li>
               <li className="flex items-center gap-3">
-                <Instagram size={14} className="text-brand" /> @craftersmarket
+                <a
+                  href="https://instagram.com/team_craftersmarket"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 hover:text-brand transition-colors"
+                  data-testid="footer-instagram-link"
+                >
+                  <Instagram size={14} className="text-brand" /> @team_craftersmarket
+                </a>
               </li>
             </ul>
           </div>
