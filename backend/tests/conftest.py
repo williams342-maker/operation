@@ -622,6 +622,9 @@ SMOKE_FILES = {
     # ── iter413at — CI badge generator (live SMOKE_FILES pass-rate) ─
     "test_iter413at_ci_badge_contract.py",
 
+    # ── iter413av — Bing UET Enhanced Conversions contract ─────────
+    "test_iter413av_uet_enhanced_conversions.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

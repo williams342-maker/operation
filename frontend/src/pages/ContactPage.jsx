@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useStructuredData } from "../lib/seo";
 import { sendContactMessage } from "../lib/api";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { uetSetPII } from "../lib/consent";
 
 const TOPICS = [
   { id: "general", label: "General question" },
@@ -125,6 +126,10 @@ function ContactForm() {
       // leads from generic "general" inquiries when reporting ROAS.
       try {
         trackConversion("lead_contact", { event_label: topic || "general" });
+        // iter413av — UET Enhanced Conversions: pass the visitor's
+        // email so Microsoft can match this lead back to a Bing ad
+        // click even if the cookie expired or they switched browsers.
+        uetSetPII({ email: email.trim() });
       } catch { /* analytics best-effort */ }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Couldn't send. Try again.");

@@ -11,6 +11,7 @@ import {
 import { useStructuredData } from "../lib/seo";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { uetSetPII } from "../lib/consent";
 
 // ============================================================
 //  Category catalog — 7 piece types incl. 3D Printing
@@ -788,6 +789,13 @@ export default function CustomOrderPage() {
         trackConversion("lead_custom_order", {
           event_label: form.budget || "unspecified",
           value: 1,
+        });
+        // iter413av — Bing Enhanced Conversion: pass both email AND
+        // phone for the strongest offline-match signal. Custom-order
+        // leads carry both fields so we have the richest pid payload.
+        uetSetPII({
+          email: (form.email || "").trim(),
+          phone: (form.phone || "").trim(),
         });
       } catch { /* analytics best-effort */ }
     } catch (e) {

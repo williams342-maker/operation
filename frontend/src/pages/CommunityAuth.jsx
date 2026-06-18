@@ -6,6 +6,7 @@ import {
   fetchCommunityEua,
 } from "../lib/api";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { uetSetPII } from "../lib/consent";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 const googleSignIn = () => {
@@ -43,6 +44,10 @@ export function CommunityLogin() {
       const v = stampAndPersist();
       const r = await communityRequestMagic(email.trim(), window.location.origin, v);
       setState({ status: "sent", message: r.message });
+      // iter413av — Bing Enhanced Conversion: pass email at the moment
+      // the visitor identifies. Subsequent UET events (sign_up after
+      // they click the magic link) inherit this PII for offline match.
+      try { uetSetPII({ email: email.trim() }); } catch {}
     } catch (e2) {
       setState({
         status: "error",

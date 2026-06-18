@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getCheckoutStatus, communityRequestMagic, subscribeNewsletter } from "../lib/api";
 import { useCart } from "../lib/cart";
-import { uetTrack } from "../lib/consent";
+import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import PushOptInCard from "../components/PushOptInCard";
 import { SocialShareRow } from "../components/SocialShareButtons";
@@ -104,6 +104,9 @@ export default function CheckoutSuccess() {
       ""
     );
     if (!email || !/.+@.+\..+/.test(email)) return;
+    // iter413av — UET Enhanced Conversions: now that we know the buyer's
+    // email, push it to Microsoft for offline-match attribution.
+    uetSetPII({ email });
     setAccountState({ kind: "loading", message: "" });
     try {
       const r = await communityRequestMagic(email.trim(), window.location.origin);

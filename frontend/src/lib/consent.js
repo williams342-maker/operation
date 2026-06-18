@@ -92,6 +92,46 @@ export function uetTrack(eventName, params = {}) {
   }
 }
 
+/**
+ * iter413av — UET Enhanced Conversions PII push.
+ * Sends the visitor's email/phone to Microsoft so Bing can match offline
+ * conversions back to ad clicks even when the cookie expires or the
+ * click came from a different browser. Microsoft accepts plain values
+ * (they hash server-side with SHA-256) — we just normalize first
+ * (lowercase email, strip phone formatting) per their spec.
+ *
+ * Call this once per page after the user identifies themselves
+ * (login, signup, checkout, contact form submit). It's idempotent:
+ * calling it twice with the same values is a no-op as far as Bing's
+ * matching pipeline is concerned.
+ *
+ * Honors consent: skipped when ad_storage='denied'.
+ *
+ * Docs: https://help.ads.microsoft.com/apex/index/3/en/60111
+ */
+export function uetSetPII({ email, phone } = {}) {
+  if (typeof window === "undefined") return false;
+  try {
+    if (!window.uetq || typeof window.uetq.push !== "function") return false;
+    const consent = readConsent();
+    if (consent && consent.ad_storage !== "granted") return false;
+    const pid = {};
+    if (email && typeof email === "string") {
+      pid.em = email.trim().toLowerCase();
+    }
+    if (phone && typeof phone === "string") {
+      // Strip everything except digits and the leading +
+      const digits = phone.replace(/[^\d+]/g, "");
+      if (digits) pid.ph = digits.startsWith("+") ? digits : `+${digits}`;
+    }
+    if (!pid.em && !pid.ph) return false;
+    window.uetq.push("set", { pid });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Convenience helpers for the banner. */
 export const acceptAll = () => writeConsent("granted", "granted");
 export const rejectAll = () => writeConsent("denied", "denied");

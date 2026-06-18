@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
-import { uetTrack } from "../lib/consent";
+import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
@@ -73,6 +73,9 @@ export default function ApplyPage() {
       // originating ad creative.
       try {
         trackConversion("signup_maker", { event_label: "maker_application" });
+        // iter413av — Bing Enhanced Conversion: hand Microsoft the
+        // applicant's email so the lead is matched to its origin click.
+        uetSetPII({ email: (f.email || "").trim() });
       } catch { /* noop */ }
     }
     catch (e2) {
