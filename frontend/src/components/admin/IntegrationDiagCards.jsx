@@ -171,3 +171,80 @@ export function R2DiagCard() {
     </DiagShell>
   );
 }
+
+
+// iter413aw — Bing UET Enhanced Conversions health card.
+// Unlike the other cards (which probe a backend endpoint), this one
+// reads CLIENT-SIDE state because Enhanced Conversions live entirely
+// in the browser: the UET pixel + the pid.em/pid.ph push happen in JS.
+//
+// Health = (UET pixel loaded) AND (consent granted) AND (PII pushed
+// in the current session). The freshness timestamp lets the admin see
+// "last push 12 min ago" so they know the pipeline is firing.
+export function UetEnhancedConversionsCard() {
+  const [snapshot, setSnapshot] = useState({
+    uetLoaded: false,
+    consentGranted: null,
+    lastPushTs: null,
+    lastPushFields: null,
+  });
+  const refresh = () => {
+    let consentGranted = null;
+    try {
+      const c = JSON.parse(localStorage.getItem("cm_consent_v1") || "null");
+      if (c && c.ad_storage) consentGranted = c.ad_storage === "granted";
+    } catch { /* noop */ }
+    let lastPushTs = null;
+    let lastPushFields = null;
+    try {
+      const ts = localStorage.getItem("uet_pii_last_push");
+      if (ts) lastPushTs = parseInt(ts, 10);
+      lastPushFields = localStorage.getItem("uet_pii_last_fields");
+    } catch { /* noop */ }
+    setSnapshot({
+      uetLoaded: typeof window !== "undefined" && !!window.uetq && typeof window.uetq.push === "function",
+      consentGranted,
+      lastPushTs,
+      lastPushFields,
+    });
+  };
+  useEffect(() => { refresh(); }, []);
+  const ok = snapshot.uetLoaded && snapshot.consentGranted === true && !!snapshot.lastPushTs;
+  let ageStr = "—";
+  if (snapshot.lastPushTs) {
+    const ageMs = Date.now() - snapshot.lastPushTs;
+    const ageMin = Math.floor(ageMs / 60000);
+    if (ageMin < 1) ageStr = "just now";
+    else if (ageMin < 60) ageStr = `${ageMin} min ago`;
+    else if (ageMin < 1440) ageStr = `${Math.floor(ageMin / 60)} hr ago`;
+    else ageStr = `${Math.floor(ageMin / 1440)} d ago`;
+  }
+  const data = ok ? { ok: true } : null;
+  return (
+    <DiagShell
+      title="Bing UET · Enhanced Conversions"
+      blurb="Reads client-side telemetry: UET pixel loaded + consent granted + a PII push happened recently. Each successful pid.em / pid.ph push lets Microsoft Ads match an offline conversion back to a Bing ad click — even when cookies expire or the buyer switches browsers."
+      testId="uet-enhanced-conversions-card"
+      ok={ok}
+      data={ok ? data : (snapshot.uetLoaded ? data : null)}
+      busy={false}
+      onRefresh={refresh}
+      reason={
+        !snapshot.uetLoaded
+          ? "UET pixel hasn't loaded on this page (script blocked or load failure)."
+          : snapshot.consentGranted === false
+            ? "Consent banner: ad_storage='denied'. Visitors who reject ad cookies are skipped."
+            : !snapshot.lastPushTs
+              ? "No PII push recorded yet in this session. Submit any lead form (Contact, Apply, Custom Order) to fire one."
+              : null
+      }
+    >
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-[11px]" data-testid="uet-pii-tiles">
+        <DiagTile label="UET Pixel" value={snapshot.uetLoaded ? "LOADED" : "missing"} highlight={snapshot.uetLoaded} />
+        <DiagTile label="Consent" value={snapshot.consentGranted === true ? "GRANTED" : snapshot.consentGranted === false ? "denied" : "—"} highlight={snapshot.consentGranted === true} />
+        <DiagTile label="Last push" value={ageStr} highlight={!!snapshot.lastPushTs} />
+        <DiagTile label="Fields" value={snapshot.lastPushFields || "—"} highlight={!!snapshot.lastPushFields} />
+      </div>
+    </DiagShell>
+  );
+}

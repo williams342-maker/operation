@@ -32,6 +32,22 @@ def test_uet_set_pii_helper_exists_and_exports():
     # Must normalize email (lowercase) + phone (digits + optional leading +)
     assert ".toLowerCase()" in src
     assert "+" in src  # phone normalization carries the country-code +
+    # iter413aw — Must drop a telemetry breadcrumb so the admin dashboard
+    # health card can show "Enhanced Conversions: ON" with freshness.
+    assert "uet_pii_last_push" in src
+    assert "uet_pii_last_fields" in src
+
+
+def test_uet_health_card_exists_and_reads_telemetry():
+    """The IntegrationDiagCards module must export a UetEnhancedConversionsCard
+    that reads the breadcrumb dropped by `uetSetPII`."""
+    diag = Path("/app/frontend/src/components/admin/IntegrationDiagCards.jsx").read_text()
+    assert "export function UetEnhancedConversionsCard" in diag
+    assert "uet_pii_last_push" in diag
+    assert 'testId="uet-enhanced-conversions-card"' in diag
+    # SettingsTab must mount the new card alongside the other diag cards.
+    settings = Path("/app/frontend/src/components/admin/SettingsTab.jsx").read_text()
+    assert "<UetEnhancedConversionsCard" in settings
 
 
 def test_uet_set_pii_wired_into_all_lead_flows():

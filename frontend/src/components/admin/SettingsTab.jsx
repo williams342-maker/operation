@@ -49,7 +49,7 @@ import {
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
-import { ShippoDiagCard, MailgunDiagCard, R2DiagCard } from "./IntegrationDiagCards";
+import { ShippoDiagCard, MailgunDiagCard, R2DiagCard, UetEnhancedConversionsCard } from "./IntegrationDiagCards";
 import FeedHealthCard from "./FeedHealthCard";
 import SeoHealthCard from "./SeoHealthCard";
 import MerchantRulesCard from "./MerchantRulesCard";
@@ -5657,6 +5657,9 @@ export default function SettingsTab() {
       <ShippoDiagCard />
       <MailgunDiagCard />
       <R2DiagCard />
+
+      {/* iter413aw — Bing UET Enhanced Conversions client-side health card. */}
+      <UetEnhancedConversionsCard />
 
       <HeroHeadlinesCard />
 

@@ -126,6 +126,16 @@ export function uetSetPII({ email, phone } = {}) {
     }
     if (!pid.em && !pid.ph) return false;
     window.uetq.push("set", { pid });
+    // iter413aw — One-line telemetry breadcrumb so the admin dashboard
+    // can surface "Enhanced Conversions: ON" with a freshness timestamp.
+    // Stored in localStorage (cleared on logout/incognito close).
+    try {
+      localStorage.setItem("uet_pii_last_push", String(Date.now()));
+      localStorage.setItem(
+        "uet_pii_last_fields",
+        [pid.em && "em", pid.ph && "ph"].filter(Boolean).join("+"),
+      );
+    } catch { /* localStorage may be unavailable */ }
     return true;
   } catch {
     return false;
