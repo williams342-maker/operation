@@ -690,6 +690,202 @@ async def stripe_webhook_health(_admin: dict = Depends(_current_admin)):
     return out
 
 
+# ─────────────── iter413ay — Stripe-side webhook endpoint introspection ───────────────
+# Reads the live list of webhook endpoints CONFIGURED in Stripe Dashboard
+# (via Stripe API) and red-flags any whose URL path doesn't match an actual
+# backend route. This is what catches the "Crafters Market endpoint pointing
+# at /api/checkout/webhook (which doesn't exist)" class of misconfig.
+#
+# Why a hardcoded path list rather than introspecting FastAPI? Stripe-side
+# config is rare and tiny — keeping the source of truth explicit makes it
+# obvious what each path is for, and avoids accidentally validating against
+# admin-only or internal routes.
+_KNOWN_WEBHOOK_PATHS = {
+    "/api/webhook/stripe":         "main · checkout.session.* + payment_intent.*",
+    "/api/webhook/stripe/connect": "connect · account.updated + subscriptions",
+    "/api/stripe/connect/webhook": "connect (alias) · same as /api/webhook/stripe/connect",
+}
+
+
+def _public_hosts() -> list[str]:
+    """Lowercased hosts this deployment recognises as its own (no scheme,
+    no path). Anything outside this set is treated as a 'foreign' endpoint
+    (e.g. a preview pod, a different project) — not flagged as broken."""
+    from urllib.parse import urlparse
+    hosts: set[str] = set()
+    for var in ("PUBLIC_BACKEND_URL", "PUBLIC_SITE_URL", "PUBLIC_APP_URL"):
+        v = (os.environ.get(var) or "").strip()
+        if not v:
+            continue
+        try:
+            h = urlparse(v).hostname
+        except Exception:
+            continue
+        if h:
+            hosts.add(h.lower())
+    if not hosts:
+        # Hard fallback — we KNOW this is the prod domain.
+        hosts.add("craftersmarket.org")
+    return sorted(hosts)
+
+
+@router.get("/admin/stripe/webhook-endpoints")
+async def stripe_webhook_endpoints_list(_admin: dict = Depends(_current_admin)):
+    """Pull the live webhook-endpoint registry from Stripe API and
+    cross-reference every entry against the backend's known webhook
+    paths. The result powers the 'Configured in Stripe' sub-card on the
+    admin webhook-health widget.
+
+    Each row's `verdict`:
+      • `ok`            — path matches a known backend route AND host
+                          matches one of our public hosts. Working setup.
+      • `wrong_path`    — host is ours but path is unknown. 404 on every
+                          delivery. THIS is the misconfig we're hunting.
+      • `disabled`      — endpoint exists in Stripe but is disabled.
+      • `foreign_host`  — host is not ours (preview / unrelated project).
+                          Not actionable from this deploy — informational.
+    """
+    from urllib.parse import urlparse
+    import asyncio as _asyncio
+
+    api_key = os.environ.get("STRIPE_API_KEY") or os.environ.get("STRIPE_SECRET_KEY")
+    if not api_key:
+        return {
+            "configured": False,
+            "error": "STRIPE_API_KEY not configured — cannot list Stripe endpoints.",
+            "public_hosts": _public_hosts(),
+            "known_paths": _KNOWN_WEBHOOK_PATHS,
+            "endpoints": [],
+        }
+
+    sdk = _stripe_sdk()
+    # Stripe SDK is sync — run in default thread executor so we don't
+    # block the event loop on the network round-trip.
+    def _list_all() -> list:
+        out: list = []
+        # `auto_paging_iter` would be cleaner but the test harness mocks
+        # `list(...).data`, so respect that contract.
+        first = sdk.WebhookEndpoint.list(limit=100)
+        out.extend(getattr(first, "data", []) or [])
+        return out
+    try:
+        items = await _asyncio.to_thread(_list_all)
+    except Exception as e:
+        logger.warning("[webhook-endpoints] stripe list failed: %s", e)
+        return {
+            "configured": True,
+            "error": f"Stripe API call failed: {e}",
+            "public_hosts": _public_hosts(),
+            "known_paths": _KNOWN_WEBHOOK_PATHS,
+            "endpoints": [],
+        }
+
+    public_hosts = set(_public_hosts())
+    endpoints: list[dict] = []
+    for ep in items:
+        # Stripe SDK objects support dict-like access; fall back to attrs.
+        def _g(k, default=None):
+            try:
+                return ep[k]
+            except Exception:
+                return getattr(ep, k, default)
+        url = (_g("url") or "").strip()
+        status = _g("status") or "enabled"
+        try:
+            parsed = urlparse(url)
+            host = (parsed.hostname or "").lower()
+            path = parsed.path or ""
+        except Exception:
+            host, path = "", ""
+
+        host_matches = host in public_hosts
+        path_matches = path in _KNOWN_WEBHOOK_PATHS
+        if status != "enabled":
+            verdict = "disabled"
+            reason  = "Endpoint is disabled in Stripe — no events delivered."
+        elif not host_matches:
+            verdict = "foreign_host"
+            reason  = f"Host {host or '(none)'} doesn't match this deploy ({', '.join(sorted(public_hosts))})."
+        elif path_matches:
+            verdict = "ok"
+            reason  = f"Routes to backend handler: {_KNOWN_WEBHOOK_PATHS[path]}."
+        else:
+            verdict = "wrong_path"
+            expected = " or ".join(_KNOWN_WEBHOOK_PATHS.keys())
+            reason  = f"Path '{path}' does not match any backend route. Expected one of: {expected}."
+
+        endpoints.append({
+            "id": _g("id"),
+            "url": url,
+            "host": host,
+            "path": path,
+            "status": status,
+            "enabled_events_count": len(_g("enabled_events", []) or []),
+            "enabled_events": list(_g("enabled_events", []) or [])[:8],  # cap noise
+            "secret_prefix": _redact_secret(_g("secret") or ""),
+            "created": _g("created"),
+            "host_matches_public": host_matches,
+            "path_matches_known": path_matches,
+            "verdict": verdict,
+            "reason": reason,
+        })
+
+    # Surface broken endpoints first so the admin sees them without scrolling.
+    order = {"wrong_path": 0, "disabled": 1, "ok": 2, "foreign_host": 3}
+    endpoints.sort(key=lambda r: (order.get(r["verdict"], 99), r["url"]))
+
+    return {
+        "configured": True,
+        "error": None,
+        "public_hosts": sorted(public_hosts),
+        "known_paths": _KNOWN_WEBHOOK_PATHS,
+        "endpoints": endpoints,
+        "summary": {
+            "total": len(endpoints),
+            "ok": sum(1 for e in endpoints if e["verdict"] == "ok"),
+            "wrong_path": sum(1 for e in endpoints if e["verdict"] == "wrong_path"),
+            "disabled": sum(1 for e in endpoints if e["verdict"] == "disabled"),
+            "foreign_host": sum(1 for e in endpoints if e["verdict"] == "foreign_host"),
+        },
+    }
+
+
+@router.post("/admin/stripe/webhook-endpoints/{endpoint_id}/disable",
+             include_in_schema=False)
+async def stripe_webhook_endpoint_disable(
+    endpoint_id: str,
+    claims: dict = Depends(require_super_admin()),
+):
+    """Flip a Stripe webhook endpoint to `disabled` so it stops receiving
+    events. We intentionally do NOT delete — disable is reversible from
+    the Stripe Dashboard and keeps the audit trail intact.
+
+    Used to neutralise dead endpoints (e.g. one pointing at the wrong URL
+    path, generating 100% errors) without leaving the admin console."""
+    import asyncio as _asyncio
+    if not endpoint_id or not endpoint_id.startswith("we_"):
+        raise HTTPException(400, "Invalid endpoint id (expected we_…).")
+    sdk = _stripe_sdk()
+
+    def _disable() -> dict:
+        ep = sdk.WebhookEndpoint.modify(endpoint_id, disabled=True)
+        return {"id": ep["id"], "status": ep.get("status"), "url": ep.get("url")}
+    try:
+        result = await _asyncio.to_thread(_disable)
+    except Exception as e:
+        logger.warning("[webhook-endpoints] disable %s failed: %s", endpoint_id, e)
+        raise HTTPException(502, f"Stripe API call failed: {e}")
+
+    await db.admin_audit_log.insert_one({
+        "kind": "stripe_webhook_endpoint_disabled",
+        "endpoint_id": endpoint_id,
+        "endpoint_url": result.get("url"),
+        "admin_email": (claims.get("email") or "").lower(),
+        "created_at": now_iso(),
+    })
+    return {"ok": True, **result}
+
+
 # ─────────────── iter292 — Sales channel feeds widget ───────────────
 @router.get("/admin/feeds/status")
 async def feeds_status(_admin: dict = Depends(_current_admin)):

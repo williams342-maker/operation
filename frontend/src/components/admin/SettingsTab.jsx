@@ -3429,7 +3429,194 @@ function StripeWebhookHealthCard() {
           (find them in Stripe Dashboard → Developers → Webhooks → your endpoint → "Signing secret").
         </div>
       )}
+
+      <StripeConfiguredEndpoints />
     </section>
+  );
+}
+
+
+// iter413ay — Read-only mirror of what Stripe Dashboard has configured.
+// Pulls from `GET /api/admin/stripe/webhook-endpoints` (which calls the
+// Stripe API server-side) and red-flags any endpoint whose URL path
+// doesn't match an actual backend route. Catches the "endpoint pointing
+// at /api/checkout/webhook (404)" class of misconfig without making the
+// admin leave the dashboard.
+function StripeConfiguredEndpoints() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [disablingId, setDisablingId] = useState("");
+
+  const load = async () => {
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/stripe/webhook-endpoints`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setData(await r.json());
+    } catch (e) {
+      setErr(e.message || "Load failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const disable = async (id, url) => {
+    if (!window.confirm(`Disable this endpoint in Stripe?\n\n${url}\n\nStripe will stop delivering events here. Reversible from the Stripe Dashboard.`)) return;
+    setDisablingId(id);
+    try {
+      const r = await fetch(`${API}/api/admin/stripe/webhook-endpoints/${id}/disable`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `HTTP ${r.status}`);
+      }
+      await load();
+    } catch (e) {
+      alert(`Disable failed: ${e.message}`);
+    } finally {
+      setDisablingId("");
+    }
+  };
+
+  const verdictStyle = (v) => {
+    switch (v) {
+      case "ok":           return { color: "#22c55e", label: "✓ routes to backend" };
+      case "wrong_path":   return { color: "#ef4444", label: "✗ wrong path · 404s" };
+      case "disabled":     return { color: "#737373", label: "◯ disabled" };
+      case "foreign_host": return { color: "#a3a3a3", label: "◦ different host" };
+      default:             return { color: "#737373", label: v };
+    }
+  };
+
+  return (
+    <div
+      className="mt-4 pt-4 border-t border-line"
+      data-testid="stripe-configured-endpoints"
+    >
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            ◆ Configured in Stripe (live API readback)
+          </div>
+          <p className="font-mono text-[11px] text-ink-muted mt-1 max-w-xl">
+            Every endpoint Stripe is currently configured to POST events to.
+            Red rows mean the URL path doesn't match any backend route — every
+            delivery is hitting a 404. Disable them or fix the URL in Stripe Dashboard.
+          </p>
+        </div>
+        <button
+          onClick={load}
+          disabled={busy}
+          data-testid="stripe-endpoints-refresh"
+          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {busy ? "Loading…" : "Reload"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="font-mono text-xs text-red-400" data-testid="stripe-endpoints-error">
+          {err}
+        </div>
+      )}
+      {data && !data.configured && (
+        <div
+          className="border border-amber-500/30 bg-amber-500/5 p-2.5 font-mono text-[11px] text-brand"
+          data-testid="stripe-endpoints-not-configured"
+        >
+          ⚠ {data.error || "STRIPE_API_KEY not configured."}
+        </div>
+      )}
+      {data && data.configured && data.endpoints?.length === 0 && (
+        <div className="font-mono text-xs text-ink-muted" data-testid="stripe-endpoints-empty">
+          No webhook endpoints found in Stripe — add one at Stripe Dashboard → Developers → Webhooks.
+        </div>
+      )}
+      {data && data.configured && data.summary && (
+        <div className="flex flex-wrap gap-2 mb-3 font-mono text-[10px] uppercase tracking-[0.18em]">
+          <span className="px-2 py-0.5 border border-line text-ink-muted">
+            total <b className="text-ink ml-1">{data.summary.total}</b>
+          </span>
+          {data.summary.ok > 0 && (
+            <span className="px-2 py-0.5 border" style={{ borderColor: "#22c55e", color: "#22c55e" }}
+                  data-testid="stripe-endpoints-summary-ok">
+              ok <b className="ml-1">{data.summary.ok}</b>
+            </span>
+          )}
+          {data.summary.wrong_path > 0 && (
+            <span className="px-2 py-0.5 border" style={{ borderColor: "#ef4444", color: "#ef4444" }}
+                  data-testid="stripe-endpoints-summary-broken">
+              broken <b className="ml-1">{data.summary.wrong_path}</b>
+            </span>
+          )}
+          {data.summary.disabled > 0 && (
+            <span className="px-2 py-0.5 border border-line text-ink-muted">
+              disabled <b className="text-ink ml-1">{data.summary.disabled}</b>
+            </span>
+          )}
+          {data.summary.foreign_host > 0 && (
+            <span className="px-2 py-0.5 border border-line text-ink-muted">
+              other host <b className="text-ink ml-1">{data.summary.foreign_host}</b>
+            </span>
+          )}
+        </div>
+      )}
+
+      {data && data.endpoints?.length > 0 && (
+        <ul className="space-y-2" data-testid="stripe-endpoints-list">
+          {data.endpoints.map((ep) => {
+            const v = verdictStyle(ep.verdict);
+            const showDisable = ep.verdict === "wrong_path" && ep.status === "enabled";
+            return (
+              <li
+                key={ep.id}
+                className="border border-line bg-paper p-3"
+                style={ep.verdict === "wrong_path" ? { borderColor: "rgba(239,68,68,0.4)" } : {}}
+                data-testid={`stripe-endpoint-row-${ep.id}`}
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: v.color }}
+                         data-testid={`stripe-endpoint-${ep.id}-verdict`}>
+                      {v.label}
+                    </div>
+                    <div className="font-mono text-xs text-ink mt-1 break-all">
+                      {ep.url || "(no url)"}
+                    </div>
+                    <div className="font-mono text-[10px] text-ink-muted mt-1">
+                      {ep.enabled_events_count} event type{ep.enabled_events_count === 1 ? "" : "s"} ·{" "}
+                      secret <code className="text-ink">{ep.secret_prefix}</code> ·{" "}
+                      id <code className="text-ink">{ep.id}</code>
+                    </div>
+                    <div className="font-mono text-[10px] text-ink-muted mt-1">
+                      {ep.reason}
+                    </div>
+                  </div>
+                  {showDisable && (
+                    <button
+                      onClick={() => disable(ep.id, ep.url)}
+                      disabled={disablingId === ep.id}
+                      data-testid={`stripe-endpoint-${ep.id}-disable`}
+                      className="shrink-0 px-3 py-1.5 border border-red-500/40 text-red-500 hover:bg-red-500/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                      title="Disable this endpoint in Stripe (reversible from the dashboard)"
+                    >
+                      {disablingId === ep.id ? "Disabling…" : "Disable in Stripe"}
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

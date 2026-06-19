@@ -23,6 +23,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413ay — Stripe-side Webhook Endpoint Introspection (2026-02-19):**
+  - New backend route `GET /api/admin/stripe/webhook-endpoints` reads the live Stripe webhook-endpoint registry via `WebhookEndpoint.list()` and classifies each row: `ok` / `wrong_path` / `disabled` / `foreign_host`. Rows with our public host but no matching backend route are red-flagged as broken (the `/api/checkout/webhook` 404 class of misconfig).
+  - New backend route `POST /api/admin/stripe/webhook-endpoints/{id}/disable` (super-admin) flips a dead endpoint to `disabled` in Stripe + writes `stripe_webhook_endpoint_disabled` to `admin_audit_log`.
+  - Frontend: new `<StripeConfiguredEndpoints>` panel inside the existing webhook health card. Per-row verdict pill, reason text, redacted secret prefix, event-type count, and inline "Disable in Stripe" button on broken rows.
+  - Contract tests (`test_iter413ay_stripe_webhook_endpoints.py`): 6 tests, all passing. Covers shape, auth gates, unit verdict logic against mocked Stripe SDK, missing-key graceful response.
 - ✅ **iter413ax — Admin Custom Brief Lifecycle Actions (2026-02-19):**
   - New backend routes: `POST /admin/custom-orders/{id}/archive`, `POST /admin/custom-orders/{id}/unarchive`, `DELETE /admin/custom-orders/{id}` (hard purge), `POST /admin/custom-orders/{id}/email` (target: client|maker).
   - 2 new email templates in `email_service.py` for ad-hoc admin-to-client / admin-to-maker messages.

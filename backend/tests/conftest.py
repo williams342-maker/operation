@@ -625,6 +625,12 @@ SMOKE_FILES = {
     # ── iter413av — Bing UET Enhanced Conversions contract ─────────
     "test_iter413av_uet_enhanced_conversions.py",
 
+    # ── iter413ax — Admin custom-brief lifecycle actions ────────────
+    "test_iter413ax_admin_custom_brief_actions.py",
+
+    # ── iter413ay — Stripe-side webhook endpoint introspection ──────
+    "test_iter413ay_stripe_webhook_endpoints.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
