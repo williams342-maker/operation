@@ -1,5 +1,6 @@
 """Admin console: magic-link auth, applications/custom-orders/paid-orders dashboards."""
 from typing import Optional
+import uuid  # iter413ax — audit row IDs
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,7 @@ from email_service import (
     send_admin_message_to_applicant, send_admin_team_invite,
     send_application_decision, send_custom_order_quote,
     render_application_decision_email,
+    send_admin_brief_message,  # iter413ax — admin ad-hoc brief outreach
 )
 from maker_auth import (
     admin_capabilities, current_admin, current_buyer, current_maker_slug,
@@ -690,16 +692,154 @@ async def admin_broadcast_send(
 @router.get("/admin/custom-orders")
 async def admin_custom_orders(
     tracking: str | None = None,
+    include_archived: bool = False,
     _: dict = Depends(current_admin),
 ):
     """List all briefs (newest first) OR look up one by tracking number
-    when `?tracking=` is provided."""
-    q = {}
+    when `?tracking=` is provided.
+
+    iter413ax — Archived briefs are hidden by default. Pass
+    `?include_archived=true` to see them (e.g., admin restore UI)."""
+    q: dict = {}
     if tracking:
         if not tracking.isdigit() or len(tracking) != 10:
             raise HTTPException(400, "Tracking number must be 10 digits.")
         q["tracking_number"] = tracking
+    if not include_archived:
+        q["archived_at"] = {"$in": [None, ""]}
     return await db.custom_orders.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+# iter413ax — Admin actions on individual briefs:
+#   • DELETE /admin/custom-orders/{id} — hard purge (irreversible)
+#   • POST /admin/custom-orders/{id}/archive — soft-hide
+#   • POST /admin/custom-orders/{id}/unarchive — restore
+#   • POST /admin/custom-orders/{id}/email — send ad-hoc message to maker or client
+@router.delete("/admin/custom-orders/{order_id}")
+async def admin_purge_custom_order(
+    order_id: str, claims: dict = Depends(current_admin),
+):
+    """Hard-delete a brief + its bid history. Use sparingly — prefer
+    archive. Spam/test/duplicate briefs are the legitimate use case."""
+    order = await db.custom_orders.find_one({"id": order_id}, {"_id": 0, "tracking_number": 1})
+    if not order:
+        raise HTTPException(404, "Custom order not found")
+    deleted = await db.custom_orders.delete_one({"id": order_id})
+    # Drop related bids + assignments so they don't dangle in maker queues.
+    bids_deleted = await db.custom_order_bids.delete_many({"order_id": order_id})
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "custom_order_purge",
+        "actor": claims.get("email"),
+        "order_id": order_id,
+        "tracking": order.get("tracking_number"),
+        "bids_deleted": bids_deleted.deleted_count,
+        "at": now_iso(),
+    })
+    return {"ok": True, "deleted": deleted.deleted_count, "bids_deleted": bids_deleted.deleted_count}
+
+
+@router.post("/admin/custom-orders/{order_id}/archive")
+async def admin_archive_custom_order(
+    order_id: str, claims: dict = Depends(current_admin),
+):
+    """Soft-archive a brief. Removes it from the default admin list +
+    maker queues without deleting the data. Reversible via /unarchive."""
+    r = await db.custom_orders.update_one(
+        {"id": order_id, "archived_at": {"$in": [None, ""]}},
+        {"$set": {"archived_at": now_iso(), "archived_by": claims.get("email")}},
+    )
+    if r.matched_count == 0:
+        # Either doesn't exist or already archived
+        existing = await db.custom_orders.find_one({"id": order_id}, {"_id": 0, "archived_at": 1})
+        if not existing:
+            raise HTTPException(404, "Custom order not found")
+        return {"ok": True, "already_archived": True}
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "custom_order_archive",
+        "actor": claims.get("email"),
+        "order_id": order_id,
+        "at": now_iso(),
+    })
+    return {"ok": True}
+
+
+@router.post("/admin/custom-orders/{order_id}/unarchive")
+async def admin_unarchive_custom_order(
+    order_id: str, claims: dict = Depends(current_admin),
+):
+    r = await db.custom_orders.update_one(
+        {"id": order_id},
+        {"$set": {"archived_at": None, "archived_by": None}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Custom order not found")
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "custom_order_unarchive",
+        "actor": claims.get("email"),
+        "order_id": order_id,
+        "at": now_iso(),
+    })
+    return {"ok": True}
+
+
+class _BriefEmailBody(BaseModel):
+    target: str  # "maker" or "client"
+    subject: str
+    message: str
+
+
+@router.post("/admin/custom-orders/{order_id}/email")
+async def admin_email_brief_party(
+    order_id: str, body: _BriefEmailBody, bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
+):
+    """Send an ad-hoc admin-composed message to either the brief's
+    maker (must have been assigned via push-to-maker first) or the
+    client. The send is enqueued via BackgroundTasks so the request
+    returns immediately and the admin UI stays snappy."""
+    if body.target not in ("maker", "client"):
+        raise HTTPException(400, "target must be 'maker' or 'client'")
+    if not body.subject or not body.message:
+        raise HTTPException(400, "subject and message are required")
+    order = await db.custom_orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Custom order not found")
+
+    if body.target == "client":
+        to_email = order.get("email")
+        recipient_name = order.get("name") or "there"
+    else:
+        to_email = order.get("maker_email")
+        recipient_name = order.get("maker_name") or "maker"
+        if not to_email:
+            raise HTTPException(
+                400, "Brief has no assigned maker yet. Use 'Push to maker' first."
+            )
+
+    bg.add_task(
+        send_admin_brief_message,
+        to_email,
+        recipient_name,
+        order.get("project_type") or "custom",
+        body.subject,
+        body.message,
+        order.get("tracking_number"),
+        body.target == "maker",
+    )
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "custom_order_email",
+        "actor": claims.get("email"),
+        "order_id": order_id,
+        "target": body.target,
+        "to": to_email,
+        "subject": body.subject,
+        "at": now_iso(),
+    })
+    return {"ok": True, "sent_to": to_email, "target": body.target}
 
 
 @router.get("/admin/orders")

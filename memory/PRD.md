@@ -23,6 +23,12 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413ax — Admin Custom Brief Lifecycle Actions (2026-02-19):**
+  - New backend routes: `POST /admin/custom-orders/{id}/archive`, `POST /admin/custom-orders/{id}/unarchive`, `DELETE /admin/custom-orders/{id}` (hard purge), `POST /admin/custom-orders/{id}/email` (target: client|maker).
+  - 2 new email templates in `email_service.py` for ad-hoc admin-to-client / admin-to-maker messages.
+  - New compact action bar `<BriefAdminActions>` in `CustomOrdersList.jsx` with 4 buttons (Email Client / Email Maker / Archive / Purge) + inline compose form. Email Maker auto-disables until a maker is routed.
+  - Contract tests: `test_iter413ax_admin_custom_brief_actions.py`.
+  - Visual smoke test PASSED (298 briefs, all 4 actions render correctly).
 - ✅ **iter413au — FULL TEST GATE GRADUATION (2026-02-16):**
   - **🎉 0 test files outside SMOKE_FILES** — every test in the project is now in CI's regression net.
   - **CI pass count: 1457 → 1900+ tests passing** (over 1 session of triage).

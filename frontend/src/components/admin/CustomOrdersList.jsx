@@ -470,6 +470,153 @@ function CustomOrderRow({ order, makers, reddit, onChange }) {
           {err}
         </p>
       )}
+
+      {/* iter413ax — Admin lifecycle actions on the brief. */}
+      <BriefAdminActions order={order} onChange={onChange} />
+    </div>
+  );
+}
+
+
+// iter413ax — Compact action bar with Email Client / Email Maker /
+// Archive / Purge. Each action confirms via toast, then re-fetches the
+// parent list so the row updates without a full page reload.
+function BriefAdminActions({ order, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const [composing, setComposing] = useState(null); // 'client' | 'maker' | null
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+
+  const tok = typeof window !== "undefined" ? localStorage.getItem("cm_admin_jwt") : null;
+  const H = tok ? { Authorization: `Bearer ${tok}` } : {};
+
+  const refresh = () => { if (typeof onChange === "function") onChange(); };
+
+  const doArchive = async () => {
+    if (!window.confirm("Archive this brief? It will be hidden from the default list (reversible).")) return;
+    setBusy(true);
+    try {
+      await http.post(`/admin/custom-orders/${order.id}/archive`, {}, { headers: H });
+      toast.success("Brief archived");
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Archive failed");
+    } finally { setBusy(false); }
+  };
+
+  const doPurge = async () => {
+    if (!window.confirm("Permanently delete this brief and its bids? This cannot be undone.")) return;
+    setBusy(true);
+    try {
+      await http.delete(`/admin/custom-orders/${order.id}`, { headers: H });
+      toast.success("Brief purged");
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Purge failed");
+    } finally { setBusy(false); }
+  };
+
+  const doSendEmail = async () => {
+    if (!subject.trim() || !message.trim()) {
+      toast.error("Subject and message both required");
+      return;
+    }
+    setBusy(true);
+    try {
+      await http.post(
+        `/admin/custom-orders/${order.id}/email`,
+        { target: composing, subject: subject.trim(), message: message.trim() },
+        { headers: H },
+      );
+      toast.success(`Email sent to ${composing}`);
+      setComposing(null);
+      setSubject("");
+      setMessage("");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Email failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div
+      className="mt-4 pt-3 border-t border-line flex flex-wrap items-center gap-2"
+      data-testid={`brief-admin-actions-${order.id}`}
+    >
+      <button
+        className="font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 border border-line text-ink hover:text-brand hover:border-brand transition-colors disabled:opacity-40"
+        onClick={() => setComposing("client")}
+        disabled={busy || !order.email}
+        data-testid={`brief-email-client-${order.id}`}
+      >
+        ✉ Email client
+      </button>
+      <button
+        className="font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 border border-line text-ink hover:text-brand hover:border-brand transition-colors disabled:opacity-40"
+        onClick={() => setComposing("maker")}
+        disabled={busy || !order.maker_email}
+        title={!order.maker_email ? "Push to maker first" : ""}
+        data-testid={`brief-email-maker-${order.id}`}
+      >
+        ✉ Email maker
+      </button>
+      <button
+        className="font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 border border-line text-ink-muted hover:text-warn hover:border-warn transition-colors disabled:opacity-40"
+        onClick={doArchive}
+        disabled={busy}
+        data-testid={`brief-archive-${order.id}`}
+      >
+        Archive
+      </button>
+      <button
+        className="font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 border border-line text-ink-muted hover:text-danger hover:border-danger transition-colors disabled:opacity-40"
+        onClick={doPurge}
+        disabled={busy}
+        data-testid={`brief-purge-${order.id}`}
+      >
+        Purge
+      </button>
+
+      {composing && (
+        <div className="w-full mt-3 p-3 border border-line bg-canvas-tint space-y-2"
+             data-testid={`brief-email-compose-${order.id}`}>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">
+            New email · to {composing} ({composing === "client" ? order.email : order.maker_email})
+          </p>
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Subject"
+            className="w-full px-2 py-1.5 bg-canvas border border-line text-ink text-sm font-mono"
+            data-testid={`brief-email-subject-${order.id}`}
+          />
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Message body — plain text, line breaks preserved."
+            rows={4}
+            className="w-full px-2 py-1.5 bg-canvas border border-line text-ink text-sm font-mono"
+            data-testid={`brief-email-message-${order.id}`}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={doSendEmail}
+              disabled={busy}
+              className="font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 bg-brand text-canvas hover:opacity-80 transition disabled:opacity-40"
+              data-testid={`brief-email-send-${order.id}`}
+            >
+              {busy ? "Sending…" : "Send"}
+            </button>
+            <button
+              onClick={() => { setComposing(null); setSubject(""); setMessage(""); }}
+              disabled={busy}
+              className="font-mono text-[10px] uppercase tracking-wider px-3 py-1.5 border border-line text-ink-muted hover:text-ink transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1057,6 +1057,47 @@ async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str, 
     return await _send(buyer_email, "We got your custom brief", html)
 
 
+# iter413ax — Generic ad-hoc message endpoints for admin → maker or
+# admin → client outreach on a specific brief. Used by the "Email maker"
+# and "Email client" admin actions.
+async def send_admin_brief_message(
+    to_email: str,
+    recipient_name: str,
+    brief_project_type: str,
+    subject: str,
+    message_body: str,
+    tracking_number: str | None = None,
+    is_for_maker: bool = False,
+):
+    """Sends an admin-composed message about a brief, wrapped in the
+    standard branded shell. `is_for_maker` flips the chrome copy from
+    "we're updating you on your brief" → "here's an admin note on a brief
+    assigned to you" so makers know to act on it."""
+    site_url = os.environ.get("PUBLIC_SITE_URL", "https://craftersmarket.org")
+    safe_msg = (message_body or "").replace("\n", "<br/>")
+    track_link = (
+        f"<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin-top:18px'>"
+        f"Reference: <b style='color:#ff4500;font-family:monospace;letter-spacing:1px'>{tracking_number}</b> · "
+        f"<a href='{site_url}/track/{tracking_number}' style='color:#ff4500'>View brief</a></p>"
+    ) if tracking_number else ""
+    intro = (
+        "An admin sent you a note about a brief in your queue."
+        if is_for_maker
+        else "An update on your custom request."
+    )
+    body = (
+        f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6'>"
+        f"Hi {recipient_name}, regarding your <b style='color:#e5e5e5'>{brief_project_type}</b> brief:</p>"
+        f"<div style='font-size:13px;color:#d4d4d4;line-height:1.7;padding:14px;border-left:2px solid #ff4500;"
+        f"background:#0a0a0a;margin:14px 0'>{safe_msg}</div>"
+        f"{track_link}"
+    )
+    title = "Brief Update."
+    footer = "Maker outreach" if is_for_maker else "Custom queue"
+    html = _shell(title, intro, body, footer)
+    return await _send(to_email, subject, html)
+
+
 async def send_buyer_shipped(
     buyer_email: str, buyer_name: str | None,
     tracking_number: str, carrier: str,
