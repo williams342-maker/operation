@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413be — Nurture Queue (drafts only) (2026-02-19):**
+  - New admin tab "Nurture Queue" — auto-generates outreach drafts for lead-magnet subscribers aged 7+ days with no maker application.
+  - STRICT ops-doc enforcement: NO auto-send, NO sequences, NO email automation. Manual approval only. Cap **2 drafts per lead** lifetime. Auto-stops pending drafts when lead's email appears in `maker_applications`.
+  - 3 draft templates (rotated, never duplicated for the same lead): `nudge` ("Still thinking about selling?"), `spotlight` ("How one of our makers shipped 41 orders her first month"), `invitation` ("Founder cohort — 12 spots closing this month"). Markdown-ready for paste into operator's email client.
+  - Routes: `POST /admin/nurture-queue/generate` (idempotent batch generator), `GET /admin/nurture-queue` (list pending + recent + uncovered + auto-stops on apply), `POST /admin/nurture-queue/{id}/decision` (approve|dismiss only — no send verb).
+  - Frontend: status badge per draft type, pending/recent/uncovered tabs, inline body preview with one-click "Copy Subject + Body" for paste-into-email, no Send button anywhere by design.
+  - Tests: 6/6 pass (`test_iter413be_nurture_queue.py`) covering cap enforcement, idempotency, decisions, auto-stop on apply, defensive check that no /send route exists.
+  - Preview signal: 20 drafts generated for 10 aged leads on first run.
 - ✅ **iter413bd — Freshness Engine (2026-02-19):**
   - New admin tab "Freshness" scans Founders / Blog / Products against documented staleness thresholds (14d / 21d / 30d).
   - Queue-only per ops spec: NO auto-publishing, NO content edits. Operator clicks Accept (logs refresh intent for adoption tracking) or Snooze 7d (hides from next scan window).

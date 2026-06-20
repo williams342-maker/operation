@@ -646,6 +646,9 @@ SMOKE_FILES = {
     # ── iter413bd — Freshness Engine ────────────────────────────────
     "test_iter413bd_freshness_engine.py",
 
+    # ── iter413be — Nurture Queue (drafts only) ─────────────────────
+    "test_iter413be_nurture_queue.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
