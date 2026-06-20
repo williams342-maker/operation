@@ -58,6 +58,7 @@ from routers.analytics import router as analytics_router
 from routers.workshop_analytics import router as workshop_analytics_router
 from routers.backorder import router as backorder_router
 from routers.founders import router as founders_router
+from routers.founder_funnel import router as founder_funnel_router  # iter413ba
 from routers.restock_waitlist import router as restock_waitlist_router
 from routers.contact_messages import router as contact_messages_router
 from routers.review_disputes import router as review_disputes_router
@@ -141,6 +142,7 @@ api.include_router(admin_shipping_router)
 api.include_router(workshop_analytics_router)
 api.include_router(backorder_router)
 api.include_router(founders_router)
+api.include_router(founder_funnel_router)  # iter413ba — admin founder funnel dashboard
 api.include_router(restock_waitlist_router)
 api.include_router(contact_messages_router)
 api.include_router(review_disputes_router)

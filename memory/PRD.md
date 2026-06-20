@@ -23,6 +23,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413ba — Founder Funnel Dashboard (2026-02-19):**
+  - New admin tab "Founder Funnel" surfaces the 8-stage seller-acquisition funnel: Traffic (apply visitors) → Qualified Leads (lead_magnet only — newsletter/waitlist excluded by design) → Application → Approved → Store Created → First Listing → Featured Founder → First Sale.
+  - 6 adjacent-stage conversion deltas color-coded (red <10%, brand 10-30%, emerald ≥30%); >100% values display as `>100% (seeded)` when historical seeded makers inflate the funnel.
+  - Backend `GET /api/admin/founder-funnel?window=7d|30d|90d|all` returns counts + conversions + warnings (high-traffic/low-leads, high-leads/low-applications, high-approvals/low-activation, store-created-no-listing-after-7d) with example slugs for the stale-store warning.
+  - Tests: 5/5 contract tests pass (`test_iter413ba_founder_funnel.py`, added to SMOKE_FILES).
 - ✅ **iter413az — Approved Makers CSV Export + Maker Purge (2026-02-19):**
   - New backend route `GET /admin/makers/approved.csv` streams an RFC-4180 CSV with header `slug,name,email,location,techniques,bio,is_beta,is_veteran_owned,subscription_status,listings_count,lifetime_gmv_usd,approved_at,created_at`. Auto-filename includes today's date. Tuned for Enrich Labs imports (identity columns first, then context, then revenue signals).
   - New backend route `DELETE /admin/makers/{slug}` (super-admin) hard-deletes the maker doc, soft-deletes their listings (set `deleted_at`), tags `maker_payouts` rows with `owner_purged=true` (preserves finance reports), and writes `admin_audit` of kind `maker_purged`.

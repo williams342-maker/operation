@@ -634,6 +634,9 @@ SMOKE_FILES = {
     # ── iter413az — Approved makers CSV export + maker purge ────────
     "test_iter413az_approved_makers_csv_purge.py",
 
+    # ── iter413ba — Founder Funnel Dashboard ────────────────────────
+    "test_iter413ba_founder_funnel.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
