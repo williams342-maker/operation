@@ -433,7 +433,29 @@ function Bucket({ items, testId, empty, onChanged, onBudgetChanged, cardProps = 
   // the listings tab and made the page sluggish once a maker had 50+
   // listings (each card lazily loads images + stats + budget pills).
   const PAGE_SIZE = 12;
-  const [page, setPage] = useState(0);
+
+  // iter413bf — Persist current page per-bucket so editing a listing on
+  // page 2/3 and returning doesn't snap the maker back to page 1.
+  // sessionStorage scope is correct: survives editor navigation but
+  // resets on a fresh browser session (no stale state across logins).
+  const PAGE_KEY = `cm_maker_listings_page_${testId}`;
+  const readPersistedPage = () => {
+    try {
+      const v = parseInt(sessionStorage.getItem(PAGE_KEY) || "0", 10);
+      return Number.isFinite(v) && v >= 0 ? v : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const [page, setPageState] = useState(readPersistedPage);
+  const setPage = (next) => {
+    setPageState((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      try { sessionStorage.setItem(PAGE_KEY, String(resolved)); } catch {/* private mode */}
+      return resolved;
+    });
+  };
+
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   // iter342 — Derive the effective page index instead of writing it back
   // via useEffect (avoids react-hooks/set-state-in-effect). If the
