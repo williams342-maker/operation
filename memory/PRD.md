@@ -23,6 +23,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413bd — Freshness Engine (2026-02-19):**
+  - New admin tab "Freshness" scans Founders / Blog / Products against documented staleness thresholds (14d / 21d / 30d).
+  - Queue-only per ops spec: NO auto-publishing, NO content edits. Operator clicks Accept (logs refresh intent for adoption tracking) or Snooze 7d (hides from next scan window).
+  - Routes: `GET /admin/freshness` (scan + thresholds + counts), `POST /admin/freshness/action` (accept/dismiss), `GET /admin/freshness/history` (recent actions).
+  - Each row carries suggested_update / reason / expected_impact text tuned per entity type (founder · blog · product).
+  - Counts callout includes "accepted last 7d" — the success metric the ops doc calls out (refresh adoption).
+  - Tests: 4/4 pass (`test_iter413bd_freshness_engine.py`). Preview DB signal: 0 founders / 9 blog / 12 products currently stale.
 - ✅ **iter413bc — Orphan Pages Detector (2026-02-19):**
   - New admin tab "Orphan Pages" — internal-link audit across every canonical URL the site exposes.
   - 3 buckets: `orphan` (0 incoming links), `low_linked` (1-2 incoming), `deep` (>3 clicks from homepage).

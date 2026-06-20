@@ -643,6 +643,9 @@ SMOKE_FILES = {
     # ── iter413bc — Orphan Pages Detector ───────────────────────────
     "test_iter413bc_orphan_pages.py",
 
+    # ── iter413bd — Freshness Engine ────────────────────────────────
+    "test_iter413bd_freshness_engine.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
