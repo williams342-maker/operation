@@ -1184,6 +1184,15 @@ export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminApprovedMakers = () =>
   http.get("/admin/makers/approved", { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter413az — Hard-purge an approved maker (super-admin only).
+// Soft-deletes their listings + tags their payouts. Audit-logged.
+export const purgeApprovedMaker = (slug) =>
+  http.delete(`/admin/makers/${slug}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter413az — Build the CSV download URL for the approved-maker
+// directory. We can't just hit it with fetch + Authorization because
+// the browser needs to handle the file download UX; the component
+// adds a one-shot token query param via the JWT it already has.
+export const approvedMakersCsvUrl = () => `${API}/admin/makers/approved.csv`;
 export const fetchAdminRejectedApplications = () =>
   http.get("/admin/makers/rejected", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminPlusMembers = () =>

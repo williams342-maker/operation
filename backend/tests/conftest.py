@@ -631,6 +631,9 @@ SMOKE_FILES = {
     # ── iter413ay — Stripe-side webhook endpoint introspection ──────
     "test_iter413ay_stripe_webhook_endpoints.py",
 
+    # ── iter413az — Approved makers CSV export + maker purge ────────
+    "test_iter413az_approved_makers_csv_purge.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

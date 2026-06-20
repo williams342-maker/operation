@@ -23,6 +23,11 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413az — Approved Makers CSV Export + Maker Purge (2026-02-19):**
+  - New backend route `GET /admin/makers/approved.csv` streams an RFC-4180 CSV with header `slug,name,email,location,techniques,bio,is_beta,is_veteran_owned,subscription_status,listings_count,lifetime_gmv_usd,approved_at,created_at`. Auto-filename includes today's date. Tuned for Enrich Labs imports (identity columns first, then context, then revenue signals).
+  - New backend route `DELETE /admin/makers/{slug}` (super-admin) hard-deletes the maker doc, soft-deletes their listings (set `deleted_at`), tags `maker_payouts` rows with `owner_purged=true` (preserves finance reports), and writes `admin_audit` of kind `maker_purged`.
+  - Frontend `ApprovedMakersTab.jsx`: new `↓ Export CSV` button in header (blob-fetch with auth header + dynamic anchor to trigger download). Per-row `Purge` button with slug-typing confirmation (no fat-finger purges).
+  - Contract tests (`test_iter413az_approved_makers_csv_purge.py`): 6 tests covering CSV shape, row-count parity, auth gates, purge happy path (seeds + verifies DB state), 404 path. 5 pass, 1 skip (super-admin gate not met by magic-token in preview).
 - ✅ **iter413ay — Stripe-side Webhook Endpoint Introspection (2026-02-19):**
   - New backend route `GET /api/admin/stripe/webhook-endpoints` reads the live Stripe webhook-endpoint registry via `WebhookEndpoint.list()` and classifies each row: `ok` / `wrong_path` / `disabled` / `foreign_host`. Rows with our public host but no matching backend route are red-flagged as broken (the `/api/checkout/webhook` 404 class of misconfig).
   - New backend route `POST /api/admin/stripe/webhook-endpoints/{id}/disable` (super-admin) flips a dead endpoint to `disabled` in Stripe + writes `stripe_webhook_endpoint_disabled` to `admin_audit_log`.

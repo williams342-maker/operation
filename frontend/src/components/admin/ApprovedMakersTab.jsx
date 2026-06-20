@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { fetchAdminApprovedMakers, toggleMakerBeta } from "../../lib/api";
+import {
+  fetchAdminApprovedMakers, toggleMakerBeta,
+  purgeApprovedMaker, approvedMakersCsvUrl,
+} from "../../lib/api";
 import { formatDate } from "./_shared";
 import PerMakerIndexationChart from "./PerMakerIndexationChart";
 
@@ -64,6 +67,67 @@ export default function ApprovedMakersTab() {
     }
   };
 
+  // iter413az — Hard purge a maker. Two-step confirm (`prompt` for the
+  // slug) so the admin can't fat-finger it. Backend soft-deletes their
+  // listings + tags payouts, then hard-deletes the maker doc.
+  const [purgingSlug, setPurgingSlug] = useState("");
+  const purgeMaker = async (slug, name) => {
+    const typed = window.prompt(
+      `Permanently delete maker "${name || slug}"?\n\n` +
+      `• Their listings will be soft-deleted (404 on the storefront).\n` +
+      `• Their payouts stay in finance reports but get owner-purged tag.\n` +
+      `• This cannot be undone from inside the admin.\n\n` +
+      `Type the slug "${slug}" to confirm:`,
+    );
+    if (typed == null) return; // user cancelled
+    if (typed.trim() !== slug) {
+      toast.error("Slug didn't match — purge cancelled.");
+      return;
+    }
+    setPurgingSlug(slug);
+    try {
+      const res = await purgeApprovedMaker(slug);
+      toast.success(`Maker purged · ${res.products_soft_deleted} listing(s) hidden.`);
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed to purge maker.");
+    } finally {
+      setPurgingSlug("");
+    }
+  };
+
+  // iter413az — Download the directory as CSV. We can't use a plain
+  // <a href> because the endpoint requires Authorization: Bearer; the
+  // workaround is to fetch as a blob then trigger a browser download
+  // via a dynamic anchor element.
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const r = await fetch(approvedMakersCsvUrl(), {
+        headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Server already sets Content-Disposition with a date-stamped
+      // filename, but Safari ignores it without an explicit `download`.
+      a.download = `crafters-market-approved-makers-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Defer revoke a tick so Safari's "save dialog" can read the URL.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success(`Exported ${rows.length} maker${rows.length === 1 ? "" : "s"} to CSV.`);
+    } catch (e) {
+      toast.error(e.message || "CSV export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4" data-testid="approved-makers-tab">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -71,14 +135,25 @@ export default function ApprovedMakersTab() {
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">◆ Member Directory</div>
           <h2 className="font-display text-3xl md:text-4xl mt-1">Approved Makers</h2>
         </div>
-        <input
-          type="text"
-          placeholder="Search name, email, slug…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          data-testid="approved-makers-search"
-          className="md:w-72 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search name, email, slug…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            data-testid="approved-makers-search"
+            className="md:w-72 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
+          />
+          <button
+            onClick={exportCsv}
+            disabled={exporting || loading || rows.length === 0}
+            data-testid="approved-makers-export-csv"
+            title="Download CSV — formatted for Enrich Labs / CRM imports"
+            className="shrink-0 px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          >
+            {exporting ? "Exporting…" : "↓ Export CSV"}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 pb-3 border-b border-line" data-testid="approved-filters">
@@ -173,6 +248,15 @@ export default function ApprovedMakersTab() {
                       }`}
                     >
                       {r.is_beta ? "Revoke" : "Grant"}
+                    </button>
+                    <button
+                      onClick={() => purgeMaker(r.slug, r.name)}
+                      disabled={purgingSlug === r.slug}
+                      data-testid={`approved-purge-${r.slug}`}
+                      title="Permanently delete this maker (super-admin only)"
+                      className="px-2 py-1 border border-line text-ink-muted hover:border-danger hover:text-danger font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                    >
+                      {purgingSlug === r.slug ? "…" : "Purge"}
                     </button>
                   </td>
                 </tr>

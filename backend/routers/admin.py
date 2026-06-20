@@ -434,6 +434,134 @@ async def admin_approved_makers(_: dict = Depends(current_admin)):
     return out
 
 
+# iter413az — CSV export of the approved-maker directory.
+# Format is tuned for Enrich Labs (data enrichment service): one row per
+# maker with the contact + context fields they need (email is the key
+# join column). All other downstream tools that want the list can also
+# consume this CSV — it's CSV-RFC-4180 with a header row.
+@router.get("/admin/makers/approved.csv")
+async def admin_approved_makers_csv(_: dict = Depends(current_admin)):
+    """CSV export of every approved maker — for sharing with enrichment
+    services or pushing into a CRM. Streams a `text/csv` response with a
+    `Content-Disposition: attachment` so the browser triggers a download."""
+    import csv
+    import io
+    # Reuse the same enrichment we already do for the directory view so
+    # the CSV row matches what the admin sees in the UI table.
+    rows = await admin_approved_makers(_)  # type: ignore[arg-type]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+    # Column order chosen for enrichment workflows: identity first
+    # (email/name as the join keys), then context (location/techniques)
+    # which enrichment uses to disambiguate, then revenue signals last.
+    writer.writerow([
+        "slug", "name", "email", "location", "techniques", "bio",
+        "is_beta", "is_veteran_owned", "subscription_status",
+        "listings_count", "lifetime_gmv_usd",
+        "approved_at", "created_at",
+    ])
+    # Re-read raw maker docs for the techniques + bio (not exposed by
+    # admin_approved_makers payload). One extra fetch keyed on the slug
+    # list so we don't make the directory endpoint slower for everyone.
+    slugs = [r["slug"] for r in rows]
+    raw_makers_cursor = db.makers.find(
+        {"slug": {"$in": slugs}},
+        {"_id": 0, "slug": 1, "bio": 1, "techniques": 1},
+    )
+    extra_by_slug = {m["slug"]: m async for m in raw_makers_cursor}
+
+    for r in rows:
+        x = extra_by_slug.get(r["slug"], {})
+        techs = x.get("techniques") or []
+        if isinstance(techs, list):
+            techs = "; ".join(str(t) for t in techs)
+        writer.writerow([
+            r.get("slug") or "",
+            r.get("name") or "",
+            r.get("email") or "",
+            r.get("location") or "",
+            techs or "",
+            (x.get("bio") or "").replace("\n", " ").strip(),
+            "yes" if r.get("is_beta") else "no",
+            "yes" if r.get("is_veteran_owned") else "no",
+            r.get("subscription_status") or "free",
+            r.get("listings_count") or 0,
+            f"{(r.get('lifetime_gmv') or 0):.2f}",
+            r.get("approved_at") or "",
+            r.get("created_at") or "",
+        ])
+
+    csv_bytes = buf.getvalue()
+    filename = f"crafters-market-approved-makers-{datetime.now(timezone.utc).date().isoformat()}.csv"
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# iter413az — Hard purge of an approved maker.
+# Use sparingly — this is intended for cleaning up test accounts or
+# makers who've requested account deletion (GDPR/CCPA). Behaviour:
+#   • Hard-delete the maker doc (no soft-delete, no recovery from
+#     within the app — restore would require a Mongo backup)
+#   • Soft-delete their products (set deleted_at, so any cached SEO
+#     links return 404 but the rows remain queryable for audit/forensics)
+#   • Mark any payouts as "owner_purged" so finance reports still tally
+#     correctly without exposing the now-deleted maker's PII
+#   • Write an admin_audit row capturing who did it + listing/payout
+#     counts so the action is reversible from backups if needed
+@router.delete("/admin/makers/{slug}")
+async def admin_purge_maker(slug: str, claims: dict = Depends(require_super_admin())):
+    """Permanently delete an approved maker. Soft-deletes their listings
+    so the slug 404s without leaving orphan inventory in search results.
+    Super-admin only — audit-logged."""
+    maker = await db.makers.find_one({"slug": slug}, {"_id": 0})
+    if not maker:
+        raise HTTPException(404, "Maker not found")
+
+    purged_at = now_iso()
+
+    # Soft-delete the maker's products. We KEEP the docs because they
+    # may be referenced by completed orders + payouts + analytics. The
+    # `deleted_at` field makes catalog queries skip them.
+    products_res = await db.products.update_many(
+        {"maker": slug, "deleted_at": None},
+        {"$set": {"deleted_at": purged_at, "deleted_reason": "maker_purged"}},
+    )
+
+    # Tag the payout rows with a marker so future reports can still tally
+    # GMV without surfacing PII to admins reviewing old data.
+    payouts_res = await db.maker_payouts.update_many(
+        {"maker_slug": slug},
+        {"$set": {"owner_purged": True, "owner_purged_at": purged_at}},
+    )
+
+    # Hard-delete the maker doc itself.
+    await db.makers.delete_one({"slug": slug})
+
+    # Audit row — captures everything needed to investigate / restore.
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "maker_purged",
+        "email": (claims.get("email") or "").lower(),
+        "slug": slug,
+        "maker_email": maker.get("email"),
+        "maker_name": maker.get("name") or maker.get("studio_name"),
+        "products_soft_deleted": products_res.modified_count,
+        "payouts_tagged": payouts_res.modified_count,
+        "created_at": purged_at,
+    })
+    return {
+        "ok": True,
+        "slug": slug,
+        "products_soft_deleted": products_res.modified_count,
+        "payouts_tagged": payouts_res.modified_count,
+        "purged_at": purged_at,
+    }
+
+
 @router.get("/admin/makers/rejected")
 async def admin_rejected_applications(_: dict = Depends(current_admin)):
     """Rejected maker applications, newest first. Separate list so the
