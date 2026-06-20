@@ -640,6 +640,9 @@ SMOKE_FILES = {
     # ── iter413bb — Lead → Apply attribution tracking ───────────────
     "test_iter413bb_lead_attribution.py",
 
+    # ── iter413bc — Orphan Pages Detector ───────────────────────────
+    "test_iter413bc_orphan_pages.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

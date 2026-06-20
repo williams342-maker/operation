@@ -34,6 +34,7 @@ import GrowthStatsBar from "../components/admin/GrowthStatsBar";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import FounderFunnelTab from "../components/admin/FounderFunnelTab";
+import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import ListingsTab from "../components/admin/ListingsTab";
 import UsersTab from "../components/admin/UsersTab";
 import ReviewsTab from "../components/admin/ReviewsTab";
@@ -78,6 +79,7 @@ const TABS = [
   { id: "applications", label: "Applications", caps: ["marketplace"] },
   { id: "approved-makers", label: "Approved Makers", caps: ["marketplace"] },
   { id: "founder-funnel", label: "Founder Funnel", caps: ["marketplace", "content"] },
+  { id: "orphan-pages", label: "Orphan Pages", caps: ["content"] },
   { id: "audit", label: "Audit Log" },
   { id: "backup", label: "Backup", superOnly: true },
   { id: "feedback", label: "Beta Feedback", caps: ["support"] },
@@ -508,6 +510,7 @@ export default function AdminDashboard() {
             {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
             {tab === "approved-makers" && <ApprovedMakersTab />}
             {tab === "founder-funnel" && <FounderFunnelTab />}
+            {tab === "orphan-pages" && <OrphanPagesTab />}
             {tab === "rejected-apps" && <RejectedAppsTab />}
             {tab === "plus-members" && <PlusMembersTab />}
             {tab === "prod-health" && <ProdHealthTab />}

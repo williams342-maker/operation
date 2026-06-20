@@ -23,6 +23,14 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413bc — Orphan Pages Detector (2026-02-19):**
+  - New admin tab "Orphan Pages" — internal-link audit across every canonical URL the site exposes.
+  - 3 buckets: `orphan` (0 incoming links), `low_linked` (1-2 incoming), `deep` (>3 clicks from homepage).
+  - Deterministic link graph from static-route map (mirrors actual SPA templates) + DB-derived edges (products↔makers, makers→shop, posts→journal, state pages, SEO landings, footer, admin promotions).
+  - Routes: `GET /admin/orphan-pages` (scan), `POST /admin/orphan-pages/promote` (adds edge via `featured_internal_links`), `POST /admin/orphan-pages/dismiss` (intentional orphans hide), `DELETE /admin/orphan-pages/dismiss?url=` (undo).
+  - Each row shows URL, type, incoming count, click-depth, suggested_parent, and 3 candidate sibling links.
+  - Preview DB scan results: 250 pages · 36 orphans (3 guides + 33 SEO landing pages with no inbound links) · 208 low-linked · 0 deep.
+  - Tests: 4/4 pass (`test_iter413bc_orphan_pages.py`).
 - ✅ **iter413bb — Lead → Apply Attribution (2026-02-19):**
   - New `attribution_events` collection captures `apply_started` touches keyed by anonymous `visitor_id` (32-hex UUID in localStorage, 30-day TTL).
   - New routes: `POST /api/attribution/track` (fires on /apply mount, idempotent per visitor/day, auto-links to `lead_magnet_subscribers` by visitor_id OR email); `GET /api/admin/attribution/stale-leads?days=N`.
