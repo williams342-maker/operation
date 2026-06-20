@@ -83,6 +83,19 @@ async def _build_funnel(since_iso: Optional[str]) -> dict:
         "lead_magnet_subscribers", window_field="created_at", since_iso=since_iso,
     )
 
+    # Stage 1b — Apply Started (iter413bb). Distinct visitors that
+    # actually loaded /apply (via attribution_events). Splits "saw the
+    # link" from "reached the form" so we can measure each step.
+    started_q: dict = {"kind": "apply_started"}
+    if since_iso:
+        started_q["created_at"] = {"$gte": since_iso}
+    s1b_apply_started = len([v for v in await db.attribution_events.distinct("visitor_id", started_q) if v])
+    # Subset of apply-starts attributed to a prior lead-magnet subscriber.
+    started_linked_q = {**started_q, "lead_to_apply_attributed": True}
+    s1b_apply_started_from_lead = len([
+        v for v in await db.attribution_events.distinct("visitor_id", started_linked_q) if v
+    ])
+
     # Stage 2 — Application Submitted.
     s2_apps = await _count_with_window(
         "maker_applications", window_field="created_at", since_iso=since_iso,
@@ -146,6 +159,9 @@ async def _build_funnel(since_iso: Optional[str]) -> dict:
         {"key": "lead",      "label": "Qualified leads",  "value": s1_leads,
          "secondary": "lead-magnet downloads",
          "source": "lead_magnet_subscribers"},
+        {"key": "apply_started", "label": "Apply started", "value": s1b_apply_started,
+         "secondary": f"{s1b_apply_started_from_lead} attributed to a lead",
+         "source": "attribution_events"},
         {"key": "applied",   "label": "Applications",     "value": s2_apps,
          "secondary": "submitted",
          "source": "maker_applications"},
@@ -166,15 +182,15 @@ async def _build_funnel(since_iso: Optional[str]) -> dict:
          "source": "maker_payouts"},
     ]
 
-    # Conversion deltas between adjacent stages — exactly the six the
-    # ops doc asks for.
+    # Conversion deltas between adjacent stages.
     conversions = [
-        {"from": "traffic",  "to": "lead",     "pct": _pct(s1_leads,    s0_traffic)},
-        {"from": "lead",     "to": "applied",  "pct": _pct(s2_apps,     s1_leads)},
-        {"from": "applied",  "to": "approved", "pct": _pct(s3_approved, s2_apps)},
-        {"from": "approved", "to": "store",    "pct": _pct(s4_stores,   s3_approved)},
-        {"from": "store",    "to": "listing",  "pct": _pct(s5_listings, s4_stores)},
-        {"from": "listing",  "to": "sale",     "pct": _pct(s7_sales,    s5_listings)},
+        {"from": "traffic",       "to": "lead",          "pct": _pct(s1_leads,         s0_traffic)},
+        {"from": "lead",          "to": "apply_started", "pct": _pct(s1b_apply_started_from_lead, s1_leads)},
+        {"from": "apply_started", "to": "applied",       "pct": _pct(s2_apps,          s1b_apply_started)},
+        {"from": "applied",       "to": "approved",      "pct": _pct(s3_approved,      s2_apps)},
+        {"from": "approved",      "to": "store",         "pct": _pct(s4_stores,        s3_approved)},
+        {"from": "store",         "to": "listing",       "pct": _pct(s5_listings,      s4_stores)},
+        {"from": "listing",       "to": "sale",          "pct": _pct(s7_sales,         s5_listings)},
     ]
 
     # Warning cards — same logic the ops doc specifies.
@@ -240,6 +256,36 @@ async def _build_funnel(since_iso: Optional[str]) -> dict:
             ),
             "examples": stale_examples[:10],
         })
+
+    # iter413bb — Lead → Application gate warning. Lead-magnet
+    # subscribers older than 7 days who never submitted an application.
+    # This is the primary trigger for the upcoming Phase-2 nurture
+    # queue (manual approval) — exactly what the ops doc spec'd.
+    lead_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    aged_leads = await db.lead_magnet_subscribers.find(
+        {"first_seen_at": {"$lt": lead_cutoff}},
+        {"_id": 0, "email": 1, "first_seen_at": 1, "source": 1, "campaign": 1},
+    ).to_list(500)
+    if aged_leads:
+        applied_emails = set(await db.maker_applications.distinct(
+            "email", {"email": {"$in": [lead["email"] for lead in aged_leads if lead.get("email")]}},
+        ))
+        stale_leads = [
+            lead for lead in aged_leads
+            if lead.get("email") and lead["email"] not in applied_emails
+        ]
+        if stale_leads:
+            warnings.append({
+                "key": "lead_no_app_7d",
+                "severity": "warn",
+                "title": f"{len(stale_leads)} lead(s) >7 days old without an application",
+                "detail": (
+                    "These contacts downloaded the lead magnet but never "
+                    "submitted a maker application. Candidates for the "
+                    "Phase-2 manual-approval nurture queue."
+                ),
+                "examples": stale_leads[:10],
+            })
 
     return {
         "window_days": (

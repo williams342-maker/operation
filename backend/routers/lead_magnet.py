@@ -135,6 +135,10 @@ class SubscribeRequest(BaseModel):
     source: str | None = None
     medium: str | None = None
     campaign: str | None = None
+    # iter413bb — Anonymous attribution cookie minted client-side. Lets
+    # us tie this lead to subsequent /apply page-view + maker
+    # application without requiring login.
+    visitor_id: str | None = None
 
 
 class SubscribeResponse(BaseModel):
@@ -172,6 +176,9 @@ async def subscribe_starter_pack(payload: SubscribeRequest, http_request: Reques
                 "campaign": (payload.campaign or "")[:128] or None,
                 "ip_country": (http_request.headers.get("cf-ipcountry") or "")[:4] or None,
                 "user_agent": (http_request.headers.get("user-agent") or "")[:200] or None,
+                # iter413bb — link to anonymous visitor cookie so a
+                # later /apply page-view can be attributed to this lead.
+                "visitor_id": (payload.visitor_id or "").lower()[:64] or None,
             },
             "$setOnInsert": {
                 "first_seen_at": now.isoformat(),

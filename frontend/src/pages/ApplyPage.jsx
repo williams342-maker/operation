@@ -4,6 +4,7 @@ import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { readAttributionContext } from "../lib/attribution";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
 
@@ -37,6 +38,24 @@ export default function ApplyPage() {
       const r = (params.get("ref") || "").trim().toLowerCase();
       if (r && /^[a-z0-9]{4,40}$/.test(r)) setRefCode(r);
     } catch {/* search params unavailable in some preview contexts */}
+  }, []);
+
+  // iter413bb — Lead → Apply attribution. Fires once per page mount to
+  // record this visitor as having reached /apply. Backend tries to
+  // link it to a prior lead-magnet subscriber (by visitor_id cookie or
+  // explicit email later). Fire-and-forget so analytics can't block UX.
+  useEffect(() => {
+    try {
+      const ctx = readAttributionContext();
+      if (!ctx.visitor_id) return;
+      const API = process.env.REACT_APP_BACKEND_URL;
+      fetch(`${API}/api/attribution/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...ctx, kind: "apply_started" }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {/* noop — analytics is non-critical */}
   }, []);
   // Functional updater + per-call snapshot of the new value. Fixes the
   // "typing in email bounces back to name" stale-closure bug: the old

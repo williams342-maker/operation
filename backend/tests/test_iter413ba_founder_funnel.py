@@ -62,7 +62,7 @@ def test_funnel_30d_shape(H):
     # Stage order is the documented spec — lock it.
     stage_keys = [s["key"] for s in body["stages"]]
     assert stage_keys == [
-        "traffic", "lead", "applied", "approved",
+        "traffic", "lead", "apply_started", "applied", "approved",
         "store", "listing", "founder", "sale",
     ]
     for s in body["stages"]:
@@ -70,11 +70,12 @@ def test_funnel_30d_shape(H):
         assert s["value"] >= 0
         assert "label" in s and "source" in s
 
-    # 6 adjacent-stage conversions, in canonical order.
+    # 7 adjacent-stage conversions, in canonical order.
     conv_pairs = [(c["from"], c["to"]) for c in body["conversions"]]
     assert conv_pairs == [
         ("traffic", "lead"),
-        ("lead", "applied"),
+        ("lead", "apply_started"),
+        ("apply_started", "applied"),
         ("applied", "approved"),
         ("approved", "store"),
         ("store", "listing"),

@@ -164,6 +164,9 @@ export default function FreeSvgPackPage() {
         source: "organic",
         medium: "lead-magnet",
         campaign: "free-svg-pack",
+        // iter413bb — link this lead to the anonymous visitor cookie so
+        // a future /apply page-view can be attributed back to it.
+        visitor_id: (await import("../lib/attribution")).getVisitorId(),
       });
       // Trigger download immediately + reveal the persistent link.
       const url = res.data.download_url;

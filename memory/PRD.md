@@ -23,6 +23,13 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 - Admin: `/admin/login|verify|dashboard`
 
 ## What's Implemented (cumulative)
+- ✅ **iter413bb — Lead → Apply Attribution (2026-02-19):**
+  - New `attribution_events` collection captures `apply_started` touches keyed by anonymous `visitor_id` (32-hex UUID in localStorage, 30-day TTL).
+  - New routes: `POST /api/attribution/track` (fires on /apply mount, idempotent per visitor/day, auto-links to `lead_magnet_subscribers` by visitor_id OR email); `GET /api/admin/attribution/stale-leads?days=N`.
+  - `POST /api/lead-magnet/starter-pack/subscribe` now accepts + persists `visitor_id` so subsequent /apply touches link back to the lead.
+  - Founder Funnel updated: new "Apply Started" stage inserted between Lead and Application (9 stages total · 7 adjacent conversions). New warning card "N lead(s) >7d old without an application" — primary trigger for Phase 2 nurture queue.
+  - Frontend: `lib/attribution.js` (visitor_id helper + UTM/referrer context), `ApplyPage.jsx` fires track on mount (fire-and-forget, keepalive), `FreeSvgPackPage.jsx` lead-magnet form passes visitor_id.
+  - Tests: 11/11 pass (`test_iter413bb_lead_attribution.py` + updated `test_iter413ba_founder_funnel.py`).
 - ✅ **iter413ba — Founder Funnel Dashboard (2026-02-19):**
   - New admin tab "Founder Funnel" surfaces the 8-stage seller-acquisition funnel: Traffic (apply visitors) → Qualified Leads (lead_magnet only — newsletter/waitlist excluded by design) → Application → Approved → Store Created → First Listing → Featured Founder → First Sale.
   - 6 adjacent-stage conversion deltas color-coded (red <10%, brand 10-30%, emerald ≥30%); >100% values display as `>100% (seeded)` when historical seeded makers inflate the funnel.
