@@ -84,8 +84,38 @@ export default function ShopPage() {
   }, [safeSort]);
   useEffect(() => {
     const urlQ = params.get("q"); const urlC = params.get("category");
-    if (urlQ !== null) setQ(urlQ);
-    if (urlC) setCat(urlC);
+    // iter413bs — `?segment=<slug>` from the Community Emblem hotspots.
+    // Maps each emblem segment to an existing category filter (or a
+    // free-text query when no category is a clean match). Keeps the
+    // emblem URLs canonical (/shop?segment=...) while reusing the
+    // current ShopPage filter machinery — no new state to maintain.
+    const urlSeg = params.get("segment");
+    if (urlSeg) {
+      const SEGMENT_TO_CATEGORY = {
+        "woodworking":  "Woodworking",
+        "leather":      "Leather Goods",
+        "textiles":     "Fiber & Textiles",
+        "pottery":      "Pottery & Ceramics",
+      };
+      const SEGMENT_TO_QUERY = {
+        "metalworking": "metal",
+        "electronics":  "electronics",
+        "3d-printing":  "3d print",
+        "laser":        "laser",
+        "arts-crafts":  "art",
+      };
+      const cat = SEGMENT_TO_CATEGORY[urlSeg];
+      if (cat) {
+        setCat(cat);
+        setQ("");
+      } else if (SEGMENT_TO_QUERY[urlSeg]) {
+        setQ(SEGMENT_TO_QUERY[urlSeg]);
+        setCat("All");
+      }
+    } else {
+      if (urlQ !== null) setQ(urlQ);
+      if (urlC) setCat(urlC);
+    }
     setColorF(params.get("color") || "All");
     setOccF(params.get("occasion") || "All");
   }, [params]);

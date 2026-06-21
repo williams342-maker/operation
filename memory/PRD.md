@@ -1,3 +1,30 @@
+## iter413bs — Interactive Garage Builders emblem with SVG hotspots (2026-02)
+
+**Requested by user:** Make the v2 badge interactive on `/community/emblem` only (homepage emblem stays static). SVG hotspots. Hover highlights, click → `/shop?segment=...`. Mobile two-tap. No animations, no drawers, no product previews.
+
+**Implementation:**
+- New `components/EmblemHotspots.jsx` — 9 SVG polygons over the badge (viewBox 100×100, scale-resilient). Hover/focus = orange highlight + label chip. Two-tap on mobile = "TAP AGAIN →" hint then navigate.
+- New `pages/CommunityEmblemPage.jsx` — dedicated `/community/emblem` route. Renders `<CommunityEmblem interactive />`.
+- `components/CNCEmblem.jsx` gains an `interactive` prop (default `false` so homepage stays static). Adds a small "Try interactive badge →" link from the homepage emblem to drive discovery.
+- `pages/ShopPage.jsx` — `?segment=<slug>` reader. Maps each emblem segment to either an existing category filter (woodworking → Woodworking, leather → Leather Goods, textiles → Fiber & Textiles, pottery → Pottery & Ceramics) or a free-text query (metalworking/electronics/3d-printing/laser/arts-crafts). Zero new state, reuses the existing filter machinery.
+- Route registered in `App.js` at `/community/emblem`.
+
+**Accessibility:**
+- `tabIndex={0}` + `role="link"` + `aria-label` on every hotspot polygon
+- Enter/Space activates from keyboard
+- Focus visible via the same orange highlight as hover
+
+**Verified on preview:**
+- 9 hotspots render on `/community/emblem`
+- Hover on Woodworking shows label chip
+- Two-tap on Leather → navigated to `/shop?segment=leather`
+- ShopPage breadcrumb shows `HOME › SHOP › LEATHER GOODS`, CATEGORY filter pre-set to "LEATHER GOODS"
+- Contrast linter + ESLint clean
+- Homepage emblem unchanged (no hotspots there, as scoped)
+
+---
+
+
 ## iter413br — Community Emblem v2 · CNC Garage Builders → Garage Builders (2026-02)
 
 **Requested by user:** Evolve the community emblem from CNC-specific identity into a broader maker identity. Replace headline "CNC GARAGE BUILDERS" → "GARAGE BUILDERS". New inclusive copy covering all 9 maker segments. Keep old asset for SEO/embed continuity.

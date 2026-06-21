@@ -42,6 +42,7 @@ import WorkshopAnalyticsDashboard from "./pages/WorkshopAnalyticsDashboard";
 import ContactPage from "./pages/ContactPage";
 import PolicyPage from "./pages/PolicyPage";
 import CommunityPage from "./pages/CommunityPage";
+import CommunityEmblemPage from "./pages/CommunityEmblemPage"; // iter413bs
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
 import MakerListingEditor from "./pages/MakerListingEditor";
@@ -321,6 +322,8 @@ function App() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/community" element={<CommunityPage />} />
+                {/* iter413bs — Interactive Garage Builders emblem (V2). */}
+                <Route path="/community/emblem" element={<CommunityEmblemPage />} />
                 <Route path="/community/showcase/:postId" element={<ShowcaseDeeplinkRedirect />} />
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/community/verify" element={<CommunityVerify />} />
