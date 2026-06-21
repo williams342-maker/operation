@@ -1182,6 +1182,14 @@ export const deleteMakerApplication = (id) =>
   http.delete(`/admin/maker-applications/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter413bv — Promote a Founding Access maker to permanent Founding
+// Seller. Reuses the existing /admin/founders/promote endpoint. The
+// `force_status: "inaugural"` flag grants the lifetime tier (no expiry).
+export const promoteToFounder = (slug, { inaugural = true } = {}) =>
+  http.post("/admin/founders/promote",
+    { slug, force_status: inaugural ? "inaugural" : "regular" },
+    { headers: adminAuthHeaders() }
+  ).then((r) => r.data);
 export const fetchAdminApprovedMakers = () =>
   http.get("/admin/makers/approved", { headers: adminAuthHeaders() }).then((r) => r.data);
 // iter413az — Hard-purge an approved maker (super-admin only).

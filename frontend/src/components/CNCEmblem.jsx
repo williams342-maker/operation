@@ -143,6 +143,47 @@ export default function CNCEmblem({ interactive = false }) {
                 Try interactive badge →
               </a>
             )}
+            {/* iter413bv — Variant downloads. Surfaced as small text links
+                so the primary "Download Emblem" CTA stays the hero. Each
+                variant was generated from the master PNG (Nano Banana
+                image-to-image for raster; potrace for the SVG). */}
+            <div
+              className="mt-5 pt-4 border-t border-line"
+              data-testid="community-emblem-variants"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+                ◆ Variants
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px]">
+                <a href="/downloads/garage-builders-monochrome.png"
+                   download="garage-builders-monochrome.png"
+                   className="text-ink hover:text-brand transition"
+                   data-testid="emblem-variant-monochrome">
+                  Monochrome (white) ↓
+                </a>
+                <a href="/downloads/garage-builders-orange.png"
+                   download="garage-builders-orange.png"
+                   className="text-ink hover:text-brand transition"
+                   data-testid="emblem-variant-orange">
+                  Single-color (orange) ↓
+                </a>
+                <a href="/downloads/garage-builders-square.png"
+                   download="garage-builders-square.png"
+                   className="text-ink hover:text-brand transition"
+                   data-testid="emblem-variant-square">
+                  Square / social 1080² ↓
+                </a>
+                <a href="/downloads/garage-builders-engraving.svg"
+                   download="garage-builders-engraving.svg"
+                   className="text-ink hover:text-brand transition"
+                   data-testid="emblem-variant-engraving">
+                  Engraving-ready SVG ↓
+                </a>
+              </div>
+              <p className="font-mono text-[10px] text-ink-muted mt-2">
+                Transparent backgrounds where applicable · use on apparel, packaging, workshop walls, profile avatars, laser/CNC engravings.
+              </p>
+            </div>
           </div>
         </div>
       </div>

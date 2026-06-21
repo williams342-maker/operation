@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta } from "../../lib/api";
+import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta, promoteToFounder } from "../../lib/api";
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
 import WelcomePacketPreviewModal from "./WelcomePacketPreviewModal";
@@ -126,6 +126,7 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
   const [enabled, setEnabled] = useState(!!initialEnabled);
   const [expiresAt, setExpiresAt] = useState(initialExpiresAt || null);
   const [busy, setBusy] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
 
   const flip = async () => {
     const next = !enabled;
@@ -144,6 +145,32 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
       toast.error(e?.response?.data?.detail || "Failed to update Founding Access status.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  // iter413bv — One-click promotion from temporary Founding Access to
+  // permanent Founding Seller. Uses the existing `/admin/founders/promote`
+  // endpoint with force_status=inaugural so the lifetime tier kicks in
+  // immediately and the countdown disappears on the next data refresh.
+  const upgrade = async () => {
+    if (!window.confirm(
+      "Upgrade this maker to permanent Founding Seller?\n\n" +
+      "• Grants lifetime Founder benefits (no expiration)\n" +
+      "• Removes the 90-day countdown immediately\n" +
+      "• Adds them to the public Founder wall\n" +
+      "• Audit-logged · cannot be undone with one click"
+    )) return;
+    setUpgrading(true);
+    try {
+      const r = await promoteToFounder(slug, { inaugural: true });
+      toast.success(
+        `Promoted to Founder #${r.founder_number || "—"} · permanent status active.`
+      );
+      onUpdated?.();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed to upgrade to Founder.");
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -179,7 +206,24 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
           <span className="sr-only">{enabled ? "Disable Founding Access" : "Enable Founding Access"}</span>
         </button>
       </div>
-      {enabled && <BetaCountdown expiresAt={expiresAt} />}
+      {enabled && (
+        <>
+          <BetaCountdown expiresAt={expiresAt} />
+          {/* iter413bv — Upgrade-to-Founder shortcut. Only shown when
+              Founding Access is currently active (no point upgrading
+              a maker who's already off the program). */}
+          <button
+            type="button"
+            onClick={upgrade}
+            disabled={upgrading || busy}
+            data-testid={`upgrade-to-founder-${slug}`}
+            title="Promote this Founding Access maker to permanent Founding Seller"
+            className="mt-2 w-full inline-flex items-center justify-center gap-2 px-3 py-2 border border-brand text-brand hover:bg-brand hover:text-paper font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          >
+            {upgrading ? "Promoting…" : "⭐ Upgrade to Founding Seller (permanent)"}
+          </button>
+        </>
+      )}
     </div>
   );
 }

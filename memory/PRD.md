@@ -1,3 +1,31 @@
+## iter413bv — Emblem variants + Upgrade-to-Founder button (2026-02)
+
+### Variants (all 4 outstanding deliverables generated)
+Generated via `backend/scripts/generate_emblem_variants.py` — Gemini Nano Banana image-to-image for the 3 raster variants; `potrace` for the SVG.
+
+| File | Size | Generator |
+|---|---|---|
+| `garage-builders-monochrome.png` | 836 KB | Nano Banana — white-on-transparent |
+| `garage-builders-orange.png` | 866 KB | Nano Banana — `#ff4500`-on-transparent |
+| `garage-builders-square.png` | 952 KB | Nano Banana — 1080×1080 social recompose |
+| `garage-builders-engraving.svg` | 255 KB | potrace — single-path vector outline |
+
+All 4 served HTTP 200 on preview. Surfaced in the Community Emblem page under a new "◆ VARIANTS" section with `data-testid="community-emblem-variants"` and per-link testids.
+
+To regenerate (e.g. when the master emblem changes): `cd /app/backend && python scripts/generate_emblem_variants.py`. Idempotent — overwrites previous variants.
+
+### Upgrade-to-Founder button
+- New API helper: `promoteToFounder(slug, { inaugural: true })` → POST `/admin/founders/promote` (existing endpoint, force_status="inaugural").
+- New UI: When Founding Access is ON, a full-width "⭐ Upgrade to Founding Seller (permanent)" button appears below the countdown.
+- Confirmation prompt lists what changes (lifetime perks, countdown removed, Founder wall add, audit-logged).
+- On success: toast "Promoted to Founder #N · permanent status active." + `onUpdated()` re-fetches the row → `maker_is_founder_permanent` flips true → countdown disappears + card swaps to `FounderStatusCard` automatically (no second deploy needed).
+- `data-testid="upgrade-to-founder-{slug}"` for testability.
+
+ESLint + contrast linter clean. Backend Meta CAPI + state-separation suite still 7/7 green.
+
+---
+
+
 ## iter413bt — Server-side Meta CAPI on Maker Application submit (2026-02)
 
 **Implementation:**
