@@ -76,7 +76,19 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   const navigate = useNavigate();
   const refresh = onChanged || onRefresh || (() => {});
   const goNew = () => navigate("/maker/listings/new");
-  const [view, setView] = useState("live");
+  // iter413bf — Persist active view (live/drafts/archived) per-session
+  // so editing a listing in the Drafts tab and saving doesn't snap the
+  // maker back to Live. Same sessionStorage pattern as the per-bucket
+  // page index below.
+  const VIEW_KEY = "cm_maker_listings_view";
+  const [view, setView] = useState(() => {
+    try {
+      const v = sessionStorage.getItem(VIEW_KEY);
+      return v === "drafts" || v === "archived" ? v : "live";
+    } catch {
+      return "live";
+    }
+  });
   // Slugs the maker has selected in the Archived view. Reset on view switch
   // and on every refresh so we don't keep ghost slugs that no longer exist.
   const [selected, setSelected] = useState(new Set());
@@ -207,6 +219,7 @@ export default function ProductsList({ products, onChanged, onRefresh }) {
   const switchView = (k) => {
     setView(k);
     setSelected(new Set());
+    try { sessionStorage.setItem(VIEW_KEY, k); } catch {/* private mode */}
   };
 
   const refreshAndClear = () => {
