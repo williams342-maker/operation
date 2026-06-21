@@ -18,7 +18,7 @@ const NAV = [
   { id: "stats",       label: "Stats",       icon: BarChart3 },
   { id: "violations",  label: "Violations",  icon: AlertTriangle },
   { id: "marketing",   label: "Marketing",   icon: Megaphone },
-  { id: "promote",     label: "Promote",     icon: Rocket, badge: "Beta" },
+  { id: "promote",     label: "Promote",     icon: Rocket, badge: "Preview" },
   { id: "financials",  label: "Financials",  icon: DollarSign },
   { id: "help",        label: "Help",        icon: HelpCircle },
   { id: "settings",    label: "Settings",    icon: SlidersHorizontal },

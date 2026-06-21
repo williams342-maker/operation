@@ -16,15 +16,15 @@ const TECH = ["PLASMA", "LASER", "ROUTER", "WOOD", "METAL", "CUSTOM"];
 
 export default function BetaPage() {
   useStructuredData({
-    title: "Founding Seller Beta · Crafters Market",
+    title: "Founding Access · Crafters Market",
     description:
-      "Become a Founding Seller on Crafters Market. Limited beta spots: $0 listing fees, priority placement, founding-seller badge, and direct input on the roadmap.",
+      "Become a Founding Seller on Crafters Market. Limited Founding Access spots: $0 listing fees, priority placement, founding-seller badge, and direct input on the roadmap.",
     url: "https://craftersmarket.org/beta",
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "WebPage",
-      name: "Founding Seller Beta Program",
+      name: "Founding Access Program",
       url: "https://craftersmarket.org/beta",
       isPartOf: { "@type": "WebSite", "@id": "https://craftersmarket.org/#website" },
     },
@@ -99,7 +99,7 @@ export default function BetaPage() {
     return (
       <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="beta-applied">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
-          ◆ Beta Application Received
+          ◆ Founding Access Application Received
         </div>
         <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">
           You're On The <span className="text-outline-orange">Shortlist.</span>
@@ -121,7 +121,7 @@ export default function BetaPage() {
           ◆ Founding Seller Program · Paused
         </div>
         <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">
-          Beta Spots Are <span className="text-outline-orange">Closed.</span>
+          Founding Access Is <span className="text-outline-orange">Closed.</span>
         </h1>
         <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed mb-8">
           We're at capacity for our Founding Seller cohort. The program will
@@ -204,10 +204,10 @@ export default function BetaPage() {
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-5">
             ◆ What You Get
           </div>
-          <h2 className="font-display text-3xl md:text-4xl mb-6 uppercase">Beta Access Perks</h2>
+          <h2 className="font-display text-3xl md:text-4xl mb-6 uppercase">Founding Access Perks</h2>
           <ul className="grid md:grid-cols-2 gap-4 font-mono text-sm text-ink">
             {[
-              "$0 listing fees during beta",
+              "$0 listing fees during Founding Access",
               "Reduced commission locked in after launch",
               "Priority placement in search & homepage",
               "Founding Seller badge on your store",
@@ -253,8 +253,8 @@ export default function BetaPage() {
         <div className="grid md:grid-cols-3 gap-4 mb-12" data-testid="beta-details">
           {[
             { k: "Spots", v: "100", sub: "Limited sellers" },
-            { k: "Duration", v: "90 Days", sub: "Free beta access" },
-            { k: "After Beta", v: "Discount", sub: "Founding Seller plan" },
+            { k: "Duration", v: "90 Days", sub: "Founding Access window" },
+            { k: "After Founding Access", v: "Discount", sub: "Founding Seller plan" },
           ].map((s) => (
             <div key={s.k} className="border border-line p-6 hover:border-brand transition">
               <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-2">
@@ -399,7 +399,7 @@ export default function BetaPage() {
         {/* Application form */}
         <div id="apply" className="border-t border-line pt-10">
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
-            ◆ Apply For Beta Access
+            ◆ Apply For Founding Access
           </div>
           <h2 className="font-display text-4xl md:text-6xl mb-3 uppercase">
             Join The Founding Sellers Program
@@ -499,7 +499,7 @@ export default function BetaPage() {
                 className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition self-start"
                 data-testid="beta-regular-apply-link"
               >
-                ← Just apply to sell (not beta)
+                ← Just apply to sell (not Founding Access)
               </Link>
               <button
                 type="submit"

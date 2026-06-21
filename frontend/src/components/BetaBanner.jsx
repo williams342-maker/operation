@@ -84,7 +84,7 @@ export default function BetaBanner({ message, position = "top" }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
-              ◆ Beta Feedback
+              ◆ Founding Access Feedback
             </div>
             <h3 id="beta-feedback-headline" className="font-display text-2xl uppercase">Tell us what you think.</h3>
 

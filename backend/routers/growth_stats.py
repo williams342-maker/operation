@@ -86,7 +86,7 @@ async def admin_growth_stats(_: dict = Depends(current_admin)):
     # Beta feedback (engagement / bug-report velocity)
     stats.append({
         "key": "beta_feedback",
-        "label": "Beta feedback",
+        "label": "Founding Access feedback",
         "total": await db.beta_feedback.count_documents({}),
         "d1": await _delta("beta_feedback", "created_at", 1),
         "d7": await _delta("beta_feedback", "created_at", 7),

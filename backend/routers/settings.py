@@ -115,7 +115,7 @@ async def submit_beta_feedback(payload: BetaFeedbackIn, bg: BackgroundTasks):
     when beta_mode is on (the frontend hides the form otherwise)."""
     s = await _get_or_create_settings()
     if not s["beta_mode"]:
-        raise HTTPException(403, "Beta feedback is not currently accepted.")
+        raise HTTPException(403, "Founding Access feedback is not currently accepted.")
     doc = {
         "id": str(uuid.uuid4()),
         "name": payload.name.strip(),

@@ -60,10 +60,10 @@ export default function ApprovedMakersTab() {
   const flipBeta = async (slug, next) => {
     try {
       await toggleMakerBeta(slug, next);
-      toast.success(next ? "Beta access granted · 90 days." : "Beta access removed.");
+      toast.success(next ? "Founding Access granted · 90 days." : "Founding Access removed.");
       await refresh();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Failed to toggle beta.");
+      toast.error(e?.response?.data?.detail || "Failed to toggle Founding Access.");
     }
   };
 
@@ -159,7 +159,7 @@ export default function ApprovedMakersTab() {
       <div className="flex flex-wrap gap-2 pb-3 border-b border-line" data-testid="approved-filters">
         {[
           { id: "all", label: "All" },
-          { id: "beta", label: "Beta" },
+          { id: "beta", label: "Founding Access" },
           { id: "plus", label: "Plus" },
           { id: "veteran", label: "Veteran" },
         ].map((f) => {
@@ -201,7 +201,7 @@ export default function ApprovedMakersTab() {
                 <th className="text-right py-2 pr-3">Listings</th>
                 <th className="text-right py-2 pr-3">Lifetime GMV</th>
                 <th className="text-left py-2 pr-3">Approved</th>
-                <th className="text-right py-2">Beta</th>
+                <th className="text-right py-2">Founding Access</th>
               </tr>
             </thead>
             <tbody>

@@ -115,7 +115,7 @@ export default function MakerLogin() {
                 Founding Seller?
               </div>
               <p className="font-mono text-[11px] text-ink-muted leading-relaxed">
-                Sign in here with the same email you used when you applied to the beta.
+                Sign in here with the same email you used when you applied for Founding Access.
                 Not yet a Founding Seller?{" "}
                 <Link to="/beta" className="text-brand underline hover:no-underline" data-testid="maker-login-beta-link">
                   Claim a spot →

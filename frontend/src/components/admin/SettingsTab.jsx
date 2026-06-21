@@ -67,8 +67,8 @@ const SWITCHES = [
   },
   {
     key: "beta_mode",
-    label: "Beta Mode",
-    blurb: "Show a sticky 'Beta' banner sitewide with a feedback button. Submissions email ops + persist to /admin/dashboard for triage.",
+    label: "Founding Access Mode",
+    blurb: "Show a sticky 'Founding Access' banner sitewide with a feedback button. Submissions email ops + persist to /admin/dashboard for triage.",
     tone: "warn",
     messageKey: "beta_message",
     messageLabel: "Banner message",
@@ -83,8 +83,8 @@ const SWITCHES = [
   },
   {
     key: "beta_signup_enabled",
-    label: "Founding Seller Beta Signup",
-    blurb: "Master switch for the bold ◆ BETA SIGNUP button in the header AND the /beta landing page. When OFF, the Nav hides the pill and /beta shows a 'spots are closed' state — existing Founding Sellers keep their perks.",
+    label: "Founding Access Signup",
+    blurb: "Master switch for the bold ◆ FOUNDING ACCESS button in the header AND the /beta landing page. When OFF, the Nav hides the pill and /beta shows a 'spots are closed' state — existing Founding Sellers keep their perks.",
     tone: "warn",
   },
   {
@@ -2312,7 +2312,7 @@ function FeedbackInbox() {
   return (
     <div className="border border-line p-4 md:p-5" data-testid="feedback-inbox">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <div className="font-display text-lg uppercase">Beta feedback inbox</div>
+        <div className="font-display text-lg uppercase">Founding Access feedback inbox</div>
         <div className="flex border border-line">
           {["open", "resolved", "all"].map((f) => (
             <button

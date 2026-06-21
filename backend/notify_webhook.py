@@ -37,7 +37,7 @@ _dedup_cache: dict[str, float] = {}
 # Visual taxonomy — keep this lookup tight; if it grows past ~6 keys,
 # extract to a config.
 _KIND_META = {
-    "feedback":  {"emoji": "💬", "color": 0x3B82F6, "label": "Beta Feedback"},
+    "feedback":  {"emoji": "💬", "color": 0x3B82F6, "label": "Founding Access Feedback"},
     "contact":   {"emoji": "📨", "color": 0x10B981, "label": "Contact Message"},
     "outage":    {"emoji": "🚨", "color": 0xEF4444, "label": "Prod Outage"},
     "recovery":  {"emoji": "✅", "color": 0x22C55E, "label": "Prod Recovered"},

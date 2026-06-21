@@ -9,7 +9,7 @@ import { useConfirm } from "../../hooks/useConfirm";
 const AUDIENCES = [
   { id: "all_makers",         label: "All Makers",         hint: "Every approved maker on the platform." },
   { id: "plus_makers",        label: "Crafters Plus",      hint: "Active paying subscribers only." },
-  { id: "beta_makers",        label: "Founding Sellers",   hint: "Makers currently in the 90-day beta." },
+  { id: "beta_makers",        label: "Founding Sellers",   hint: "Makers currently in the 90-day Founding Access window." },
   { id: "buyers",             label: "Buyers & Community", hint: "Past paying customers + community accounts." },
   { id: "applicants_pending", label: "Pending Applicants", hint: "Haven't been approved or rejected yet." },
   { id: "update_subscribers", label: "Update Subscribers", hint: "Public /updates page subscribers — opt-in for product news." },

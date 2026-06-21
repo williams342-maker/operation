@@ -155,7 +155,7 @@ export default function UpdatesPage() {
               className="btn-industrial btn-primary inline-flex items-center gap-2"
               data-testid="updates-beta-cta"
             >
-              Join the Beta <ArrowRight size={14} />
+              Apply for Founding Access <ArrowRight size={14} />
             </Link>
           </div>
         </div>

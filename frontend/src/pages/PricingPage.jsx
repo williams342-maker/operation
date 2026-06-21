@@ -29,7 +29,7 @@ import MakerFeeTable from "../components/MakerFeeTable";
 const FAQ = [
   {
     q: "What does it cost to sell on Crafters Market?",
-    a: "During beta, opening a shop is free. Approved makers in the founder cohort lock in a 3% transaction fee for life. Stripe processing applies on top (standard 2.9% + $0.30). No monthly fees, no listing fees, no hidden cuts.",
+    a: "During Founding Access, opening a shop is free. Approved makers in the founder cohort lock in a 3% transaction fee for life. Stripe processing applies on top (standard 2.9% + $0.30). No monthly fees, no listing fees, no hidden cuts.",
   },
   {
     q: "How does Crafters Market compare to Etsy fees?",
@@ -41,7 +41,7 @@ const FAQ = [
   },
   {
     q: "Is there a monthly subscription?",
-    a: "No. Crafters Market is free to open a shop during beta. Compare to Shopify Basic at $39/month (or $29/month annually), which has no built-in marketplace traffic at all.",
+    a: "No. Crafters Market is free to open a shop during Founding Access. Compare to Shopify Basic at $39/month (or $29/month annually), which has no built-in marketplace traffic at all.",
   },
   {
     q: "Do I need to run ads to make sales here?",

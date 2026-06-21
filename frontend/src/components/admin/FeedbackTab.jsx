@@ -72,9 +72,9 @@ export default function FeedbackTab() {
     <div className="space-y-6" data-testid="admin-feedback-tab">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="font-display text-3xl text-ink">Beta Feedback</h2>
+          <h2 className="font-display text-3xl text-ink">Founding Access Feedback</h2>
           <p className="font-mono text-xs text-ink-muted mt-1">
-            Submissions from the public Beta Feedback widget · newest first
+            Submissions from the public Founding Access Feedback widget · newest first
           </p>
         </div>
         <div className="flex border border-line" data-testid="feedback-filter">
@@ -103,7 +103,7 @@ export default function FeedbackTab() {
         <EmptyState
           title={filter === "pending" ? "Nothing waiting on you." : "No feedback yet."}
           subtitle={filter === "pending"
-            ? "Every beta submission has been replied to or resolved. Nice."
+            ? "Every Founding Access submission has been replied to or resolved. Nice."
             : "Submissions will appear here as buyers and makers send them in."}
           icon={MessageSquare}
         />

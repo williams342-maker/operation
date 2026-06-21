@@ -982,12 +982,12 @@ async def send_applicant_received(applicant_email: str, name: str, studio: str,
     one source of truth for both flows."""
     if not applicant_email:
         return None
-    program_label = "Founding Seller Beta" if is_beta else "Maker program"
+    program_label = "Founding Access" if is_beta else "Maker program"
     flair = (
         "<div style='display:inline-block;padding:4px 10px;border:1px solid #ff4500;"
         "border-radius:999px;font-family:JetBrains Mono,monospace;font-size:10px;"
         "letter-spacing:0.22em;text-transform:uppercase;color:#ff4500;margin:0 0 14px'>"
-        "◆ Founding Seller Beta</div>"
+        "◆ Founding Access</div>"
         if is_beta else ""
     )
     body = (
@@ -2318,12 +2318,12 @@ async def send_beta_feedback(name: str, email: str, message: str, page: str = ""
       <p style='font-size:11px;color:#a3a3a3;margin-top:18px'>Reply directly to <a href='mailto:{email}' style='color:#ff4500'>{email}</a> — they'll get it.</p>
     """
     html = _shell(
-        "Beta Feedback.",
-        "Someone just dropped feedback while testing the beta build.",
+        "Founding Access Feedback.",
+        "Someone just dropped feedback while testing the build.",
         body,
-        "Crafters Market · Beta channel",
+        "Crafters Market · Founding Access channel",
     )
-    return await _send(OPS_EMAIL, f"Beta feedback · {name}", html)
+    return await _send(OPS_EMAIL, f"Founding Access feedback · {name}", html)
 
 
 async def send_beta_feedback_resolved(name: str, email: str, message: str, page: str = ""):
@@ -2355,7 +2355,7 @@ async def send_beta_feedback_resolved(name: str, email: str, message: str, page:
         f"<a href='{site}/updates' style='display:inline-block;background:#ff4500;color:#0a0a0a;text-decoration:none;font-weight:700;padding:14px 24px;font-size:13px;letter-spacing:0.15em;text-transform:uppercase'>See what we've shipped →</a>"
         "</div>"
     )
-    html = _shell("Closed the loop.", "Your beta feedback has been reviewed and resolved.", body, "Crafters Market · Beta")
+    html = _shell("Closed the loop.", "Your Founding Access feedback has been reviewed and resolved.", body, "Crafters Market · Founding Access")
     return await _send(email, "[Crafters Market] We reviewed your feedback", html)
 
 

@@ -15,7 +15,7 @@ import React from "react";
 const FEATURES = [
   {
     label: "Monthly fee",
-    cm:      { value: "Free during beta", note: "Founder pricing available", tone: "good" },
+    cm:      { value: "Free during Founding Access", note: "Founder pricing available", tone: "good" },
     etsy:    { value: "Free to open shop", note: null, tone: "neutral" },
     shopify: { value: "$39/mo Basic", note: "$29/mo on annual plan", tone: "bad", cite: 3 },
     amazon:  { value: "$0", note: "No Pro Selling plan required for Handmade", tone: "good", cite: 5 },

@@ -21,7 +21,7 @@ export default function LandingPage() {
   useStructuredData({
     title: "Stop Paying Fees. Start Owning Your Craft. · Crafters Market",
     description:
-      "A marketplace built for woodworkers, potters, jewelers, leatherworkers, fiber artists, and CNC makers who are done with Etsy. Keep more of every sale. Built by makers, for makers. Free beta access open now.",
+      "A marketplace built for woodworkers, potters, jewelers, leatherworkers, fiber artists, and CNC makers who are done with Etsy. Keep more of every sale. Built by makers, for makers. Founding Access open now.",
     url: "https://craftersmarket.org/launch",
     image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
   });
@@ -43,7 +43,7 @@ export default function LandingPage() {
             transition={{ duration: 0.4 }}
             className="font-mono text-[11px] uppercase tracking-[0.35em] text-brand mb-8"
           >
-            ◆ Crafters Market · Free Beta
+            ◆ Crafters Market · Founding Access
           </motion.div>
 
           <motion.h1
@@ -76,7 +76,7 @@ export default function LandingPage() {
               className="btn-industrial btn-primary inline-flex items-center gap-3 text-base px-10 py-5"
               data-testid="landing-hero-cta"
             >
-              <Flame size={18} /> Join Free Beta <ArrowRight size={18} />
+              <Flame size={18} /> Apply for Founding Access <ArrowRight size={18} />
             </Link>
             <Link
               to="/shop"
@@ -172,14 +172,14 @@ export default function LandingPage() {
             Claim Your<br /><span className="text-brand">Spot.</span>
           </h2>
           <p className="font-mono text-sm text-ink-muted max-w-xl mx-auto mb-10 leading-relaxed">
-            We're opening a limited number of beta spots for makers. No fees. No risk. Just early access.
+            We're opening a limited number of Founding Access spots for makers. No fees. No risk. Just early access.
           </p>
           <Link
             to="/beta"
             className="btn-industrial btn-primary inline-flex items-center gap-3 text-base px-12 py-5"
             data-testid="landing-final-cta"
           >
-            Join the Beta <ArrowRight size={18} />
+            Apply for Founding Access <ArrowRight size={18} />
           </Link>
         </div>
       </section>

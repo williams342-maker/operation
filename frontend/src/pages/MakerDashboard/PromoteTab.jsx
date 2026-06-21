@@ -284,7 +284,7 @@ export default function PromoteTab() {
           <div className="flex items-center gap-2">
             <Rocket size={22} className="text-brand" />
             <h1 className="font-display text-3xl text-ink">Promote</h1>
-            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-brand border border-cyan-400/40 px-1.5 py-0.5">Beta</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-brand border border-cyan-400/40 px-1.5 py-0.5">Preview</span>
           </div>
           <p className="text-sm text-ink-muted mt-1 max-w-xl">
             Set one budget. We pick which listings to boost based on your goal — no campaign manager, no per-listing micromanaging.

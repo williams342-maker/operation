@@ -81,7 +81,7 @@ export default function FoundersWall({ testId = "founders-wall" }) {
                 {f.is_beta_tester && (
                   <span
                     className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                    title="Beta Tester"
+                    title="Founding Access Member"
                   />
                 )}
                 {f.is_veteran_owned && (

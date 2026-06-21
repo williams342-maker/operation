@@ -95,7 +95,7 @@ export default function AiDiscoverySearch({ testId = "home-ai-discovery", compac
         <div className={`text-center ${compact ? "mb-4" : "mb-6"}`}>
           <div className={`font-mono text-[11px] uppercase tracking-[0.3em] text-brand ${compact ? "mb-1" : "mb-3"} inline-flex items-center gap-2 justify-center`}>
             <Sparkles size={12} className="text-brand" />
-            ◆ AI Discovery · Beta
+            ◆ AI Discovery · Preview
           </div>
           {!compact && (
             <>

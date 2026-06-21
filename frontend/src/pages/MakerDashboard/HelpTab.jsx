@@ -37,7 +37,7 @@ const CATEGORIES = [
           title: "Open your shop",
           intro: "From application to first listing in under an hour.",
           steps: [
-            "Apply via /apply (or the bold ◆ Beta Signup button) — we review every application personally.",
+            "Apply via /apply (or the bold ◆ Founding Access button) — we review every application personally.",
             "Once approved you'll get a magic-link email. Click it to land in the Shop Manager.",
             "Connect Stripe payouts (Settings → Subscription path → Stripe Connect button) — required to receive money.",
             "Fill out your profile under Settings → About your shop. Buyers trust filled-out shops.",

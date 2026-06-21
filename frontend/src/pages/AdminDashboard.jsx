@@ -86,7 +86,7 @@ const TABS = [
   { id: "nurture-queue", label: "Nurture Queue", caps: ["marketplace", "content"] },
   { id: "audit", label: "Audit Log" },
   { id: "backup", label: "Backup", superOnly: true },
-  { id: "feedback", label: "Beta Feedback", caps: ["support"] },
+  { id: "feedback", label: "Founding Access Feedback", caps: ["support"] },
   { id: "broadcast", label: "Broadcast", caps: ["content"] },
   { id: "chat", label: "Chat Mod", caps: ["moderation"] },
   { id: "coming-soon", label: "Coming Soon", caps: ["content"] },

@@ -690,7 +690,7 @@ export default function PolicyPage() {
           </p>
           <div className="inline-flex items-center gap-2 mt-5 px-3 py-1.5 border border-amber-700/40 bg-amber-500/5">
             <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand">
-              ◆ Beta v1
+              ◆ Founding Access v1
             </span>
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               · Pending legal review

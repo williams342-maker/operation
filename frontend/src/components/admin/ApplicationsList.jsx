@@ -12,7 +12,7 @@ import { useConfirm } from "../../hooks/useConfirm";
 // tabs ("Approved Makers" / "Rejected") so each list has its own focus.
 const FILTERS = [
   { id: "pending",  label: "Pending"  },
-  { id: "beta",     label: "Beta"     },
+  { id: "beta",     label: "Founding Access" },
   { id: "all",      label: "All"      },
 ];
 
@@ -102,7 +102,7 @@ function BetaCountdown({ expiresAt }) {
     <div className="mt-3 border border-brand/40 bg-brand/5 p-3" data-testid="beta-countdown">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
-          {expired ? "◆ Beta Expired" : "◆ Founding Seller Beta"}
+          {expired ? "◆ Founding Access Ended" : "◆ Founding Access"}
         </div>
         <div className="font-display text-xl text-brand" data-testid="beta-countdown-value">
           {expired ? `Ended ${days}d ago` : `${days}d ${hours}h left`}
@@ -136,12 +136,12 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
       setExpiresAt(r.beta_expires_at || null);
       toast.success(
         next
-          ? `Beta access granted · 90-day countdown started.`
-          : `Beta access removed.`
+          ? `Founding Access granted · 90-day countdown started.`
+          : `Founding Access removed.`
       );
       onUpdated?.();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Failed to update beta status.");
+      toast.error(e?.response?.data?.detail || "Failed to update Founding Access status.");
     } finally {
       setBusy(false);
     }
@@ -152,7 +152,7 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
       <div className="flex items-center justify-between gap-3 border border-line p-3">
         <div className="min-w-0">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
-            Founding Seller Beta
+            Founding Access
           </div>
           <div className="font-mono text-xs text-ink mt-1">
             {enabled ? "Active · 90-day perks & badge enabled" : "Off · regular maker"}
@@ -308,7 +308,7 @@ function ApplicationRow({ app, onChange }) {
         <div className="mt-4 space-y-3">
           {app.is_beta && (
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand leading-relaxed">
-              ◆ Approving this applicant will grant Founding Seller Beta with a 90-day window.
+              ◆ Approving this applicant will grant Founding Access with a 90-day window.
             </p>
           )}
           <DeclineReasonPicker

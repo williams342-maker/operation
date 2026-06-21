@@ -316,7 +316,7 @@ export default function DashboardTab({
               <ArrowUpRight size={14} className="text-ink-muted" />
             </div>
             <div className="font-mono text-[10px] text-ink-muted mt-1">
-              Tips, case studies, and beta announcements
+              Tips, case studies, and Founding Access announcements
             </div>
           </Link>
           {/* Authoring CTA — sits directly under the read link so the
@@ -642,7 +642,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
         out.push({
           tone: "warn",
           icon: AlertTriangle,
-          label: `Founding Seller beta ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          label: `Founding Access ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
           detail: "Your reduced commission rate expires soon.",
           cta: { label: "Plan ahead →", target: "settings" },
           key: "beta-soon",
