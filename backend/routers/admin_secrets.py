@@ -690,6 +690,60 @@ async def stripe_webhook_health(_admin: dict = Depends(_current_admin)):
     return out
 
 
+# iter413bn — Reset the webhook-health counters. Wipes `stripe_webhook_log`
+# rows for the requested channel(s) / scope so a stale red "228 ERR / 7D"
+# verdict (e.g. from a webhook that has since been fixed in Stripe Dashboard)
+# can be cleared without having to wait 7d for the rolling window to roll off.
+# Audit-logged. Super-admin only.
+class _WebhookHealthResetBody(BaseModel):
+    kind: Optional[str] = None         # "main" | "connect" | None=both
+    errors_only: bool = False          # if True, keep status=="ok" rows
+
+
+@router.post("/admin/stripe/webhook-health/reset")
+async def stripe_webhook_health_reset(
+    body: _WebhookHealthResetBody,
+    claims: dict = Depends(require_super_admin()),
+):
+    """Wipe webhook-log rows so the health card resets to a clean slate.
+
+    Use cases:
+      • You fixed a misconfigured endpoint in Stripe Dashboard but the
+        228 stale errors are still poisoning the 7-day verdict.
+      • You're done debugging and want a clean baseline for the next run.
+
+    Defaults clear ALL rows for ALL channels — pass `kind` to limit to one
+    channel, or `errors_only=true` to preserve the success history."""
+    q: dict = {}
+    if body.kind in ("main", "connect"):
+        q["kind"] = body.kind
+    if body.errors_only:
+        q["status"] = {"$ne": "ok"}
+
+    # Snapshot the count before wipe so the audit row + response have
+    # actionable numbers (not just "deleted some").
+    before = await db.stripe_webhook_log.count_documents(q)
+    res = await db.stripe_webhook_log.delete_many(q)
+
+    import uuid
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "stripe_webhook_health_reset",
+        "email": (claims.get("email") or "").lower(),
+        "filter": {"kind": body.kind, "errors_only": body.errors_only},
+        "matched": before,
+        "deleted": res.deleted_count,
+        "ts": now_iso(),
+    })
+    logger.info("[stripe-webhook-health] reset by %s — deleted %d rows (filter=%s)",
+                claims.get("email"), res.deleted_count, q)
+    return {
+        "ok": True,
+        "deleted": res.deleted_count,
+        "filter": {"kind": body.kind, "errors_only": body.errors_only},
+    }
+
+
 # ─────────────── iter413ay — Stripe-side webhook endpoint introspection ───────────────
 # Reads the live list of webhook endpoints CONFIGURED in Stripe Dashboard
 # (via Stripe API) and red-flags any whose URL path doesn't match an actual

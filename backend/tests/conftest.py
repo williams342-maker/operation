@@ -657,6 +657,11 @@ SMOKE_FILES = {
     # admin dashboard never silently regresses to "0 listings" again.
     "test_iter413bm_approved_makers_listings_count.py",
 
+    # ── iter413bn — Stripe webhook-health reset endpoint ───────────
+    # Lets ops clear stale `stripe_webhook_log` rows after fixing a
+    # misconfig in Stripe Dashboard so the verdict stops showing red.
+    "test_iter413bn_stripe_webhook_health_reset.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

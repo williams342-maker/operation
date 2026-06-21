@@ -1,3 +1,19 @@
+## iter413bn — Stripe Webhook Health Reset button (2026-02)
+
+**Requested by user:** Reset button on the Webhook Health card so a stale "228 ERR / 7D · FAILING" verdict (from an endpoint that's since been fixed in Stripe Dashboard) can be cleared without waiting 7 days for the rolling window to roll off.
+
+**Implementation:**
+- Backend: `POST /api/admin/stripe/webhook-health/reset` (super-admin only). Body: `{kind?, errors_only?}`. Deletes matching rows from `db.stripe_webhook_log`, writes `admin_audit` row of kind `stripe_webhook_health_reset`, returns `{ok, deleted, filter}`.
+- Frontend: New "⟲ RESET" button on the Webhook Health card header, next to "REFRESH". 2-step confirm prompt. Toast on success: "Reset complete · N events cleared."
+- Audit-logged with operator email + filter + matched/deleted counts.
+
+**Tests:** `tests/test_iter413bn_stripe_webhook_health_reset.py` (4 tests — auth gate, `errors_only` filter, `kind` filter, audit row write). All passing. Added to `SMOKE_FILES`.
+
+**Verified on preview:** Both buttons render side-by-side; reset gate enforces super-admin (401 for unauth, 403 for non-super admins).
+
+---
+
+
 ## iter413bm — Approved Makers `listings_count` bug fix (2026-02)
 
 **Reported by user:** "Approved Makers on the deployed site/admin/listing is showing 0, this should reflect the current number of listings by each maker."

@@ -3240,6 +3240,7 @@ function StripeWebhookHealthCard() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const load = async () => {
     setBusy(true); setErr("");
@@ -3255,6 +3256,42 @@ function StripeWebhookHealthCard() {
       setBusy(false);
     }
   };
+
+  // iter413bn — Wipe `stripe_webhook_log` so a stale "228 ERR" verdict
+  // (typically from a misconfig that's since been fixed in Stripe
+  // Dashboard) can be cleared without waiting 7d for the rolling window
+  // to roll off. Two-stage confirm to prevent accidental wipes.
+  const reset = async () => {
+    if (!window.confirm(
+      "Reset Stripe webhook event log?\n\n" +
+      "This permanently deletes ALL recorded webhook events (both main and connect) " +
+      "from `stripe_webhook_log`. The counters return to 0 and the card recomputes " +
+      "verdicts only from events received AFTER this reset.\n\n" +
+      "Use this after fixing a misconfigured endpoint in Stripe Dashboard so the " +
+      "card stops showing stale errors. Audit-logged. Super-admin only.\n\n" +
+      "Continue?"
+    )) return;
+    setResetting(true);
+    try {
+      const r = await fetch(`${API}/api/admin/stripe/webhook-health/reset`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.detail || `HTTP ${r.status}`);
+      toast.success(`Reset complete · ${j.deleted} event${j.deleted === 1 ? "" : "s"} cleared.`);
+      await load();
+    } catch (e) {
+      toast.error(e.message || "Reset failed");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const fmtAgo = (iso) => {
@@ -3396,14 +3433,25 @@ function StripeWebhookHealthCard() {
             Dashboard webhook page.
           </p>
         </div>
-        <button
-          onClick={load}
-          disabled={busy}
-          data-testid="stripe-webhook-health-refresh"
-          className="shrink-0 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
-        >
-          {busy ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="shrink-0 flex items-center gap-2">
+          <button
+            onClick={load}
+            disabled={busy}
+            data-testid="stripe-webhook-health-refresh"
+            className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          >
+            {busy ? "Refreshing…" : "Refresh"}
+          </button>
+          <button
+            onClick={reset}
+            disabled={resetting || busy}
+            data-testid="stripe-webhook-health-reset"
+            title="Clear all recorded webhook events so the counters reset to 0"
+            className="px-3 py-1.5 border border-line text-ink-muted hover:border-danger hover:text-danger font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+          >
+            {resetting ? "Resetting…" : "⟲ Reset"}
+          </button>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
