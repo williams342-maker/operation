@@ -667,6 +667,12 @@ SMOKE_FILES = {
     # so a future refactor never accidentally leaks maker emails.
     "test_iter413bo_enrichlabs_weekly_export.py",
 
+    # ── iter413bp — Admin Operations Dashboard aggregator ──────────
+    # Locks the 6-section payload shape (summary, action_queue,
+    # marketplace_health, founder_funnel, daily_brief, recent_activity)
+    # so the admin landing layer never silently breaks.
+    "test_iter413bp_ops_dashboard.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

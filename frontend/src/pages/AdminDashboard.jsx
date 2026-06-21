@@ -10,6 +10,7 @@ import {
   fetchAdminOrders,
 } from "../lib/api";
 import { Stat } from "../components/admin/_shared";
+import OperationsDashboard from "../components/admin/OperationsDashboard"; // iter413bp
 import AdminDensityToggle from "../components/AdminDensityToggle";
 import AnalyticsTab from "../components/admin/AnalyticsTab";
 import WebAnalyticsTab from "../components/admin/WebAnalyticsTab";
@@ -134,10 +135,13 @@ export default function AdminDashboard() {
   // We read the query params lazily inside useState so the initial render
   // already shows the deep-linked tab (no flash of "applications").
   const [tab, setTab] = useState(() => {
-    if (typeof window === "undefined") return "applications";
+    if (typeof window === "undefined") return "operations";
     const t = new URLSearchParams(window.location.search).get("tab");
-    // Whitelist: only honor known tab ids so a malformed link can't break the page.
-    return t && TABS.some((x) => x.id === t) ? t : "applications";
+    // iter413bp — `operations` is the new landing surface. It's not in
+    // TABS (it's not a tab, it's the empty-state landing layer), so we
+    // accept it explicitly. Other ids must exist in TABS.
+    if (t === "operations") return "operations";
+    return t && TABS.some((x) => x.id === t) ? t : "operations";
   });
   const [openRowId, setOpenRowId] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -205,6 +209,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!me) return;
     if (!visibleTabs.length) return;
+    // iter413bp — "operations" is a virtual landing layer, not in TABS.
+    // It's always allowed for any signed-in admin so the redirect-to-
+    // visible-tab fallback must not kick us off it.
+    if (tab === "operations") return;
     if (visibleTabs.some((t) => t.id === tab)) return;
 
     const forbiddenId = tab;
@@ -465,6 +473,30 @@ export default function AdminDashboard() {
               data-testid="admin-tabs"
               aria-label="Admin sections"
             >
+              {/* iter413bp — Virtual "Operations" pill at the top of the
+                  sidebar. Acts as a "home" link back to the landing layer
+                  from any drilled-in tab. */}
+              {(() => {
+                const active = tab === "operations";
+                return (
+                  <button
+                    key="operations"
+                    onClick={() => setTab("operations")}
+                    ref={active ? activeTabBtnRef : null}
+                    className={`
+                      font-mono font-semibold text-[10px] md:text-[11px] uppercase tracking-[0.18em] md:tracking-[0.22em] whitespace-nowrap transition
+                      px-3 md:px-5 py-3 shrink-0 border-b-2 lg:border-b-0 lg:border-l-2 lg:w-full lg:text-left lg:px-3 lg:py-2.5
+                      ${active
+                        ? "border-brand text-brand lg:bg-brand/5"
+                        : "border-transparent text-ink hover:text-brand lg:hover:bg-surface"}
+                    `}
+                    data-testid="admin-tab-operations"
+                    aria-current={active ? "page" : undefined}
+                  >
+                    ◆ Operations
+                  </button>
+                );
+              })()}
               {visibleTabs.map((t) => {
                 const active = tab === t.id;
                 return (
@@ -507,6 +539,7 @@ export default function AdminDashboard() {
               <AdminDensityToggle />
             </div>
             <AdminTabBoundary tabId={tab} key={tab}>
+            {tab === "operations" && <OperationsDashboard onJumpToTab={setTab} />}
             {tab === "analytics" && <AnalyticsTab />}
             {tab === "retention" && <RetentionTab />}
             {tab === "web" && <WebAnalyticsTab />}

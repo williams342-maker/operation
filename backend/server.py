@@ -64,6 +64,7 @@ from routers.orphan_pages import router as orphan_pages_router  # iter413bc
 from routers.freshness import router as freshness_router  # iter413bd
 from routers.nurture_queue import router as nurture_queue_router  # iter413be
 from routers.meta_capi import router as meta_capi_router  # iter413bl
+from routers.ops_dashboard import router as ops_dashboard_router  # iter413bp
 from routers.restock_waitlist import router as restock_waitlist_router
 from routers.contact_messages import router as contact_messages_router
 from routers.review_disputes import router as review_disputes_router
@@ -153,6 +154,7 @@ api.include_router(orphan_pages_router)  # iter413bc — orphan pages detector
 api.include_router(freshness_router)  # iter413bd — freshness engine
 api.include_router(nurture_queue_router)  # iter413be — nurture queue (drafts only)
 api.include_router(meta_capi_router)  # iter413bl — Meta Conversions API (server-side)
+api.include_router(ops_dashboard_router)  # iter413bp — admin operations dashboard aggregator
 api.include_router(restock_waitlist_router)
 api.include_router(contact_messages_router)
 api.include_router(review_disputes_router)

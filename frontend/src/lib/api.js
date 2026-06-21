@@ -1198,6 +1198,10 @@ export const sendEnrichlabsExportNow = () =>
   http.post("/admin/makers/approved/enrichlabs-send", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchEnrichlabsExportStatus = () =>
   http.get("/admin/makers/approved/enrichlabs-status", { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// iter413bp — Operations Dashboard aggregator (admin landing page).
+export const fetchOpsDashboardOverview = () =>
+  http.get("/admin/ops-dashboard/overview", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminRejectedApplications = () =>
   http.get("/admin/makers/rejected", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminPlusMembers = () =>
