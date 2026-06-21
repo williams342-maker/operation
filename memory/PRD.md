@@ -1,3 +1,27 @@
+## iter413bp — Admin Operations Dashboard (landing layer) (2026-02)
+
+**Requested by user:** A new Operations Dashboard at the top of `/admin/dashboard` that surfaces what's broken, what needs approval, what drives growth — sub-10-second platform understanding. Non-destructive (existing admin tabs remain).
+
+**Design decisions (user chose 1c/2c/3a):**
+- Pinned above tab content **only when no tab is selected** — virtual landing layer.
+- **Static rule engine** for the Daily Brief — `_build_daily_brief()` swappable for AI later.
+- Recent Activity feeds from the "big 5" only: applications, orders, custom orders, seller approvals, automation failures.
+
+**Implementation:**
+- **Backend:** New `routers/ops_dashboard.py` — single aggregator `GET /admin/ops-dashboard/overview` returns all 6 sections in one round trip.
+- **Frontend:** New `OperationsDashboard.jsx` (~330 lines) — 6 sections, every card deep-links via `onJumpToTab` prop.
+- **Routing:** `AdminDashboard.jsx` default tab is now `"operations"` (virtual sentinel). Sidebar gets a "◆ OPERATIONS" pill at the top.
+- All 8 contract tests pass (`tests/test_iter413bp_ops_dashboard.py` — in `SMOKE_FILES`).
+- Testing-agent end-to-end pass: 0 issues, ~2.9s page load, contrast linter clean.
+
+**Live state on preview** at time of build:
+- Summary: 0 critical, 1 needs review, 2 healthy systems, 12 activity events
+- Top opportunity: "10 approved · 0 published — sellers with no listings"
+- Top risk: "298 custom orders open"
+
+---
+
+
 ## iter413bo — Weekly Enrich Labs export, no PII (2026-02)
 
 **Requested by user:** "add a weekly export, do not include email addresses for enrich labs"
