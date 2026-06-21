@@ -694,6 +694,11 @@ SMOKE_FILES = {
     # contract so the dashboard card's adoption funnel stays accurate.
     "test_iter413bw_brand_kit.py",
 
+    # ── iter413bz — 404 referrer beacon + admin surface ────────────
+    # Locks the public beacon endpoint, admin dedup-by-path
+    # aggregation, and payload-cap defense.
+    "test_iter413bz_not_found_beacon.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

@@ -24,8 +24,41 @@ export default function NotFoundPage() {
     m.name = "robots";
     m.content = "noindex";
     document.head.appendChild(m);
+
+    // iter413bz — Fire a tiny beacon so the admin Ops Dashboard can
+    // surface "top stale links this week" and we can pre-empt broken-
+    // bookmark clusters within 24h instead of waiting for a maker
+    // report. sendBeacon survives a fast back-button bounce; fall back
+    // to fetch when it isn't available. Best-effort, never throws.
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const role = localStorage.getItem("cm_maker_jwt")
+        ? "maker"
+        : localStorage.getItem("cm_admin_jwt")
+        ? "admin"
+        : localStorage.getItem("cm_buyer_jwt")
+        ? "buyer"
+        : "anon";
+      const payload = JSON.stringify({
+        path: pathname || "",
+        referer: document.referrer || "",
+        signed_in_role: role,
+      });
+      const url = `${API}/api/not-found/log`;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([payload], { type: "application/json" }));
+      } else {
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          keepalive: true,
+        }).catch(() => { /* best-effort */ });
+      }
+    } catch { /* never let ops telemetry break the recovery page */ }
+
     return () => m.remove();
-  }, []);
+  }, [pathname]);
 
   // iter413bx — Heuristic: if the URL the user landed on suggests they
   // were trying to log in or access a maker page, show maker-login as

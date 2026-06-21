@@ -1,3 +1,19 @@
+## iter413bz — 404 referrer beacon + "Top stale links" Ops surface (2026-02)
+
+**Requested by user:** Surface a "Where did this maker click from?" log so broken-bookmark clusters get spotted within 24h instead of becoming support tickets.
+
+**Implementation:**
+- **Backend** `routers/not_found_log.py`:
+  - `POST /api/not-found/log` — public beacon (no auth). Body: `{path, referer, signed_in_role}`. Field-capped (path ≤512, referer ≤1024) for abuse defense. No IP / no PII.
+  - `GET /api/admin/not-found/recent` — admin-only. Returns `{window: "7d", rows[], total_24h}` with rows deduped by path, sorted by hit count, capped at 20.
+- **Frontend `NotFoundPage`** — fires the beacon on mount via `navigator.sendBeacon` (survives fast back-button), falls back to `fetch({keepalive: true})`. Detects current role from localStorage (`maker` / `admin` / `buyer` / `anon`). Wrapped in try/catch so telemetry never breaks the recovery page.
+- **Frontend Ops Dashboard** — new "◆ Top stale links · last 7d" card auto-injects below Founder Funnel when there's at least 1 row. Shows the path, roles affected, sample referer (host only), and hit count. 24h total surfaces in the header.
+
+**Tests:** 4 in `test_iter413bz_not_found_beacon.py` — all passing, in `SMOKE_FILES`. Verified live: a real beacon was recorded after a single `/maker/iter413bz-e2e-test` visit (`role=anon`, full ISO timestamp).
+
+---
+
+
 ## iter413by — Legacy URL aliases for stuck makers (2026-02)
 
 **Reported by user (production):** "Maker states they are signed in but cannot access account." Screenshot showed the OLD 404 page (production still on rolled-back code).

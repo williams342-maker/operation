@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   fetchOpsDashboardOverview, dismissOpsItem, restoreOpsItem,
+  fetchNotFoundRecent,
 } from "../../lib/api";
 
 // iter413bq — localStorage key for collapsed-section state. Bump the
@@ -142,6 +143,16 @@ export default function OperationsDashboard({ onJumpToTab }) {
       toast.error("Failed to restore");
     }
   };
+
+  // iter413bz — Top stale links surface. Lazy-loaded after the main
+  // dashboard so it never blocks the primary render. Refreshed when
+  // the user hits the REFRESH button on the header.
+  const [staleLinks, setStaleLinks] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchNotFoundRecent().then((r) => { if (!cancelled) setStaleLinks(r); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [data?.generated_at]);
 
   const jump = (tab) => (onJumpToTab ? onJumpToTab(tab) : null);
 
@@ -525,6 +536,55 @@ export default function OperationsDashboard({ onJumpToTab }) {
               </ol>
             )}
           </section>
+
+          {/* iter413bz — Top stale links · last 7d.
+              Public 404 beacon feeds this card. Lets admin spot broken-
+              bookmark clusters within 24h instead of waiting for support
+              tickets. Self-hides when no 404s recorded yet. */}
+          {staleLinks && staleLinks.rows && staleLinks.rows.length > 0 && (
+            <section
+              className="border border-line bg-paper p-3 md:p-4"
+              data-testid="ops-stale-links"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-line">
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                  ◆ Top stale links · last {staleLinks.window}
+                </h3>
+                <span className="font-mono text-[10px] text-ink-muted" data-testid="ops-stale-links-24h">
+                  {staleLinks.total_24h} hit{staleLinks.total_24h === 1 ? "" : "s"} · 24h
+                </span>
+              </div>
+              <ul className="divide-y divide-line">
+                {staleLinks.rows.slice(0, 8).map((row, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-3 py-2"
+                    data-testid={`ops-stale-row-${i}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs text-ink truncate" title={row.path}>
+                        {row.path}
+                      </div>
+                      <div className="font-mono text-[10px] text-ink-muted truncate">
+                        {(row.roles || []).join(" · ") || "anon"}
+                        {row.sample_referer && (
+                          <>
+                            <span aria-hidden> · </span>
+                            <span title={row.sample_referer}>
+                              from {row.sample_referer.replace(/^https?:\/\//, "").slice(0, 40)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <span className="font-display text-lg text-ink tabular-nums shrink-0">
+                      {row.hits}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
 
         {/* Section 6 · Recent Activity Rail */}
