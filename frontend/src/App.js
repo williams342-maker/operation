@@ -332,6 +332,20 @@ function App() {
                 <Route path="/maker/listings/new" element={<MakerListingEditor />} />
                 <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
                 <Route path="/maker/renewals" element={<Navigate to="/maker/dashboard?tab=renewals" replace />} />
+                {/* iter413by — Legacy / bookmarked URL aliases. Makers who
+                    saved an old "account" or "dashboard" URL (or who
+                    follow a stale email link) get bounced to their
+                    proper destination instead of dead-ending on 404. */}
+                <Route path="/account"          element={<Navigate to="/maker/dashboard" replace />} />
+                <Route path="/dashboard"        element={<Navigate to="/maker/dashboard" replace />} />
+                <Route path="/profile"          element={<Navigate to="/maker/dashboard?tab=settings" replace />} />
+                <Route path="/maker"            element={<Navigate to="/maker/dashboard" replace />} />
+                <Route path="/maker/account"    element={<Navigate to="/maker/dashboard" replace />} />
+                <Route path="/maker/profile"    element={<Navigate to="/maker/dashboard?tab=settings" replace />} />
+                <Route path="/maker/settings"   element={<Navigate to="/maker/dashboard?tab=settings" replace />} />
+                <Route path="/maker/orders"     element={<Navigate to="/maker/dashboard?tab=orders" replace />} />
+                <Route path="/maker/listings"   element={<Navigate to="/maker/dashboard?tab=listings" replace />} />
+                <Route path="/maker/messages"   element={<Navigate to="/maker/dashboard?tab=messages" replace />} />
                 {/* iter372 — catch-all 404 with noindex (soft-404 hygiene) */}
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>

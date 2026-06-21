@@ -1,3 +1,28 @@
+## iter413by — Legacy URL aliases for stuck makers (2026-02)
+
+**Reported by user (production):** "Maker states they are signed in but cannot access account." Screenshot showed the OLD 404 page (production still on rolled-back code).
+
+**Root cause:** Maker has a valid `cm_maker_jwt` session (UI says "signed in") but the URL they're navigating to doesn't match any route — typically a bookmarked legacy URL like `/account`, `/dashboard`, or `/maker/profile`. SPA falls through to the catch-all `*` → NotFoundPage.
+
+**Fix:** Added 9 redirect aliases in `App.js`:
+- `/account` → `/maker/dashboard`
+- `/dashboard` → `/maker/dashboard`
+- `/profile` → `/maker/dashboard?tab=settings`
+- `/maker` → `/maker/dashboard`
+- `/maker/account` → `/maker/dashboard`
+- `/maker/profile` → `/maker/dashboard?tab=settings`
+- `/maker/settings` → `/maker/dashboard?tab=settings`
+- `/maker/orders` → `/maker/dashboard?tab=orders`
+- `/maker/listings` → `/maker/dashboard?tab=listings`
+- `/maker/messages` → `/maker/dashboard?tab=messages`
+
+Combined with the iter413bx hardened 404 page (already pending redeploy), any maker hitting a stale URL now either auto-redirects to the correct destination OR lands on the helpful 404 with explicit recovery paths.
+
+Verified on preview: `/account`, `/dashboard`, `/maker/profile` all redirect cleanly to `/maker/login` (or `/maker/dashboard` when signed in).
+
+---
+
+
 ## iter413bx — Send-reset fix + 404 recovery hardening (2026-02)
 
 **Reported by user (production):**
