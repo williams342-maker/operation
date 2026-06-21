@@ -200,6 +200,27 @@ export default function ProductEditCard({ product, archived = false, draft = fal
             ✎ Draft
           </div>
         )}
+        {/* iter413bg — "Recently edited" pill. Shows when the maker
+            saved this listing within the last 30 minutes, so the card
+            they just touched is obvious in a grid of 12+. Uses the
+            product's `updated_at` field which the save handler bumps. */}
+        {(() => {
+          const ts = p.updated_at;
+          if (!ts) return null;
+          const ms = Date.now() - new Date(ts).getTime();
+          if (!Number.isFinite(ms) || ms < 0 || ms > 30 * 60 * 1000) return null;
+          const mins = Math.floor(ms / 60000);
+          const label = mins < 1 ? "just now" : `${mins}m ago`;
+          return (
+            <div
+              className="absolute top-3 right-3 bg-paper/90 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-emerald-700 border border-emerald-500/40"
+              data-testid={`product-recently-edited-${p.slug}`}
+              title={`Saved ${label}`}
+            >
+              ✓ edited {label}
+            </div>
+          );
+        })()}
       </div>
       <div className="p-3">
         <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-muted truncate">
