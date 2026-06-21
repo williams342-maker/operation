@@ -1,3 +1,35 @@
+## iter413bt — Server-side Meta CAPI on Maker Application submit (2026-02)
+
+**Implementation:**
+- `MakerApplicationCreate` accepts optional `event_id`, `fbp`, `fbc` from the client.
+- Frontend (`ApplyPage` + `BetaPage`) mints `eventId` BEFORE posting and reads `_fbp`/`_fbc` Meta cookies, sending all three in the request body.
+- Backend `create_maker_application` handler fires `send_meta_event(event_name="signup_maker", event_id=...)` as a background task using the SAME id the browser pixel uses → Meta dedupes.
+- Tracking fields are excluded from the persisted application doc.
+- Synthesizes `app-<id>` event_id when the client doesn't supply one (ad-blocker fallback) so the conversion is never lost outright.
+- `lib/conversionDedup.js` gains `readMetaCookies()` helper.
+
+**Tests:** 5 in `test_iter413bt_maker_app_meta_capi.py` — all passing, in `SMOKE_FILES`.
+
+---
+
+## iter413bu — Founding Access vs Founding Seller state separation (2026-02)
+
+**Requested by user:** Admin Applications card showed "FOUNDING SELLER BETA" pill + 90-day countdown on permanent Founders, implying their lifetime status would expire.
+
+**State model now matches reality:**
+- Temporary Founding Access (`is_beta=True`) → `FOUNDING ACCESS` pill + 90-day countdown.
+- Permanent Founding Seller (`tier=founder` + `founder_status=inaugural`) → `⭐ FOUNDING SELLER` pill + new `FounderStatusCard` ("Permanent status active · Founder badge enabled · Member since [date]"). **No countdown.**
+
+**Implementation:**
+- Backend `/admin/maker-applications` hydrates `maker_tier`, `maker_founder_status`, `maker_founder_started_at`, derived bool `maker_is_founder_permanent`.
+- Frontend `ApplicationsList.jsx`: removed "FOUNDING SELLER BETA" pill text. New `FounderStatusCard` component. Conditional render: permanent Founder → status card; others → existing toggle+countdown.
+- Zero user-facing "FOUNDING SELLER BETA" instances (verified via DOM scan). Remaining references are internal markers stripped before display.
+
+**Tests:** 2 in `test_iter413bu_founder_state_separation.py` — both passing, in `SMOKE_FILES`.
+
+---
+
+
 ## iter413bs — Interactive Garage Builders emblem with SVG hotspots (2026-02)
 
 **Requested by user:** Make the v2 badge interactive on `/community/emblem` only (homepage emblem stays static). SVG hotspots. Hover highlights, click → `/shop?segment=...`. Mobile two-tap. No animations, no drawers, no product previews.

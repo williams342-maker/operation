@@ -6,7 +6,7 @@ import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
-import { mintEventId } from "../lib/conversionDedup";
+import { mintEventId, readMetaCookies } from "../lib/conversionDedup";
 import FounderSlotCounter from "../components/FounderSlotCounter";
 import EtsyComparisonTable from "../components/EtsyComparisonTable";
 import FoundersWall from "../components/FoundersWall";
@@ -84,11 +84,19 @@ export default function BetaPage() {
     e.preventDefault();
     setState("sending");
     setErrMsg("");
+    // iter413bt — Mint event_id BEFORE submit so the backend can fire
+    // server-side Meta CAPI with the SAME id the browser pixel uses
+    // below. Meta dedupes the pair into one attributed conversion.
+    const eventId = mintEventId();
+    const { fbp, fbc } = readMetaCookies();
     try {
       await submitMakerApplication({
         ...f,
         about: `[FOUNDING SELLER BETA] ${f.about}`,
         referred_by_code: refCode || undefined,
+        event_id: eventId,
+        fbp,
+        fbc,
       });
       setState("done");
       window.scrollTo(0, 0);
@@ -99,7 +107,6 @@ export default function BetaPage() {
       // distinguishes Founding Access submissions from generic /apply
       // leads in the dashboards.
       // iter413bk — Shared event_id for cross-network dedup.
-      const eventId = mintEventId();
       try {
         uetTrack("submit_lead", {
           event_label: "founding_access",
@@ -113,6 +120,8 @@ export default function BetaPage() {
         // lead is matched back to the originating ad click.
         uetSetPII({ email: (f.email || "").trim() });
         // iter413bj — Meta Pixel Lead event with founding_access label.
+        // Server-side CAPI fires inside the backend handler with the
+        // same event_id so the two dedupe.
         trackMeta("signup_maker", { event_label: "founding_access", event_id: eventId });
       } catch { /* noop */ }
     } catch (e2) {

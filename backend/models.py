@@ -736,6 +736,14 @@ class MakerApplicationCreate(BaseModel):
     # non-empty, the endpoint silently 200s without persisting so the
     # bot doesn't retry with variations.
     website: Optional[str] = ""
+    # iter413bt — Meta Conversions API dedup payload. The browser
+    # pixel mints an event_id and fires the Meta Pixel client-side;
+    # we mirror the SAME event_id server-side so Meta sees the two
+    # events and dedupes them. fbp/fbc are the Meta browser cookies —
+    # passing them through dramatically improves match rate.
+    event_id: Optional[str] = None
+    fbp: Optional[str] = None
+    fbc: Optional[str] = None
 
 
 class CartItem(BaseModel):

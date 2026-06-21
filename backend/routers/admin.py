@@ -325,7 +325,13 @@ async def admin_maker_applications(_: dict = Depends(current_admin)):
         makers = await db.makers.find(
             {"email": {"$in": emails}},
             {"_id": 0, "slug": 1, "email": 1, "is_beta": 1,
-             "beta_approved_at": 1, "beta_expires_at": 1},
+             "beta_approved_at": 1, "beta_expires_at": 1,
+             # iter413bu — also hydrate the permanent Founder fields so
+             # the admin Applications UI can distinguish State 1
+             # (Founding Access, temporary 90-day) from State 2
+             # (Founding Seller, permanent). Without these the UI was
+             # showing a countdown even on permanent Founders.
+             "tier": 1, "founder_status": 1, "founder_started_at": 1},
         ).to_list(len(emails))
         by_email = {m["email"]: m for m in makers if m.get("email")}
         for a in apps:
@@ -335,6 +341,18 @@ async def admin_maker_applications(_: dict = Depends(current_admin)):
                 a["maker_is_beta"] = bool(m.get("is_beta"))
                 a["maker_beta_approved_at"] = m.get("beta_approved_at")
                 a["maker_beta_expires_at"] = m.get("beta_expires_at")
+                # iter413bu — Founder fields. `is_founder_permanent` is
+                # True for any maker on the founder tier whose status
+                # is inaugural OR whose founder_expires_at is unset
+                # (lifetime). UI hides the countdown when this is True.
+                a["maker_tier"] = m.get("tier")
+                a["maker_founder_status"] = m.get("founder_status")
+                a["maker_founder_started_at"] = m.get("founder_started_at")
+                a["maker_is_founder_permanent"] = bool(
+                    m.get("tier") == "founder" and (
+                        m.get("founder_status") == "inaugural"
+                    )
+                )
     return apps
 
 

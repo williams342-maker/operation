@@ -678,6 +678,17 @@ SMOKE_FILES = {
     # and the "until_status_changes" auto-expiry semantics.
     "test_iter413bq_ops_brief_ai_and_dismiss.py",
 
+    # ── iter413bt — Server-side Meta CAPI on maker app submit ──────
+    # Locks the event_id dedup contract between the browser pixel and
+    # the server-side Conversions API fire (same id = single attribution).
+    "test_iter413bt_maker_app_meta_capi.py",
+
+    # ── iter413bu — Founding Access vs Founding Seller state split ──
+    # Locks `maker_is_founder_permanent` derivation in the admin
+    # Applications payload so the UI never shows a countdown on
+    # permanent Founders.
+    "test_iter413bu_founder_state_separation.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

@@ -5,7 +5,7 @@ import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
-import { mintEventId } from "../lib/conversionDedup";
+import { mintEventId, readMetaCookies } from "../lib/conversionDedup";
 import { readAttributionContext } from "../lib/attribution";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
@@ -75,8 +75,20 @@ export default function ApplyPage() {
     e.preventDefault();
     setState("sending");
     setErrMsg("");
+    // iter413bt — Mint the event_id BEFORE the API call so we can pass
+    // it to the backend (which fires server-side Meta CAPI) AND reuse it
+    // for the client-side pixel fires below. Same id across both means
+    // Meta dedupes the two into a single attributed conversion.
+    const eventId = mintEventId();
+    const { fbp, fbc } = readMetaCookies();
     try {
-      await submitMakerApplication({ ...f, referred_by_code: refCode || undefined });
+      await submitMakerApplication({
+        ...f,
+        referred_by_code: refCode || undefined,
+        event_id: eventId,
+        fbp,
+        fbc,
+      });
       setState("done");
       // iter334f — Fire Microsoft Ads `submit_lead` conversion event on
       // successful application submission. Honors Consent Mode (denied
@@ -86,7 +98,6 @@ export default function ApplyPage() {
       // iter413bk — One shared event_id across all three networks so a
       // future server-side Conversions API can dedup against the browser
       // pixel fires.
-      const eventId = mintEventId();
       try {
         uetTrack("submit_lead", {
           event_label: "maker_application",
@@ -103,7 +114,9 @@ export default function ApplyPage() {
         // applicant's email so the lead is matched to its origin click.
         uetSetPII({ email: (f.email || "").trim() });
         // iter413bj — Meta Pixel: Lead event so Facebook + Instagram
-        // ad sets can attribute completed maker applications.
+        // ad sets can attribute completed maker applications. The
+        // server-side CAPI fire (triggered inside the backend handler)
+        // uses this SAME event_id so Meta dedupes the two.
         trackMeta("signup_maker", { event_label: "maker_application", event_id: eventId });
       } catch { /* noop */ }
     }

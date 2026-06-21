@@ -29,3 +29,19 @@ export function mintEventId() {
   }
   return `cm-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+// iter413bt — Read Meta's `_fbp` / `_fbc` browser cookies so the
+// server-side Conversions API fire can attach them. Massively improves
+// match rate when Meta's user_data has neither hashed email nor phone.
+// Returns `{ fbp, fbc }` — either may be null if the cookie is absent
+// (consent denied, fresh visitor, ad-blocker).
+export function readMetaCookies() {
+  if (typeof document === "undefined") return { fbp: null, fbc: null };
+  const map = {};
+  for (const c of (document.cookie || "").split(";")) {
+    const [k, ...rest] = c.trim().split("=");
+    if (!k) continue;
+    map[k] = rest.join("=");
+  }
+  return { fbp: map._fbp || null, fbc: map._fbc || null };
+}

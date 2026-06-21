@@ -954,7 +954,9 @@ async def create_maker_application(
     if (getattr(payload, "website", "") or "").strip():
         logger.info("[maker-app] honeypot tripped from ip=%s", ip)
         # Return a plausible Pydantic instance — same shape as success.
-        return MakerApplication(**payload.model_dump(exclude={"website"}))
+        return MakerApplication(**payload.model_dump(
+            exclude={"website", "event_id", "fbp", "fbc"},
+        ))
 
     # Honour the "Allow new maker applications" admin switch.
     from routers.settings import get_setting
@@ -981,7 +983,9 @@ async def create_maker_application(
         logger.info("[maker-app] dedupe hit for email=%s ip=%s", payload.email, ip)
         return MakerApplication(**{k: v for k, v in existing.items() if k in MakerApplication.model_fields})
 
-    app_obj = MakerApplication(**payload.model_dump(exclude={"website"}))
+    app_obj = MakerApplication(**payload.model_dump(
+        exclude={"website", "event_id", "fbp", "fbc"},
+    ))
     # Auto-detect Founding Access signups (BetaPage prefixes the about
     # field with this marker before hitting /api/maker-applications).
     if "[FOUNDING SELLER BETA]" in (payload.about or ""):
@@ -1006,6 +1010,32 @@ async def create_maker_application(
     bg.add_task(send_applicant_received,
                 payload.email, payload.name, payload.studio_name,
                 app_obj.is_beta)
+
+    # iter413bt — Server-side Meta CAPI fire. Uses the SAME event_id the
+    # browser pixel already fired (passed in by ApplyPage/BetaPage just
+    # before posting) so Meta dedupes the two events into a single
+    # attributed conversion. If no event_id was provided (e.g. older
+    # frontend cache, ad-blocker stripped the helper), we still fire
+    # but Meta will count it as a fresh event — that's fine, the only
+    # downside is potential double-count for one applicant. Always
+    # backgrounded so a Meta Graph hiccup can't block the form response.
+    from routers.meta_capi import send_meta_event
+    capi_event_id = payload.event_id or f"app-{app_obj.id}"
+    bg.add_task(
+        send_meta_event,
+        event_name="signup_maker",
+        event_id=capi_event_id,
+        email=payload.email,
+        client_ip=ip,
+        user_agent=(request.headers.get("user-agent") or "")[:512],
+        fbp=payload.fbp,
+        fbc=payload.fbc,
+        event_source_url=str(request.headers.get("referer") or "https://craftersmarket.org/apply"),
+        custom_data={
+            "event_label": "maker_application",
+            "is_beta": bool(app_obj.is_beta),
+        },
+    )
     return app_obj
 
 

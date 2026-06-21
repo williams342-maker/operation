@@ -176,10 +176,52 @@ function BetaToggleSwitch({ slug, initialEnabled, initialExpiresAt, onUpdated })
               enabled ? "translate-x-8" : "translate-x-1"
             }`}
           />
-          <span className="sr-only">{enabled ? "Disable beta" : "Enable beta"}</span>
+          <span className="sr-only">{enabled ? "Disable Founding Access" : "Enable Founding Access"}</span>
         </button>
       </div>
       {enabled && <BetaCountdown expiresAt={expiresAt} />}
+    </div>
+  );
+}
+
+// iter413bu — Permanent Founder status card. Shown INSTEAD of the
+// Founding Access toggle+countdown when the maker has graduated to
+// (or was inaugurated into) the lifetime Founder tier. No countdown,
+// no toggle — Founder is forever, and admins manage the tier itself
+// from the maker-tier surface, not from the applications view.
+function FounderStatusCard({ since, status }) {
+  const memberSince = since
+    ? new Date(since).toLocaleDateString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+      })
+    : null;
+  const label = status === "inaugural" ? "Inaugural · Lifetime" : "Permanent";
+  return (
+    <div
+      className="border border-brand bg-brand/5 p-3"
+      data-testid="founder-status-card"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
+            ⭐ Founding Seller
+          </div>
+          <div className="font-mono text-xs text-ink mt-1">
+            Permanent status active · Founder badge enabled
+          </div>
+          {memberSince && (
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mt-1">
+              Member since {memberSince} · {label}
+            </div>
+          )}
+        </div>
+        <div
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand border border-brand px-2 py-1 shrink-0"
+          aria-hidden
+        >
+          PERMANENT
+        </div>
+      </div>
     </div>
   );
 }
@@ -220,13 +262,21 @@ function ApplicationRow({ app, onChange }) {
       setDeleting(false);
     }
   };
+  // iter413bu — A maker is "permanent Founder" when the enrichment
+  // payload from `/admin/maker-applications` reports them on the
+  // founder tier with inaugural status (lifetime). When this is true
+  // we render the FounderStatusCard instead of the Founding Access
+  // toggle+countdown so the UI never implies a permanent perk expires.
+  const isPermanentFounder = !!app.maker_is_founder_permanent;
   // Strip the internal `[FOUNDING SELLER BETA]` marker from the public
   // about excerpt so admins see the applicant's actual pitch, not our tag.
   const displayAbout = (app.about || "").replace(/^\[FOUNDING SELLER BETA\]\s*/, "");
   return (
     <div
       className={`border transition p-5 ${
-        app.is_beta
+        isPermanentFounder
+          ? "border-brand hover:border-brand"
+          : app.is_beta
           ? "border-brand/60 hover:border-brand"
           : "border-line hover:border-brand"
       }`}
@@ -240,14 +290,26 @@ function ApplicationRow({ app, onChange }) {
               ◆ {app.status ? `Decided · ${app.status}` : "Pending"} ·{" "}
               {formatDate(app.created_at)}
             </span>
-            {app.is_beta && (
+            {/* iter413bu — Permanent Founder always wins the badge slot
+                (gold ⭐). The temporary Founding Access pill is only
+                shown when the applicant is on the 90-day window AND has
+                NOT yet graduated to permanent Founder. We removed the
+                old "FOUNDING SELLER BETA" copy entirely. */}
+            {isPermanentFounder ? (
+              <span
+                className="px-1.5 py-0.5 bg-brand text-ink font-bold"
+                data-testid={`app-founder-badge-${app.id}`}
+              >
+                ⭐ FOUNDING SELLER
+              </span>
+            ) : app.is_beta ? (
               <span
                 className="px-1.5 py-0.5 bg-brand text-ink font-bold"
                 data-testid={`app-beta-badge-${app.id}`}
               >
-                FOUNDING SELLER BETA
+                FOUNDING ACCESS
               </span>
-            )}
+            ) : null}
           </div>
           <div className="font-display text-2xl mt-1 break-words">{app.studio_name}</div>
           <div className="font-mono text-xs text-ink-muted mt-1 break-words">
@@ -306,7 +368,7 @@ function ApplicationRow({ app, onChange }) {
 
       {!decided && (
         <div className="mt-4 space-y-3">
-          {app.is_beta && (
+          {app.is_beta && !isPermanentFounder && (
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand leading-relaxed">
               ◆ Approving this applicant will grant Founding Access with a 90-day window.
             </p>
@@ -354,18 +416,25 @@ function ApplicationRow({ app, onChange }) {
           {app.note}
         </div>
       )}
-      {/* Founding Access switch + countdown — shown for every approved application that
-          has a linked maker (any maker, not just Founding Access ones). This lets the
-          admin promote/demote a regular maker into the Founding Seller
-          program retroactively. */}
+      {/* iter413bu — State separation:
+            • Permanent Founder  → FounderStatusCard (no countdown, no toggle).
+            • Everyone else      → BetaToggleSwitch (admin grants/revokes
+              the 90-day Founding Access window, countdown rendered inline). */}
       {app.status === "approved" && app.maker_slug && (
         <div className="mt-4">
-          <BetaToggleSwitch
-            slug={app.maker_slug}
-            initialEnabled={app.maker_is_beta}
-            initialExpiresAt={app.maker_beta_expires_at}
-            onUpdated={onChange}
-          />
+          {isPermanentFounder ? (
+            <FounderStatusCard
+              since={app.maker_founder_started_at}
+              status={app.maker_founder_status}
+            />
+          ) : (
+            <BetaToggleSwitch
+              slug={app.maker_slug}
+              initialEnabled={app.maker_is_beta}
+              initialExpiresAt={app.maker_beta_expires_at}
+              onUpdated={onChange}
+            />
+          )}
         </div>
       )}
       {emailOpen && (
