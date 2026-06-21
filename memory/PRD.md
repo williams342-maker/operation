@@ -1,3 +1,32 @@
+## iter413br — Community Emblem v2 · CNC Garage Builders → Garage Builders (2026-02)
+
+**Requested by user:** Evolve the community emblem from CNC-specific identity into a broader maker identity. Replace headline "CNC GARAGE BUILDERS" → "GARAGE BUILDERS". New inclusive copy covering all 9 maker segments. Keep old asset for SEO/embed continuity.
+
+**Implementation:**
+- New PNG saved to `/app/frontend/public/downloads/garage-builders.png` (2.6 MB, 2048×2048).
+- Old PNG **preserved** at `/downloads/cnc-garage-builders.png` so the 19 existing OG/meta-tag references across the codebase keep resolving (no SEO regression).
+- `components/CNCEmblem.jsx` rewritten in place:
+  - Image src + download filename point to v2.
+  - Heading: "Garage Builders." (no more CNC).
+  - Inclusive body copy per the spec: *"A badge for independent builders, makers, creators and craftspeople. From garages and workshops to studios and home businesses — represent your craft."*
+  - All 9 maker segments listed (Woodworking · Metalworking · Leather · Electronics · 3D Printing · Laser · Textiles · Pottery · Arts & Crafts).
+  - Primary tagline: "Build it. Cut it. Create it. — All makers. One community."
+  - Footer reference: 2048×2048 PNG, transparent, free to use on apparel, packaging, workshop walls, maker profiles.
+  - "V2" chip overlay on the image so users can tell which generation they're looking at.
+  - data-testids updated to `community-emblem-*` (kept the old file name + export for App.js import compatibility).
+
+**Verified on preview:** Both old and new PNGs serve HTTP 200. Page renders with no CNC text anywhere in the section (`no_cnc_text: True`). Contrast linter + ESLint both clean.
+
+**Backlog (future v2 deliverables NOT yet shipped — requested but require design work):**
+- Transparent PNG (current is already transparent — done implicitly)
+- Dark monochrome variant
+- Engraving-ready vector (SVG)
+- Square social version
+- Single-color version
+
+---
+
+
 ## iter413bq — AI Daily Brief + Phase 2 polish (collapse + dismiss/snooze) (2026-02)
 
 **Requested by user:** A + a + b — AI brief, collapse/expand sections, dismiss/snooze action items. No pins, no widget chooser, no notification center.
