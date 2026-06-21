@@ -47,7 +47,7 @@ export default function UsersTab() {
         await adminDeleteUser(user.user_id);
         toast.success(`Deleted ${user.email}`);
       } else if (action === "send-reset") {
-        const tok = localStorage.getItem("admin_jwt");
+        const tok = localStorage.getItem("cm_admin_jwt");
         const r = await adminSendPasswordReset(tok, {
           role: "buyer", email: user.email,
           origin_url: window.location.origin, return_link: true,
@@ -65,7 +65,7 @@ export default function UsersTab() {
           toast.success(`Reset link emailed to ${user.email}.`);
         }
       } else if (action === "force-signout") {
-        const tok = localStorage.getItem("admin_jwt");
+        const tok = localStorage.getItem("cm_admin_jwt");
         await adminForceSignout(tok, { role: "buyer", email: user.email });
         toast.success(`Force-signed-out ${user.email} on all devices.`);
       } else {
