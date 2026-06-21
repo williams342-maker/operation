@@ -57,6 +57,20 @@ export default function ApprovedMakersTab() {
     veteran: rows.filter((r) => r.is_veteran_owned).length,
   }), [rows]);
 
+  // iter413bm — Roster-wide KPIs. Sum the per-row counts already in
+  // memory so we don't burn a second round trip. These tiles double as
+  // a silent regression alarm: if listings_total ever flips back to 0
+  // (the bug we just fixed), it's visible at a glance instead of
+  // buried in the table.
+  const kpis = useMemo(() => {
+    const listingsTotal = rows.reduce((acc, r) => acc + (r.listings_count || 0), 0);
+    const sellersWithListings = rows.filter((r) => (r.listings_count || 0) > 0).length;
+    const avgListings = rows.length
+      ? Math.round((listingsTotal / rows.length) * 10) / 10
+      : 0;
+    return { listingsTotal, sellersWithListings, avgListings };
+  }, [rows]);
+
   const flipBeta = async (slug, next) => {
     try {
       await toggleMakerBeta(slug, next);
@@ -154,6 +168,48 @@ export default function ApprovedMakersTab() {
             {exporting ? "Exporting…" : "↓ Export CSV"}
           </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3" data-testid="approved-makers-kpis">
+        {[
+          {
+            id: "approved",
+            label: "Approved Makers",
+            value: rows.length,
+            testid: "kpi-approved-count",
+          },
+          {
+            id: "listings",
+            label: "Total Live Listings",
+            value: kpis.listingsTotal,
+            testid: "kpi-listings-total",
+            hint: `${kpis.sellersWithListings} of ${rows.length} sellers active`,
+          },
+          {
+            id: "avg",
+            label: "Avg Listings / Maker",
+            value: kpis.avgListings,
+            testid: "kpi-avg-listings",
+          },
+        ].map((k) => (
+          <div
+            key={k.id}
+            data-testid={k.testid}
+            className="border border-line p-3 bg-paper"
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              {k.label}
+            </div>
+            <div className="font-display text-3xl text-brand mt-1 tabular-nums">
+              {loading ? "—" : k.value}
+            </div>
+            {k.hint && (
+              <div className="font-mono text-[10px] text-ink-muted mt-1">
+                {k.hint}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-2 pb-3 border-b border-line" data-testid="approved-filters">
