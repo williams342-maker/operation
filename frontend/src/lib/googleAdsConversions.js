@@ -58,5 +58,11 @@ export function listConversionStatus() {
   return Object.entries(CONVERSION_LABELS).map(([action, label]) => ({
     action,
     wired: !!label,
+    // Redacted preview so the admin UI can confirm visually that the
+    // pasted value isn't a typo, without leaking the whole label (it's
+    // not secret, but a tidy first/last 3 chars is enough for sanity).
+    label_preview: label
+      ? (label.length <= 6 ? label : `${label.slice(0, 3)}…${label.slice(-3)}`)
+      : "",
   }));
 }

@@ -5,6 +5,7 @@ import {
   fetchMailgunDiag,
   fetchR2Diag,
 } from "../../lib/api";
+import { listConversionStatus } from "../../lib/googleAdsConversions";
 
 /**
  * iter226 — Shippo / Mailgun / R2 diagnostic cards.
@@ -244,6 +245,93 @@ export function UetEnhancedConversionsCard() {
         <DiagTile label="Consent" value={snapshot.consentGranted === true ? "GRANTED" : snapshot.consentGranted === false ? "denied" : "—"} highlight={snapshot.consentGranted === true} />
         <DiagTile label="Last push" value={ageStr} highlight={!!snapshot.lastPushTs} />
         <DiagTile label="Fields" value={snapshot.lastPushFields || "—"} highlight={!!snapshot.lastPushFields} />
+      </div>
+    </DiagShell>
+  );
+}
+
+
+// iter413bi — Google Ads conversion coverage card.
+//
+// Reads the static `CONVERSION_LABELS` map via `listConversionStatus()`
+// and surfaces which funnel events are actually live vs. dev-only
+// no-ops. The 6 keys (purchase, signup_buyer, signup_maker,
+// add_to_cart, lead_custom_order, lead_contact) are pasted from the
+// Google Ads admin UI; until they're set, gtag fires nothing. This
+// card makes that visible at a glance instead of buried in source.
+//
+// Label-paste path:
+//   Google Ads → Tools → Measurement → Conversions →
+//   <click action> → Tag setup → copy the substring AFTER
+//   "AW-11257134570/" → paste into `CONVERSION_LABELS`
+//   in /app/frontend/src/lib/googleAdsConversions.js.
+
+const ACTION_DESCRIPTIONS = {
+  purchase:          "Checkout success — `purchase` event on /checkout/success",
+  signup_buyer:      "Buyer / community account created",
+  signup_maker:      "Maker application submitted (/apply + /beta)",
+  add_to_cart:       "Add-to-cart click on a product detail page",
+  lead_custom_order: "Custom-order request submitted",
+  lead_contact:      "Public contact form submission",
+};
+
+export function GoogleAdsCoverageCard() {
+  // listConversionStatus is sync + cheap — recompute on each render
+  // (the underlying map is static module-scope state).
+  const status = listConversionStatus();
+  const wiredCount = status.filter((s) => s.wired).length;
+  const total = status.length;
+  const ok = wiredCount > 0;
+  const allWired = wiredCount === total;
+
+  return (
+    <DiagShell
+      title="Google Ads · Conversion coverage"
+      blurb="Which funnel actions actually fire a gtag conversion vs. dev-only no-op (labels missing). Paste labels into googleAdsConversions.js to activate."
+      testId="google-ads-coverage"
+      ok={ok}
+      data={{ ok, wired: wiredCount, total }}
+      busy={false}
+      onRefresh={() => {}}
+      reason={
+        !ok
+          ? "Zero conversion labels are configured — every trackConversion() call is currently a no-op in production."
+          : !allWired
+            ? `${total - wiredCount} of ${total} actions still missing labels.`
+            : undefined
+      }
+    >
+      <div className="space-y-1.5" data-testid="google-ads-coverage-rows">
+        {status.map((row) => {
+          const desc = ACTION_DESCRIPTIONS[row.action] || row.action;
+          return (
+            <div
+              key={row.action}
+              className={`flex items-center justify-between gap-3 border px-2 py-1.5 ${
+                row.wired
+                  ? "border-emerald-500/40 bg-emerald-500/5"
+                  : "border-line bg-paper"
+              }`}
+              data-testid={`google-ads-coverage-${row.action}`}
+            >
+              <div className="min-w-0">
+                <div className={`font-mono text-[11px] ${row.wired ? "text-emerald-700" : "text-ink"}`}>
+                  {row.action}
+                </div>
+                <div className="font-mono text-[10px] text-ink-muted">{desc}</div>
+              </div>
+              <span
+                className={`shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-0.5 border ${
+                  row.wired
+                    ? "border-emerald-500/50 text-emerald-700"
+                    : "border-amber-500/40 text-brand"
+                }`}
+              >
+                {row.wired ? `✓ wired · ${row.label_preview}` : "◇ missing"}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </DiagShell>
   );
