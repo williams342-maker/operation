@@ -4,6 +4,7 @@ import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
 import { getAttributionSource, getMsclkid, getGclid, getFbclid } from "../lib/analytics";
 import { uetTrack } from "../lib/consent";
+import { trackMeta } from "../lib/metaPixel";
 import { Trash2 } from "lucide-react";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 
@@ -259,6 +260,11 @@ export default function CartPage() {
             currency: "USD",
             event_label: "cart_to_stripe",
             event_value: Number(revenue.toFixed(2)),
+          });
+          // iter413bj — Meta Pixel InitiateCheckout event.
+          trackMeta("begin_checkout", {
+            value: Number(revenue.toFixed(2)),
+            currency: "USD",
           });
         }
       } catch { /* analytics should never block checkout */ }

@@ -6,6 +6,7 @@ import {
   fetchCommunityEua,
 } from "../lib/api";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { trackMeta } from "../lib/metaPixel";
 import { uetSetPII } from "../lib/consent";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -197,7 +198,10 @@ export function CommunityVerify() {
         // count toward the customer-acquisition target). Wrapped in
         // try/catch so analytics can never block the welcome redirect.
         if (r.is_new_signup) {
-          try { trackConversion("signup_buyer", { event_label: "magic_link" }); }
+          try {
+            trackConversion("signup_buyer", { event_label: "magic_link" });
+            trackMeta("signup_buyer", { event_label: "magic_link" });
+          }
           catch { /* noop */ }
         }
         // iter249 — first-time community signups go through the welcome flow.
@@ -252,7 +256,10 @@ export function CommunityAuthCallback() {
         // Google OAuth signup path. Mirrors the magic-link branch so
         // both auth paths are attributed to paid keywords.
         if (r.is_new_signup) {
-          try { trackConversion("signup_buyer", { event_label: "google_oauth" }); }
+          try {
+            trackConversion("signup_buyer", { event_label: "google_oauth" });
+            trackMeta("signup_buyer", { event_label: "google_oauth" });
+          }
           catch { /* noop */ }
         }
         // iter249 — first-time community signups go through the welcome flow.

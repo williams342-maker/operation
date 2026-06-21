@@ -4,6 +4,7 @@ import { getCheckoutStatus, communityRequestMagic, subscribeNewsletter } from ".
 import { useCart } from "../lib/cart";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { trackMeta } from "../lib/metaPixel";
 import PushOptInCard from "../components/PushOptInCard";
 import { SocialShareRow } from "../components/SocialShareButtons";
 
@@ -75,6 +76,11 @@ export default function CheckoutSuccess() {
                   value: revenue,
                   currency: (s.currency || "usd").toUpperCase(),
                   transaction_id: s.transaction_id || s.session_id || null,
+                });
+                // iter413bj — Meta Pixel Purchase event.
+                trackMeta("purchase", {
+                  value: revenue,
+                  currency: (s.currency || "usd").toUpperCase(),
                 });
               }
             } catch { /* analytics should never break the success page */ }

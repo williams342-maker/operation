@@ -6,6 +6,7 @@ import {
   fetchR2Diag,
 } from "../../lib/api";
 import { listConversionStatus } from "../../lib/googleAdsConversions";
+import { listMetaPixelStatus } from "../../lib/metaPixel";
 
 /**
  * iter226 — Shippo / Mailgun / R2 diagnostic cards.
@@ -336,3 +337,90 @@ export function GoogleAdsCoverageCard() {
     </DiagShell>
   );
 }
+
+// iter413bj — Meta Pixel coverage card.
+//
+// Surfaces whether the Facebook/Instagram pixel is wired (single
+// PIXEL_ID toggle in /app/frontend/src/lib/metaPixel.js) and lists
+// every action key the wrapper knows about with the Meta-standard
+// event name it'll fire. Paste a Pixel ID into metaPixel.js to activate.
+export function MetaPixelCoverageCard() {
+  const status = listMetaPixelStatus();
+  const ok = status.pixel_id_wired;
+
+  return (
+    <DiagShell
+      title="Meta Pixel · Conversion coverage"
+      blurb="Facebook + Instagram conversion tracking. One PIXEL_ID gates all events — paste it into metaPixel.js to activate."
+      testId="meta-pixel-coverage"
+      ok={ok}
+      data={{
+        ok,
+        pixel_id: status.pixel_id_preview || "—",
+        loaded: status.pixel_loaded,
+      }}
+      busy={false}
+      onRefresh={() => {}}
+      reason={
+        !ok
+          ? "PIXEL_ID is empty — every trackMeta() call is a dev-console no-op. Paste your Facebook Events Manager pixel ID into /app/frontend/src/lib/metaPixel.js to activate."
+          : undefined
+      }
+    >
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-[11px] mb-3">
+        <DiagTile
+          label="Pixel ID"
+          value={status.pixel_id_preview || "missing"}
+          highlight={status.pixel_id_wired}
+        />
+        <DiagTile
+          label="SDK"
+          value={status.pixel_loaded ? "LOADED" : status.pixel_id_wired ? "lazy" : "—"}
+          highlight={status.pixel_loaded}
+        />
+        <DiagTile
+          label="Actions"
+          value={String(status.actions.length)}
+          highlight={status.pixel_id_wired}
+        />
+        <DiagTile
+          label="Mode"
+          value={status.pixel_id_wired ? "LIVE" : "no-op"}
+          highlight={status.pixel_id_wired}
+        />
+      </div>
+      <div className="space-y-1.5" data-testid="meta-pixel-coverage-rows">
+        {status.actions.map((row) => (
+          <div
+            key={row.action}
+            className={`flex items-center justify-between gap-3 border px-2 py-1.5 ${
+              row.wired
+                ? "border-emerald-500/40 bg-emerald-500/5"
+                : "border-line bg-paper"
+            }`}
+            data-testid={`meta-pixel-coverage-${row.action}`}
+          >
+            <div className="min-w-0">
+              <div className={`font-mono text-[11px] ${row.wired ? "text-emerald-700" : "text-ink"}`}>
+                {row.action}
+              </div>
+              <div className="font-mono text-[10px] text-ink-muted">
+                fires Meta event: <code className="text-ink">{row.meta_event}</code>
+              </div>
+            </div>
+            <span
+              className={`shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] px-2 py-0.5 border ${
+                row.wired
+                  ? "border-emerald-500/50 text-emerald-700"
+                  : "border-amber-500/40 text-brand"
+              }`}
+            >
+              {row.wired ? "✓ live" : "◇ no-op"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </DiagShell>
+  );
+}
+

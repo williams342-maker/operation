@@ -6,6 +6,7 @@ import { useCart } from "../lib/cart";
 import { etaRange } from "../lib/eta";
 import { uetTrack } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { trackMeta } from "../lib/metaPixel";
 import { useStructuredData } from "../lib/seo";
 import { ArrowLeft, ZoomIn } from "lucide-react";
 import SaveDropButton from "../components/SaveDropButton";
@@ -376,6 +377,12 @@ export default function ProductDetail() {
           value: lineRevenue,
           currency: "USD",
           items: [{ id: p.slug || p.id, quantity: qty }],
+        });
+        // iter413bj — Meta Pixel AddToCart event.
+        trackMeta("add_to_cart", {
+          value: lineRevenue,
+          currency: "USD",
+          content_ids: [p.slug || p.id],
         });
       }
     } catch { /* analytics should never break add-to-cart */ }

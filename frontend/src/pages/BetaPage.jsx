@@ -5,6 +5,7 @@ import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { trackMeta } from "../lib/metaPixel";
 import FounderSlotCounter from "../components/FounderSlotCounter";
 import EtsyComparisonTable from "../components/EtsyComparisonTable";
 import FoundersWall from "../components/FoundersWall";
@@ -107,6 +108,8 @@ export default function BetaPage() {
         // Bing Enhanced Conversions: pass the applicant's email so the
         // lead is matched back to the originating ad click.
         uetSetPII({ email: (f.email || "").trim() });
+        // iter413bj — Meta Pixel Lead event with founding_access label.
+        trackMeta("signup_maker", { event_label: "founding_access" });
       } catch { /* noop */ }
     } catch (e2) {
       const d = e2?.response?.data?.detail;

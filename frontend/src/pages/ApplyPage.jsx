@@ -4,6 +4,7 @@ import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
+import { trackMeta } from "../lib/metaPixel";
 import { readAttributionContext } from "../lib/attribution";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
@@ -95,6 +96,9 @@ export default function ApplyPage() {
         // iter413av — Bing Enhanced Conversion: hand Microsoft the
         // applicant's email so the lead is matched to its origin click.
         uetSetPII({ email: (f.email || "").trim() });
+        // iter413bj — Meta Pixel: Lead event so Facebook + Instagram
+        // ad sets can attribute completed maker applications.
+        trackMeta("signup_maker", { event_label: "maker_application" });
       } catch { /* noop */ }
     }
     catch (e2) {
