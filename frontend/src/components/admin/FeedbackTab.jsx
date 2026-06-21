@@ -1,7 +1,7 @@
 /**
- * Admin · Beta Feedback Tab
+ * Admin · Founding Access Feedback Tab
  *
- * Lists every submission to the public Beta Feedback widget in the order
+ * Lists every submission to the public Founding Access Feedback widget in the order
  * it was received (most recent first), plus a filter to show pending vs
  * resolved tickets. Admin can:
  *   • Reply via email (uses POST /admin/feedback/:id/reply, auto-resolves)

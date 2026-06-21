@@ -975,7 +975,7 @@ async def send_ops_new_application(name: str, studio: str, location: str, email:
 async def send_applicant_received(applicant_email: str, name: str, studio: str,
                                   is_beta: bool = False):
     """Sent to the applicant immediately after they submit a maker (or
-    Founding Seller Beta) application — a warm thank-you that confirms
+    Founding Access) application — a warm thank-you that confirms
     receipt and sets a 3–5 business-day review expectation. When
     `is_beta=True` we add a small Founding Seller flair to the header
     and subject; the core message and timeline stay identical so we have
@@ -2306,7 +2306,7 @@ async def send_maker_plus_roi_digest(
 
 
 async def send_beta_feedback(name: str, email: str, message: str, page: str = ""):
-    """Forward beta-mode feedback to the ops inbox so the team sees it instantly."""
+    """Forward Founding Access feedback to the ops inbox so the team sees it instantly."""
     if not OPS_EMAIL:
         return
     safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
@@ -2327,7 +2327,7 @@ async def send_beta_feedback(name: str, email: str, message: str, page: str = ""
 
 
 async def send_beta_feedback_resolved(name: str, email: str, message: str, page: str = ""):
-    """Auto-follow-up email when an admin marks beta feedback "resolved"
+    """Auto-follow-up email when an admin marks Founding Access feedback "resolved"
     without writing a custom reply. Echoes back the original message so
     the user has context, and invites them to keep sending feedback.
     Sent ONLY when the admin used the bare Resolve action — if they
@@ -2394,7 +2394,7 @@ async def send_contact_message_to_ops(
     phone: str = "", topic: str = "",
 ):
     """Forward a public Contact-form submission to the ops inbox.
-    Lighter wrapper around the beta-feedback shell with the contact-form
+    Lighter wrapper around the Founding Access feedback shell with the contact-form
     fields. Ops can reply directly to the submitter (Reply-To stays on
     the submitter's address)."""
     if not OPS_EMAIL:

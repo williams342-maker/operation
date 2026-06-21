@@ -188,7 +188,7 @@ async def admin_resolve_contact_message(
     }
     # iter102 — fire an automated acknowledgment email when an admin
     # marks a contact message resolved without writing a tailored Reply.
-    # Same three guards as the beta-feedback follow-up (iter101):
+    # Same three guards as the Founding Access feedback follow-up (iter101):
     # email present, no prior reply, no prior follow-up.
     will_send = bool(
         msg.get("email")

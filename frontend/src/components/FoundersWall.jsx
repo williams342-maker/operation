@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
  * FoundersWall
  * -------------
  * Public roll-call of every active Founder. Renders an avatar grid with
- * each Founder's number, name, and shop link. Beta testers get the
+ * each Founder's number, name, and shop link. Founding Access members get the
  * dual-badge marker (emerald dot). Veteran-owned makers get a star.
  *
  * This is the single most powerful trust signal on /founders: a maker

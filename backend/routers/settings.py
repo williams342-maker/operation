@@ -1,4 +1,4 @@
-"""Site-level admin switches + beta feedback intake.
+"""Site-level admin switches + Founding Access feedback intake.
 
 A single Mongo document `site_settings/{ _id: 'global' }` stores every
 admin-toggleable flag. Public `GET /api/settings` returns the subset the
@@ -31,7 +31,7 @@ DEFAULT_SETTINGS: dict = {
     "beta_message": "You're using Crafters Market Beta. Found a bug or have an idea?",
     "allow_maker_applications": True,
     "applications_closed_message": "We're at capacity for new makers right now. Applications will reopen soon.",
-    # Founding Seller Beta signup CTA (Nav button + /beta page gate). When
+    # Founding Access signup CTA (Nav button + /beta page gate). When
     # OFF, the Nav hides the "◆ BETA SIGNUP" pill and /beta renders a
     # "spots are closed" state instead of the application form.
     "beta_signup_enabled": True,
@@ -101,7 +101,7 @@ async def public_settings():
     }
 
 
-# ---------------- Beta feedback ----------------
+# ---------------- Founding Access feedback ----------------
 class BetaFeedbackIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr
@@ -111,7 +111,7 @@ class BetaFeedbackIn(BaseModel):
 
 @router.post("/feedback")
 async def submit_beta_feedback(payload: BetaFeedbackIn, bg: BackgroundTasks):
-    """Persist + email beta feedback. Open to the public — only available
+    """Persist + email Founding Access feedback. Open to the public — only available
     when beta_mode is on (the frontend hides the form otherwise)."""
     s = await _get_or_create_settings()
     if not s["beta_mode"]:
@@ -298,7 +298,7 @@ async def admin_reply_feedback(
     feedback_id: str, body: FeedbackReplyRequest,
     bg: BackgroundTasks, claims: dict = Depends(current_admin),
 ):
-    """Send a one-off email reply to a beta-feedback submitter and (by
+    """Send a one-off email reply to a Founding Access feedback submitter and (by
     default) close the ticket. Reuses the existing send_admin_broadcast
     helper since it's a single-recipient transactional with the same shell.
     """

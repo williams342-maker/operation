@@ -152,7 +152,7 @@ async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
     now = datetime.now(timezone.utc)
     starts = now.isoformat()
     grace = (now + timedelta(days=FOUNDER_GRACE_DAYS)).isoformat()
-    # Inaugural + beta testers never expire — `founder_expires_at` stays None.
+    # Inaugural + Founding Access members never expire — `founder_expires_at` stays None.
     expires = (
         None if status == "inaugural" or body.is_beta_tester
         else (now + timedelta(days=FOUNDER_WINDOW_DAYS)).isoformat()

@@ -137,7 +137,7 @@ export default function UpdatesPage() {
           </div>
         )}
 
-        {/* Footer CTA — pull traffic into the beta funnel */}
+        {/* Footer CTA — pull traffic into the Founding Access funnel */}
         <div className="mt-20 pt-12 border-t border-line text-center">
           <p className="font-mono text-xs text-ink-muted mb-6">
             Got an idea or a bug to report?

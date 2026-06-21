@@ -395,14 +395,14 @@ class Maker(BaseModel):
     listing_credits: int = 0
     # Audit trail of charge events: [{kind, slug, amount_cents, ts, note}]
     charge_history: List[dict] = []
-    # ---- Founding Seller Beta ----
+    # ---- Founding Access ----
     # Set to True when the applicant came through the /beta signup page OR
     # toggled on manually by an admin via /api/admin/makers/{slug}/beta.
     # When enabled, `beta_expires_at` is set to approved_at + 90 days so the
     # admin UI can render a live countdown. The toggle doesn't change fees
     # today — it's a signal flag carried on the maker doc that future code
     # (priority placement, Founding Seller badge, $0 listing fees during
-    # beta) will read. Disabling clears both timestamps.
+    # Founding Access) will read. Disabling clears both timestamps.
     is_beta: bool = False
     beta_approved_at: Optional[str] = None
     beta_expires_at: Optional[str] = None
@@ -416,7 +416,7 @@ class Maker(BaseModel):
     # "standard" | "founder"  — Plus is layered separately via
     # `subscription_status`. Founders get a 3% commission, 50 free
     # listings per month, a permanent ◆ Founding Maker badge and an
-    # optional ◆ Beta Tester sub-badge for the original cohort.
+    # optional ◆ Founding Access sub-badge for the original cohort.
     # `founder_status` is "inaugural" (lifetime, first 100) or "regular"
     # (12-month window with auto-roll to standard).
     tier: str = "standard"

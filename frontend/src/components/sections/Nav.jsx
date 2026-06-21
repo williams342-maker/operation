@@ -88,7 +88,7 @@ export default function Nav() {
   const [signedInRole, setSignedInRole] = useState(readSignedInRole);
   const [signedInRoles, setSignedInRoles] = useState(readSignedInRoles);
   const { count } = useCart() || { count: 0 };
-  // useSiteSettings used to gate the now-removed beta pill — removed in
+  // useSiteSettings used to gate the now-removed Founding Access pill — removed in
   // iter153 along with the pill itself. The bottom-of-home <BetaSignupCTA />
   // owns its own settings fetch, so we don't import the hook here anymore.
 
@@ -154,7 +154,7 @@ export default function Nav() {
         <DesktopNav signedInRole={signedInRole} />
 
         <div className="flex items-center gap-3">
-          {/* Founding Seller Beta CTA moved out of the top Nav (iter153)
+          {/* Founding Access CTA moved out of the top Nav (iter153)
               — see <BetaSignupCTA /> at the bottom of the home page.
               Keeping the global header lean reduces visual noise so
               admins on a small laptop can fit everything on one row

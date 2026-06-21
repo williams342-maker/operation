@@ -4,7 +4,7 @@ import { previewAdminBroadcast, sendAdminBroadcast } from "../../lib/api";
 import { useConfirm } from "../../hooks/useConfirm";
 
 // Site-wide announcement composer. Sends a transactional email to a
-// chosen cohort (all makers / Plus / Beta / buyers / pending applicants /
+// chosen cohort (all makers / Plus / Founding Access / buyers / pending applicants /
 // everyone) via the existing Mailgun→Postmark→Mailtrap fallback chain.
 const AUDIENCES = [
   { id: "all_makers",         label: "All Makers",         hint: "Every approved maker on the platform." },

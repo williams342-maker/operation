@@ -94,7 +94,7 @@ def is_founder(maker: dict) -> bool:
 
 
 def is_inaugural_founder(maker: dict) -> bool:
-    """Founders #1-100 + the original beta testers — lifetime perks."""
+    """Founders #1-100 + the original Founding Access members — lifetime perks."""
     return (maker or {}).get("tier") == "founder" and (
         (maker or {}).get("founder_status") == "inaugural"
     )

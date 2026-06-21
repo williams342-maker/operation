@@ -83,7 +83,7 @@ async def admin_growth_stats(_: dict = Depends(current_admin)):
         "d7": await _delta("restock_waitlist", "created_at", 7, {"notified_at": None}),
     })
 
-    # Beta feedback (engagement / bug-report velocity)
+    # Founding Access feedback (engagement / bug-report velocity)
     stats.append({
         "key": "beta_feedback",
         "label": "Founding Access feedback",

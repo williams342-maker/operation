@@ -2389,7 +2389,7 @@ function FeedbackInbox() {
   );
 }
 
-// One-shot reply composer for a beta-feedback item. Reuses the same dark
+// One-shot reply composer for a Founding Access feedback item. Reuses the same dark
 // shell as the Admin Email modal — single recipient transactional send +
 // optional auto-resolve.
 function FeedbackReplyModal({ feedback, onClose, onSent }) {

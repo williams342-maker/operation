@@ -317,7 +317,7 @@ async def admin_team_delete(
 @router.get("/admin/maker-applications")
 async def admin_maker_applications(_: dict = Depends(current_admin)):
     apps = await db.maker_applications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
-    # Enrich approved apps with the maker's current beta status so the
+    # Enrich approved apps with the maker's current Founding Access status so the
     # ApplicationsList UI can render the 90-day countdown and toggle switch
     # without a second roundtrip per row.
     emails = [a.get("email") for a in apps if a.get("status") == "approved" and a.get("email")]
@@ -346,7 +346,7 @@ class BetaToggleRequest(BaseModel):
 async def admin_toggle_maker_beta(
     slug: str, body: BetaToggleRequest, _: dict = Depends(current_admin),
 ):
-    """Turn Founding Seller Beta on/off for a maker.
+    """Turn Founding Access on/off for a maker.
 
     Enabling stamps `is_beta=True`, `beta_approved_at=now`, and
     `beta_expires_at=now + 90 days` so the admin countdown starts on toggle.
@@ -1396,7 +1396,7 @@ async def admin_decide_application(
                 slug = f"{base_slug}-{i}"
                 i += 1
             initials = "".join(w[0] for w in (appn.get("studio_name") or appn.get("name", "M")).split()[:2]).upper()[:3] or "M"
-            # Founding Seller Beta auto-provision — if the applicant came
+            # Founding Access auto-provision — if the applicant came
             # through /beta, stamp the maker as beta with a 90-day window
             # so the admin countdown starts the moment we approve them.
             is_beta = bool(appn.get("is_beta"))
@@ -1516,7 +1516,7 @@ async def admin_decide_application(
                 logger.warning("[founders] auto-promotion failed for slug=%s: %s",
                                slug, e)
         elif appn.get("is_beta") and not existing.get("is_beta"):
-            # Maker already exists (they previously applied as a non-beta
+            # Maker already exists (they previously applied as a non-Founding-Access
             # maker and now re-applied through /beta) — stamp the beta
             # flags onto their existing doc instead of creating a new one.
             now_dt = datetime.now(timezone.utc)

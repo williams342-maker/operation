@@ -83,7 +83,7 @@ export default function ApplicationsList({ items, onChange }) {
   );
 }
 
-// Live 90-day countdown for Founding Seller Beta access. Re-renders every
+// Live 90-day countdown for Founding Access. Re-renders every
 // 60s so the "X days / Y hrs left" stays honest without a websocket.
 function BetaCountdown({ expiresAt }) {
   const [now, setNow] = useState(() => Date.now());
@@ -354,8 +354,8 @@ function ApplicationRow({ app, onChange }) {
           {app.note}
         </div>
       )}
-      {/* Beta switch + countdown — shown for every approved application that
-          has a linked maker (any maker, not just beta ones). This lets the
+      {/* Founding Access switch + countdown — shown for every approved application that
+          has a linked maker (any maker, not just Founding Access ones). This lets the
           admin promote/demote a regular maker into the Founding Seller
           program retroactively. */}
       {app.status === "approved" && app.maker_slug && (

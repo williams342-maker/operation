@@ -209,7 +209,7 @@ function MaintenanceGate({ children }) {
 }
 
 // Renders a duplicate BetaBanner pinned to the bottom of the page (in
-// normal flow, after <Footer />) when admin has flipped the beta switch on.
+// normal flow, after <Footer />) when admin has flipped the Founding Access switch on.
 // Reads settings independently so it can sit as a sibling of Footer in the
 // layout tree without being captured inside MaintenanceGate's children.
 function BetaBannerBottom() {

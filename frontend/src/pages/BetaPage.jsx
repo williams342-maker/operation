@@ -7,7 +7,7 @@ import FounderSlotCounter from "../components/FounderSlotCounter";
 import EtsyComparisonTable from "../components/EtsyComparisonTable";
 import FoundersWall from "../components/FoundersWall";
 
-// Founding Seller Beta program landing page.
+// Founding Access program landing page.
 // Reuses the existing /api/maker-applications endpoint so beta signups land
 // in the same admin review queue as regular maker applications. We tag the
 // submission with a "[FOUNDING SELLER BETA]" marker in the about field so
@@ -111,7 +111,7 @@ export default function BetaPage() {
     );
   }
 
-  // Admin has turned the Founding Seller Beta signup off — show a "closed"
+  // Admin has turned the Founding Access signup off — show a "closed"
   // state instead of the form. Existing Founding Sellers keep their access;
   // this just stops new signups.
   if (settings && settings.beta_signup_enabled === false) {

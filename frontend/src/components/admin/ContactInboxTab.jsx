@@ -2,7 +2,7 @@
  * Admin · Contact Inbox Tab
  *
  * Lists every public Contact-form submission from `/contact` newest-first.
- * Mirrors the Beta Feedback tab's interactions (Reply / Resolve) plus a
+ * Mirrors the Founding Access Feedback tab's interactions (Reply / Resolve) plus a
  * Topic filter (general / custom_order / order_help / maker_program /
  * press / partnership / bug / other).
  */

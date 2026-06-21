@@ -982,14 +982,14 @@ async def create_maker_application(
         return MakerApplication(**{k: v for k, v in existing.items() if k in MakerApplication.model_fields})
 
     app_obj = MakerApplication(**payload.model_dump(exclude={"website"}))
-    # Auto-detect Founding Seller Beta signups (BetaPage prefixes the about
+    # Auto-detect Founding Access signups (BetaPage prefixes the about
     # field with this marker before hitting /api/maker-applications).
     if "[FOUNDING SELLER BETA]" in (payload.about or ""):
-        # Gate: beta signups must also be enabled by admin toggle.
+        # Gate: Founding Access signups must also be enabled by admin toggle.
         if not await get_setting("beta_signup_enabled", True):
             raise HTTPException(
                 403,
-                "Founding Seller Beta signups are closed right now. "
+                "Founding Access signups are closed right now. "
                 "Please apply at /apply instead.",
             )
         app_obj.is_beta = True

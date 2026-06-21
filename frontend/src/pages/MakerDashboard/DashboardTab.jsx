@@ -630,7 +630,7 @@ function TodayAlerts({ maker, orders, products, unreadMessages, onTabChange }) {
       });
     }
 
-    // --- Beta countdown ---
+    // --- Founding Access countdown ---
     // Field on the Maker model is `beta_expires_at` (not
     // `maker_beta_expires_at`) — the previous prefix typo meant this
     // alert never fired even when a maker's Founding Seller window
