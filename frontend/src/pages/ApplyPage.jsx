@@ -80,7 +80,7 @@ export default function ApplyPage() {
       // successful application submission. Honors Consent Mode (denied
       // → UET drops it server-side). Wrapped in try so analytics can't
       // break the success UX. `event_label` lets the Bing Ads dashboard
-      // filter maker leads from any future lead events (e.g. /beta).
+      // filter maker leads from any future lead events (e.g. Founding Access).
       try {
         uetTrack("submit_lead", {
           event_label: "maker_application",
