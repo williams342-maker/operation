@@ -1,3 +1,38 @@
+## iter413bq — AI Daily Brief + Phase 2 polish (collapse + dismiss/snooze) (2026-02)
+
+**Requested by user:** A + a + b — AI brief, collapse/expand sections, dismiss/snooze action items. No pins, no widget chooser, no notification center.
+
+**Implementation:**
+
+### A — AI-powered Daily Brief
+- `_build_daily_brief_ai()` calls Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`) via Emergent LLM key.
+- Snapshot fingerprinted (SHA-256 of action_queue + health + funnel) — identical fingerprint hits a 15-minute cache in `db.ops_brief_cache`, so repeated refreshes are free.
+- Whitelists `cta_tab` against tabs actually present in the snapshot so the LLM can't invent a dead route.
+- Falls back to `_build_daily_brief_static()` on any failure (no key, network, timeout, parse, validation).
+- Returns `source: "ai" | "ai-cache" | "static"` so the UI can show provenance.
+
+### a — Collapse/expand sections
+- React state map persisted in `localStorage` (key `cm_admin_ops_collapse_v1`).
+- Section toggle headers with ▸/▾ chevrons on: CRITICAL, REVIEW, GROWTH, Marketplace Health, Founder Funnel.
+
+### b — Dismiss / snooze action items (per-admin)
+- `POST /admin/ops-dashboard/dismiss` — modes `24h` (auto-expires after 24h) or `until_status_changes` (auto-expires when the item's `desc` shifts, e.g. "298 awaiting" → "297 awaiting").
+- `POST /admin/ops-dashboard/restore` — undo.
+- Storage: `db.ops_dismissals` keyed by `(admin_email, item_id)`.
+- Dismissed items stripped from the action queue server-side; `dismissed.count` + `dismissed.ids` surfaced so the UI can show a "N hidden · Restore all" footer.
+- Frontend: `⋯` menu next to each action item's CTA → "Snooze 24h" / "Hide until status changes" + a "↻ Restore all" footer when hidden > 0.
+
+**Tests:** 8 new contract tests in `test_iter413bq_ops_brief_ai_and_dismiss.py` — all passing. Covers auth gates, mode validation, end-to-end dismiss→restore, and the `until_status_changes` auto-expiry semantics. Added to `SMOKE_FILES`. Total ops dashboard suite: 16/16 green.
+
+**Live preview confirms:**
+- AI brief active: *"298 custom orders await action; converting 10% yields immediate revenue and seller activation"* → 3 ranked actions (Process backlog · Approve applications · Activate sellers)
+- Source badge shows "AI · CACHED" on subsequent loads
+- Collapsing CRITICAL group hides items; state persists across reload
+- Dismiss menu `⋯` present on every action item
+
+---
+
+
 ## iter413bp — Admin Operations Dashboard (landing layer) (2026-02)
 
 **Requested by user:** A new Operations Dashboard at the top of `/admin/dashboard` that surfaces what's broken, what needs approval, what drives growth — sub-10-second platform understanding. Non-destructive (existing admin tabs remain).

@@ -1,4 +1,6 @@
 """iter413bp — Admin Operations Dashboard aggregator.
+iter413bq — AI-powered Daily Brief (Claude Sonnet 4.5) + per-admin
+            dismiss/snooze for action-queue items.
 
 Single endpoint that returns ALL 6 sections of the new admin landing
 page in one round trip. Every card on the dashboard deep-links into the
@@ -6,25 +8,33 @@ existing admin tabs — this layer is read-only / surfacing only, it
 never duplicates a control surface.
 
 Design notes:
-  • Static rule engine (no LLM) — AI can be plugged in later by
-    replacing `_build_daily_brief()`.
+  • Daily Brief is AI-generated (Claude Sonnet 4.5 via Emergent LLM key)
+    with a 15-minute cache. Falls back to a static rule engine on any
+    LLM failure (network / parse / timeout).
+  • Dismissals are per-admin and support two modes: `24h` (auto-expires
+    after 24 hours) and `until_status_changes` (auto-expires when the
+    item's `desc` field changes — e.g. "3 errors" → "2 errors").
   • Recent activity feeds from the "big 5" sources only: applications,
     paid orders, custom orders, maker approvals, and scheduler failures.
-  • All counts are point-in-time. The page is meant to be refreshed
-    explicitly (admin clicks REFRESH) — we deliberately avoid streaming
-    or polling to keep cost low.
 """
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
 import os
+import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from core import db
 from maker_auth import current_admin
 
 router = APIRouter()
+logger = logging.getLogger("crafters")
 
 
 # ────────────────────────────── helpers ──────────────────────────────
@@ -479,11 +489,10 @@ async def _section_recent_activity() -> dict:
     return {"items": items[:20]}
 
 
-def _build_daily_brief(action_queue: dict, health: dict) -> dict:
-    """Static rule engine — no LLM. Surfaces ONE opportunity, ONE risk,
-    and up to 3 suggested actions based on the action queue state.
-    Designed to be replaced with an AI-driven brief later by swapping
-    this function with an LLM call."""
+def _build_daily_brief_static(action_queue: dict, health: dict) -> dict:
+    """Static rule engine — the safety net used when the LLM call fails.
+    Surfaces ONE opportunity, ONE risk, and up to 3 suggested actions
+    based on the action queue state."""
     opportunity_text = "All caught up — keep shipping."
     risk_text = "No risks detected."
     actions: list[dict] = []
@@ -532,26 +541,305 @@ def _build_daily_brief(action_queue: dict, health: dict) -> dict:
         "opportunity": opportunity_text,
         "risk":        risk_text,
         "actions":     deduped[:3],
+        "source":      "static",
     }
+
+
+# iter413bq — AI Daily Brief.
+# Uses Claude Sonnet 4.5 via the Emergent LLM key. Falls back to the
+# static rule engine on ANY failure (no key, network, timeout, parse).
+# Cached in `db.ops_brief_cache` for 15 minutes keyed by a snapshot
+# fingerprint so repeated dashboard refreshes don't re-bill the LLM.
+_AI_BRIEF_SYSTEM = (
+    "You are the ops chief-of-staff for Crafters Market, a handmade-goods "
+    "marketplace. You write the daily brief that the founder reads to "
+    "decide what to do next. Tone: terse, decisive, no fluff, no marketing "
+    "speak, no emojis. Every sentence must drive an action.\n\n"
+    "You MUST reply with valid JSON only, matching this exact shape:\n"
+    '{\n'
+    '  "opportunity": "<one sentence, max 20 words>",\n'
+    '  "risk": "<one sentence, max 20 words>",\n'
+    '  "actions": [\n'
+    '    {"label": "<verb-led, max 5 words>", "cta_tab": "<tab id from list>"},\n'
+    '    ...\n'
+    '  ]\n'
+    '}\n\n'
+    "Rules:\n"
+    "- 1 to 3 actions ranked by impact × urgency × ease.\n"
+    "- `cta_tab` MUST be one of the tab ids present in the input snapshot.\n"
+    "- Do not invent numbers. Only reference data present in the input.\n"
+    "- Do not wrap JSON in code fences."
+)
+
+
+def _brief_snapshot_for_llm(action_queue: dict, health: dict, funnel: dict) -> dict:
+    """Compact JSON snapshot fed to Claude — keeps the prompt token-light."""
+    return {
+        "action_queue": {
+            group: [
+                {"id": it["id"], "title": it["title"], "desc": it["desc"], "cta_tab": it["cta_tab"]}
+                for it in items
+            ]
+            for group, items in action_queue.items()
+        },
+        "marketplace_health": [
+            {"id": m["id"], "label": m["label"], "value": m["value"], "status": m["status"], "cta_tab": m["cta_tab"]}
+            for m in health.get("metrics", [])
+        ],
+        "founder_funnel": [
+            {"id": s["id"], "count": s["count"], "conversion_pct": s.get("conversion_pct")}
+            for s in funnel.get("stages", [])
+        ],
+    }
+
+
+def _snapshot_fingerprint(snapshot: dict) -> str:
+    """Stable hash of the snapshot — items list + key health/funnel
+    numbers. Two refreshes 30s apart produce the same fingerprint
+    (so we hit the cache) but a real state change invalidates it."""
+    import hashlib
+    blob = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def _strip_code_fences(raw: str) -> str:
+    s = raw.strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*", "", s)
+        s = re.sub(r"\s*```$", "", s)
+    return s
+
+
+async def _build_daily_brief_ai(
+    action_queue: dict, health: dict, funnel: dict, *, allowed_tabs: set[str],
+) -> dict | None:
+    """Call Claude Sonnet 4.5 once and parse the structured JSON reply.
+    Returns None on any failure so the caller can fall back."""
+    key = (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
+    if not key:
+        return None
+
+    snapshot = _brief_snapshot_for_llm(action_queue, health, funnel)
+    fingerprint = _snapshot_fingerprint(snapshot)
+
+    # ── Cache hit? ────────────────────────────────────────────────
+    cached = await db.ops_brief_cache.find_one({"fingerprint": fingerprint})
+    if cached:
+        expires_at = cached.get("expires_at")
+        if expires_at and expires_at > datetime.now(timezone.utc).isoformat():
+            payload = cached.get("payload") or {}
+            payload["source"] = "ai-cache"
+            return payload
+
+    # ── LLM call ─────────────────────────────────────────────────
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"ops-brief-{uuid.uuid4().hex[:12]}",
+            system_message=_AI_BRIEF_SYSTEM,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        user_prompt = (
+            "Here is the current state of the marketplace. "
+            "Write the JSON brief.\n\n"
+            f"{json.dumps(snapshot, separators=(',', ':'))}"
+        )
+        reply = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=user_prompt)),
+            timeout=8.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("[ops-brief] LLM timeout — falling back to static")
+        return None
+    except Exception as e:
+        logger.warning("[ops-brief] LLM call failed (%s) — falling back to static", e)
+        return None
+
+    # ── Parse + validate ─────────────────────────────────────────
+    try:
+        parsed = json.loads(_strip_code_fences(str(reply)))
+    except json.JSONDecodeError as e:
+        logger.warning("[ops-brief] non-JSON LLM reply (%s): %s", e, str(reply)[:200])
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+    opp = (parsed.get("opportunity") or "").strip()
+    risk = (parsed.get("risk") or "").strip()
+    raw_actions = parsed.get("actions") or []
+    if not opp or not risk or not isinstance(raw_actions, list):
+        return None
+
+    # Whitelist tabs — never let the LLM invent a route that doesn't exist.
+    actions: list[dict] = []
+    seen_tabs: set[str] = set()
+    for a in raw_actions:
+        if not isinstance(a, dict):
+            continue
+        label = (a.get("label") or "").strip()
+        tab = (a.get("cta_tab") or "").strip()
+        if not label or tab not in allowed_tabs or tab in seen_tabs:
+            continue
+        seen_tabs.add(tab)
+        actions.append({"label": label, "cta_tab": tab})
+        if len(actions) == 3:
+            break
+
+    if not actions:
+        # LLM gave us text but no usable CTAs — fall back rather than ship a dead brief.
+        return None
+
+    payload = {
+        "opportunity": opp[:200],
+        "risk":        risk[:200],
+        "actions":     actions,
+        "source":      "ai",
+    }
+
+    # ── Cache for 15 minutes ─────────────────────────────────────
+    now = datetime.now(timezone.utc)
+    await db.ops_brief_cache.update_one(
+        {"fingerprint": fingerprint},
+        {"$set": {
+            "fingerprint": fingerprint,
+            "payload": payload,
+            "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(minutes=15)).isoformat(),
+        }},
+        upsert=True,
+    )
+    return payload
+
+
+async def _build_daily_brief(action_queue: dict, health: dict, funnel: dict) -> dict:
+    """AI-first with static fallback. Always returns a usable brief."""
+    allowed_tabs: set[str] = set()
+    for group in action_queue.values():
+        for it in group:
+            allowed_tabs.add(it["cta_tab"])
+    for m in health.get("metrics", []):
+        allowed_tabs.add(m["cta_tab"])
+    # Always allow these "anchor" tabs so the LLM has somewhere to point.
+    allowed_tabs.update({"applications", "approved-makers", "custom",
+                         "founder-funnel", "settings", "analytics",
+                         "prod-health", "audit", "nurture-queue", "listings"})
+
+    ai = await _build_daily_brief_ai(action_queue, health, funnel, allowed_tabs=allowed_tabs)
+    if ai is not None:
+        return ai
+    return _build_daily_brief_static(action_queue, health)
+
+
+# iter413bq — Per-admin dismiss/snooze for action-queue items.
+# Modes:
+#   "24h"                    — auto-expires 24 hours after dismissal
+#   "until_status_changes"   — auto-expires once the item's `desc` shifts
+#                              (e.g. count drops, age string changes)
+# Storage: `db.ops_dismissals` rows keyed by (admin_email, item_id).
+async def _active_dismissals(admin_email: str) -> dict[str, dict]:
+    """Returns {item_id: dismissal_doc} for dismissals still in force."""
+    if not admin_email:
+        return {}
+    now_iso = _now().isoformat()
+    cur = db.ops_dismissals.find({
+        "admin_email": admin_email,
+        "$or": [
+            {"mode": "until_status_changes"},
+            {"mode": "24h", "expires_at": {"$gt": now_iso}},
+        ],
+    }, {"_id": 0})
+    out: dict[str, dict] = {}
+    async for d in cur:
+        out[d["item_id"]] = d
+    return out
+
+
+def _apply_dismissals(action_queue: dict, dismissals: dict[str, dict]) -> tuple[dict, int]:
+    """Filter dismissed items out of each group. For
+    `until_status_changes` we compare the stored signature against the
+    current `desc` — if it shifted, the dismissal auto-expires (we
+    surface the item again and ignore the stale row)."""
+    filtered: dict = {"critical": [], "review": [], "growth": []}
+    hidden = 0
+    for group, items in action_queue.items():
+        for it in items:
+            d = dismissals.get(it["id"])
+            if d:
+                if d.get("mode") == "until_status_changes":
+                    if d.get("status_signature") == it.get("desc"):
+                        hidden += 1
+                        continue
+                else:
+                    hidden += 1
+                    continue
+            filtered[group].append(it)
+    return filtered, hidden
+
+
+class _DismissBody(BaseModel):
+    item_id: str
+    mode: str = "24h"  # "24h" | "until_status_changes"
+    status_signature: str | None = None  # current desc — used by "until_status_changes" mode
+
+
+@router.post("/admin/ops-dashboard/dismiss")
+async def ops_dashboard_dismiss(body: _DismissBody, claims: dict = Depends(current_admin)):
+    """Dismiss an action-queue item for the current admin only.
+    `mode='24h'`               — auto-expires in 24h.
+    `mode='until_status_changes'` — auto-expires when `desc` shifts."""
+    if body.mode not in ("24h", "until_status_changes"):
+        raise HTTPException(status_code=400, detail="mode must be '24h' or 'until_status_changes'")
+    if body.mode == "until_status_changes" and not body.status_signature:
+        raise HTTPException(status_code=400, detail="status_signature required for 'until_status_changes' mode")
+
+    admin_email = (claims.get("email") or "").lower()
+    now = _now()
+    expires_at = (now + timedelta(hours=24)).isoformat() if body.mode == "24h" else None
+    await db.ops_dismissals.update_one(
+        {"admin_email": admin_email, "item_id": body.item_id},
+        {"$set": {
+            "admin_email": admin_email,
+            "item_id": body.item_id,
+            "mode": body.mode,
+            "status_signature": body.status_signature,
+            "expires_at": expires_at,
+            "dismissed_at": now.isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True, "item_id": body.item_id, "mode": body.mode, "expires_at": expires_at}
+
+
+@router.post("/admin/ops-dashboard/restore")
+async def ops_dashboard_restore(body: _DismissBody, claims: dict = Depends(current_admin)):
+    """Undo a dismissal (e.g. user clicked 'Restore' in the
+    'N hidden items' footer)."""
+    admin_email = (claims.get("email") or "").lower()
+    res = await db.ops_dismissals.delete_one({"admin_email": admin_email, "item_id": body.item_id})
+    return {"ok": True, "removed": res.deleted_count}
 
 
 # ──────────────────────────── endpoint ───────────────────────────────
 @router.get("/admin/ops-dashboard/overview")
-async def ops_dashboard_overview(_: dict = Depends(current_admin)):
+async def ops_dashboard_overview(claims: dict = Depends(current_admin)):
     """Single-shot aggregator for the admin landing page. Returns all
     6 dashboard sections so the page renders in one request."""
-    action_queue = await _section_action_queue()
+    admin_email = (claims.get("email") or "").lower()
+    raw_action_queue = await _section_action_queue()
+    dismissals = await _active_dismissals(admin_email)
+    action_queue, hidden_count = _apply_dismissals(raw_action_queue, dismissals)
+
     marketplace_health = await _section_marketplace_health()
     founder_funnel = await _section_founder_funnel()
     recent_activity = await _section_recent_activity()
 
     summary = {
-        "critical":     sum(len(action_queue[k]) for k in ("critical",)),
-        "needs_review": sum(len(action_queue[k]) for k in ("review",)),
+        "critical":     len(action_queue["critical"]),
+        "needs_review": len(action_queue["review"]),
         "healthy":      sum(1 for m in marketplace_health["metrics"] if m["status"] == "green"),
         "activity":     len(recent_activity["items"]),
     }
-    daily_brief = _build_daily_brief(action_queue, marketplace_health)
+    daily_brief = await _build_daily_brief(action_queue, marketplace_health, founder_funnel)
 
     return {
         "generated_at":      _now().isoformat(),
@@ -561,4 +849,10 @@ async def ops_dashboard_overview(_: dict = Depends(current_admin)):
         "founder_funnel":    founder_funnel,
         "daily_brief":       daily_brief,
         "recent_activity":   recent_activity,
+        # iter413bq — Surface the dismissal state so the UI can render a
+        # "N hidden · Show" footer + know which items are dismissable.
+        "dismissed": {
+            "count": hidden_count,
+            "ids":   list(dismissals.keys()),
+        },
     }

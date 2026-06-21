@@ -1202,6 +1202,17 @@ export const fetchEnrichlabsExportStatus = () =>
 // iter413bp — Operations Dashboard aggregator (admin landing page).
 export const fetchOpsDashboardOverview = () =>
   http.get("/admin/ops-dashboard/overview", { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter413bq — Dismiss / restore action-queue items per-admin.
+export const dismissOpsItem = (item_id, mode = "24h", status_signature = null) =>
+  http.post("/admin/ops-dashboard/dismiss",
+    { item_id, mode, status_signature },
+    { headers: adminAuthHeaders() }
+  ).then((r) => r.data);
+export const restoreOpsItem = (item_id) =>
+  http.post("/admin/ops-dashboard/restore",
+    { item_id },
+    { headers: adminAuthHeaders() }
+  ).then((r) => r.data);
 export const fetchAdminRejectedApplications = () =>
   http.get("/admin/makers/rejected", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminPlusMembers = () =>

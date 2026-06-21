@@ -673,6 +673,11 @@ SMOKE_FILES = {
     # so the admin landing layer never silently breaks.
     "test_iter413bp_ops_dashboard.py",
 
+    # ── iter413bq — AI Daily Brief + dismiss/snooze ────────────────
+    # Locks `daily_brief.source` field, the dismiss/restore endpoints,
+    # and the "until_status_changes" auto-expiry semantics.
+    "test_iter413bq_ops_brief_ai_and_dismiss.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
