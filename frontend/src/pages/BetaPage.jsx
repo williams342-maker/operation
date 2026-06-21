@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { submitMakerApplication } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { useStructuredData } from "../lib/seo";
+import { uetTrack, uetSetPII } from "../lib/consent";
+import { trackConversion } from "../lib/googleAdsConversions";
 import FounderSlotCounter from "../components/FounderSlotCounter";
 import EtsyComparisonTable from "../components/EtsyComparisonTable";
 import FoundersWall from "../components/FoundersWall";
@@ -88,6 +90,24 @@ export default function BetaPage() {
       });
       setState("done");
       window.scrollTo(0, 0);
+
+      // iter413bh — Mirror /apply's conversion tracking into the
+      // Founding Access funnel so these higher-intent signups are
+      // attributable in Google Ads + Bing Ads. The `event_label`
+      // distinguishes Founding Access submissions from generic /apply
+      // leads in the dashboards.
+      try {
+        uetTrack("submit_lead", {
+          event_label: "founding_access",
+          event_value: 1,
+        });
+      } catch { /* noop — analytics best-effort */ }
+      try {
+        trackConversion("signup_maker", { event_label: "founding_access" });
+        // Bing Enhanced Conversions: pass the applicant's email so the
+        // lead is matched back to the originating ad click.
+        uetSetPII({ email: (f.email || "").trim() });
+      } catch { /* noop */ }
     } catch (e2) {
       const d = e2?.response?.data?.detail;
       setErrMsg(typeof d === "string" ? d : "Something went wrong. Try again.");
