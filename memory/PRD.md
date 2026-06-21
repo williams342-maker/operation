@@ -1,3 +1,23 @@
+## iter413bm — Approved Makers `listings_count` bug fix (2026-02)
+
+**Reported by user:** "Approved Makers on the deployed site/admin/listing is showing 0, this should reflect the current number of listings by each maker."
+
+**Root cause:** `/app/backend/routers/admin.py` aggregation in `GET /admin/makers/approved` matched on a field `maker` on `db.products`, but the `Product` Pydantic model writes listings with `maker_slug` (models.py L87). Every count came back 0.
+
+**Same field-name bug also lived in:**
+- `DELETE /admin/makers/{slug}` (the purge endpoint) — the soft-delete `update_many` ran on `{"maker": slug}` and silently affected 0 rows.
+- The existing iter413az test fixture, which is why this regression slipped past CI.
+
+**Fix:**
+- `admin.py` listings aggregation + purge update_many now use `maker_slug`.
+- `tests/test_iter413az_approved_makers_csv_purge.py` fixture/assertions migrated to `maker_slug`.
+- New regression `tests/test_iter413bm_approved_makers_listings_count.py` seeds 3 live + 1 soft-deleted product and asserts the API returns `listings_count == 3`. Added to `SMOKE_FILES` in `tests/conftest.py`.
+
+**Live preview verification:** `GET /api/admin/makers/approved` now returns 24/75 makers with non-zero `listings_count` (e.g., loom-and-thread=3, kiln-and-clay=3); previously all 75 returned 0.
+
+---
+
+
 # Crafters Market — Modernized Homepage + Full Marketplace
 
 ## Original Problem Statement

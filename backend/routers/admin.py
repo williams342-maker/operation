@@ -388,9 +388,11 @@ async def admin_approved_makers(_: dict = Depends(current_admin)):
     slugs = [m["slug"] for m in makers if m.get("slug")]
 
     # Listings count per maker (live + drafts, excluding soft-deleted).
+    # NB: the Product model uses `maker_slug` — using `maker` here returned 0
+    # for every row in the Approved Makers admin table (iter413bm fix).
     listings_pipe = [
-        {"$match": {"maker": {"$in": slugs}, "deleted_at": None}},
-        {"$group": {"_id": "$maker", "count": {"$sum": 1}}},
+        {"$match": {"maker_slug": {"$in": slugs}, "deleted_at": None}},
+        {"$group": {"_id": "$maker_slug", "count": {"$sum": 1}}},
     ]
     listings_by_slug = {
         r["_id"]: r["count"] async for r in db.products.aggregate(listings_pipe)
@@ -527,7 +529,7 @@ async def admin_purge_maker(slug: str, claims: dict = Depends(require_super_admi
     # may be referenced by completed orders + payouts + analytics. The
     # `deleted_at` field makes catalog queries skip them.
     products_res = await db.products.update_many(
-        {"maker": slug, "deleted_at": None},
+        {"maker_slug": slug, "deleted_at": None},
         {"$set": {"deleted_at": purged_at, "deleted_reason": "maker_purged"}},
     )
 

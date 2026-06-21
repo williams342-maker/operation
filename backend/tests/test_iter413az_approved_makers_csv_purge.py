@@ -123,7 +123,7 @@ def _seed_maker_via_db():
         for i in range(2):
             await db.products.insert_one({
                 "id": str(uuid.uuid4()),
-                "maker": slug,
+                "maker_slug": slug,
                 "title": f"iter413az test product {i}",
                 "deleted_at": None,
                 "price": 10,
@@ -154,8 +154,8 @@ def _assert_db_state_after_purge(slug):
         maker = await db.makers.find_one({"slug": slug})
         assert maker is None, "maker doc should be hard-deleted"
         # Listings should be soft-deleted, not hard-deleted.
-        live = await db.products.count_documents({"maker": slug, "deleted_at": None})
-        soft = await db.products.count_documents({"maker": slug, "deleted_at": {"$ne": None}})
+        live = await db.products.count_documents({"maker_slug": slug, "deleted_at": None})
+        soft = await db.products.count_documents({"maker_slug": slug, "deleted_at": {"$ne": None}})
         assert live == 0, "all listings should be soft-deleted"
         assert soft == 2, f"expected 2 soft-deleted listings, got {soft}"
         # Payouts tagged.
@@ -210,7 +210,7 @@ def test_purge_happy_path(H):
             client = AsyncIOMotorClient(os.environ["MONGO_URL"])
             db = client[os.environ["DB_NAME"]]
             await db.makers.delete_many({"slug": slug})
-            await db.products.delete_many({"maker": slug})
+            await db.products.delete_many({"maker_slug": slug})
             await db.maker_payouts.delete_many({"maker_slug": slug})
             await db.admin_audit.delete_many({"slug": slug})
             client.close()

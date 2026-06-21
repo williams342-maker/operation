@@ -652,6 +652,11 @@ SMOKE_FILES = {
     # ── iter413bl — Meta Conversions API server-side ────────────────
     "test_iter413bl_meta_capi.py",
 
+    # ── iter413bm — Approved-Makers listings_count regression ──────
+    # Locks the `maker_slug` vs `maker` field on db.products so the
+    # admin dashboard never silently regresses to "0 listings" again.
+    "test_iter413bm_approved_makers_listings_count.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
