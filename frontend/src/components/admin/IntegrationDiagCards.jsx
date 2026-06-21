@@ -424,3 +424,63 @@ export function MetaPixelCoverageCard() {
   );
 }
 
+// iter413bl — Meta Conversions API server-side status card.
+//
+// Reports whether META_PIXEL_ID + META_CAPI_ACCESS_TOKEN are set in
+// the backend env. When live, the helper `send_meta_event()` (in
+// /app/backend/routers/meta_capi.py) can be called from any handler
+// (e.g. Stripe webhook → Purchase, /apply submit → Lead) using the
+// SAME event_id the browser pixel already fires, so Meta dedupes.
+export function MetaCapiStatusCard() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setBusy(true);
+    try {
+      const tok = localStorage.getItem("cm_admin_jwt") || "";
+      const r = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/admin/meta-capi/status`,
+        { headers: { Authorization: `Bearer ${tok}` } },
+      );
+      setData(await r.json());
+    } catch (e) {
+      setData({ error: e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const ok = !!data?.configured;
+  return (
+    <DiagShell
+      title="Meta Conversions API · server-side"
+      blurb="Server-side companion to the browser Meta Pixel. Survives ad-blockers + iOS tracking. Uses shared event_id with the browser pixel so Meta dedupes."
+      testId="meta-capi-status"
+      ok={ok}
+      data={data}
+      busy={busy}
+      onRefresh={load}
+      reason={
+        !data
+          ? undefined
+          : data.error
+            ? data.error
+            : !ok
+              ? "META_PIXEL_ID and/or META_CAPI_ACCESS_TOKEN missing in backend env. Set both, then call send_meta_event() from your FastAPI handlers (e.g. Stripe webhook → Purchase)."
+              : undefined
+      }
+    >
+      {data && !data.error && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono text-[11px]">
+          <DiagTile label="Pixel ID"   value={data.pixel_id_preview || "—"} highlight={data.pixel_id_present} />
+          <DiagTile label="Token"      value={data.token_preview || "—"}    highlight={data.token_present} />
+          <DiagTile label="Test mode"  value={data.test_mode ? "ON" : "off"} highlight={data.test_mode} />
+          <DiagTile label="Mode"       value={data.configured ? "LIVE" : "no-op"} highlight={data.configured} />
+        </div>
+      )}
+    </DiagShell>
+  );
+}
+
+

@@ -1421,6 +1421,27 @@ async def stripe_webhook(request: Request):
             await transfer_to_makers_for_session(evt.session_id)
         except Exception as e:
             logger.exception("connect transfer failed: %s", e)
+        # iter413bl — Server-side Meta Conversions API fire. Uses the
+        # Stripe session_id as event_id so it dedupes with the browser
+        # pixel that fires on /checkout/success (same id). Survives
+        # ad-blockers + iOS tracking restrictions that mute the browser
+        # pixel. Best-effort — failures MUST not break the payment flow.
+        try:
+            from routers.meta_capi import send_meta_event
+            tx = await db.payment_transactions.find_one(
+                {"session_id": evt.session_id},
+                {"_id": 0, "customer_email": 1, "amount_total": 1, "currency": 1},
+            ) or {}
+            amount_cents = int(tx.get("amount_total") or 0)
+            await send_meta_event(
+                event_name="Purchase",
+                event_id=evt.session_id,
+                email=tx.get("customer_email"),
+                value=amount_cents / 100.0 if amount_cents else None,
+                currency=(tx.get("currency") or "usd").upper(),
+            )
+        except Exception as e:
+            logger.warning("[meta-capi] purchase fire failed: %s", e)
     await _log(kind="main", path=path, status="ok",
                event_type=getattr(evt, "event_type", None) or "checkout.session.*",
                event_id=getattr(evt, "session_id", None))

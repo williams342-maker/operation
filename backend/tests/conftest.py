@@ -649,6 +649,9 @@ SMOKE_FILES = {
     # ── iter413be — Nurture Queue (drafts only) ─────────────────────
     "test_iter413be_nurture_queue.py",
 
+    # ── iter413bl — Meta Conversions API server-side ────────────────
+    "test_iter413bl_meta_capi.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

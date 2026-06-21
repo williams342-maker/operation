@@ -49,7 +49,7 @@ import {
 } from "../../lib/api";
 import { refreshSiteSettings } from "../../hooks/useSiteSettings";
 import { RowsSkeleton } from "../Skeleton";
-import { ShippoDiagCard, MailgunDiagCard, R2DiagCard, UetEnhancedConversionsCard, GoogleAdsCoverageCard, MetaPixelCoverageCard } from "./IntegrationDiagCards";
+import { ShippoDiagCard, MailgunDiagCard, R2DiagCard, UetEnhancedConversionsCard, GoogleAdsCoverageCard, MetaPixelCoverageCard, MetaCapiStatusCard } from "./IntegrationDiagCards";
 import FeedHealthCard from "./FeedHealthCard";
 import SeoHealthCard from "./SeoHealthCard";
 import MerchantRulesCard from "./MerchantRulesCard";
@@ -5849,6 +5849,7 @@ export default function SettingsTab() {
       <UetEnhancedConversionsCard />
       <GoogleAdsCoverageCard />
       <MetaPixelCoverageCard />
+      <MetaCapiStatusCard />
 
       <HeroHeadlinesCard />
 
