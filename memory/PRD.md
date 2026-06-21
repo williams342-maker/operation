@@ -1,3 +1,23 @@
+## iter413bx — Send-reset fix + 404 recovery hardening (2026-02)
+
+**Reported by user (production):**
+1. "Failed to send-reset user" toast when clicking SEND RESET in admin Members tab.
+2. "This page isn't here" 404 for a maker — couldn't log in, couldn't access the site (after a production rollback).
+
+### Fix 1 — Send-reset wrong localStorage key (pre-existing bug)
+`UsersTab.jsx` was reading `localStorage.getItem("admin_jwt")` (no prefix) instead of the codebase-wide `cm_admin_jwt`. Token came through as `null` → backend returned 401 → toast "Failed to send-reset user". Two lines patched (send-reset + force-signout). Verified end-to-end on preview: without JWT → 401; with JWT → returns the reset link.
+
+### Fix 2 — Hardened 404 page for stale-link recovery
+After a rollback, makers may click magic links that point at routes only the newer code had (`/community/emblem`, `/sell/...`, etc.) — they land on a sparse 404 with nowhere helpful to go. The new `NotFoundPage`:
+- **Smart primary CTA**: paths matching `/maker|login|signin|dashboard|account|magic|verify|reset/i` get a "← MAKER LOGIN" CTA + the hint *"If you're a maker trying to sign in, request a fresh magic link below."* Other paths keep the existing "Browse the marketplace" CTA.
+- **Always-visible recovery rail**: `MAKER LOGIN · BUYER LOGIN · APPLY TO SELL · HOME · EMAIL SUPPORT` so nobody is ever stranded.
+- `data-testid`s on every interactive element. Contrast-linter + ESLint clean.
+
+Both code paths verified via screenshot on preview.
+
+---
+
+
 ## iter413bw — Maker Brand Kit (Garage Builders identity) (2026-02)
 
 **Requested by user:** Reposition the emblem variants on the Maker Dashboard as a "Your Maker Brand Kit" card — identity & belonging, not "download marketing files". Approved sellers only. Permanently dismissible. Track adoption %.
