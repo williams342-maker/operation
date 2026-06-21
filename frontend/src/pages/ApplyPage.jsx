@@ -5,6 +5,7 @@ import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { mintEventId } from "../lib/conversionDedup";
 import { readAttributionContext } from "../lib/attribution";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
@@ -82,23 +83,28 @@ export default function ApplyPage() {
       // → UET drops it server-side). Wrapped in try so analytics can't
       // break the success UX. `event_label` lets the Bing Ads dashboard
       // filter maker leads from any future lead events (e.g. Founding Access).
+      // iter413bk — One shared event_id across all three networks so a
+      // future server-side Conversions API can dedup against the browser
+      // pixel fires.
+      const eventId = mintEventId();
       try {
         uetTrack("submit_lead", {
           event_label: "maker_application",
           event_value: 1,
+          event_id: eventId,
         });
       } catch { /* noop */ }
       // iter413ac — mirror to Google Ads as `signup_maker` so the AW
       // pixel can attribute completed maker applications back to the
       // originating ad creative.
       try {
-        trackConversion("signup_maker", { event_label: "maker_application" });
+        trackConversion("signup_maker", { event_label: "maker_application", event_id: eventId });
         // iter413av — Bing Enhanced Conversion: hand Microsoft the
         // applicant's email so the lead is matched to its origin click.
         uetSetPII({ email: (f.email || "").trim() });
         // iter413bj — Meta Pixel: Lead event so Facebook + Instagram
         // ad sets can attribute completed maker applications.
-        trackMeta("signup_maker", { event_label: "maker_application" });
+        trackMeta("signup_maker", { event_label: "maker_application", event_id: eventId });
       } catch { /* noop */ }
     }
     catch (e2) {

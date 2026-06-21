@@ -5,6 +5,7 @@ import { useCart } from "../lib/cart";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { mintEventId } from "../lib/conversionDedup";
 import PushOptInCard from "../components/PushOptInCard";
 import { SocialShareRow } from "../components/SocialShareButtons";
 
@@ -72,15 +73,21 @@ export default function CheckoutSuccess() {
                 // Tools → Measurement → Conversions). When wired,
                 // fires with the actual order total + currency for
                 // Google's value-based bidding.
+                // iter413bk — shared event_id across Google Ads + Meta.
+                // For purchases the transaction_id IS the dedup key in
+                // gtag, so we use the Stripe session_id as the canonical
+                // id and pass it through both networks.
+                const purchaseEventId = s.transaction_id || s.session_id || mintEventId();
                 trackConversion("purchase", {
                   value: revenue,
                   currency: (s.currency || "usd").toUpperCase(),
-                  transaction_id: s.transaction_id || s.session_id || null,
+                  transaction_id: purchaseEventId,
                 });
                 // iter413bj — Meta Pixel Purchase event.
                 trackMeta("purchase", {
                   value: revenue,
                   currency: (s.currency || "usd").toUpperCase(),
+                  event_id: purchaseEventId,
                 });
               }
             } catch { /* analytics should never break the success page */ }

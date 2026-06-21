@@ -5,6 +5,7 @@ import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
 import { getAttributionSource, getMsclkid, getGclid, getFbclid } from "../lib/analytics";
 import { uetTrack } from "../lib/consent";
 import { trackMeta } from "../lib/metaPixel";
+import { mintEventId } from "../lib/conversionDedup";
 import { Trash2 } from "lucide-react";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 
@@ -255,16 +256,21 @@ export default function CartPage() {
       try {
         const revenue = (quote?.total_before_tax ?? subtotal) || 0;
         if (revenue > 0) {
+          // iter413bk — Shared event_id so a future server-side fire
+          // can dedup against this browser-side InitiateCheckout.
+          const checkoutEventId = mintEventId();
           uetTrack("begin_checkout", {
             revenue_value: Number(revenue.toFixed(2)),
             currency: "USD",
             event_label: "cart_to_stripe",
             event_value: Number(revenue.toFixed(2)),
+            event_id: checkoutEventId,
           });
           // iter413bj — Meta Pixel InitiateCheckout event.
           trackMeta("begin_checkout", {
             value: Number(revenue.toFixed(2)),
             currency: "USD",
+            event_id: checkoutEventId,
           });
         }
       } catch { /* analytics should never block checkout */ }

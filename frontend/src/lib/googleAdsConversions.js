@@ -43,9 +43,14 @@ export function trackConversion(action, params = {}) {
   }
   try {
     if (typeof window !== "undefined" && typeof window.gtag === "function") {
+      // iter413bk — `event_id` (our caller's vocab) maps to gtag's
+      // `transaction_id` field, which gtag dedupes on. Strip the
+      // alias so we don't ship a duplicate key.
+      const { event_id, ...rest } = params;
       window.gtag("event", "conversion", {
         send_to: `${AW_ID}/${label}`,
-        ...params,
+        ...(event_id ? { transaction_id: event_id } : {}),
+        ...rest,
       });
     }
   } catch { /* gtag best-effort — never block the UX */ }

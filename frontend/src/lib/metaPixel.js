@@ -80,7 +80,16 @@ export function trackMeta(action, params = {}) {
   if (!ensurePixel()) return;
   const evt = META_EVENT_FOR_ACTION[action] || action;
   try {
-    window.fbq("track", evt, params);
+    // iter413bk — Map our caller-side `event_id` vocabulary onto Meta
+    // Pixel's `eventID` field (case-sensitive, exact key Meta uses for
+    // browser ↔ Conversions API server-side deduplication).
+    const { event_id, ...rest } = params;
+    const eventID = event_id;
+    if (eventID) {
+      window.fbq("track", evt, rest, { eventID });
+    } else {
+      window.fbq("track", evt, rest);
+    }
   } catch { /* best-effort */ }
 }
 

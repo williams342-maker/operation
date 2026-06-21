@@ -6,6 +6,7 @@ import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { mintEventId } from "../lib/conversionDedup";
 import FounderSlotCounter from "../components/FounderSlotCounter";
 import EtsyComparisonTable from "../components/EtsyComparisonTable";
 import FoundersWall from "../components/FoundersWall";
@@ -97,19 +98,22 @@ export default function BetaPage() {
       // attributable in Google Ads + Bing Ads. The `event_label`
       // distinguishes Founding Access submissions from generic /apply
       // leads in the dashboards.
+      // iter413bk — Shared event_id for cross-network dedup.
+      const eventId = mintEventId();
       try {
         uetTrack("submit_lead", {
           event_label: "founding_access",
           event_value: 1,
+          event_id: eventId,
         });
       } catch { /* noop — analytics best-effort */ }
       try {
-        trackConversion("signup_maker", { event_label: "founding_access" });
+        trackConversion("signup_maker", { event_label: "founding_access", event_id: eventId });
         // Bing Enhanced Conversions: pass the applicant's email so the
         // lead is matched back to the originating ad click.
         uetSetPII({ email: (f.email || "").trim() });
         // iter413bj — Meta Pixel Lead event with founding_access label.
-        trackMeta("signup_maker", { event_label: "founding_access" });
+        trackMeta("signup_maker", { event_label: "founding_access", event_id: eventId });
       } catch { /* noop */ }
     } catch (e2) {
       const d = e2?.response?.data?.detail;
