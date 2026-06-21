@@ -357,6 +357,16 @@ class Maker(BaseModel):
     listings_by_month: dict = Field(default_factory=dict)
     # Plus-only: custom shop banner image (R2 URL)
     banner_image_url: Optional[str] = None
+    # iter413bw — Maker Brand Kit (Garage Builders identity).
+    # `brand_kit_applied`     — maker clicked "Add to Profile"; their
+    #                           public page shows the Garage Builders
+    #                           badge in the proof strip.
+    # `brand_kit_applied_at`  — ISO timestamp for adoption analytics.
+    # `brand_kit_dismissed`   — maker tapped "Not interested" on the
+    #                           dashboard card; we never resurface it.
+    brand_kit_applied: bool = False
+    brand_kit_applied_at: Optional[str] = None
+    brand_kit_dismissed: bool = False
     # Plus-only: vanity shop URL slug. When set, the maker is reachable
     # at `/makers/<custom_url>` in addition to the canonical
     # `/makers/<slug>`. Lowercase, 3-30 chars, [a-z0-9-], must pass the

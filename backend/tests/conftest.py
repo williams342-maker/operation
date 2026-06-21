@@ -689,6 +689,11 @@ SMOKE_FILES = {
     # permanent Founders.
     "test_iter413bu_founder_state_separation.py",
 
+    # ── iter413bw — Maker Brand Kit (Garage Builders identity) ──────
+    # Locks the apply/dismiss/adoption endpoints + idempotency
+    # contract so the dashboard card's adoption funnel stays accurate.
+    "test_iter413bw_brand_kit.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

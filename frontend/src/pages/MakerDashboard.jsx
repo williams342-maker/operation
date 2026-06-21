@@ -24,6 +24,7 @@ import MessagesTab from "./MakerDashboard/MessagesTab";
 import BriefsTab from "./MakerDashboard/BriefsTab";
 import ReviewsTab from "./MakerDashboard/ReviewsTab";
 import ProfileForm from "./MakerDashboard/ProfileForm";
+import BrandKitCard from "../components/maker/BrandKitCard"; // iter413bw
 import useModalA11y from "../hooks/useModalA11y";
 
 // Legacy `#upgrade` URLs (the old top-level Upgrade tab) now route to the
@@ -434,16 +435,21 @@ export default function MakerDashboard() {
         onOpenProfile={() => setProfileOpen(true)}
       >
         {tab === "dashboard"  && (
-          <DashboardTab
-            maker={maker}
-            orders={orders}
-            products={products}
-            unreadMessages={threads.reduce((s, t) => s + (t.unread_for_maker || 0), 0)}
-            pendingBackorders={pendingBackorders}
-            fresh={fresh}
-            freshKey={freshKey}
-            onTabChange={changeTab}
-          />
+          <>
+            {/* iter413bw — Maker Brand Kit (Garage Builders identity).
+                Renders for approved sellers only; auto-hides on permanent dismissal. */}
+            <BrandKitCard maker={maker} onMakerChange={setMaker} />
+            <DashboardTab
+              maker={maker}
+              orders={orders}
+              products={products}
+              unreadMessages={threads.reduce((s, t) => s + (t.unread_for_maker || 0), 0)}
+              pendingBackorders={pendingBackorders}
+              fresh={fresh}
+              freshKey={freshKey}
+              onTabChange={changeTab}
+            />
+          </>
         )}
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
         {tab === "renewals"   && <RenewalsTab />}

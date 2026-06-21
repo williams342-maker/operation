@@ -1190,6 +1190,12 @@ export const promoteToFounder = (slug, { inaugural = true } = {}) =>
     { slug, force_status: inaugural ? "inaugural" : "regular" },
     { headers: adminAuthHeaders() }
   ).then((r) => r.data);
+
+// iter413bw — Maker Brand Kit (Garage Builders identity).
+export const applyBrandKit = () =>
+  http.post("/maker/brand-kit/apply", {}, { headers: authHeaders() }).then((r) => r.data);
+export const dismissBrandKit = () =>
+  http.post("/maker/brand-kit/dismiss", {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchAdminApprovedMakers = () =>
   http.get("/admin/makers/approved", { headers: adminAuthHeaders() }).then((r) => r.data);
 // iter413az — Hard-purge an approved maker (super-admin only).

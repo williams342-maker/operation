@@ -1,3 +1,34 @@
+## iter413bw — Maker Brand Kit (Garage Builders identity) (2026-02)
+
+**Requested by user:** Reposition the emblem variants on the Maker Dashboard as a "Your Maker Brand Kit" card — identity & belonging, not "download marketing files". Approved sellers only. Permanently dismissible. Track adoption %.
+
+**Implementation:**
+
+### Backend
+- `Maker` model: 3 new fields — `brand_kit_applied`, `brand_kit_applied_at`, `brand_kit_dismissed`.
+- New router `routers/brand_kit.py`:
+  - `POST /maker/brand-kit/apply` — opt-in (idempotent, preserves original timestamp).
+  - `POST /maker/brand-kit/dismiss` — permanent hide. Does NOT undo a prior apply.
+  - `GET /admin/brand-kit/adoption` — funnel: `{approved, applied, dismissed, pending, applied_pct}`.
+- Approved-only gate on apply (defense-in-depth — UI also gates).
+
+### Frontend
+- New `components/maker/BrandKitCard.jsx` — surfaced on the Maker Dashboard above the dashboard tab content.
+- Header: "Represent your craft." · subtext "Show customers you're part of the Garage Builders community. · [Maker Name]"
+- Primary CTAs: `★ Add to Profile` + `View Brand Guide ↗` (links to `/community/emblem`).
+- 4 variant tiles (Profile Badge / Sticker / Packaging Stamp / Shop Banner) — each is a download anchor reusing the existing iter413bv assets, framed by use-case rather than raw filename.
+- Gamification strip — 3 step indicators (Profile completed · Brand kit applied · Public maker page live), derived from existing maker doc fields.
+- "Not for me" dismiss link with confirm prompt. Permanently hides via `brand_kit_dismissed`.
+
+### Tests
+- 7 tests in `test_iter413bw_brand_kit.py` — all passing. Covers auth gates, idempotency, persistence, non-approved blocking, adoption funnel math. Added to `SMOKE_FILES`.
+
+### Phase 2 (deferred per user)
+- Per-segment variants (Garage Builders · Leather, · Jewelry, · Pottery, etc.) — requires another round of Nano Banana generation.
+
+---
+
+
 ## iter413bv — Emblem variants + Upgrade-to-Founder button (2026-02)
 
 ### Variants (all 4 outstanding deliverables generated)
