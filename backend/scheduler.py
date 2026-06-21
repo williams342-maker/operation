@@ -1507,6 +1507,21 @@ async def _job_social_auto_publish() -> None:
         logger.exception("[scheduler] social_auto_publish failed: %s", e)
 
 
+# iter413bo — Weekly Enrich Labs export.
+# Mondays at 11:00 UTC, emails the approved-makers CSV (NO emails column)
+# to ENRICHLABS_EXPORT_EMAIL. Self-skips silently when the recipient env
+# var isn't set so a deploy without the config doesn't error-spam the logs.
+async def _job_weekly_enrichlabs_export() -> None:
+    if not (os.environ.get("ENRICHLABS_EXPORT_EMAIL") or "").strip():
+        return  # Not configured — nothing to do.
+    try:
+        from routers.admin import _send_enrichlabs_export
+        r = await _send_enrichlabs_export(triggered_by="scheduler")
+        logger.info("[scheduler] enrichlabs weekly export: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] enrichlabs weekly export failed: %s", e)
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
@@ -1754,6 +1769,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # "Publish now" from the queue UI.
     sched.add_job(_job_social_auto_publish, CronTrigger(minute="*/15"),
                   id="social_auto_publish", replace_existing=True)
+    # iter413bo — Weekly Enrich Labs export. Mondays 11:00 UTC (1h
+    # after shipping_invoices_weekly @ 10:00, 2h before weekly ROAS
+    # digest @ 13:00). Self-skips when ENRICHLABS_EXPORT_EMAIL is unset.
+    sched.add_job(_job_weekly_enrichlabs_export,
+                  CronTrigger(day_of_week="mon", hour=11, minute=0),
+                  id="enrichlabs_weekly_export", replace_existing=True)
     # iter315 — per-listing marketing budgets: daily 03:30 UTC tick
     # rolls month-start counters AND auto-renews $5/wk boosts on
     # listings that still have budget for the calendar month.

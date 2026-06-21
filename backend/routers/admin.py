@@ -441,28 +441,34 @@ async def admin_approved_makers(_: dict = Depends(current_admin)):
 # maker with the contact + context fields they need (email is the key
 # join column). All other downstream tools that want the list can also
 # consume this CSV — it's CSV-RFC-4180 with a header row.
-@router.get("/admin/makers/approved.csv")
-async def admin_approved_makers_csv(_: dict = Depends(current_admin)):
-    """CSV export of every approved maker — for sharing with enrichment
-    services or pushing into a CRM. Streams a `text/csv` response with a
-    `Content-Disposition: attachment` so the browser triggers a download."""
+async def _build_approved_makers_csv(include_emails: bool = True) -> tuple[str, str]:
+    """Returns (csv_text, filename). Centralised so the HTTP endpoint
+    and the weekly Enrich Labs scheduler job share one source of truth
+    for column order + escaping rules (iter413bo)."""
     import csv
     import io
     # Reuse the same enrichment we already do for the directory view so
     # the CSV row matches what the admin sees in the UI table.
-    rows = await admin_approved_makers(_)  # type: ignore[arg-type]
+    rows = await admin_approved_makers({})  # type: ignore[arg-type]
 
     buf = io.StringIO()
     writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
     # Column order chosen for enrichment workflows: identity first
-    # (email/name as the join keys), then context (location/techniques)
+    # (slug/name as the join keys), then context (location/techniques)
     # which enrichment uses to disambiguate, then revenue signals last.
-    writer.writerow([
-        "slug", "name", "email", "location", "techniques", "bio",
+    # iter413bo — email column is conditional. When include_emails=False
+    # (the Enrich Labs weekly export) we strip it entirely so a downstream
+    # vendor never receives our maker PII.
+    base_cols = ["slug", "name"]
+    if include_emails:
+        base_cols.append("email")
+    base_cols += [
+        "location", "techniques", "bio",
         "is_beta", "is_veteran_owned", "subscription_status",
         "listings_count", "lifetime_gmv_usd",
         "approved_at", "created_at",
-    ])
+    ]
+    writer.writerow(base_cols)
     # Re-read raw maker docs for the techniques + bio (not exposed by
     # admin_approved_makers payload). One extra fetch keyed on the slug
     # list so we don't make the directory endpoint slower for everyone.
@@ -478,10 +484,13 @@ async def admin_approved_makers_csv(_: dict = Depends(current_admin)):
         techs = x.get("techniques") or []
         if isinstance(techs, list):
             techs = "; ".join(str(t) for t in techs)
-        writer.writerow([
+        row_cells = [
             r.get("slug") or "",
             r.get("name") or "",
-            r.get("email") or "",
+        ]
+        if include_emails:
+            row_cells.append(r.get("email") or "")
+        row_cells += [
             r.get("location") or "",
             techs or "",
             (x.get("bio") or "").replace("\n", " ").strip(),
@@ -492,15 +501,133 @@ async def admin_approved_makers_csv(_: dict = Depends(current_admin)):
             f"{(r.get('lifetime_gmv') or 0):.2f}",
             r.get("approved_at") or "",
             r.get("created_at") or "",
-        ])
+        ]
+        writer.writerow(row_cells)
 
-    csv_bytes = buf.getvalue()
-    filename = f"crafters-market-approved-makers-{datetime.now(timezone.utc).date().isoformat()}.csv"
+    suffix = "" if include_emails else "-no-emails"
+    filename = (
+        f"crafters-market-approved-makers{suffix}-"
+        f"{datetime.now(timezone.utc).date().isoformat()}.csv"
+    )
+    return buf.getvalue(), filename
+
+
+@router.get("/admin/makers/approved.csv")
+async def admin_approved_makers_csv(
+    _: dict = Depends(current_admin),
+    include_emails: bool = True,
+):
+    """CSV export of every approved maker — for sharing with enrichment
+    services or pushing into a CRM. Streams a `text/csv` response with a
+    `Content-Disposition: attachment` so the browser triggers a download.
+
+    Pass `?include_emails=false` for an emails-stripped variant (used by
+    the weekly Enrich Labs export so no PII ever leaves us)."""
+    csv_text, filename = await _build_approved_makers_csv(include_emails=include_emails)
     return Response(
-        content=csv_bytes,
+        content=csv_text,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# iter413bo — Weekly Enrich Labs export delivery.
+# A scheduler job (`_job_weekly_enrichlabs_export` in scheduler.py) runs
+# every Monday at 11:00 UTC, builds the no-emails CSV, and Mailguns it to
+# `ENRICHLABS_EXPORT_EMAIL`. This endpoint is the same logic but triggered
+# on-demand from the admin Approved Makers tab (audit-logged).
+async def _send_enrichlabs_export(triggered_by: str) -> dict:
+    """Builds the no-emails CSV and emails it to ENRICHLABS_EXPORT_EMAIL.
+    Returns `{ok, sent_to, rows, deleted, filename, message_id?}`.
+    No-op (returns ok=False) when the recipient env var isn't set."""
+    import os
+    import uuid
+    from email_service import send_mailgun_with_attachment
+
+    recipient = (os.environ.get("ENRICHLABS_EXPORT_EMAIL") or "").strip()
+    if not recipient:
+        return {
+            "ok": False,
+            "error": "ENRICHLABS_EXPORT_EMAIL env var not set — no recipient configured.",
+        }
+
+    csv_text, filename = await _build_approved_makers_csv(include_emails=False)
+    # Row count = total lines minus the header row.
+    rows = max(0, csv_text.count("\n") - 1)
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    subject = f"Crafters Market · Approved Makers (no PII) · {today}"
+    html = (
+        f"<p>Weekly Approved Makers export for enrichment.</p>"
+        f"<p>Rows: <b>{rows}</b>. Triggered by: <code>{triggered_by}</code>.</p>"
+        f"<p>This export deliberately excludes maker email addresses. "
+        f"Join keys are <code>slug</code> + <code>name</code> + "
+        f"<code>location</code>.</p>"
+    )
+    res = await send_mailgun_with_attachment(
+        to=recipient,
+        subject=subject,
+        html=html,
+        attachment_bytes=csv_text.encode("utf-8"),
+        attachment_filename=filename,
+        attachment_mime="text/csv",
+    )
+
+    audit_id = str(uuid.uuid4())
+    await db.admin_audit.insert_one({
+        "id": audit_id,
+        "kind": "enrichlabs_export_sent",
+        "email": triggered_by,
+        "recipient": recipient,
+        "rows": rows,
+        "filename": filename,
+        "ok": bool(res.get("ok")),
+        "mailgun_status": res.get("status"),
+        "mailgun_error": res.get("error"),
+        "ts": now_iso(),
+    })
+
+    return {
+        "ok": bool(res.get("ok")),
+        "sent_to": recipient,
+        "rows": rows,
+        "filename": filename,
+        "message_id": res.get("message_id"),
+        "error": res.get("error"),
+        "audit_id": audit_id,
+    }
+
+
+@router.post("/admin/makers/approved/enrichlabs-send")
+async def admin_enrichlabs_send_now(claims: dict = Depends(current_admin)):
+    """Manually trigger the weekly Enrich Labs export now (instead of
+    waiting for the Monday 11:00 UTC cron). Audit-logged."""
+    triggered_by = (claims.get("email") or "admin").lower()
+    return await _send_enrichlabs_export(triggered_by)
+
+
+@router.get("/admin/makers/approved/enrichlabs-status")
+async def admin_enrichlabs_status(_: dict = Depends(current_admin)):
+    """Status card for the Enrich Labs weekly export: recipient config,
+    last send timestamp + outcome, total sends-to-date."""
+    import os
+    recipient = (os.environ.get("ENRICHLABS_EXPORT_EMAIL") or "").strip()
+    last = await db.admin_audit.find_one(
+        {"kind": "enrichlabs_export_sent"},
+        {"_id": 0, "ts": 1, "ok": 1, "rows": 1, "filename": 1,
+         "recipient": 1, "mailgun_error": 1, "email": 1},
+        sort=[("ts", -1)],
+    )
+    total = await db.admin_audit.count_documents({"kind": "enrichlabs_export_sent"})
+    return {
+        "configured": bool(recipient),
+        "recipient": recipient or None,
+        "last_send": last,
+        "total_sends": total,
+        # The schedule string is the human-readable rendering of the
+        # CronTrigger in scheduler.py (Mondays at 11:00 UTC).
+        "schedule_human": "Every Monday at 11:00 UTC",
+    }
 
 
 # iter413az — Hard purge of an approved maker.

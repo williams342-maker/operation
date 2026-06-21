@@ -1,3 +1,25 @@
+## iter413bo — Weekly Enrich Labs export, no PII (2026-02)
+
+**Requested by user:** "add a weekly export, do not include email addresses for enrich labs"
+
+**Implementation:**
+- **Backend helper** `_build_approved_makers_csv(include_emails=False)` — single source of truth, used by HTTP endpoint and scheduler.
+- **Admin endpoint** `GET /admin/makers/approved.csv?include_emails=false` — emails stripped; filename gets `-no-emails-YYYY-MM-DD` marker.
+- **Status endpoint** `GET /admin/makers/approved/enrichlabs-status` — returns recipient config, last send, total sends, schedule string.
+- **Manual trigger** `POST /admin/makers/approved/enrichlabs-send` — admin-gated, builds the no-emails CSV, Mailguns it to `ENRICHLABS_EXPORT_EMAIL`, writes audit row.
+- **Scheduler** `_job_weekly_enrichlabs_export` — Mondays 11:00 UTC. Self-skips silently when `ENRICHLABS_EXPORT_EMAIL` is unset.
+- **Frontend card** on Approved Makers tab — shows recipient + last-send status + "↗ SEND TO ENRICH LABS NOW" button (disabled until configured).
+
+**Required env var (USER ACTION — production):**
+- `ENRICHLABS_EXPORT_EMAIL=<address Enrich Labs wants to receive the weekly CSV at>`
+
+**Tests:** `tests/test_iter413bo_enrichlabs_weekly_export.py` — 6 tests, all passing. Added to `SMOKE_FILES`.
+
+**Verified on preview:** Card renders with "Not configured" state and disabled button (env var not set in preview by design).
+
+---
+
+
 ## iter413bn — Stripe Webhook Health Reset button (2026-02)
 
 **Requested by user:** Reset button on the Webhook Health card so a stale "228 ERR / 7D · FAILING" verdict (from an endpoint that's since been fixed in Stripe Dashboard) can be cleared without waiting 7 days for the rolling window to roll off.

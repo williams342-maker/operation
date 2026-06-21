@@ -662,6 +662,11 @@ SMOKE_FILES = {
     # misconfig in Stripe Dashboard so the verdict stops showing red.
     "test_iter413bn_stripe_webhook_health_reset.py",
 
+    # ── iter413bo — Weekly Enrich Labs export (no PII) ─────────────
+    # Locks the no-emails CSV column shape + manual-trigger endpoint
+    # so a future refactor never accidentally leaks maker emails.
+    "test_iter413bo_enrichlabs_weekly_export.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

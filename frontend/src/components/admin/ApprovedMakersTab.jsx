@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   fetchAdminApprovedMakers, toggleMakerBeta,
   purgeApprovedMaker, approvedMakersCsvUrl,
+  sendEnrichlabsExportNow, fetchEnrichlabsExportStatus,
 } from "../../lib/api";
 import { formatDate } from "./_shared";
 import PerMakerIndexationChart from "./PerMakerIndexationChart";
@@ -142,6 +143,58 @@ export default function ApprovedMakersTab() {
     }
   };
 
+  // iter413bo — Enrich Labs weekly export status + manual trigger.
+  // Pulls last-send timestamp + recipient on mount so the admin can see
+  // whether the weekly cron is configured + when it last delivered.
+  const [enrichStatus, setEnrichStatus] = useState(null);
+  const [sendingEnrich, setSendingEnrich] = useState(false);
+
+  const loadEnrich = async () => {
+    try {
+      setEnrichStatus(await fetchEnrichlabsExportStatus());
+    } catch {
+      // Soft-fail — the export is optional; don't break the whole tab.
+    }
+  };
+  useEffect(() => { loadEnrich(); }, []);
+
+  const sendEnrichNow = async () => {
+    if (!enrichStatus?.configured) {
+      toast.error("ENRICHLABS_EXPORT_EMAIL env var not set — add it in backend/.env first.");
+      return;
+    }
+    if (!window.confirm(
+      `Send the Approved Makers CSV (no emails) to ${enrichStatus.recipient} now?\n\n` +
+      `This is the same payload the weekly Monday 11:00 UTC cron sends. Audit-logged.`
+    )) return;
+    setSendingEnrich(true);
+    try {
+      const r = await sendEnrichlabsExportNow();
+      if (r.ok) {
+        toast.success(`Enrich Labs export sent · ${r.rows} row${r.rows === 1 ? "" : "s"} to ${r.sent_to}.`);
+      } else {
+        toast.error(`Send failed: ${r.error || "unknown error"}`);
+      }
+      await loadEnrich();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed to send Enrich Labs export.");
+    } finally {
+      setSendingEnrich(false);
+    }
+  };
+
+  const fmtAgo = (iso) => {
+    if (!iso) return "never";
+    try {
+      const ms = Date.now() - new Date(iso).getTime();
+      if (ms < 60_000) return "just now";
+      if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+      if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+      const d = Math.floor(ms / 86_400_000);
+      return d < 30 ? `${d}d ago` : new Date(iso).toLocaleDateString();
+    } catch { return iso; }
+  };
+
   return (
     <div className="space-y-4" data-testid="approved-makers-tab">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -211,6 +264,53 @@ export default function ApprovedMakersTab() {
           </div>
         ))}
       </div>
+
+      <section
+        className="border border-line p-3 md:p-4 bg-paper flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+        data-testid="enrichlabs-export-card"
+      >
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            ◆ Weekly Enrich Labs export · no PII
+          </div>
+          <div className="font-mono text-xs text-ink mt-1">
+            {enrichStatus?.configured ? (
+              <>
+                Recipient: <span className="text-brand" data-testid="enrich-recipient">{enrichStatus.recipient}</span>
+                <span className="text-ink-muted"> · </span>
+                Schedule: <span className="text-ink">{enrichStatus.schedule_human}</span>
+              </>
+            ) : (
+              <span className="text-ink-muted" data-testid="enrich-not-configured">
+                Not configured. Set <code className="text-ink">ENRICHLABS_EXPORT_EMAIL</code> in backend/.env to enable.
+              </span>
+            )}
+          </div>
+          {enrichStatus?.last_send && (
+            <div className="font-mono text-[10px] text-ink-muted mt-1" data-testid="enrich-last-send">
+              Last send: {fmtAgo(enrichStatus.last_send.ts)}
+              {" · "}
+              {enrichStatus.last_send.ok ? (
+                <span className="text-emerald-600">✓ {enrichStatus.last_send.rows} rows delivered</span>
+              ) : (
+                <span className="text-danger">✗ {enrichStatus.last_send.mailgun_error || "failed"}</span>
+              )}
+              {enrichStatus.total_sends > 1 && (
+                <span className="text-ink-muted"> · {enrichStatus.total_sends} total sends</span>
+              )}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={sendEnrichNow}
+          disabled={sendingEnrich || !enrichStatus?.configured}
+          data-testid="enrichlabs-send-now"
+          title="Manually trigger the weekly Enrich Labs export now"
+          className="shrink-0 px-3 py-2 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+        >
+          {sendingEnrich ? "Sending…" : "↗ Send to Enrich Labs now"}
+        </button>
+      </section>
 
       <div className="flex flex-wrap gap-2 pb-3 border-b border-line" data-testid="approved-filters">
         {[

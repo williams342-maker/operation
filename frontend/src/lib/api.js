@@ -1193,6 +1193,11 @@ export const purgeApprovedMaker = (slug) =>
 // the browser needs to handle the file download UX; the component
 // adds a one-shot token query param via the JWT it already has.
 export const approvedMakersCsvUrl = () => `${API}/admin/makers/approved.csv`;
+// iter413bo — Enrich Labs weekly export (no PII) — manual trigger + status.
+export const sendEnrichlabsExportNow = () =>
+  http.post("/admin/makers/approved/enrichlabs-send", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchEnrichlabsExportStatus = () =>
+  http.get("/admin/makers/approved/enrichlabs-status", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminRejectedApplications = () =>
   http.get("/admin/makers/rejected", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchAdminPlusMembers = () =>
