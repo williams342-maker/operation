@@ -76,6 +76,7 @@ import WelcomeBackToast from "./components/WelcomeBackToast";
 import CookieBanner from "./components/CookieBanner";
 import MaintenancePage from "./components/MaintenancePage";
 import BetaBanner from "./components/BetaBanner";
+import ImpersonationBanner from "./components/ImpersonationBanner";
 import CNCEmblem from "./components/CNCEmblem";
 import NewsletterSignup from "./components/NewsletterSignup";
 import RecentShowcaseStrip from "./components/RecentShowcaseStrip";
@@ -238,6 +239,7 @@ function App() {
         <ScrollTop />
         <div className="App grain pb-14 md:pb-0" data-testid="app-root">
           <MaintenanceGate>
+            <ImpersonationBanner />
             <Nav />
             <main>
               <Routes>                <Route path="/" element={<Home />} />

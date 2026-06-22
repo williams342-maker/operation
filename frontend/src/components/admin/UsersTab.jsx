@@ -6,7 +6,9 @@ import {
   adminDeleteUser,
   adminSendPasswordReset,
   adminForceSignout,
+  adminImpersonateUser,
 } from "../../lib/api";
+import { startImpersonation } from "../../lib/impersonate";
 import useModalA11y from "../../hooks/useModalA11y";
 import { RowsSkeleton } from "../Skeleton";
 
@@ -68,6 +70,11 @@ export default function UsersTab() {
         const tok = localStorage.getItem("cm_admin_jwt");
         await adminForceSignout(tok, { role: "buyer", email: user.email });
         toast.success(`Force-signed-out ${user.email} on all devices.`);
+      } else if (action === "impersonate") {
+        const res = await adminImpersonateUser(user.user_id);
+        startImpersonation({ ...res, token: res.token });
+        toast.success(`Impersonating ${res.target_name || user.email} — opening new tab…`);
+        window.open("/community", "_blank", "noopener");
       } else {
         const next = action === "restore" ? "active" : action === "freeze" ? "frozen" : "banned";
         await adminModerateUser(user.user_id, next, reason || "");
@@ -140,7 +147,7 @@ export default function UsersTab() {
               busy={busyId === u.user_id}
               onAction={(action) => {
                 // No-confirm-modal actions: dispatch immediately
-                if (action === "send-reset" || action === "force-signout") {
+                if (action === "send-reset" || action === "force-signout" || action === "impersonate") {
                   onApply({ user: u, action });
                 } else {
                   setConfirmAction({ user: u, action });
@@ -208,6 +215,19 @@ function UserRow({ user: u, busy, onAction }) {
         <div>last seen {(u.last_seen || u.created_at || "").slice(0, 10)}</div>
       </div>
       <div className="flex flex-wrap gap-1 shrink-0">
+        {/* iter413ca — Impersonate this user to reproduce reported bugs. */}
+        <button
+          disabled={busy || u.moderation_status === "banned"}
+          onClick={() => onAction("impersonate")}
+          title={u.moderation_status === "banned"
+            ? "Restore this user before impersonating."
+            : "Sign in as this user in a new tab (2-hour session, audit-logged)."
+          }
+          className="px-2 py-1 border border-brand hover:bg-brand/10 text-brand font-mono text-[10px] uppercase tracking-[0.18em] disabled:opacity-50"
+          data-testid={`user-impersonate-${u.user_id}`}
+        >
+          Impersonate
+        </button>
         {/* Password tools — available regardless of moderation status */}
         <button
           disabled={busy}

@@ -4,7 +4,9 @@ import {
   fetchAdminApprovedMakers, toggleMakerBeta,
   purgeApprovedMaker, approvedMakersCsvUrl,
   sendEnrichlabsExportNow, fetchEnrichlabsExportStatus,
+  adminImpersonateMaker,
 } from "../../lib/api";
+import { startImpersonation } from "../../lib/impersonate";
 import { formatDate } from "./_shared";
 import PerMakerIndexationChart from "./PerMakerIndexationChart";
 
@@ -79,6 +81,22 @@ export default function ApprovedMakersTab() {
       await refresh();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Failed to toggle Founding Access.");
+    }
+  };
+
+  // iter413ca — Sign in as this maker (new tab, 2-hour session, audit-logged).
+  const [impersonatingSlug, setImpersonatingSlug] = useState("");
+  const impersonate = async (slug) => {
+    setImpersonatingSlug(slug);
+    try {
+      const res = await adminImpersonateMaker(slug);
+      startImpersonation({ ...res, token: res.token });
+      toast.success(`Impersonating ${res.target_name} — opening new tab…`);
+      window.open("/maker/dashboard", "_blank", "noopener");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed to impersonate maker.");
+    } finally {
+      setImpersonatingSlug("");
     }
   };
 
@@ -382,6 +400,15 @@ export default function ApprovedMakersTab() {
                   <td className="py-3 pr-3 text-right text-brand">${(r.lifetime_gmv || 0).toFixed(2)}</td>
                   <td className="py-3 pr-3 text-ink-muted">{formatDate(r.approved_at)}</td>
                   <td className="py-3 text-right space-x-1 whitespace-nowrap">
+                    <button
+                      onClick={() => impersonate(r.slug)}
+                      disabled={impersonatingSlug === r.slug}
+                      data-testid={`approved-impersonate-${r.slug}`}
+                      title="Sign in as this maker in a new tab (2-hour session, audit-logged)"
+                      className="px-2 py-1 border border-brand text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                    >
+                      {impersonatingSlug === r.slug ? "…" : "Impersonate"}
+                    </button>
                     <button
                       onClick={() => setExpandedSlug((cur) => cur === r.slug ? "" : r.slug)}
                       data-testid={`approved-chart-toggle-${r.slug}`}

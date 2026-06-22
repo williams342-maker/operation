@@ -1213,6 +1213,21 @@ export const sendEnrichlabsExportNow = () =>
 export const fetchEnrichlabsExportStatus = () =>
   http.get("/admin/makers/approved/enrichlabs-status", { headers: adminAuthHeaders() }).then((r) => r.data);
 
+// iter413ca — Admin impersonation. Returns { token, target_type, target_sub,
+// target_email, target_name, imp_by, expires_in_seconds }. The frontend
+// caller is responsible for stashing the token + meta in localStorage and
+// opening the target dashboard in a new tab.
+export const adminImpersonateMaker = (slug) =>
+  http.post("/admin/impersonate",
+    { target_type: "maker", target_slug: slug },
+    { headers: adminAuthHeaders() }
+  ).then((r) => r.data);
+export const adminImpersonateUser = (user_id) =>
+  http.post("/admin/impersonate",
+    { target_type: "buyer", target_user_id: user_id },
+    { headers: adminAuthHeaders() }
+  ).then((r) => r.data);
+
 // iter413bp — Operations Dashboard aggregator (admin landing page).
 export const fetchOpsDashboardOverview = () =>
   http.get("/admin/ops-dashboard/overview", { headers: adminAuthHeaders() }).then((r) => r.data);

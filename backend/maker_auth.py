@@ -64,6 +64,35 @@ def issue_session_jwt(maker_slug: str, email: str, role: str = "maker", session_
     return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
+# iter413ca — Admin impersonation JWT.
+# Issues a short-lived (2h) session token containing ONLY the target's
+# claims. The `imp_by` claim records which admin minted it for audit and
+# powers the in-app "Exit Impersonation" banner. The token deliberately
+# carries NO admin claims — when verified by `current_maker_slug` or
+# `current_buyer` it functions exactly as the target user's own session.
+IMPERSONATION_TTL_SECONDS = 60 * 60 * 2  # 2 hours
+
+
+def issue_impersonation_jwt(
+    sub: str, email: str, role: str, session_version: int, imp_by: str,
+) -> str:
+    """Mint a 2-hour session JWT impersonating `sub`/`email` as `role`.
+    `imp_by` MUST be the impersonating admin's email (for audit/banner)."""
+    if role not in ("maker", "buyer"):
+        raise ValueError("impersonation only supported for maker/buyer roles")
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": sub,
+        "email": email,
+        "role": role,
+        "sv": session_version,
+        "imp_by": imp_by,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(seconds=IMPERSONATION_TTL_SECONDS)).timestamp()),
+    }
+    return jwt.encode(payload, SECRET, algorithm="HS256")
+
+
 def decode_session_jwt(token: str) -> dict:
     try:
         return jwt.decode(token, SECRET, algorithms=["HS256"])

@@ -2898,6 +2898,106 @@ async def admin_force_signout(payload: _ForceSignoutIn, claims: dict = Depends(c
     return {"signed_out": True, "email": user["email"]}
 
 
+# ───────────────────── iter413ca — Admin impersonation ─────────────────────
+# Lets an admin sign in AS a maker or community user to reproduce reported
+# bugs without needing the user's password. The minted JWT carries ONLY the
+# target's claims (sub/email/role/sv) plus an `imp_by` audit claim so the
+# frontend banner can read who's currently impersonating. TTL is 2 hours.
+# Every mint is audit-logged. Admins CANNOT impersonate another admin.
+class _ImpersonateIn(BaseModel):
+    target_type: str  # 'maker' | 'buyer'
+    target_slug: str | None = None       # maker only
+    target_user_id: str | None = None    # buyer only
+    target_email: EmailStr | None = None  # either
+
+
+@router.post("/admin/impersonate")
+async def admin_impersonate(
+    payload: _ImpersonateIn, claims: dict = Depends(current_admin),
+):
+    """Mint a 2-hour impersonation JWT for the given maker or buyer.
+
+    Lookup precedence: slug/user_id (when supplied) → email. Returns the
+    JWT plus the target's display fields so the frontend can populate the
+    "Viewing as <name> — Exit Impersonation" banner. Audit-logged."""
+    from maker_auth import issue_impersonation_jwt
+    target_type = (payload.target_type or "").strip().lower()
+    if target_type not in ("maker", "buyer"):
+        raise HTTPException(400, "target_type must be 'maker' or 'buyer'.")
+
+    target: dict | None = None
+    if target_type == "maker":
+        q: dict = {}
+        if payload.target_slug:
+            q["slug"] = payload.target_slug.strip()
+        elif payload.target_email:
+            q["email"] = payload.target_email.lower().strip()
+        else:
+            raise HTTPException(400, "Provide target_slug or target_email for makers.")
+        target = await db.makers.find_one(q, {"_id": 0})
+        if not target:
+            raise HTTPException(404, "Maker not found.")
+        sub = target["slug"]
+        email = target["email"]
+        display_name = target.get("name") or target.get("slug") or email
+    else:  # buyer
+        q = {}
+        if payload.target_user_id:
+            q["user_id"] = payload.target_user_id.strip()
+        elif payload.target_email:
+            q["email"] = payload.target_email.lower().strip()
+        else:
+            raise HTTPException(400, "Provide target_user_id or target_email for buyers.")
+        target = await db.community_users.find_one(q, {"_id": 0})
+        if not target:
+            raise HTTPException(404, "Community user not found.")
+        sub = target["user_id"]
+        email = target["email"]
+        display_name = target.get("name") or email
+        # Refuse to impersonate banned users (defense-in-depth — admin
+        # should restore them first instead of bypassing moderation).
+        if target.get("moderation_status") == "banned":
+            raise HTTPException(403, "Cannot impersonate a banned user — restore them first.")
+
+    # Block admin-on-admin impersonation. Admins must use their OWN admin
+    # session for moderation; impersonating another super-admin would
+    # produce confusing audit trails.
+    if email.lower() in ADMIN_EMAILS:
+        raise HTTPException(403, "Cannot impersonate another admin.")
+
+    session_version = int(target.get("session_version") or 0)
+    imp_by = (claims.get("email") or "").lower().strip()
+    token = issue_impersonation_jwt(
+        sub=sub, email=email, role=target_type,
+        session_version=session_version, imp_by=imp_by,
+    )
+
+    from maker_auth import IMPERSONATION_TTL_SECONDS
+    audit_row = {
+        "id": str(uuid.uuid4()),
+        "kind": "admin_impersonate",
+        "by": imp_by,
+        "target_type": target_type,
+        "target_sub": sub,
+        "target_email": email,
+        "target_name": display_name,
+        "expires_in_seconds": IMPERSONATION_TTL_SECONDS,
+        "created_at": now_iso(),
+    }
+    await db.admin_audit.insert_one(audit_row)
+    logger.warning("[admin] impersonation · by=%s → %s=%s (%s)",
+                   imp_by, target_type, sub, email)
+    return {
+        "token": token,
+        "target_type": target_type,
+        "target_sub": sub,
+        "target_email": email,
+        "target_name": display_name,
+        "imp_by": imp_by,
+        "expires_in_seconds": IMPERSONATION_TTL_SECONDS,
+    }
+
+
 @router.delete("/admin/forum/threads/{thread_id}")
 async def admin_delete_thread(thread_id: str, claims: dict = Depends(current_admin)):
     """Hard-delete a forum thread + its replies."""

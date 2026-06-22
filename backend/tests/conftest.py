@@ -699,6 +699,11 @@ SMOKE_FILES = {
     # aggregation, and payload-cap defense.
     "test_iter413bz_not_found_beacon.py",
 
+    # ── iter413ca — Admin impersonation endpoint ───────────────────
+    # Locks the impersonation JWT contract: clean target-only claims,
+    # admin-on-admin rejection, banned-user rejection, audit row.
+    "test_iter413ca_admin_impersonate.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
