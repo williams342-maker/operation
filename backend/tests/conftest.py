@@ -704,6 +704,10 @@ SMOKE_FILES = {
     # admin-on-admin rejection, banned-user rejection, audit row.
     "test_iter413ca_admin_impersonate.py",
 
+    # ── iter413cb — Impersonation bug-report → Contact Inbox ───────
+    # Locks the admin-only bug-report endpoint contract.
+    "test_iter413cb_impersonation_bug_report.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

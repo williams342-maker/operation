@@ -3,6 +3,11 @@ import ReactDOM from "react-dom/client";
 import "@/index.css";
 import App from "@/App";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { bootErrorCapture } from "@/lib/consoleCapture";
+
+// iter413cb — Boot the console.error / window.error ring buffer ASAP so
+// the impersonation "Report Bug" flow has a trail to ship.
+bootErrorCapture();
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

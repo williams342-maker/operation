@@ -1228,6 +1228,14 @@ export const adminImpersonateUser = (user_id) =>
     { headers: adminAuthHeaders() }
   ).then((r) => r.data);
 
+// iter413cb — File a bug observed mid-impersonation. Reads the admin's
+// own JWT from localStorage (shared across tabs) because the active
+// session in the impersonation tab is the target's JWT, not the admin's.
+export const filImpersonationBugReport = (payload) =>
+  http.post("/admin/impersonation-bug-report", payload, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+
 // iter413bp — Operations Dashboard aggregator (admin landing page).
 export const fetchOpsDashboardOverview = () =>
   http.get("/admin/ops-dashboard/overview", { headers: adminAuthHeaders() }).then((r) => r.data);

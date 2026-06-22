@@ -1,3 +1,27 @@
+## iter413cb — Impersonation Bug-Report → Contact Inbox (2026-02)
+
+**Follow-on to iter413ca.** Closes the loop on "admin impersonates user to troubleshoot" by adding a one-click "Report Bug" CTA inside the impersonation banner. Admin lands inside the user's session, sees the bug, files it without leaving the page — full context auto-captured.
+
+**Implementation:**
+- **Backend** `routers/admin.py` → new `POST /api/admin/impersonation-bug-report` (admin-only):
+  - Body: `{target_type, target_sub, target_email?, target_name?, current_url, admin_note (≥4 chars), console_errors[]}`.
+  - Inserts a row into `db.contact_messages` with `topic="bug"`, `kind="impersonation_bug"`, subject `[IMPERSONATION BUG] <target>`. Message body bundles admin note + target meta + URL + recent console-error trail (capped to 20 entries) as readable plain text. Sidecar `impersonation_meta` dict preserves structured context for future admin-side rendering.
+  - Fans out to Slack/Discord via `notify_team(kind="impersonation_bug", …)`.
+  - Writes `admin_audit` row `{kind: "impersonation_bug_filed", by, target_type, target_sub, contact_message_id}`.
+- **Frontend**:
+  - `lib/consoleCapture.js` — booted at app start (`index.js`). Wraps `console.error`, listens on `window.error` + `unhandledrejection`. 20-entry ring buffer.
+  - `lib/api.js` — `filImpersonationBugReport(payload)`. Reads `cm_admin_jwt` from localStorage (shared across tabs) since the active session in the impersonation tab is the target's JWT, not the admin's.
+  - `components/ImpersonationBanner.jsx` — added "◆ Report Bug" inline button next to "Exit Impersonation". Click opens a modal (`data-testid="impersonation-bug-modal"`) with target info, URL, captured-error count, and a required textarea. Submit ships everything in one POST.
+
+**Tests:** 3 in `test_iter413cb_impersonation_bug_report.py` — all passing, in `SMOKE_FILES`:
+- requires admin auth
+- rejects sub-4-char note (400)
+- end-to-end: file → appears in contact inbox → audit row written → message body contains admin note + URL + console error sample + target meta.
+
+---
+
+
+
 ## iter413ca — Admin Impersonation (2026-02)
 
 **Requested by user:** "Create an 'impersonate' option to users and approved makers for admin to troubleshoot issues."

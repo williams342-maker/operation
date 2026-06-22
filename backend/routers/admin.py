@@ -2998,6 +2998,111 @@ async def admin_impersonate(
     }
 
 
+# iter413cb — Bug report submitted from inside an impersonation session.
+# Admin clicks "Report Bug" in the banner → captures current URL + recent
+# console errors + admin's note → we land it in `contact_messages` so the
+# Contact Inbox surface (already wired into Slack/Discord webhooks) gets a
+# row tagged `kind: "impersonation_bug"` for triage. Admin-only.
+class _ImpBugReportIn(BaseModel):
+    target_type: str
+    target_sub: str
+    target_email: EmailStr | None = None
+    target_name: str | None = None
+    current_url: str = ""
+    admin_note: str  # required from the modal — the "what's broken"
+    console_errors: list[dict] | None = None
+
+
+@router.post("/admin/impersonation-bug-report")
+async def admin_impersonation_bug_report(
+    payload: _ImpBugReportIn, bg: BackgroundTasks,
+    claims: dict = Depends(current_admin),
+):
+    """File a bug observed mid-impersonation to the Contact Inbox so it
+    surfaces alongside customer support tickets + fans out to Slack/Discord."""
+    note = (payload.admin_note or "").strip()
+    if len(note) < 4:
+        raise HTTPException(400, "Tell us what's broken (a few words minimum).")
+    target_name = (payload.target_name or "").strip() or payload.target_sub
+    admin_email = (claims.get("email") or "admin").lower().strip()
+
+    # Format the console-error trail as readable plain text appended to the
+    # message body. Capped at 20 entries (frontend ring buffer size).
+    trail_lines: list[str] = []
+    for row in (payload.console_errors or [])[:20]:
+        kind = (row or {}).get("kind", "?")
+        msg = (row or {}).get("msg", "")
+        at = (row or {}).get("at", "")
+        if msg:
+            trail_lines.append(f"  [{at}] {kind}: {msg}")
+
+    body_parts = [
+        f"Admin note:\n{note}",
+        "",
+        f"Target: {payload.target_type}={payload.target_sub} ({payload.target_email or 'n/a'})",
+        f"URL: {payload.current_url or 'n/a'}",
+        f"Reported by: {admin_email} (impersonation session)",
+    ]
+    if trail_lines:
+        body_parts += ["", "Recent console / window errors:", *trail_lines]
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": f"Admin: {admin_email}",
+        "email": admin_email,
+        "subject": f"[IMPERSONATION BUG] {target_name}",
+        "topic": "bug",
+        "kind": "impersonation_bug",
+        "phone": "",
+        "message": "\n".join(body_parts),
+        "ip": "",
+        "created_at": now_iso(),
+        "resolved": False,
+        "replied_at": None,
+        "replied_by": None,
+        # Sidecar fields for richer rendering in admin UI later.
+        "impersonation_meta": {
+            "target_type": payload.target_type,
+            "target_sub": payload.target_sub,
+            "target_email": payload.target_email,
+            "target_name": target_name,
+            "current_url": payload.current_url,
+            "console_errors": (payload.console_errors or [])[:20],
+        },
+    }
+    await db.contact_messages.insert_one(doc)
+    await db.admin_audit.insert_one({
+        "id": str(uuid.uuid4()),
+        "kind": "impersonation_bug_filed",
+        "by": admin_email,
+        "target_type": payload.target_type,
+        "target_sub": payload.target_sub,
+        "contact_message_id": doc["id"],
+        "created_at": now_iso(),
+    })
+
+    # Fan out to Slack/Discord (no-op when unconfigured).
+    from notify_webhook import notify_team
+    _site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    bg.add_task(
+        notify_team,
+        kind="impersonation_bug",
+        title=f"[IMPERSONATION BUG] {target_name}",
+        summary=note[:1000],
+        fields=[
+            ("Target", f"{payload.target_type}={payload.target_sub}"),
+            ("URL", payload.current_url or "n/a"),
+            ("By", admin_email),
+        ],
+        link=f"{_site}/admin/dashboard?tab=contact&open={doc['id']}",
+    )
+    logger.warning(
+        "[admin] impersonation bug filed · by=%s · target=%s/%s · id=%s",
+        admin_email, payload.target_type, payload.target_sub, doc["id"],
+    )
+    return {"received": True, "id": doc["id"]}
+
+
 @router.delete("/admin/forum/threads/{thread_id}")
 async def admin_delete_thread(thread_id: str, claims: dict = Depends(current_admin)):
     """Hard-delete a forum thread + its replies."""
