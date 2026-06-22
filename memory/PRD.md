@@ -1,3 +1,33 @@
+## iter413ca — Admin Impersonation (2026-02)
+
+**Requested by user:** "Create an 'impersonate' option to users and approved makers for admin to troubleshoot issues."
+
+**Implementation:**
+- **Backend** `routers/admin.py` → new `POST /api/admin/impersonate` (admin-only):
+  - Body: `{target_type: "maker"|"buyer", target_slug?, target_user_id?, target_email?}`.
+  - Mints a JWT via new `maker_auth.issue_impersonation_jwt()` with claims `{sub, email, role, sv, imp_by, iat, exp}` — TTL 2h (`IMPERSONATION_TTL_SECONDS = 7200`). Carries ONLY the target's claims plus `imp_by` (admin email) for audit. Zero admin claims.
+  - Reads the target's current `session_version` so `_check_session_version` accepts the token.
+  - Rejects admin-on-admin impersonation (403) and banned community users (403).
+  - Audit row written to `db.admin_audit`: `{kind: "admin_impersonate", by, target_type, target_sub, target_email, target_name, expires_in_seconds, created_at}`.
+- **Frontend**:
+  - `lib/impersonate.js` — `startImpersonation/readImpersonation/stopImpersonation` helpers. Stashes impersonation JWT in the standard `cm_maker_jwt` / `cm_buyer_jwt` slots so every downstream API call automatically uses it; also writes meta blob to `cm_impersonating` for the banner.
+  - `components/ImpersonationBanner.jsx` — sticky brand-orange banner shown across the whole app whenever `cm_impersonating` is present. Shows `Viewing as <name> · <slug/email> · Xm left · by <admin>` and "Exit Impersonation" button. Mounted globally inside `MaintenanceGate` in `App.js`.
+  - `lib/api.js` — `adminImpersonateMaker(slug)` / `adminImpersonateUser(user_id)`.
+  - `admin/ApprovedMakersTab.jsx` — brand-bordered "Impersonate" button per row → opens `/maker/dashboard` in a new tab.
+  - `admin/UsersTab.jsx` — "Impersonate" button per row → opens `/community` in a new tab. Auto-disabled for banned users.
+
+**Tests:** 7 in `test_iter413ca_admin_impersonate.py` — all passing, added to `SMOKE_FILES`. Iteration report `/app/test_reports/iteration_90.json` (testing agent: backend 100%).
+
+**Security guarantees verified:**
+- Token decode shows `role` is NEVER `admin` for impersonation tokens.
+- Admin-on-admin blocked (target_email matching ADMIN_EMAILS → 403).
+- Banned users blocked (403, must restore first).
+- 2-hour TTL, audit-logged per mint, banner forces admin to be aware they're impersonating.
+
+---
+
+
+
 ## iter413bz — 404 referrer beacon + "Top stale links" Ops surface (2026-02)
 
 **Requested by user:** Surface a "Where did this maker click from?" log so broken-bookmark clusters get spotted within 24h instead of becoming support tickets.
