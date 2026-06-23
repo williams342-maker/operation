@@ -16,11 +16,11 @@
  *                                  transaction_id: order.id });
  */
 
-const AW_ID = "AW-11257134570";
+const AW_ID = "AW-18195416932";
 
 // Fill these in with the conversion labels issued by Google Ads.
 // Format: 'AbCd_-EfGh1234' (the part after the slash in
-// "AW-11257134570/AbCd_-EfGh1234"). Leave empty string to keep the
+// "AW-18195416932/AbCd_-EfGh1234"). Leave empty string to keep the
 // event a no-op until you have the label.
 const CONVERSION_LABELS = {
   purchase:           "",   // CheckoutSuccess (on paid)

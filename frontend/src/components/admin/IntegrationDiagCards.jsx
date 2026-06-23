@@ -264,7 +264,7 @@ export function UetEnhancedConversionsCard() {
 // Label-paste path:
 //   Google Ads → Tools → Measurement → Conversions →
 //   <click action> → Tag setup → copy the substring AFTER
-//   "AW-11257134570/" → paste into `CONVERSION_LABELS`
+//   "AW-18195416932/" → paste into `CONVERSION_LABELS`
 //   in /app/frontend/src/lib/googleAdsConversions.js.
 
 const ACTION_DESCRIPTIONS = {
