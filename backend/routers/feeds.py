@@ -180,6 +180,18 @@ async def google_merchant_feed():
     return _csv_response(rows, "craftersmarket-google.csv")
 
 
+# iter413cd — TikTok Ads catalog. TikTok for Business → Assets →
+# Catalogs accepts Google Merchant Center format natively, so this is a
+# pure alias of the same row builder. Listed separately so the Channel
+# Health panel surfaces it as its own row and so admins can paste a
+# purpose-named URL into TikTok's importer.
+@router.get("/feeds/tiktok.csv")
+async def tiktok_feed():
+    """TikTok Ads catalog feed (Google Merchant Center schema)."""
+    rows = await _build_rows()
+    return _csv_response(rows, "craftersmarket-tiktok.csv")
+
+
 # ─────────────────── health endpoint ───────────────────
 @router.get("/feeds/health")
 async def feeds_health():
@@ -214,6 +226,13 @@ async def feeds_health():
                 "url": f"{SITE_URL}/api/feeds/google-merchant.csv",
                 "manager_url": "https://merchants.google.com/",
                 "instructions": "Merchant Center → Products → Feeds → Scheduled fetch.",
+            },
+            {
+                "channel": "tiktok",
+                "label": "TikTok Ads Catalog",
+                "url": f"{SITE_URL}/api/feeds/tiktok.csv",
+                "manager_url": "https://ads.tiktok.com/i18n/dashboard/asset/catalog",
+                "instructions": "TikTok for Business → Assets → Catalogs → Add catalog → Data feed → paste URL above. Schedule: daily.",
             },
         ],
     }
