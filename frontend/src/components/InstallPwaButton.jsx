@@ -74,33 +74,32 @@ export default function InstallPwaButton() {
   };
 
   return (
+    // iter413ch — Compact pill (was a centered strip taking ~70px height
+    // with long copy). New form: ~32px high, bottom-right corner, short
+    // "Install app" label only. Full functionality preserved (Install /
+    // Dismiss with 14-day suppress).
     <div
       data-testid="pwa-install-banner"
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 border border-brand bg-paper shadow-[0_8px_24px_rgba(0,0,0,0.6)] px-4 py-3 max-w-[92vw]"
+      className="fixed bottom-3 right-3 z-[60] flex items-center gap-1.5 border border-brand bg-paper shadow-[0_4px_16px_rgba(0,0,0,0.4)] px-2 py-1"
     >
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
-        ◆ Install
-      </span>
-      <span className="font-mono text-xs text-ink hidden sm:inline">
-        Add Crafters Market to your home screen — full-screen, push notifications, faster load.
-      </span>
-      <span className="font-mono text-xs text-ink sm:hidden">
-        Add to home screen
+      <span aria-hidden="true" className="text-[12px] leading-none">📲</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink hidden sm:inline">
+        Install app
       </span>
       <button
         type="button"
         onClick={handleInstall}
         data-testid="pwa-install-btn"
-        className="px-3 py-1.5 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] transition"
+        className="px-2 py-0.5 border border-brand text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.18em] transition"
       >
-        Install →
+        Install
       </button>
       <button
         type="button"
         onClick={handleDismiss}
         data-testid="pwa-install-dismiss"
         aria-label="Dismiss install prompt"
-        className="font-mono text-[14px] text-ink-muted hover:text-ink px-2 leading-none"
+        className="font-mono text-[12px] text-ink-muted hover:text-ink px-1 leading-none"
       >
         ×
       </button>
