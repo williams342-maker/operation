@@ -1442,6 +1442,27 @@ async def stripe_webhook(request: Request):
             )
         except Exception as e:
             logger.warning("[meta-capi] purchase fire failed: %s", e)
+        # iter413cf — Server-side TikTok Events API fire for the same
+        # purchase. Same Stripe session_id is used as event_id so TikTok
+        # dedupes the server event with the browser-pixel CompletePayment
+        # fired on /checkout/success. Best-effort — never block the flow.
+        try:
+            from routers.tiktok_capi import send_tiktok_event
+            tx2 = await db.payment_transactions.find_one(
+                {"session_id": evt.session_id},
+                {"_id": 0, "customer_email": 1, "amount_total": 1, "currency": 1},
+            ) or {}
+            amount_cents2 = int(tx2.get("amount_total") or 0)
+            await send_tiktok_event(
+                event_name="purchase",
+                event_id=evt.session_id,
+                email=tx2.get("customer_email"),
+                external_id=tx2.get("customer_email"),
+                value=amount_cents2 / 100.0 if amount_cents2 else None,
+                currency=(tx2.get("currency") or "usd").upper(),
+            )
+        except Exception as e:
+            logger.warning("[tiktok-capi] purchase fire failed: %s", e)
     await _log(kind="main", path=path, status="ok",
                event_type=getattr(evt, "event_type", None) or "checkout.session.*",
                event_id=getattr(evt, "session_id", None))

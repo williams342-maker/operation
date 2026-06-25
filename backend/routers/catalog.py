@@ -1036,6 +1036,26 @@ async def create_maker_application(
             "is_beta": bool(app_obj.is_beta),
         },
     )
+    # iter413cf — TikTok Events API mirror: same event_id as the
+    # browser pixel CompleteRegistration fired by ApplyPage so the
+    # two streams dedupe into a single attributed signup.
+    from routers.tiktok_capi import send_tiktok_event
+    bg.add_task(
+        send_tiktok_event,
+        event_name="signup_maker",
+        event_id=capi_event_id,
+        email=payload.email,
+        external_id=payload.email,
+        client_ip=ip,
+        user_agent=(request.headers.get("user-agent") or "")[:512],
+        ttclid=getattr(payload, "ttclid", None),
+        event_source_url=str(request.headers.get("referer") or "https://craftersmarket.org/apply"),
+        content_name="maker_application",
+        custom_data={
+            "event_label": "maker_application",
+            "is_beta": bool(app_obj.is_beta),
+        },
+    )
     return app_obj
 
 
