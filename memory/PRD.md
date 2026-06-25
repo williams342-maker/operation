@@ -1,3 +1,22 @@
+## iter413ci — TikTok Pixel "Can't Detect Base Code" Fix (2026-02)
+
+**Bug:** TikTok Events Manager: "We can't detect pixel D8UP6SJC77UCR7H8US60 base code on your page."
+
+**RCA:** CRA's `html-webpack-plugin` minifies inline `<script>` blocks via terser. The TikTok snippet's IIFE used a literal local variable named `ttq`, which terser legitimately renamed to `o`. TikTok's verification crawler does a literal substring match for `ttq.load("<PIXEL_ID>")` and `ttq.page()` and couldn't find them after minification — so it reported "can't detect" even though the pixel was functionally firing in the browser.
+
+**Fix:**
+- Moved the entire TikTok base snippet to `/app/frontend/public/tiktok-pixel.js` — files under `/public/` are served verbatim, never touched by webpack/terser.
+- Replaced the inline `<script>…</script>` block in `public/index.html` with `<script src="/tiktok-pixel.js"></script>`.
+- Added a `<noscript>` fallback `<img>` to `https://analytics.tiktok.com/api/v2/pixel?event=PageView&sdkid=D8UP6SJC77UCR7H8US60` so the pixel ID literal appears in static HTML for script-blind crawlers as a belt-and-suspenders measure.
+
+**Verified by testing agent (iter91):** static file served as JS with literal `ttq.load('D8UP6SJC77UCR7H8US60')` un-minified; HTML references `/tiktok-pixel.js`; browser registers `window.ttq` and fires the events.js loader + PageView POSTs; SPA route changes still trigger additional `ttq.page()` POSTs; GA4 + MS UET continue to fire (no regression).
+
+**Action item for user:** Redeploy preview → production, then click "Verify Pixel" in TikTok Events Manager.
+
+---
+
+
+
 ## iter413cb — Impersonation Bug-Report → Contact Inbox (2026-02)
 
 **Follow-on to iter413ca.** Closes the loop on "admin impersonates user to troubleshoot" by adding a one-click "Report Bug" CTA inside the impersonation banner. Admin lands inside the user's session, sees the bug, files it without leaving the page — full context auto-captured.
