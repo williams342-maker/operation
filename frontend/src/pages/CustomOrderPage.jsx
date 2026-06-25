@@ -12,6 +12,7 @@ import { useStructuredData } from "../lib/seo";
 import PolicyConsent, { usePolicyConsent } from "../components/PolicyConsent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { tiktokTrack } from "../lib/tiktokPixel";
 import { uetSetPII } from "../lib/consent";
 
 // ============================================================
@@ -793,6 +794,8 @@ export default function CustomOrderPage() {
         });
         // iter413bj — Meta Pixel Lead event for the custom-order funnel.
         trackMeta("lead_custom_order", { event_label: form.budget || "unspecified" });
+        // iter413ce — TikTok Pixel SubmitForm event.
+        tiktokTrack("lead_custom_order", { event_label: form.budget || "unspecified", value: 1, currency: "USD" });
         // iter413av — Bing Enhanced Conversion: pass both email AND
         // phone for the strongest offline-match signal. Custom-order
         // leads carry both fields so we have the richest pid payload.

@@ -7,6 +7,7 @@ import {
 } from "../lib/api";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { tiktokTrack } from "../lib/tiktokPixel";
 import { uetSetPII } from "../lib/consent";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -201,6 +202,7 @@ export function CommunityVerify() {
           try {
             trackConversion("signup_buyer", { event_label: "magic_link" });
             trackMeta("signup_buyer", { event_label: "magic_link" });
+            tiktokTrack("signup_buyer", { event_label: "magic_link" });
           }
           catch { /* noop */ }
         }
@@ -259,6 +261,7 @@ export function CommunityAuthCallback() {
           try {
             trackConversion("signup_buyer", { event_label: "google_oauth" });
             trackMeta("signup_buyer", { event_label: "google_oauth" });
+            tiktokTrack("signup_buyer", { event_label: "google_oauth" });
           }
           catch { /* noop */ }
         }

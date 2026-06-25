@@ -5,6 +5,7 @@ import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { tiktokTrack } from "../lib/tiktokPixel";
 import { mintEventId, readMetaCookies } from "../lib/conversionDedup";
 import { readAttributionContext } from "../lib/attribution";
 import MakerFeeTable from "../components/MakerFeeTable";
@@ -118,6 +119,8 @@ export default function ApplyPage() {
         // server-side CAPI fire (triggered inside the backend handler)
         // uses this SAME event_id so Meta dedupes the two.
         trackMeta("signup_maker", { event_label: "maker_application", event_id: eventId });
+        // iter413ce — TikTok Pixel CompleteRegistration event.
+        tiktokTrack("signup_maker", { event_label: "maker_application", event_id: eventId, content_name: "maker_application" });
       } catch { /* noop */ }
     }
     catch (e2) {

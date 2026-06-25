@@ -5,6 +5,7 @@ import { useCart } from "../lib/cart";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { tiktokTrack } from "../lib/tiktokPixel";
 import { mintEventId } from "../lib/conversionDedup";
 import PushOptInCard from "../components/PushOptInCard";
 import { SocialShareRow } from "../components/SocialShareButtons";
@@ -87,6 +88,13 @@ export default function CheckoutSuccess() {
                 trackMeta("purchase", {
                   value: revenue,
                   currency: (s.currency || "usd").toUpperCase(),
+                  event_id: purchaseEventId,
+                });
+                // iter413ce — TikTok Pixel CompletePayment event.
+                tiktokTrack("purchase", {
+                  value: revenue,
+                  currency: (s.currency || "usd").toUpperCase(),
+                  transaction_id: purchaseEventId,
                   event_id: purchaseEventId,
                 });
               }

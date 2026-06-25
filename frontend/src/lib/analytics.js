@@ -244,6 +244,13 @@ export function trackPageview() {
 
   _attachListenersOnce();
 
+  // iter413ce — Fire SPA-route pageviews on the TikTok pixel. The inline
+  // loader in index.html only calls ttq.page() once on initial load; React
+  // Router client-side navs don't re-trigger that script. ttq.page() is
+  // safe to call before the SDK finishes loading — `ttq` is a stub queue
+  // that flushes once the real SDK arrives.
+  try { window.ttq?.page?.(); } catch { /* never block on analytics */ }
+
   try {
     http.post("/analytics/track", {
       path,

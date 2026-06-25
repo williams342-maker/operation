@@ -6,6 +6,7 @@ import { useStructuredData } from "../lib/seo";
 import { uetTrack, uetSetPII } from "../lib/consent";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { tiktokTrack } from "../lib/tiktokPixel";
 import { mintEventId, readMetaCookies } from "../lib/conversionDedup";
 import FounderSlotCounter from "../components/FounderSlotCounter";
 import EtsyComparisonTable from "../components/EtsyComparisonTable";
@@ -123,6 +124,8 @@ export default function BetaPage() {
         // Server-side CAPI fires inside the backend handler with the
         // same event_id so the two dedupe.
         trackMeta("signup_maker", { event_label: "founding_access", event_id: eventId });
+        // iter413ce — TikTok Pixel CompleteRegistration event.
+        tiktokTrack("signup_maker", { event_label: "founding_access", event_id: eventId, content_name: "founding_access" });
       } catch { /* noop */ }
     } catch (e2) {
       const d = e2?.response?.data?.detail;

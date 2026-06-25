@@ -5,6 +5,7 @@ import { useStructuredData } from "../lib/seo";
 import { sendContactMessage } from "../lib/api";
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
+import { tiktokTrack } from "../lib/tiktokPixel";
 import { uetSetPII } from "../lib/consent";
 
 const TOPICS = [
@@ -128,6 +129,8 @@ function ContactForm() {
       try {
         trackConversion("lead_contact", { event_label: topic || "general" });
         trackMeta("lead_contact", { event_label: topic || "general" });
+        // iter413ce — TikTok Pixel Contact event.
+        tiktokTrack("lead_contact", { event_label: topic || "general" });
         // iter413av — UET Enhanced Conversions: pass the visitor's
         // email so Microsoft can match this lead back to a Bing ad
         // click even if the cookie expired or they switched browsers.
