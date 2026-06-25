@@ -200,9 +200,13 @@ export function CommunityVerify() {
         // try/catch so analytics can never block the welcome redirect.
         if (r.is_new_signup) {
           try {
-            trackConversion("signup_buyer", { event_label: "magic_link" });
-            trackMeta("signup_buyer", { event_label: "magic_link" });
-            tiktokTrack("signup_buyer", { event_label: "magic_link" });
+            // iter413cj — Pass the backend-minted event_id into ALL
+            // three pixels so Meta + TikTok server-side mirrors dedup
+            // with these browser fires into a single attributed conversion.
+            const eid = r.signup_event_id || undefined;
+            trackConversion("signup_buyer", { event_label: "magic_link", event_id: eid });
+            trackMeta("signup_buyer", { event_label: "magic_link", event_id: eid });
+            tiktokTrack("signup_buyer", { event_label: "magic_link", event_id: eid });
           }
           catch { /* noop */ }
         }
@@ -259,9 +263,11 @@ export function CommunityAuthCallback() {
         // both auth paths are attributed to paid keywords.
         if (r.is_new_signup) {
           try {
-            trackConversion("signup_buyer", { event_label: "google_oauth" });
-            trackMeta("signup_buyer", { event_label: "google_oauth" });
-            tiktokTrack("signup_buyer", { event_label: "google_oauth" });
+            // iter413cj — Pass the backend-minted event_id for dedup.
+            const eid = r.signup_event_id || undefined;
+            trackConversion("signup_buyer", { event_label: "google_oauth", event_id: eid });
+            trackMeta("signup_buyer", { event_label: "google_oauth", event_id: eid });
+            tiktokTrack("signup_buyer", { event_label: "google_oauth", event_id: eid });
           }
           catch { /* noop */ }
         }

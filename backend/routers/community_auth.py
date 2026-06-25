@@ -8,7 +8,7 @@ import os
 import uuid
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, EmailStr
 
 from core import db, logger, now_iso
@@ -96,9 +96,71 @@ async def _upsert_buyer(email: str, name: str = "", picture: str = "",
     return user
 
 
+# iter413cj — Server-side conversion mirror for buyer signups.
+# Fires Meta CAPI + TikTok Events API in a background task whenever a
+# brand-new buyer signs in. Mints a deterministic event_id keyed on
+# the user_id so the browser can pass the SAME id into its pixel calls
+# and Meta + TikTok will dedupe the two streams into one attributed
+# conversion. Source-attribution (`event_label`) distinguishes
+# magic-link vs google_oauth funnels.
+def _schedule_buyer_signup_mirror(
+    bg: BackgroundTasks,
+    *,
+    user: dict,
+    request: Request,
+    label: str,  # 'magic_link' or 'google_oauth'
+) -> str:
+    """Schedule the Meta + TikTok server-side fires and return the
+    `event_id` the caller must echo back in the JSON response so the
+    browser pixels can dedup."""
+    event_id = f"buyer-signup-{user['user_id']}"
+    ip = (
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (request.client.host if request.client else "")
+    )
+    ua = (request.headers.get("user-agent") or "")[:512]
+    referer = request.headers.get("referer") or "https://craftersmarket.org/community"
+
+    # Meta CAPI mirror.
+    try:
+        from routers.meta_capi import send_meta_event
+        bg.add_task(
+            send_meta_event,
+            event_name="signup_buyer",
+            event_id=event_id,
+            email=user["email"],
+            client_ip=ip,
+            user_agent=ua,
+            event_source_url=referer,
+            custom_data={"event_label": label},
+        )
+    except Exception as e:
+        logger.warning("[meta-capi] buyer-signup schedule failed: %s", e)
+
+    # TikTok Events API mirror.
+    try:
+        from routers.tiktok_capi import send_tiktok_event
+        bg.add_task(
+            send_tiktok_event,
+            event_name="signup_buyer",
+            event_id=event_id,
+            email=user["email"],
+            external_id=user["user_id"],
+            client_ip=ip,
+            user_agent=ua,
+            event_source_url=referer,
+            content_name=f"signup_{label}",
+            custom_data={"event_label": label},
+        )
+    except Exception as e:
+        logger.warning("[tiktok-capi] buyer-signup schedule failed: %s", e)
+
+    return event_id
+
+
 # ===================== ENDPOINTS =====================
 @router.post("/community/auth/google")
-async def community_auth_google(payload: GoogleSessionRequest):
+async def community_auth_google(payload: GoogleSessionRequest, request: Request, bg: BackgroundTasks):
     """Exchange an Emergent Google session_id for a buyer JWT.
     First-time users must include accept_eua + eua_version. Returning users
     who already stamped the current version skip the gate."""
@@ -134,7 +196,16 @@ async def community_auth_google(payload: GoogleSessionRequest):
     )
     is_new = user.pop("_is_new_signup", False)
     jwt_token = issue_session_jwt(user["user_id"], user["email"], role="buyer")
-    return {"token": jwt_token, "user": user, "is_new_signup": is_new}
+    # iter413cj — Fire Meta CAPI + TikTok Events API on brand-new signups.
+    signup_event_id = ""
+    if is_new:
+        signup_event_id = _schedule_buyer_signup_mirror(
+            bg, user=user, request=request, label="google_oauth",
+        )
+    return {
+        "token": jwt_token, "user": user, "is_new_signup": is_new,
+        "signup_event_id": signup_event_id,
+    }
 
 
 @router.post("/community/auth/magic/request")
@@ -164,7 +235,7 @@ async def community_auth_magic_request(payload: MagicRequest, bg: BackgroundTask
 
 
 @router.post("/community/auth/magic/verify")
-async def community_auth_magic_verify(payload: MagicVerifyRequest):
+async def community_auth_magic_verify(payload: MagicVerifyRequest, request: Request, bg: BackgroundTasks):
     email = verify_buyer_magic_token(payload.token)
     # EUA gate: pass for returning users on the current version,
     # require explicit acceptance otherwise.
@@ -176,7 +247,16 @@ async def community_auth_magic_verify(payload: MagicVerifyRequest):
     user = await _upsert_buyer(email=email, eua_version=eua_version)
     is_new = user.pop("_is_new_signup", False)
     jwt_token = issue_session_jwt(user["user_id"], user["email"], role="buyer")
-    return {"token": jwt_token, "user": user, "is_new_signup": is_new}
+    # iter413cj — Fire Meta CAPI + TikTok Events API on brand-new signups.
+    signup_event_id = ""
+    if is_new:
+        signup_event_id = _schedule_buyer_signup_mirror(
+            bg, user=user, request=request, label="magic_link",
+        )
+    return {
+        "token": jwt_token, "user": user, "is_new_signup": is_new,
+        "signup_event_id": signup_event_id,
+    }
 
 
 @router.get("/community/eua")

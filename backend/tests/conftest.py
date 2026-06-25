@@ -713,6 +713,11 @@ SMOKE_FILES = {
     # TikTok-event mapping, dedup contract, and crash safety.
     "test_iter413cf_tiktok_capi.py",
 
+    # ── iter413cj — Buyer signup CAPI mirror ───────────────────────
+    # Locks the magic-link + Google-OAuth buyer-signup endpoints'
+    # `signup_event_id` contract and Meta + TikTok BG scheduling.
+    "test_iter413cj_buyer_signup_mirror.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

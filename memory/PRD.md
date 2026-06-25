@@ -1,3 +1,35 @@
+## iter413cj — Buyer Signup Server-Side Conversion Mirror (2026-02)
+
+**Closes the last attribution gap** — both signup paths (magic-link + Google OAuth) now fire server-side Meta CAPI + TikTok Events API mirrors alongside their browser pixel calls, all sharing a deterministic `event_id` for clean dedup.
+
+**Implementation:**
+- **Backend** `routers/community_auth.py`:
+  - New helper `_schedule_buyer_signup_mirror(bg, user, request, label)` mints a deterministic `event_id = f"buyer-signup-{user_id}"` and schedules Meta CAPI + TikTok Events API background tasks with all standard match keys (email hashed SHA-256, external_id, IP, user-agent, referer).
+  - `POST /community/auth/magic/verify` now accepts `Request + BackgroundTasks`, calls the helper on `is_new=True`, and returns `signup_event_id` in the JSON response.
+  - `POST /community/auth/google` does the same for the OAuth path (`label="google_oauth"`).
+  - Returning users explicitly receive `signup_event_id=""` — prevents conversion double-counting every time they sign back in.
+- **Frontend** `pages/CommunityAuth.jsx`:
+  - Both branches now thread `r.signup_event_id` through to `trackConversion` / `trackMeta` / `tiktokTrack` so the browser pixels carry the same id the server CAPI fires.
+
+**Live fire verified:**
+- TikTok Events API accepted: `code: 0`, `request_id: 20260625213921417666D6E0B8834EA339`, event mapped `signup_buyer → CompleteRegistration` ✓
+- Meta CAPI: unconfigured in preview (no `META_CAPI_ACCESS_TOKEN`) — will fire in production where the env is set.
+
+**Tests:** 2 in `test_iter413cj_buyer_signup_mirror.py` (passing, in `SMOKE_FILES`):
+- New signup: response includes `signup_event_id=buyer-signup-{user_id}`, 2 BG tasks scheduled (Meta + TikTok), both kwargs carry the same event_id + email.
+- Returning user: `signup_event_id=""` (no re-fire, no double-count).
+
+**Funnel coverage now:**
+| Surface | Browser Pixel | Server-side CAPI | Dedup |
+|---|---|---|---|
+| Stripe purchase | CompletePayment + Purchase | ✓ session_id | ✓ |
+| Maker application | CompleteRegistration + Lead | ✓ shared event_id | ✓ |
+| **Buyer signup (magic link + Google)** | **CompleteRegistration ×3 (Google + Meta + TikTok)** | **✓ `buyer-signup-{user_id}`** | **✓** |
+
+---
+
+
+
 ## iter413ci — TikTok Pixel "Can't Detect Base Code" Fix (2026-02)
 
 **Bug:** TikTok Events Manager: "We can't detect pixel D8UP6SJC77UCR7H8US60 base code on your page."
