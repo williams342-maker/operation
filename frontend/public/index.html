@@ -376,20 +376,21 @@
           (function(w,d,t,u,o){w[u]=w[u]||[],o.ts=(new Date).getTime();var n=d.createElement(t);n.src="https://bat.bing.net/bat.js?ti="+o.ti+("uetq"!=u?"&q="+u:""),n.async=1,n.onload=n.onreadystatechange=function(){var s=this.readyState;s&&"loaded"!==s&&"complete"!==s||(o.q=w[u],w[u]=new UET(o),w[u].push("pageLoad"),n.onload=n.onreadystatechange=null)};var i=d.getElementsByTagName(t)[0];i.parentNode.insertBefore(n,i)})(window,document,"script","uetq",{ti:"97249872",enableAutoSpaTracking:true});
         </script>
 
-        <!-- TikTok Pixel (iter413ce · sdkid=D8UP6SJC77UCR7H8US60)
-             Fires page() on initial load. SPA route changes should also
-             call window.ttq?.page() — wired via a usePageView hook in
-             App.js (mirrors the existing GA4 SPA tracker). Event
-             conversions (purchase, signup, etc.) fire from the same
-             call sites that already drive Google Ads — see
-             /app/frontend/src/lib/tiktokPixel.js. -->
-        <script>
-          !function (w, d, t) {
-            w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
-            ttq.load('D8UP6SJC77UCR7H8US60');
-            ttq.page();
-          }(window, document, 'ttq');
-        </script>
+        <!-- TikTok Pixel (iter413ce/ci · sdkid=D8UP6SJC77UCR7H8US60)
+             Loaded from /tiktok-pixel.js (un-minified static file) so
+             TikTok's verification crawler can literally match the
+             `ttq.load("D8UP6SJC77UCR7H8US60")` snippet — inlining it
+             here would let CRA's html-webpack-plugin terser-minify the
+             local `ttq` var into `o`, which broke TikTok's static
+             detection ("We can't detect pixel … base code on your page").
+             SPA route-change page() fires from src/lib/analytics.js.
+             <noscript> fallback embeds the pixel ID literal so it's
+             visible even to script-blind crawlers. -->
+        <script src="/tiktok-pixel.js"></script>
+        <noscript>
+          <img height="1" width="1" style="display:none" alt=""
+            src="https://analytics.tiktok.com/api/v2/pixel?event=PageView&sdkid=D8UP6SJC77UCR7H8US60" />
+        </noscript>
 
         <!-- PWA service-worker registration (handles offline shell + web push) -->
         <script>

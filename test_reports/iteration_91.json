@@ -1,0 +1,23 @@
+{
+  "summary": "iter413ci — Verified TikTok Pixel external static file fix (sdkid=D8UP6SJC77UCR7H8US60). All 11 pytest checks pass (static file served, literal `ttq.load('D8UP6SJC77UCR7H8US60')` and `ttq.page()` present un-minified, homepage references /tiktok-pixel.js, <noscript> fallback img contains pixel ID + analytics.tiktok.com, robots.txt does not block it, GA4 + MS UET still in HTML). Browser smoke test confirms: window.ttq defined with full methods; ttq._i['D8UP6SJC77UCR7H8US60'] is an array; GET to analytics.tiktok.com/i18n/pixel/events.js?sdkid=D8UP6SJC77UCR7H8US60 fires; 3 POSTs to /api/v2/pixel on initial load (PageView). SPA navigation to /shop fires 4 additional TikTok requests including POSTs — proving src/lib/analytics.js trackPageview calls ttq.page() on route changes. GA4 gtag.js (G-HY3FKJS4JK) and MS UET (ti=97249872) loaders both fired — no regression.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_tiktok_pixel_iter413ci.py",
+    "/app/test_reports/pytest/iter413ci_tiktok_pixel.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pixel fix is well-implemented: external static file at /public/tiktok-pixel.js with explanatory header comment documenting the html-webpack-plugin minification bug. Snippet contains literal `ttq.load('D8UP6SJC77UCR7H8US60')` exactly as TikTok's verification crawler expects. Inline noscript fallback img is correctly embedded with pixel ID in URL.",
+    "Recommendation: After preview re-deploy, ask user to click 'Verify Pixel' in TikTok Events Manager to confirm crawler now detects the base code. The production craftersmarket.org currently still serves the old minified inline snippet."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_tiktok_pixel_iter413ci.py (new test file)"
+  ],
+  "success_rate": { "backend": "100% (11/11)", "frontend": "100% (8/8 browser assertions)" },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "TikTok pixel snippet is now served from /public/tiktok-pixel.js (un-minified static). Browser test confirms ttq.page() fires on SPA route changes. Production craftersmarket.org still has old inlined minified snippet — user must redeploy to push fix to prod.",
+  "rca of the issue": "RCA already documented by main agent: CRA's html-webpack-plugin minifies inline scripts via terser, renaming the literal `ttq` local var to a short alias (e.g., `o`). TikTok's verification crawler performs a literal substring match for `ttq.load(\"PIXEL_ID\")`, so the minified `o.load(...)` no longer matched. Fix: move snippet to /public/tiktok-pixel.js (webpack never touches /public) and reference via external <script src>. Verified: served file contains literal `ttq.load('D8UP6SJC77UCR7H8US60')`, runtime pixel registers, PageView POSTs fire, and SPA navigation triggers additional page() calls."
+}
