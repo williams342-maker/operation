@@ -1,3 +1,29 @@
+## iter413ck — GSC OAuth `redirect_uri_mismatch` Fix (2026-02)
+
+**Bug:** Production OAuth Connect button → "Error 400: redirect_uri_mismatch" while preview worked fine.
+
+**RCA:** Backend read `GSC_OAUTH_REDIRECT_URI` directly from env. Whenever preview's .env value (preview domain URI) and production's stored secret drifted apart from what was actually whitelisted in the Google Cloud OAuth client, Google rejected the request. Single source of truth for the redirect URI was an env var that could silently disagree between environments.
+
+**Fix:** `routers/gsc_admin.py` now **derives the redirect URI from the inbound request host** via `x-forwarded-host` + `x-forwarded-proto` headers:
+- Preview requests → `https://active-project-4.preview.emergentagent.com/api/admin/gsc/oauth-callback`
+- Production requests → `https://craftersmarket.org/api/admin/gsc/oauth-callback`
+- No env-drift can ever cause this again
+
+Additional hardening: the resolved URI is bound to the OAuth CSRF state token at `/oauth-start` so the `/oauth-callback` token-exchange uses the exact same URI byte-for-byte (Google's token exchange requires this). `GSC_OAUTH_REDIRECT_URI` env var is still honored as a manual override for proxy edge cases but is no longer required.
+
+**Verified by testing agent (iter92):** 15/15 backend tests pass (5 new + 4 extras + 6 iter351 regression). Live preview status endpoint returns the preview callback URI; no production-host leak.
+
+**Action items for user:**
+1. **Google Cloud Console** → OAuth client `239405833611-...` → Authorized redirect URIs MUST contain BOTH:
+   - `https://craftersmarket.org/api/admin/gsc/oauth-callback`
+   - `https://active-project-4.preview.emergentagent.com/api/admin/gsc/oauth-callback`
+2. **Redeploy preview → production** to push the fix.
+3. Click "Connect Google Account" on production admin dashboard — should now work.
+
+---
+
+
+
 ## iter413cj — Buyer Signup Server-Side Conversion Mirror (2026-02)
 
 **Closes the last attribution gap** — both signup paths (magic-link + Google OAuth) now fire server-side Meta CAPI + TikTok Events API mirrors alongside their browser pixel calls, all sharing a deterministic `event_id` for clean dedup.
