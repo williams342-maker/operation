@@ -58,10 +58,16 @@ export default function FounderBenefitsTab() {
     );
   }
 
-  const founderProcBps = policy?.processing_fee_bps || 300;
-  const founderTotalRate = ((300 + founderProcBps) / 100).toFixed(0);
-  const standardTotalRate = (((policy?.platform_fee_bps || 500) + founderProcBps) / 100).toFixed(0);
-  const plusTotalRate = (((policy?.plus_platform_fee_bps || 400) + founderProcBps) / 100).toFixed(0);
+  // iter413cm — Display the COMMISSION rate only (3% / 4% / 5%). The
+  // combined "platform + processing" number was confusing founders into
+  // thinking their rate was higher than it really is — processing is the
+  // same for every tier so showing it adds no comparison value, just
+  // visual noise. Plain "3%" / "4%" / "5%" reads as the commission tier.
+
+  const founderCommission = 3;
+  const plusCommission = (policy?.plus_platform_fee_bps || 400) / 100;
+  const standardCommission = (policy?.platform_fee_bps || 500) / 100;
+  const procRate = (policy?.processing_fee_bps || 300) / 100;
 
   const inaugural = isInauguralFounder(maker);
   const tierKey = effectiveTier(maker);
@@ -104,27 +110,27 @@ export default function FounderBenefitsTab() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5">
         <div className="border-2 border-brand bg-brand/5 p-5" data-testid="founder-rate-tile">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
-            Your rate
+            Your commission
           </div>
-          <div className="font-display text-3xl">{founderTotalRate}%</div>
+          <div className="font-display text-3xl">{founderCommission}%</div>
           <div className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
-            3% commission + {(founderProcBps / 100).toFixed(0)}% processing per sale.
+            Lowest on the platform. Processing ({procRate.toFixed(0)}%) is the same for everyone.
           </div>
         </div>
         <div className="border border-line bg-paper p-5 opacity-60" data-testid="founder-rate-plus">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
-            Plus rate
+            Plus commission
           </div>
-          <div className="font-display text-3xl">{plusTotalRate}%</div>
+          <div className="font-display text-3xl">{plusCommission.toFixed(0)}%</div>
           <div className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
             Higher than yours. You keep the Founder rate.
           </div>
         </div>
         <div className="border border-line bg-paper p-5 opacity-60" data-testid="founder-rate-standard">
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
-            Standard rate
+            Standard commission
           </div>
-          <div className="font-display text-3xl">{standardTotalRate}%</div>
+          <div className="font-display text-3xl">{standardCommission.toFixed(0)}%</div>
           <div className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
             What most sellers pay. You&apos;re saving the difference.
           </div>

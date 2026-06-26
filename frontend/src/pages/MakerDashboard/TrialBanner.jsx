@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
-import { fetchMakerSubscription, openMakerSubscriptionPortal } from "../../lib/api";
+import { fetchMakerSubscription, openMakerSubscriptionPortal, fetchMakerMe } from "../../lib/api";
+import { isFounder } from "../../lib/founderTier";
 
 /**
  * Sticky trial-progress banner for makers on their free 3-month Crafters
@@ -18,19 +19,27 @@ import { fetchMakerSubscription, openMakerSubscriptionPortal } from "../../lib/a
  */
 export default function TrialBanner() {
   const [sub, setSub] = useState(null);
+  const [maker, setMaker] = useState(null);
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("cm_maker_jwt")) return;
     fetchMakerSubscription().then(setSub).catch(() => {});
-    // Hide for the rest of this tab session if the maker closed it.
+    // iter413cm — Need the maker doc to suppress the Plus-trial banner
+    // for founders. Founders already pay 3% — Plus is a worse rate for
+    // them, so the trial banner only adds confusion.
+    fetchMakerMe().then(setMaker).catch(() => {});
     try {
       if (sessionStorage.getItem("cm_trial_banner_dismissed") === "1") {
         setDismissed(true);
       }
     } catch {/* sessionStorage may be unavailable */}
   }, []);
+
+  // iter413cm — Founders are on a permanently better rate than Plus.
+  // The Plus trial banner is irrelevant noise for them. Hide it.
+  if (isFounder(maker)) return null;
 
   if (!sub || !sub.is_in_trial || dismissed) return null;
 
