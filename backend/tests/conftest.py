@@ -722,6 +722,10 @@ SMOKE_FILES = {
     # Locks the host-derived redirect URI behavior + env override.
     "test_iter413ck_gsc_redirect_uri.py",
 
+    # ── iter413cl — Founder-eligible custom shop URL ───────────────
+    # Locks the extended gate (Plus OR Founder) + resolver behavior.
+    "test_iter413cl_founder_custom_url.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

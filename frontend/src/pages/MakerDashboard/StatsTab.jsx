@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { fetchMakerStats, fetchFeePolicy } from "../../lib/api";
+import { fetchMakerStats, fetchFeePolicy, fetchMakerMe } from "../../lib/api";
 import { StatsSkeleton } from "../../components/Skeleton";
 import WorstPerformersPanel from "./WorstPerformersPanel";
 import PlusAnalytics from "./PlusAnalytics";
+import { isFounder, isInauguralFounder } from "../../lib/founderTier";
 
 /** Stats tab — read-only dashboard surfacing aggregates already in the DB. */
 export default function StatsTab() {
   const [stats, setStats] = useState(null);
   const [policy, setPolicy] = useState(null);
+  const [maker, setMaker] = useState(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    Promise.all([fetchMakerStats(), fetchFeePolicy()])
-      .then(([s, p]) => { setStats(s); setPolicy(p); })
+    Promise.all([fetchMakerStats(), fetchFeePolicy(), fetchMakerMe()])
+      .then(([s, p, m]) => { setStats(s); setPolicy(p); setMaker(m); })
       .catch((e) => setErr(e?.response?.data?.detail || "Failed to load stats."));
   }, []);
 
@@ -31,8 +33,22 @@ export default function StatsTab() {
   }
 
   // Net revenue after platform + processing fees (visible best-estimate)
-  const platformBps = (policy?.platform_fee_bps || 500) + (policy?.processing_fee_bps || 300);
+  // iter413cl — Use the founder/plus rate when applicable so the number
+  // reflects the maker's ACTUAL take-home, not the generic Free-tier math.
+  const founderBps = 300;
+  const plusBps = policy?.plus_platform_fee_bps || 400;
+  const procBps = policy?.processing_fee_bps || 300;
+  const baseBps = policy?.platform_fee_bps || 500;
+  const effectivePlatformBps = isFounder(maker)
+    ? founderBps + procBps
+    : (maker?.subscription_status === "active" ? plusBps + procBps : baseBps + procBps);
+  const platformBps = effectivePlatformBps;
   const netRevenue = stats.gross_revenue * (1 - platformBps / 10000);
+  const tierBlurb = isFounder(maker)
+    ? `Based on your ${isInauguralFounder(maker) ? "Inaugural Founder" : "Founder"} rate (3% commission + ${(procBps/100).toFixed(0)}% processing) — lower than every other tier.`
+    : (maker?.subscription_status === "active"
+      ? `Based on your Crafters Plus rate (${(plusBps/100).toFixed(0)}% commission + ${(procBps/100).toFixed(0)}% processing).`
+      : `Based on Standard rate (${(platformBps/100).toFixed(0)}% combined commission + processing). Plus subscribers keep more — see Upgrade tab.`);
 
   return (
     <div className="space-y-8" data-testid="stats-tab">
@@ -67,8 +83,7 @@ export default function StatsTab() {
           ${netRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
         <p className="font-mono text-[10px] text-ink-muted mt-2 leading-relaxed">
-          Based on Free-tier rate ({(platformBps / 100).toFixed(0)}% combined commission + processing).
-          Plus subscribers keep more — see Upgrade tab.
+          {tierBlurb}
         </p>
       </div>
 

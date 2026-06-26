@@ -1,0 +1,37 @@
+{
+  "summary": "iter413cl — Founder Custom URL Gate + Dashboard UX refresh. All 7 backend tests pass (3 new in test_iter413cl_founder_custom_url.py + 4 regression in test_custom_url.py). Frontend: every Inaugural Founder check passes (Founder sidebar tab, FounderBenefitsTab, single tier pill 'Inaugural Founder', PlusUpgradeNudge suppressed, quota 4/50 with bar, tier-aware StatsTab blurb). Standard maker regression also verified: Founder tab is hidden, single 'Standard' tier pill in header, PlusUpgradeNudge still rendered, /maker/dashboard#founder gracefully renders fallback. Custom shop URL picker renders for the Founder in Settings → Account & Plan (no 'Plus subscribers only' lock).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Settings → Account & Plan → Vanity URL card (Inaugural Founder context)", "issues": ["Section eyebrow still reads '◆ PLUS · CUSTOM SHOP URL' and helper copy 'Lapsing Plus releases the URL.' This is technically misleading for Founders, since they keep the vanity URL via Founder tier (not Plus). Picker still renders, so functional gate is correct, but copy should mention 'Plus or Founder tier' for consistency with the LockedCard fallback copy the PR added."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter413cl_founder_custom_url.py",
+    "/app/backend/tests/test_custom_url.py",
+    "/app/test_reports/pytest/iter413cl_results.xml"
+  ],
+  "action_items": [
+    "(low-priority polish) In CustomUrlPicker / Settings VANITY URL card, when the maker is on Founder tier without Plus, replace the '◆ PLUS · CUSTOM SHOP URL' eyebrow and 'Lapsing Plus releases the URL.' copy with a Founder-aware variant (e.g. '◆ FOUNDER · CUSTOM SHOP URL' / 'Lapsing your Founder tier releases the URL.'). Functional behavior is correct; this is copy-only."
+  ],
+  "critical_code_review_comments": [
+    "_require_plus alias kept for backward compat — good. Resolve endpoint now correctly accepts (tier=founder) OR (subscription_status=active). Test coverage for both branches present.",
+    "FounderBenefitsTab quota math verified against listings_by_month on the maker doc — current month bucket '2026-06' = 4 listings, renders '4 / 50' correctly with progress bar.",
+    "Single tier-pill replacement clean: [data-testid='badge-plus'] fully removed; new [data-testid='badge-tier'] hierarchically renders 'Inaugural Founder' > 'Founder' > 'Plus' > 'Standard'.",
+    "shouldSuppressPlusPromptsForFounder gate works: PlusUpgradeNudge absent for Inaugural Founder (4/50 usage), present for Standard maker.",
+    "Sidebar founderOnly filter works: Standard-tier maker does not see the Founder tab; deep-linking to #founder shows a graceful 'Founder benefits aren't available on your current tier.' fallback."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% on functional checks; 1 copy nit"},
+  "test_credentials": "Inaugural Founder: iron-and-oak@craftersmarket.org (tier=founder, founder_status=inaugural, slug=iron-and-oak, founder_number=1). JWT minted via maker_auth.issue_session_jwt and stored in localStorage keys cm_maker_jwt + cm_maker_slug.",
+  "seed_data_creation": "Temporarily seeded iter413cl-standard-test maker (tier=standard, subscription_status=free) for cross-tier sidebar visibility check; cleaned up after the run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Founder-tier custom URL gate + dashboard UX refresh fully verified. Backend: pytest tests/test_iter413cl_founder_custom_url.py tests/test_custom_url.py -> 7/7 pass in ~2.5s. Frontend hydration trick: set localStorage cm_maker_jwt and cm_maker_slug then navigate to /maker/dashboard#<tab>. Only minor follow-up: Settings → Account & Plan vanity URL eyebrow/help text still says 'PLUS' for Founders.",
+  "rca of the issue": "N/A — feature verification, no bugs found."
+}

@@ -4,11 +4,14 @@ import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
   LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock, Rocket,
+  Award,
 } from "lucide-react";
 import TrialBanner from "./TrialBanner";
+import { isFounder, effectiveTier, TIER_LABELS } from "../../lib/founderTier";
 
 const NAV = [
   { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
+  { id: "founder",     label: "Founder",     icon: Award, founderOnly: true },
   { id: "listings",    label: "Listings",    icon: Box },
   { id: "renewals",    label: "Renewals",    icon: CalendarClock },
   { id: "orders",      label: "Orders",      icon: ShoppingBag },
@@ -43,6 +46,15 @@ export default function ShopManagerLayout({
   const approved = maker?.approved !== false;  // approved by default unless we set it false
   const isPlus = (maker?.subscription_status || "") === "active";
   const payoutsReady = !!(maker?.stripe_charges_enabled && maker?.stripe_payouts_enabled);
+  // iter413cl — Collapse the per-tier badges into ONE pill ("highest tier
+  // wins") so the header doesn't double-up "Founding Access" + "Founder"
+  // + "Plus" labels that all describe the same person. Order:
+  // Inaugural Founder > Founder > Plus > Standard.
+  const tierKey = effectiveTier(maker);
+  const tierLabel = TIER_LABELS[tierKey] || "Standard";
+  const tierIsPremium = tierKey === "inaugural_founder" || tierKey === "founder" || tierKey === "plus";
+  // iter413cl — Hide the Founder tab from non-founders.
+  const visibleNav = NAV.filter((item) => !item.founderOnly || isFounder(maker));
 
   return (
     <div
@@ -79,7 +91,12 @@ export default function ShopManagerLayout({
             </span>
             <div className="hidden md:flex items-center gap-2 ml-3">
               <Badge ok={approved} label="Approved Seller" testid="badge-approved" />
-              <Badge ok={isPlus} label="Crafters Plus" testid="badge-plus" mode={isPlus ? "primary" : "neutral"} />
+              <Badge
+                ok={tierIsPremium}
+                label={`◆ ${tierLabel}`}
+                testid="badge-tier"
+                mode={tierIsPremium ? "primary" : "neutral"}
+              />
               <Badge ok={payoutsReady} label="Payouts Ready" testid="badge-payouts" />
             </div>
           </div>
@@ -103,7 +120,7 @@ export default function ShopManagerLayout({
         </div>
         <div className="md:hidden px-4 pb-3 flex flex-wrap gap-2 border-t border-line pt-3">
           <Badge ok={approved} label="Approved" mode="compact" />
-          <Badge ok={isPlus} label="Plus" mode={isPlus ? "primary-compact" : "compact"} />
+          <Badge ok={tierIsPremium} label={tierLabel} mode={tierIsPremium ? "primary-compact" : "compact"} />
           <Badge ok={payoutsReady} label="Payouts" mode="compact" />
         </div>
       </header>
@@ -115,7 +132,7 @@ export default function ShopManagerLayout({
           data-testid="shop-sidebar"
         >
           <nav className="p-2 sticky top-[calc(var(--beta-banner-h,0px)+150px)]">
-            {NAV.map((item) => {
+            {visibleNav.map((item) => {
               const Icon = item.icon;
               const active = tab === item.id;
               return (

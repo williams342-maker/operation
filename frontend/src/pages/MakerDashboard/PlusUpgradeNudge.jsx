@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import { Sparkles, Check, ArrowRight, X } from "lucide-react";
 import { fetchFeePolicy, fetchMakerSubscription } from "../../lib/api";
 import { isDismissed, dismiss } from "../../lib/dismissibleCards";
+import {
+  shouldSuppressPlusPromptsForFounder, isFounder, listingsThisMonth,
+  FOUNDER_MONTHLY_LISTING_QUOTA,
+} from "../../lib/founderTier";
 
 const DISMISS_KEY = "cm_dismiss_dashboard_plus_nudge";
 
@@ -37,6 +41,11 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
 
   // Hide for active subscribers. We want to nudge, not nag the already-converted.
   if ((maker?.subscription_status || "") === "active") return null;
+  // iter413cl — Hide for founders who still have free-quota headroom.
+  // Plus would RAISE their commission (3% → 4%); pushing it before they
+  // exhaust 50 listings/mo is economically wrong AND confusing. We
+  // re-surface a founder-aware version below once they hit the cap.
+  if (shouldSuppressPlusPromptsForFounder(maker)) return null;
   // Hide if the maker explicitly closed it.
   if (dismissed) return null;
 
@@ -66,15 +75,25 @@ export default function PlusUpgradeNudge({ maker, orders = [], onUpgrade }) {
   // Break-even revenue per month = plusPrice / (savingsBps/10000)
   const breakEven = savingsBps > 0 ? Math.ceil(plusPrice / (savingsBps / 10_000)) : 0;
 
-  const headline = wouldBenefit
-    ? `You'd save ~$${monthlySavings.toFixed(0)}/mo with Plus.`
-    : `Crafters Plus pays for itself at $${breakEven}/mo in sales.`;
+  // iter413cl — Founder-quota-exhausted variant. When a Founder reaches
+  // here, it's because they've already burned all 50 free listings this
+  // month. The copy MUST be transparent that Plus would lower their free
+  // quota AND raise their commission — they get only the cosmetic Plus
+  // perks (custom banner, spotlight). Most founders should stay put.
+  const founderOverQuota = isFounder(maker);
+  const headline = founderOverQuota
+    ? "You've hit your 50 free listings this month."
+    : wouldBenefit
+      ? `You'd save ~$${monthlySavings.toFixed(0)}/mo with Plus.`
+      : `Crafters Plus pays for itself at $${breakEven}/mo in sales.`;
 
-  const subline = wouldBenefit
-    ? `Based on your last 30 days ($${last30.toFixed(0)} in sales). Net of the $${plusPrice}/mo subscription, you'd keep an extra $${netMonthlySavings.toFixed(0)}.`
-    : last30 > 0
-      ? `Your last 30 days: $${last30.toFixed(0)} in sales — at $${breakEven}/mo Plus starts paying for itself.`
-      : `1% lower commission, ${plusListings} free listings/mo, priority placement, and a custom shop banner.`;
+  const subline = founderOverQuota
+    ? `Extra listings are $0.20 each. Your 3% Founder commission is already lower than Plus (4%) — Plus only adds custom banner + Maker Spotlight. Quota resets the 1st.`
+    : wouldBenefit
+      ? `Based on your last 30 days ($${last30.toFixed(0)} in sales). Net of the $${plusPrice}/mo subscription, you'd keep an extra $${netMonthlySavings.toFixed(0)}.`
+      : last30 > 0
+        ? `Your last 30 days: $${last30.toFixed(0)} in sales — at $${breakEven}/mo Plus starts paying for itself.`
+        : `1% lower commission, ${plusListings} free listings/mo, priority placement, and a custom shop banner.`;
 
   return (
     <section

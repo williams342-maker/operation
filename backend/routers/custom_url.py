@@ -103,16 +103,31 @@ def _validate_format(candidate: str) -> Optional[str]:
     return None
 
 
-async def _require_plus(slug: str) -> dict:
+async def _require_plus_or_founder(slug: str) -> dict:
+    """iter413cl — Custom shop URL is now a perk for BOTH paid Plus
+    subscribers AND Founders (any status). Founders already get a lower
+    commission + larger free quota than Plus, so gating this vanity-URL
+    feature behind a Plus subscription was contradicting the tier
+    philosophy and confusing founders in support tickets.
+
+    Resolution gate (revoke vanity URL on tier drop) handled in
+    `/api/makers/resolve/{custom_url}`."""
     m = await db.makers.find_one({"slug": slug}, {"_id": 0})
     if not m:
         raise HTTPException(404, "Maker not found.")
-    if (m.get("subscription_status") or "free") != "active":
+    is_active_plus = (m.get("subscription_status") or "free") == "active"
+    is_founder = (m.get("tier") or "") == "founder"
+    if not (is_active_plus or is_founder):
         raise HTTPException(403, {
             "code": "plus_required",
-            "message": "Custom shop URLs are a Crafters Plus benefit.",
+            "message": "Custom shop URLs are a Crafters Plus or Founder perk.",
         })
     return m
+
+
+# Backwards-compat alias so the rest of the file doesn't need to be touched.
+# (Public API surface unchanged — same endpoints, same error codes.)
+_require_plus = _require_plus_or_founder
 
 
 @router.get("/maker/custom-url", response_model=CustomUrlState)
@@ -191,12 +206,15 @@ async def resolve_maker(name: str):
     if by_slug:
         return {"slug": by_slug["slug"], "matched_via": "slug"}
     by_custom = await db.makers.find_one(
-        {"custom_url": norm}, {"_id": 0, "slug": 1, "subscription_status": 1},
+        {"custom_url": norm}, {"_id": 0, "slug": 1, "subscription_status": 1, "tier": 1},
     )
     if by_custom:
         # Defense in depth: a vanity URL only resolves while the maker
-        # is still on Plus. Otherwise the URL is taken-but-inactive.
-        if (by_custom.get("subscription_status") or "free") != "active":
+        # is still on a tier that grants this perk. iter413cl — that's
+        # now BOTH active Plus AND any Founder.
+        is_active_plus = (by_custom.get("subscription_status") or "free") == "active"
+        is_founder = (by_custom.get("tier") or "") == "founder"
+        if not (is_active_plus or is_founder):
             raise HTTPException(404, "Shop not found.")
         return {"slug": by_custom["slug"], "matched_via": "custom_url"}
     raise HTTPException(404, "Shop not found.")
