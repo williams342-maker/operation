@@ -9,6 +9,7 @@ import {
 } from "../../../lib/api";
 import { useConfirm } from "../useConfirm";
 import CustomUrlPicker from "./CustomUrlPicker";
+import { isFounder, isInauguralFounder, effectiveTier, TIER_LABELS } from "../../../lib/founderTier";
 
 /**
  * "Account & Plan" settings panel — downgrade Plus, close/reopen the
@@ -19,9 +20,19 @@ import CustomUrlPicker from "./CustomUrlPicker";
  * Extracted from SettingsTab.jsx in iter131 — was the largest panel
  * at ~250 lines (every action has its own state + confirm + refresh
  * dance).
+ *
+ * iter413cn — "Current plan" row now reads from the resolved tier
+ * (effectiveTier) instead of just the Plus subscription flag — so a
+ * Founder no longer sees "◇ FREE" next to the "Upgrade my account"
+ * button. Approved Founders see "◆ Founder" / "◆ Inaugural Founder"
+ * and the upgrade CTA is replaced with a quiet "View benefits" link
+ * to their Founder tab. (Plus is a worse rate for them.)
  */
 export default function AccountPanel({ maker, onSaved }) {
   const isPlus = ["active", "trialing"].includes(maker?.subscription_status);
+  const founder = isFounder(maker);
+  const tierKey = effectiveTier(maker);
+  const tierLabel = TIER_LABELS[tierKey];
   const closed = !!maker?.shop_closed;
   const deletionAt = maker?.deletion_requested_at;
   const purgeAt = maker?.deletion_cancels_at;
@@ -166,14 +177,34 @@ export default function AccountPanel({ maker, onSaved }) {
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Current plan</div>
             <div className="font-display text-2xl mt-1">
-              {isPlus ? (
+              {founder ? (
+                <span className="text-brand">◆ {tierLabel}</span>
+              ) : isPlus ? (
                 <span className="text-emerald-700">★ Crafters Plus · $12/mo</span>
               ) : (
                 <span className="text-ink-muted">◇ Free</span>
               )}
             </div>
+            {founder && (
+              <p className="font-mono text-[10px] text-ink-muted mt-2 max-w-md leading-relaxed">
+                {isInauguralFounder(maker)
+                  ? "Lifetime · 3% commission · 50 free listings every month."
+                  : "12-month Founder window · 3% commission · 50 free listings every month."}
+              </p>
+            )}
           </div>
-          {isPlus ? (
+          {founder ? (
+            // iter413cn — Founders don't have an "upgrade" — they're
+            // already on a better rate than Plus. Replace the orange
+            // CTA with a quiet link to their benefits surface.
+            <Link
+              to="/maker/dashboard#founder"
+              className="inline-flex items-center justify-center px-4 py-2 border border-line hover:border-brand text-ink hover:text-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              data-testid="account-view-founder-benefits"
+            >
+              View benefits →
+            </Link>
+          ) : isPlus ? (
             <button
               onClick={downgrade}
               disabled={!!busy}
@@ -249,7 +280,7 @@ export default function AccountPanel({ maker, onSaved }) {
               )}
             </div>
             <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl leading-relaxed">
-              When ON, listings with <b className="text-ink">zero pageviews</b> in the last {maker?.smart_pause_threshold_days || 30} days are quietly moved to draft. You'll get an email with the list + tips to optimise before republishing. Healthy listings are never touched.
+              When ON, listings with <b className="text-ink">zero pageviews</b> in the last {maker?.smart_pause_threshold_days || 30} days are quietly moved to draft. You&apos;ll get an email with the list + tips to optimise before republishing. Healthy listings are never touched.
             </p>
           </div>
           <button
