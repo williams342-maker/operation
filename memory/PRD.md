@@ -1,3 +1,30 @@
+## iter413cl — Founder Dashboard UX + Custom URL Gate (2026-02)
+
+**Bug:** Founders were getting confused — pushed to "Upgrade to Plus" which would RAISE their commission (3% → 4%) and LOWER their free quota (50 → 15). Stacked "Founding Access" + "Founder" badges in the header looked like two different things to them.
+
+**3 changes shipped:**
+
+1. **Suppress Plus upgrade prompts for founders below quota** — `PlusUpgradeNudge.jsx` early-returns when `shouldSuppressPlusPromptsForFounder(maker)` is true (founder + <50 listings this month). When founders DO hit the cap, the copy is rewritten to be transparent that Plus is a downgrade and they should consider extra listings ($0.20 each) instead.
+
+2. **New "Founder" tab** in the dashboard sidebar (founders-only via `founderOnly:true` nav filter). `FounderBenefitsTab.jsx` renders:
+   - Tier hero (e.g. "INAUGURAL FOUNDER · #001 · Lifetime"),
+   - 3-up rate comparison tile (Your rate / Plus rate / Standard rate — founder rate highlighted, Plus shown as "Higher than yours"),
+   - Live monthly quota meter sourced from `listings_by_month`,
+   - "What you get" perks list with lifetime-status bullet for inaugural founders,
+   - Marketing kit CTA.
+
+3. **Single tier pill in dashboard header** — collapsed `[Approved][Plus on/off][Payouts]` stack into `[Approved][TIER][Payouts]`. Tier resolution order: `inaugural_founder > founder > plus > standard`. Highest tier wins.
+
+**Bonus extended:** Custom shop URL gate (`routers/custom_url.py`) now accepts BOTH Plus subscribers AND any Founder. Founders no longer told "Plus subscribers only" for a feature they already deserve via their tier. LockedCard copy reads "Plus or Founder tier".
+
+**Helper:** `frontend/src/lib/founderTier.js` — single source of truth (`isFounder`, `isInauguralFounder`, `isPlus`, `effectiveTier`, `listingsThisMonth`, `shouldSuppressPlusPromptsForFounder`, `foundingAccessDaysLeft`, etc.). Mirrors `backend/revenue.py` so dashboard never disagrees with billing.
+
+**Verified by testing agent (iter93): 100% pass** — 7/7 backend tests (3 new + 4 regression). All frontend functional checks pass for both Inaugural Founder and Standard maker cross-tier scenarios. One copy nit fixed post-test: Vanity URL card eyebrow now reads "Plus or Founder" instead of just "Plus".
+
+---
+
+
+
 ## iter413ck — GSC OAuth `redirect_uri_mismatch` Fix (2026-02)
 
 **Bug:** Production OAuth Connect button → "Error 400: redirect_uri_mismatch" while preview worked fine.

@@ -108,12 +108,12 @@ export default function CustomUrlPicker() {
         <Sparkles size={16} className="text-brand mt-1 shrink-0" />
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
-            ◆ Plus · custom shop URL
+            ◆ Plus or Founder · custom shop URL
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Vanity URL.</h3>
           <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed max-w-md">
             Claim a memorable URL like <span className="text-ink">craftersmarket.org/makers/iron-and-oak</span>.
-            Easier to share, easier to remember. Lapsing Plus releases the URL.
+            Easier to share, easier to remember. Lapsing your Plus or Founder tier releases the URL.
           </p>
         </div>
       </div>
