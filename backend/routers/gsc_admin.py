@@ -36,25 +36,57 @@ router = APIRouter()
 # In-memory CSRF state. Single-admin scenario so a tiny dict is fine —
 # entries auto-expire after 10 minutes. Persisting to Mongo would be
 # overkill for a flow that takes 30 seconds.
-_oauth_state: dict[str, float] = {}
+_oauth_state: dict[str, tuple[float, str]] = {}  # state -> (ts, redirect_uri)
 _STATE_TTL_SECONDS = 600
 
 
 def _prune_states() -> None:
     import time
     now = time.time()
-    for k, ts in list(_oauth_state.items()):
+    for k, payload in list(_oauth_state.items()):
+        ts = payload[0] if isinstance(payload, tuple) else payload
         if now - ts > _STATE_TTL_SECONDS:
             _oauth_state.pop(k, None)
 
 
+# iter413ck — Self-healing redirect-URI resolution.
+# Previously we read `GSC_OAUTH_REDIRECT_URI` from env directly, which
+# caused production `redirect_uri_mismatch` errors whenever preview's
+# .env value (preview domain) shadowed production's (craftersmarket.org).
+# Now we DERIVE the redirect URI from the inbound request's host so
+# preview and production each produce the correct callback automatically.
+# The env var is still honored if explicitly set — useful when running
+# behind an opaque proxy that doesn't forward the canonical host —
+# but it's no longer required. Both URIs MUST be whitelisted in the
+# Google Cloud OAuth client's "Authorized redirect URIs" list.
+_CALLBACK_PATH = "/api/admin/gsc/oauth-callback"
+
+
+def _resolve_redirect_uri(request: Request) -> str:
+    """Return the OAuth callback URI for this request.
+
+    Precedence:
+      1. `GSC_OAUTH_REDIRECT_URI` env var (manual override, advanced use)
+      2. Derived from the inbound request's host + scheme (default)
+    """
+    override = (os.environ.get("GSC_OAUTH_REDIRECT_URI") or "").strip()
+    if override:
+        return override
+    # Respect upstream proxy headers — kube ingress + Emergent edge both
+    # forward x-forwarded-* so request.url.netloc may show internal hosts.
+    scheme = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc).split(",")[0].strip()
+    return f"{scheme}://{host}{_CALLBACK_PATH}"
+
+
 @router.get("/admin/gsc/status")
-async def gsc_status(_: dict = Depends(current_admin)):
+async def gsc_status(request: Request, _: dict = Depends(current_admin)):
     """Connection status for the admin UI panel."""
+    resolved_uri = _resolve_redirect_uri(request)
     oauth_configured = bool(
         (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
         and (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
-        and (os.environ.get("GSC_OAUTH_REDIRECT_URI") or "").strip()
+        and resolved_uri  # iter413ck — derived URI is always present
     )
     sa_configured = bool((os.environ.get("GSC_SERVICE_ACCOUNT_JSON") or "").strip())
     enabled = (os.environ.get("GSC_ENABLED") or "").strip() == "1"
@@ -67,29 +99,33 @@ async def gsc_status(_: dict = Depends(current_admin)):
         "service_account_configured": sa_configured,
         "connected": bool(doc),
         "connection": doc or None,
-        "redirect_uri": os.environ.get("GSC_OAUTH_REDIRECT_URI") or "",
+        "redirect_uri": resolved_uri,
     }
 
 
 @router.get("/admin/gsc/oauth-start")
-async def gsc_oauth_start(_: dict = Depends(current_admin)):
+async def gsc_oauth_start(request: Request, _: dict = Depends(current_admin)):
     """Return the Google authorization URL for the admin to visit.
 
     Frontend opens this URL in a popup or new tab. After consent, Google
     redirects to `/admin/gsc/oauth-callback?code=...&state=...`."""
     client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-    redirect_uri = (os.environ.get("GSC_OAUTH_REDIRECT_URI") or "").strip()
+    redirect_uri = _resolve_redirect_uri(request)
     if not client_id or not redirect_uri:
         raise HTTPException(
             500,
-            "GSC OAuth not configured. Set GSC_OAUTH_CLIENT_ID, "
-            "GSC_OAUTH_CLIENT_SECRET, and GSC_OAUTH_REDIRECT_URI env vars.",
+            "GSC OAuth not configured. Set GSC_OAUTH_CLIENT_ID + "
+            "GSC_OAUTH_CLIENT_SECRET env vars (redirect URI is derived "
+            "from the inbound request host automatically).",
         )
 
     import time
     _prune_states()
     state = secrets.token_urlsafe(24)
-    _oauth_state[state] = time.time()
+    # iter413ck — Bind the state to the redirect URI used at start so the
+    # callback can use the SAME exact URI Google saw, even if the request
+    # arrives via a different proxy hop later.
+    _oauth_state[state] = (time.time(), redirect_uri)
 
     params = {
         "client_id": client_id,
@@ -148,11 +184,13 @@ async def gsc_oauth_callback(request: Request):
         return _result_page(False, "Missing code or state parameter.")
     if state not in _oauth_state:
         return _result_page(False, "Invalid or expired state — re-open the connect window and try again.")
-    _oauth_state.pop(state, None)
+    # iter413ck — Recover the redirect URI that was sent to Google at
+    # oauth-start. The token-exchange call MUST send the same URI byte-for-byte.
+    _ts, bound_redirect_uri = _oauth_state.pop(state)
 
     client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
     client_secret = (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
-    redirect_uri = (os.environ.get("GSC_OAUTH_REDIRECT_URI") or "").strip()
+    redirect_uri = bound_redirect_uri or _resolve_redirect_uri(request)
 
     try:
         import httpx as _httpx
