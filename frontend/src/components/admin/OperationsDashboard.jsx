@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   fetchOpsDashboardOverview, dismissOpsItem, restoreOpsItem,
-  fetchNotFoundRecent,
+  fetchNotFoundRecent, fetchAiOpsIssues,
 } from "../../lib/api";
 
 // iter413bq — localStorage key for collapsed-section state. Bump the
@@ -151,6 +151,16 @@ export default function OperationsDashboard({ onJumpToTab }) {
   useEffect(() => {
     let cancelled = false;
     fetchNotFoundRecent().then((r) => { if (!cancelled) setStaleLinks(r); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [data?.generated_at]);
+
+  // iter413cr — AI Operations Center · Card 1 (Top AI-diagnosed issues).
+  // Lazy-loaded alongside stale links so the main dashboard renders
+  // immediately. Same refresh trigger.
+  const [aiIssues, setAiIssues] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchAiOpsIssues(7, 8).then((r) => { if (!cancelled) setAiIssues(r); }).catch(() => {});
     return () => { cancelled = true; };
   }, [data?.generated_at]);
 
@@ -536,6 +546,106 @@ export default function OperationsDashboard({ onJumpToTab }) {
               </ol>
             )}
           </section>
+
+          {/* iter413cr — AI Operations Center · Card 1
+              "Top AI-diagnosed issues · last 7d". The first card of a
+              broader AI Operations Center surface (Emerging Issues,
+              AI Confidence, Feature Confusion, Trending Seller
+              Feedback, AI Watch Window). Reports come from the Help
+              Assistant's "Report Issue" workflow (iter413cq) and are
+              clustered by keyword fingerprint. Self-hides when there
+              are no clusters in the current window.
+              cta_tab → contact-messages so admin can drill in.
+              */}
+          {aiIssues && Array.isArray(aiIssues.clusters) && aiIssues.clusters.length > 0 && (
+            <section
+              className="border border-line bg-paper p-3 md:p-4"
+              data-testid="ops-ai-issues"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-line">
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                  ◆ AI-diagnosed issues · last {aiIssues.window_days}d
+                </h3>
+                <span className="font-mono text-[10px] text-ink-muted" data-testid="ops-ai-issues-total">
+                  {aiIssues.current_window?.total ?? 0} report{(aiIssues.current_window?.total ?? 0) === 1 ? "" : "s"}
+                  {typeof aiIssues.prior_window?.total === "number" && (
+                    <> · vs {aiIssues.prior_window.total} prior</>
+                  )}
+                </span>
+              </div>
+              <ul className="divide-y divide-line">
+                {aiIssues.clusters.map((c, i) => {
+                  const sevColor = {
+                    high:   "text-danger",
+                    medium: "text-amber-700",
+                    low:    "text-ink",
+                    info:   "text-ink-muted",
+                  }[c.severity] || "text-ink-muted";
+                  const trendGlyph = {
+                    up:   "↑",
+                    down: "↓",
+                    flat: "→",
+                    new:  "★",
+                  }[c.trend] || "·";
+                  const trendLabel =
+                    c.trend === "new" ? "new" :
+                    c.trend_delta > 0 ? `+${c.trend_delta}` :
+                    c.trend_delta < 0 ? `${c.trend_delta}` : "flat";
+                  return (
+                    <li
+                      key={c.key || i}
+                      className="py-2 cursor-pointer hover:bg-paper-soft"
+                      onClick={() => jump("contact-messages")}
+                      data-testid={`ops-ai-issue-row-${i}`}
+                      title={c.sample_pages?.join(" · ") || ""}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-mono text-xs text-ink leading-snug truncate" title={c.label}>
+                            {c.label}
+                          </div>
+                          <div className="font-mono text-[10px] text-ink-muted truncate mt-0.5">
+                            <span className={sevColor} data-testid={`ops-ai-issue-sev-${i}`}>
+                              {c.severity}
+                            </span>
+                            <span aria-hidden> · </span>
+                            <span data-testid={`ops-ai-issue-trend-${i}`}>
+                              {trendGlyph} {trendLabel}
+                            </span>
+                            {c.sample_listing_slugs?.length > 0 && (
+                              <>
+                                <span aria-hidden> · </span>
+                                <span title={c.sample_listing_slugs.join(", ")}>
+                                  {c.sample_listing_slugs[0]}
+                                  {c.sample_listing_slugs.length > 1 && ` +${c.sample_listing_slugs.length - 1}`}
+                                </span>
+                              </>
+                            )}
+                            {(!c.sample_listing_slugs || c.sample_listing_slugs.length === 0) && c.sample_pages?.[0] && (
+                              <>
+                                <span aria-hidden> · </span>
+                                <span title={c.sample_pages[0]}>{c.sample_pages[0]}</span>
+                              </>
+                            )}
+                            <span aria-hidden> · </span>
+                            <span title={`first ${fmtAgo(c.first_seen)} ago · last ${fmtAgo(c.last_seen)} ago`}>
+                              {fmtAgo(c.last_seen)} ago
+                            </span>
+                          </div>
+                        </div>
+                        <span
+                          className="font-display text-lg text-ink tabular-nums shrink-0"
+                          data-testid={`ops-ai-issue-count-${i}`}
+                        >
+                          {c.count}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           {/* iter413bz — Top stale links · last 7d.
               Public 404 beacon feeds this card. Lets admin spot broken-

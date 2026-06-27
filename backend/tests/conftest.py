@@ -736,6 +736,11 @@ SMOKE_FILES = {
     # that drops into the Contact Inbox.
     "test_iter413cq_platform_capabilities_and_help.py",
 
+    # ── iter413cr — AI Operations Center · Card 1 ───────────────────
+    # Locks the cluster-aggregation endpoint (top AI-diagnosed issues
+    # with trend + severity) that powers the Ops Dashboard card.
+    "test_iter413cr_ai_operations.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

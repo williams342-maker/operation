@@ -1,3 +1,29 @@
+## iter413cr — AI Operations Center · Card 1 (2026-02)
+
+**Requested by user:** Turn the Operations Dashboard into an *AI Operations Center* — operational intelligence driven by real conversations, not guesses. First card: "Top AI-diagnosed issues (last 7d)" with clustering, trend, and severity.
+
+### What shipped
+- **`GET /api/admin/ops/ai-issues?window_days=N&limit=M`** (`routers/ai_operations.py`). Admin-only. Reads `contact_messages` rows tagged `kind=ai_diagnosed_bug`, fingerprints each by (page-area bucket :: top-4 description keywords with light stemming), groups into clusters, and returns:
+  - `current_window` / `prior_window` totals (back-to-back, no gap)
+  - per-cluster: `key`, `label`, `count`, `prior_count`, `trend` (`new`|`up`|`down`|`flat`), `trend_delta`, `severity` (`info`|`low`|`medium`|`high`, escalating at 2/5/10), `first_seen`, `last_seen`, up to 5 `sample_ids`, up to 3 `sample_pages`, up to 3 `sample_listing_slugs`.
+  - Severity-then-count ordering so the most actionable surfaces first.
+- **Ops Dashboard card** in `OperationsDashboard.jsx` (`data-testid="ops-ai-issues"`). Lazy-loaded alongside stale-links. Self-hides when no clusters. Shows label, severity color, trend glyph (↑↓→★), listing slug or page, last-seen relative time, and count. Each row deep-links to the Contact Inbox tab.
+- **`fetchAiOpsIssues(window_days, limit)`** helper in `lib/api.js`.
+- **Tests:** `tests/test_iter413cr_ai_operations.py` — 5/5 pass (auth gate, shape contract, similar-description clustering @ medium severity, distinct areas don't merge, severity escalation @ count=10 → high). Registered in `SMOKE_FILES`.
+
+### Architecture for future cards
+The endpoint layout is `/api/admin/ops/ai-*` so future cards (Emerging Issues, AI Confidence, Feature Confusion, Trending Seller Feedback, AI Watch Window) get their own URL without reshaping card 1. The clustering helper (`_signature`, `_severity`, `_trend_arrow`) is small + pure-Python — when v2 needs semantic clustering we can swap the fingerprint without touching the response contract.
+
+### Roadmap (left scaffolded in the file's docstring)
+- Card 2 — **Emerging issues** (clusters appearing in the last 24h with no presence in the prior 6 days).
+- Card 3 — **AI Confidence** (read from `help_questions` telemetry — answered-from-CAPABILITIES vs escalated vs unknown).
+- Card 4 — **Feature Confusion** (top repeated questions from `help_questions` *without* an associated bug report = UX signal).
+- Card 5 — **Trending seller feedback** (recurring feature requests across beta-feedback + contact_messages).
+- Card 6 — **AI Watch Window** (post-deploy proactive monitoring — flips on for 24-48h after a deploy marker, highlights any spike vs the 7-day baseline).
+
+---
+
+
 ## iter413cq — Batch 3 (Platform Knowledge service + AI Help Assistant + Report Issue) (2026-02)
 
 **Status:** SHIPPED. Loretta Alvarado's seller feedback (contradictory AI answers about platform features) is resolved end-to-end. Backend 5/5 pass + frontend E2E green (test_reports/iteration_97.json).

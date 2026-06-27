@@ -1242,6 +1242,11 @@ export const fetchOpsDashboardOverview = () =>
 // iter413bz — Top stale-link surface for the Ops Dashboard.
 export const fetchNotFoundRecent = () =>
   http.get("/admin/not-found/recent", { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter413cr — AI Operations Center: Top AI-diagnosed issues (card 1 of N).
+export const fetchAiOpsIssues = (window_days = 7, limit = 12) =>
+  http.get(`/admin/ops/ai-issues?window_days=${window_days}&limit=${limit}`, {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
 // iter413bq — Dismiss / restore action-queue items per-admin.
 export const dismissOpsItem = (item_id, mode = "24h", status_signature = null) =>
   http.post("/admin/ops-dashboard/dismiss",
