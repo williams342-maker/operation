@@ -192,6 +192,36 @@ Priority: P1 (high-touch but no integration work — pure copy + UI polish lever
 ---
 
 
+## iter413cw — Compass as marketplace front door (LOCKED STRATEGIC DIRECTION · large future build)
+
+User strategic recommendation (2026-02): Promote Compass from "floating help button" to **the primary entry point of Crafters Market**.
+
+> Add a prominent homepage search bar with messaging like:
+>
+> *"What are you looking for today? Ask Compass to help you find the perfect handmade product, maker, or custom creation."*
+>
+> That transforms Compass from "the help button in the corner" into the front door of Crafters Market. Buyers naturally begin their journey with Compass, and as its capabilities expand—discovery, recommendations, custom orders, seller coaching—it becomes the intelligence layer that ties the entire marketplace together.
+
+### Implementation outline (when picked up)
+- Hero section gets a large Compass-branded input ("Ask Compass anything…") above the existing CTA row. Submitting routes through the existing `/api/help/chat` with intent classification.
+- The widget transition becomes: input on home → full Compass panel (overlay or dedicated `/compass` page) once a query is submitted.
+- Sub-brand surfaces (Compass Discovery, Compass Recommendations) unlock contextually based on the buyer's question — e.g. "find me a gift for my mom" routes through Compass Discovery, "I want a custom wood sign" routes through Compass Custom-Order intake.
+- This is the bridge from Stage 1 (Assistant) → Stage 2 (Discovery + Recommendations) of the brand roadmap. **Highest long-term value lever** per user.
+
+### Progressive-disclosure design principle (also locked, deferred build)
+User decided against automatic contextual greetings (intrusive). Future implementation pattern:
+- When Compass opens via `/?compass=1&order=ord_X` or similar, it **silently loads** the order/listing/application context in the background.
+- The greeting remains the standard welcome — **no surprise reference** to the loaded context.
+- Context is only revealed when the user asks a related question ("Where's my order?" → *"I found your recent order for the Walnut Serving Board…"*).
+- Lightweight contextual *suggestion chips* (under the welcome, based on page type) are the **maximum** proactive surface — never an auto-greeting.
+
+Design principle to live by: **"Context available. Context revealed only when helpful."**
+
+Priority: Stage-2 work, queued after Listing Video Phase 1 + Loretta verification.
+
+---
+
+
 ## iter413cs++ — Listing Video Support · Phase 1 (FUTURE BATCH)
 
 User vision (2026-02): video should *complement* product photography to drive conversion, not duplicate the photo workflow. Phase 1 = one MP4/MOV per listing, ≤60s, ≤100MB, native HTML5 playback, mobile-friendly, no autoplay-with-sound.
