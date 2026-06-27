@@ -1,4 +1,22 @@
-## iter413cq — Batch 3 Scope (Next Session) + Post-Deploy Verification
+## iter413cq — Batch 3 (Platform Knowledge service + AI Help Assistant + Report Issue) (2026-02)
+
+**Status:** SHIPPED. Loretta Alvarado's seller feedback (contradictory AI answers about platform features) is resolved end-to-end. Backend 5/5 pass + frontend E2E green (test_reports/iteration_97.json).
+
+### What shipped
+1. **`GET /api/platform/capabilities`** (new public endpoint) — `routers/platform_capabilities.py`. Single source of truth: `schema_version`, `features.*` (listing_videos disabled w/ verbatim `user_message`, community_videos, custom_shop_url, TikTok pixel/CAPI, GSC), `listing_uploads.image/video`, `taxonomy.categories + techniques_by_category + product_guides`, `seller_limits.{standard|plus|founder|inaugural_founder}`, `commerce` (processing fee, free-shipping threshold, returns window, craftsmanship guarantee), `support` emails. Companion sync helper `build_capabilities_payload()` lets the Help router consume the payload inline (no HTTP round-trip).
+2. **AI Help Assistant integration** — `routers/help_chat.py`. Rewrote `SYSTEM_PROMPT_BASE` so the model is instructed to defer to the live `CAPABILITIES` JSON over its own memory for any feature-availability question. The capabilities block is rebuilt and injected per-request. Loretta's exact question — *"can I upload a video to my listing?"* — now returns *"No — listing videos aren't supported yet. The product gallery displays photos only. Video playback on listings is planned for a future release."*
+3. **AI "Report Issue" workflow** — `POST /api/help/report-issue` (public, rate-limited 6/IP/5min) lands a row in `db.contact_messages` tagged `topic="bug"` + `kind="ai_diagnosed_bug"`. Body bundles description + role + page URL + listing/maker slug + category + UA + viewport + AI conversation tail. Sidecar `ai_bug_meta` preserves structured payload for future admin UI rendering. Fans out to Slack/Discord via `notify_team()` (reuses the iter413cb impersonation-bug pattern). System prompt instructs the model to append a `REPORT_ISSUE_CTA: yes` cue on bug-flavored exchanges; the route strips the cue from the user-visible reply and returns `report_issue_cue: true` separately.
+4. **Frontend HelpSupportWidget** — `components/HelpSupportWidget.jsx`. New bug-cue CTA renders below the assistant reply when `report_issue_cue=true`. Click opens a modal pre-filled with page URL, role, listing/maker slugs (derived from `/shop/<slug>` or `/makers/<slug>`), UA, viewport. Optional reporter email. Submit → success state with reference ID. Reuses `data-testid`s for testability (`help-widget-report-cta`, `help-widget-report-modal`, `help-widget-report-textarea`, `help-widget-report-submit`, `help-widget-report-success`).
+5. **Rate-limit hardening** — `_check_report_rate_limit` now resolves the real client IP via `X-Forwarded-For` (left-most hop) → `X-Real-IP` → socket peer, so the bucket key isn't defeated by k8s ingress NAT. Opportunistic GC keeps the bucket dict bounded.
+
+### Tests
+- `tests/test_iter413cq_platform_capabilities_and_help.py` — 5 tests, all green, registered in `SMOKE_FILES`. Covers capabilities shape, inline-helper/HTTP parity, AI prompt injection, validation (422 on short description), end-to-end report-issue → contact inbox surfacing + sidecar meta.
+- Testing agent iteration_97: backend 7/7 strict + frontend E2E flow green (toggle → panel → starter hints → bug message → marker-stripped reply → CTA → modal → submit → success).
+
+---
+
+
+## iter413cq — Batch 3 Scope (Original Plan — kept for reference)
 
 ### Batch 3 — Platform Knowledge service + AI Help Assistant + Report Issue (NEXT SESSION)
 

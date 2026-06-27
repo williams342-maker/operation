@@ -260,6 +260,25 @@ _REPORT_LIMIT = 6           # 6 reports per IP per window
 _REPORT_WINDOW_S = 300.0    # 5 min
 
 
+def _client_ip(request: Request) -> str:
+    """Resolve the real client IP through the k8s ingress.
+
+    `request.client.host` is the immediate socket peer — behind an
+    ingress that's the ingress pod, and ingress pods vary, which
+    defeats per-IP bucket keys. Prefer X-Forwarded-For (left-most
+    is the original client) when present.
+    """
+    xff = request.headers.get("x-forwarded-for") or ""
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return (request.client.host if request.client else "") or ""
+
+
 def _check_report_rate_limit(ip: str):
     import time as _t
     now = _t.monotonic()
@@ -268,6 +287,14 @@ def _check_report_rate_limit(ip: str):
         raise HTTPException(429, "Too many reports — please try again in a few minutes.")
     arr.append(now)
     _REPORT_BUCKET[ip] = arr
+    # Opportunistic GC so the bucket dict doesn't grow unbounded over
+    # the life of the process (every distinct client IP leaks an entry
+    # otherwise — small but real).
+    if len(_REPORT_BUCKET) > 4096:
+        for k in list(_REPORT_BUCKET.keys()):
+            _REPORT_BUCKET[k] = [t for t in _REPORT_BUCKET[k] if now - t < _REPORT_WINDOW_S]
+            if not _REPORT_BUCKET[k]:
+                _REPORT_BUCKET.pop(k, None)
 
 
 class HelpConversationTurn(BaseModel):
@@ -299,7 +326,7 @@ async def help_report_issue(payload: HelpReportIssueIn, bg: BackgroundTasks, req
     Same shape as iter413cb impersonation-bug-report so the admin
     inbox renders it uniformly. Fans out to Slack/Discord via
     notify_team (no-op when unconfigured)."""
-    ip = (request.client.host if request.client else "") or ""
+    ip = _client_ip(request)
     _check_report_rate_limit(ip)
 
     desc = (payload.description or "").strip()
