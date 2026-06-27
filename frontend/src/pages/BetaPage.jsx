@@ -17,7 +17,10 @@ import FoundersWall from "../components/FoundersWall";
 // in the same admin review queue as regular maker applications. We tag the
 // submission with a "[FOUNDING SELLER BETA]" marker in the about field so
 // admins can triage beta applicants quickly.
-const TECH = ["PLASMA", "LASER", "ROUTER", "WOOD", "METAL", "CUSTOM"];
+// iter413co — Beta-application technique picker now mirrors the full
+// craft taxonomy instead of CNC-only PLASMA/LASER/ROUTER/WOOD/METAL/CUSTOM.
+import { ALL_TECHNIQUES } from "../lib/techniqueOptions";
+const TECH = ALL_TECHNIQUES;
 
 export default function BetaPage() {
   useStructuredData({

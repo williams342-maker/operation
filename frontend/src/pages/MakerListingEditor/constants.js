@@ -3,6 +3,8 @@
 // on state/effects/handlers and so individual section components can import
 // just what they need without round-tripping through the parent.
 
+import { ALL_TECHNIQUES as _ALL_TECHNIQUES } from "../../lib/techniqueOptions";
+
 // Listing categories. Ordered roughly by buyer demand on the marketplace
 // (Wall Art / Custom Signs first; niche buckets later) so the dropdown is
 // faster to scan for the most common cases. Adding a new value here is
@@ -37,10 +39,21 @@ export const CATEGORIES = [
   "Woodworking",
   "Leather Goods",
   "Fiber & Textiles",
+  // iter413co — Loretta's seller feedback: add Glass / Paper Crafts /
+  // Mixed Media as first-class categories so each can carry its own
+  // category-aware technique list. `Product.category` is a free-form
+  // string so older listings tagged anything else still resolve.
+  "Glass",
+  "Paper Crafts",
+  "Mixed Media",
   "Holiday & Seasonal",
   "Other",
 ];
-export const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "FORGE", "CUSTOM"];
+// iter413co — Legacy flat list kept for backwards compatibility with
+// any surface still importing TECHNIQUES directly. New surfaces should
+// import `techniquesForCategory()` from `lib/techniqueOptions.js` so
+// the dropdown is driven by the selected category.
+export const TECHNIQUES = _ALL_TECHNIQUES;
 
 // iter331 — Per-category default shipping rates, mirrored 1:1 with
 // `SHIPPING_BY_CATEGORY` in /app/backend/routers/checkout.py. Used by

@@ -1,9 +1,8 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { createMakerProduct, uploadMakerModel } from "../../lib/api";
 import { LabeledField } from "./_shared";
 import { CATEGORIES } from "../MakerListingEditor/constants";
-
-const TECHNIQUES = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
+import { techniquesForCategory } from "../../lib/techniqueOptions";
 // Retina-friendly: 2048px longest edge looks crisp on 2x/3x displays even
 // after the browser downscales for tile rendering.
 const MAX_IMG_W = 2048;
@@ -66,7 +65,14 @@ function compressImageToDataUrl(file) {
 export default function NewListingModal({ onClose, onCreated }) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
-  const [technique, setTechnique] = useState(TECHNIQUES[0]);
+  // iter413co — Technique list is now category-aware. When the maker
+  // switches category, the technique resets to the first option of the
+  // new list so they don't accidentally submit a CNC term against a
+  // fiber-art listing.
+  const techOptions = useMemo(() => techniquesForCategory(category), [category]);
+  const [technique, setTechnique] = useState(techOptions[0]);
+  // Keep technique in sync when category changes.
+  React.useEffect(() => { setTechnique(techOptions[0]); }, [techOptions]);
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState(4);
   const [description, setDescription] = useState("");
@@ -323,7 +329,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink"
                 data-testid="new-listing-technique"
               >
-                {TECHNIQUES.map((t) => (
+                {techOptions.map((t) => (
                   <option key={t} className="bg-paper">{t}</option>
                 ))}
               </select>

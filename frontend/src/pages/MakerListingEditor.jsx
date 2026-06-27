@@ -20,6 +20,7 @@ import {
   shippingHintForCategory,
   SHIPPING_PRESETS, defaultPresetIdForCategory,
 } from "./MakerListingEditor/constants";
+import { techniquesForCategory } from "../lib/techniqueOptions";
 import {
   Section, Label, FieldError, NumInput, Select, ChipGrid, Toggle, ToggleRow,
   ActionButtons,
@@ -127,8 +128,26 @@ export default function MakerListingEditor() {
   const dirtyRef = useRef(false);
   const set = (patch) => {
     dirtyRef.current = true;
-    setForm((f) => ({ ...f, ...patch }));
+    setForm((f) => {
+      const next = { ...f, ...patch };
+      // iter413co — When the category changes, reset technique to the
+      // first option of the new category-aware list. Prevents stale
+      // CNC terms from sticking on a fiber-art listing.
+      if (patch.category && patch.category !== f.category) {
+        const opts = techniquesForCategory(patch.category);
+        if (!opts.includes(next.technique)) {
+          next.technique = opts[0];
+        }
+      }
+      return next;
+    });
   };
+
+  // iter413co — Technique options driven by selected category.
+  const editorTechniqueOptions = useMemo(
+    () => techniquesForCategory(form.category),
+    [form.category],
+  );
 
   // Auth gate + initial data load
   useEffect(() => {
@@ -1187,7 +1206,7 @@ export default function MakerListingEditor() {
             <div>
               <Label>Technique</Label>
               <Select value={form.technique} onChange={(v) => set({ technique: v })}
-                options={TECHNIQUES.map((t) => [t, t])} testid="editor-technique" />
+                options={editorTechniqueOptions.map((t) => [t, t])} testid="editor-technique" />
               <p className="font-mono text-[10px] text-ink-muted mt-1 leading-relaxed">
                 How was it made? Powers technique-based discovery in search.
               </p>

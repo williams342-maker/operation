@@ -11,7 +11,11 @@ import { readAttributionContext } from "../lib/attribution";
 import MakerFeeTable from "../components/MakerFeeTable";
 import PricingComparisonTable from "../components/PricingComparisonTable";
 
-const TECH = ["PLASMA", "LASER", "ROUTER", "CUSTOM"];
+// iter413co — Technique pickers on the apply form now include every
+// craft category. Was hard-coded to CNC-only (PLASMA/LASER/ROUTER/CUSTOM),
+// which made non-CNC applicants pick irrelevant techniques.
+import { ALL_TECHNIQUES } from "../lib/techniqueOptions";
+const TECH = ALL_TECHNIQUES;
 
 export default function ApplyPage() {
   useStructuredData({

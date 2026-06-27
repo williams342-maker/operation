@@ -1,0 +1,28 @@
+{
+  "summary": "iter413co Batch 1 (Loretta's seller feedback) — verified category-aware Technique dropdown + Custom→Other rename. Ran 18 module-level contract tests against /app/frontend/src/lib/techniqueOptions.js (all PASS) + static code inspection of NewListingModal, MakerListingEditor, ApplyPage, BetaPage, and checkout.py. Implementation matches spec.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/scripts/test_technique_options.mjs"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "constants.js extension-less import `from \"../../lib/techniqueOptions\"` works fine in Webpack/Babel runtime but is not Node-ESM-strict; not a runtime bug for the app but blocks vanilla `node` dev scripts (worked around with regex parse in test script).",
+    "SHIPPING_BY_CATEGORY in backend/routers/checkout.py does NOT include keys for Glass / Paper Crafts / Mixed Media — by design they fall back to DEFAULT_SHIPPING=$30. Spec accepts this, but the editor's SHIPPING_DEFAULTS map (constants.js) also has no entry for these three, so the SHIPPING_FALLBACK ($30) is correctly applied. Consider adding explicit entries later if Loretta wants tighter rates for fiber/paper (lighter goods).",
+    "NewListingModal.jsx mixes `import { useMemo }` and `React.useEffect` (line 75) — minor style inconsistency, not a bug."
+  ],
+  "updated_files": [
+    "/app/frontend/scripts/test_technique_options.mjs (new — reusable taxonomy regression script)"
+  ],
+  "success_rate": { "backend": "100% (code inspection only)", "frontend": "100% (18/18 module contracts)" },
+  "test_credentials": "iron-and-oak@craftersmarket.org — minted via maker_auth.issue_magic_token; JWT verified via POST /api/maker/auth/verify (200).",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Module test at /app/frontend/scripts/test_technique_options.mjs runs in plain `node` (uses regex-extract on constants.js to avoid Node-ESM extensionless-import limitation). Run: `cd /app/frontend && node scripts/test_technique_options.mjs`. Tests cover all 18 contract assertions from the review request. UI E2E via Playwright authenticates via localStorage keys [maker_jwt, makerToken, maker_token, jwt] — JWT minted in /app/backend with `from maker_auth import issue_magic_token` then verified via /api/maker/auth/verify to get the session JWT. First Playwright run reached the dashboard fine; second hit a login redirect (likely transient/test isolation, not a bug). For Batch 2/3, focus shifts to Product Guides + AI Help Assistant, no further work needed on technique taxonomy.",
+  "rca of the issue": "N/A — no bugs found. All 18 contract assertions pass; code inspection confirms NewListingModal/MakerListingEditor wiring matches spec; backend SHIPPING_BY_CATEGORY lookup correctly falls back to DEFAULT_SHIPPING for the 3 new categories."
+}
