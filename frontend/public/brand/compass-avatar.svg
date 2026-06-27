@@ -1,0 +1,9 @@
+<!-- Compass · social avatar — 512×512, paper background, brand mark centred.
+     Padded for round-cropping on social platforms. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" aria-label="Compass">
+  <rect width="512" height="512" fill="#ecead8"/>
+  <g transform="translate(160 160) scale(8.5)" fill="none" stroke="#ff4500" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="5" width="14" height="14" rx="4" transform="rotate(45 12 12)"/>
+    <path d="M12 8.5 L13.7 11.5 L10.3 11.5 Z" fill="#ff4500" stroke="none"/>
+  </g>
+</svg>

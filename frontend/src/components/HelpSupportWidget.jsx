@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { HelpCircle, X, Send, Sparkles, AlertTriangle } from "lucide-react";
+import { X, Send, AlertTriangle } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { helpChat, helpReportIssue } from "../lib/api";
+import { CompassIcon, CompassLockup } from "./icons/CompassIcon";
 
 // iter312 — Onboarding-focused Help & Support AI chat.
 // Distinct from `AIAssistant.jsx` (buyer concierge for product Q&A).
@@ -16,20 +17,21 @@ import { helpChat, helpReportIssue } from "../lib/api";
 // intentionally neutral ("AI Marketplace Assistant") until the user
 // finalises the long-term brand name.
 
-// ▸▸▸ Brand surface — single source of truth. Change once when the
-// permanent name is chosen; do NOT inline these strings elsewhere.
+// ▸▸▸ Brand surface — single source of truth. Compass is the live
+// production identity (iter413cu). Sub-brand pairings ("Compass
+// Discovery", "Compass Insights", etc.) live under the same lockup.
 const ASSISTANT_BRAND = {
-  // Header label shown in the widget chrome. Keep neutral until the
-  // permanent name is locked.
-  header_label: "AI Marketplace Assistant",
-  // Eyebrow under the header. Stays the same across rebrands.
+  // Wordmark shown alongside the icon in the widget chrome.
+  header_label: "Compass",
+  // Subtitle under the wordmark — frames the role of the assistant.
+  header_subtitle: "Your Marketplace Assistant",
+  // Legacy: kept for callers that want a single-line role indicator.
   header_sub: (role) => `Role: ${role}`,
-  // Welcome message — one greeting for everyone. Tone: welcoming,
-  // value-forward, both-audiences.
+  // Welcome message — verbatim from user (iter413cu).
   welcome: (
-    "Hi! I'm Crafters Market's AI Marketplace Assistant. I can help you " +
-    "discover handmade products, answer questions about buying or selling, " +
-    "recommend makers, or help you start selling on Crafters Market."
+    "Hi! I'm Compass. I can help you discover handmade products, find the " +
+    "right maker, answer questions about buying or selling, guide you through " +
+    "custom orders, and help you grow your shop."
   ),
 };
 
@@ -210,11 +212,11 @@ export default function HelpSupportWidget() {
     <>
       <button
         onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "Close marketplace assistant" : "Open marketplace assistant"}
+        aria-label={open ? "Close Compass" : "Open Compass — Your Marketplace Assistant"}
         data-testid="help-widget-toggle"
-        className="fixed bottom-24 right-24 z-[60] bg-paper text-brand w-12 h-12 flex items-center justify-center border-2 border-cyan-700/70 hover:border-cyan-400 hover:rotate-3 transition-all shadow-[0_0_20px_rgba(34,211,238,0.25)]"
+        className="fixed bottom-24 right-24 z-[60] bg-[var(--surface)] text-[var(--ink)] w-12 h-12 flex items-center justify-center border border-[var(--line)] hover:text-[var(--brand)] hover:border-[var(--brand)] shadow-sm transition-colors"
       >
-        {open ? <X size={20} /> : <HelpCircle size={20} />}
+        {open ? <X size={20} /> : <CompassIcon size={22} />}
       </button>
 
       <AnimatePresence>
@@ -227,21 +229,11 @@ export default function HelpSupportWidget() {
             className="fixed bottom-44 right-4 sm:right-24 z-[60] w-[min(92vw,400px)] h-[min(70vh,560px)] bg-paper border border-cyan-900/60 flex flex-col"
             data-testid="help-widget-panel"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/60 bg-cyan-950/20">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-brand" />
-                <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand" data-testid="help-widget-brand">
-                    {ASSISTANT_BRAND.header_label}
-                  </div>
-                  <div className="font-mono text-[9px] text-ink-muted uppercase tracking-[0.18em]">
-                    {ASSISTANT_BRAND.header_sub(role)}
-                  </div>
-                </div>
-              </div>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]" data-testid="help-widget-brand">
+              <CompassLockup size={22} subtitle align="stack" />
               <button
                 onClick={resetChat}
-                className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted hover:text-brand"
+                className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ink-muted)] hover:text-[var(--brand)]"
                 data-testid="help-widget-reset"
                 title="Start a new chat"
               >
