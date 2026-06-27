@@ -1,0 +1,47 @@
+{
+  "summary": "iter413cq Batch 3 (Platform Knowledge service + AI-diagnosed bug report) verified end-to-end. Backend: 7 strict pass + 1 xfailed (per-IP rate limit ineffective behind k8s ingress — works on localhost). Frontend: HelpSupportWidget E2E flow green — toggle → panel → starter hints → bug message → AI reply with no leaked marker → bug-cue CTA → modal with pre-filled meta → submit → success state with reference ID. Loretta video-question reply correctly says 'not supported / future release'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/help/report-issue",
+        "issue": "Per-IP rate limit (6/IP/5min) not effective through Kubernetes ingress / public preview URL — 7 consecutive calls all returned 200. _check_report_rate_limit uses request.client.host, which behind the ingress resolves to an ingress IP (or varies per hop), defeating the bucket key. Verified the limiter DOES work correctly on internal http://127.0.0.1:8001 (7th call=429). Fix: read X-Forwarded-For (right-most untrusted hop) and fall back to request.client.host. Also keep in mind a single-IP NAT will share one bucket — could need user_agent + ip combo."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter413cq_platform_capabilities_and_help.py",
+    "/app/backend/tests/test_iter413cq_help_live_and_ratelimit.py",
+    "/app/test_reports/pytest/iter413cq.xml",
+    "/app/test_reports/pytest/iter413cq_live.xml",
+    "/app/test_reports/pytest/iter413cq_full.xml"
+  ],
+  "action_items": [
+    "Fix rate-limit IP source in /app/backend/routers/help_chat.py::_check_report_rate_limit — read X-Forwarded-For first hop, fall back to request.client.host. Without this the 6/5min cap is ineffective in cloud deploy."
+  ],
+  "critical_code_review_comments": [
+    "_REPORT_BUCKET in /app/backend/routers/help_chat.py grows unbounded — every distinct IP gets a permanent entry. Add periodic GC or use a TTL cache (cachetools.TTLCache) keyed on IP. Memory is small (~200 bytes/entry) but unbounded over years.",
+    "routers/help_chat.py imports `notify_webhook.notify_team` inside the request handler (line 378). Hot-path import is cheap (Python caches) but moving to module-top would be cleaner and one less try/except surface area.",
+    "build_capabilities_payload() in /app/backend/routers/platform_capabilities.py is called synchronously inside async route handler — fine because it's pure-Python and tiny (~6KB output), but the 'cached at the edge for 60s' comment is aspirational only — the route ALWAYS rebuilds the dict and the global middleware overrides Cache-Control to no-store anyway. Either drop the misleading header set or wire a real ETag / lru_cache.",
+    "SYSTEM_PROMPT_BASE concatenation in help_chat.py (~3KB) happens per request. Acceptable today, but if capabilities payload grows past ~6KB the per-request prompt build cost will matter — consider lru_cache(maxsize=1, ttl=60s) on the assembled prompt skeleton.",
+    "HelpReportIssueIn.conversation accepts up to N turns with each text capped at 4000 chars — no aggregate cap. A malicious client could post a 100-turn array (each 4000 chars) = ~400KB body. FastAPI/Starlette has a default request size limit but consider an explicit `max_items` on the conversation list (e.g., 20)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter413cq_help_live_and_ratelimit.py (new — supplemental tests for live AI reply + bug-cue strip + rate limit)"
+  ],
+  "success_rate": {
+    "backend": "100% strict (7/7) + 1 xfailed environment-level rate-limit",
+    "frontend": "100% (toggle, panel, hints, bug message, AI reply marker-stripped, CTA, modal, submit, success)"
+  },
+  "test_credentials": "Admin verify via maker_auth.issue_admin_magic_token(team@craftersmarket.org) — exercised in test_help_report_issue_lands_in_contact_inbox.",
+  "seed_data_creation": "Each rate-limit / E2E test cleans up its own rows in db.contact_messages via id or regex match before exit.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter413cq Batch 3 green. The one open thread is rate-limit IP detection behind ingress — only minor (limit still works for single-process attacker hitting localhost or sharing same upstream IP), but in cloud deploy a determined abuser would never trip the cap. Fix is ~5 lines in _check_report_rate_limit. The Help Assistant Claude prompt now correctly defers to CAPABILITIES JSON for video questions — verified by live AI call returning the 'not supported / future release' stance for Loretta's exact question. UI flow (testids: help-widget-toggle, -panel, -hints, -report-cta-wrap, -report-cta, -report-modal, -report-textarea, -report-submit, -report-success) all working.",
+  "rca of the issue": "Rate limit not firing through public preview URL: _check_report_rate_limit keys its bucket on `request.client.host`. In the k8s ingress topology, that field is populated from the immediate socket peer — the ingress pod — not the real client. Each request can also be served from a different ingress pod with a different IP, so the bucket key changes between calls. Localhost direct hits (same 127.0.0.1) trigger 429 on the 7th call as designed. Mitigation: parse X-Forwarded-For (left-most non-private hop) and fall back to request.client.host."
+}

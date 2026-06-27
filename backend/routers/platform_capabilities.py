@@ -86,6 +86,13 @@ async def platform_capabilities(response: Response):
       • Admin diagnostic surfaces.
       • Future Craft Taxonomy service migration target."""
     response.headers["Cache-Control"] = "public, max-age=60"
+    return build_capabilities_payload()
+
+
+def build_capabilities_payload() -> dict:
+    """Same payload as the HTTP endpoint, callable in-process so the
+    AI Help Assistant can inject it into its system prompt without
+    a network round-trip."""
     return {
         # ── Schema version. Bump when removing/renaming a field. Add
         # fields freely without bumping — additive changes are safe. ──

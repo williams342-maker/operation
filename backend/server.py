@@ -39,6 +39,7 @@ from routers.ai_ad_push import router as ai_ad_push_router
 from routers.pinterest_catalog import router as pinterest_catalog_router
 from routers.leaderboard import router as leaderboard_router
 from routers.help_chat import router as help_chat_router
+from routers.platform_capabilities import router as platform_capabilities_router  # iter413cq
 from routers.settings import router as settings_router
 from routers.shipping import router as shipping_router
 from routers.admin_shipping import router as admin_shipping_router
@@ -123,6 +124,7 @@ api.include_router(admin_router)
 api.include_router(gsc_admin_router)
 api.include_router(ai_router)
 api.include_router(help_chat_router)
+api.include_router(platform_capabilities_router)  # iter413cq — live platform capabilities (single source of truth for AI Help)
 api.include_router(listing_budgets_router)
 api.include_router(promote_router)
 api.include_router(admin_ads_health_router)
