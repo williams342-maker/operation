@@ -29,6 +29,35 @@ IMPACT_RANK = {"high": 3, "medium": 2, "low": 1, None: 0}
 EFFORT_RANK = {"low": 3, "medium": 2, "high": 1, None: 2}  # unknown = medium
 
 
+def _sales_opportunity(percent: float, gap: float) -> dict:
+    """iter413dg — Qualitative sales-opportunity indicator.
+
+    Deliberately NOT a numeric prediction — we don't have enough
+    marketplace data yet to calibrate "+15 score = +X% sales". Instead
+    we surface a 5-star opportunity rating + plain-English level
+    ('low' / 'moderate' / 'high') derived from current score AND the
+    closeable gap. Sellers respond more strongly to "what they could
+    gain" than to a raw deficit, so the rating ROSE as the gap grows
+    AND falls back to "saturated" once the listing is already strong.
+
+    Calibration (rebaseline once we have conversion data):
+      • gap ≥ 40   → 5★ high      (huge headroom, urgent attention)
+      • gap ≥ 25   → 4★ high      (real, attainable wins)
+      • gap ≥ 12   → 3★ moderate  (worth the time)
+      • gap ≥ 5    → 2★ low       (polish work)
+      • gap < 5    → 1★ saturated (already near ceiling)
+    """
+    if gap >= 40:
+        return {"stars": 5, "level": "high", "label": "High"}
+    if gap >= 25:
+        return {"stars": 4, "level": "high", "label": "High"}
+    if gap >= 12:
+        return {"stars": 3, "level": "moderate", "label": "Moderate"}
+    if gap >= 5:
+        return {"stars": 2, "level": "low", "label": "Low"}
+    return {"stars": 1, "level": "saturated", "label": "Near ceiling"}
+
+
 def _interp_link(template: str, identifier: Optional[str]) -> str:
     """Best-effort {slug} interpolation. Returns empty string when the
     template is missing OR the identifier isn't provided (template
@@ -104,6 +133,9 @@ def prioritize(scorecard: dict, identifier: Optional[str] = None) -> dict:
     ceiling = score + sum(a["points_gain"] for a in actions)
     next_action = actions[0] if actions else None
     summary = _render_summary(scorecard, actions, next_action)
+    percent = scorecard.get("percent", 0.0)
+    gap = ceiling - score
+    opportunity = _sales_opportunity(percent, gap)
 
     return {
         "algorithm": scorecard.get("algorithm"),
@@ -111,9 +143,10 @@ def prioritize(scorecard: dict, identifier: Optional[str] = None) -> dict:
         "identifier": identifier,
         "score": round(score, 1),
         "max_score": round(max_score, 1),
-        "percent": scorecard.get("percent", 0.0),
+        "percent": percent,
         "ceiling": round(ceiling, 1),
-        "gap": round(ceiling - score, 1),
+        "gap": round(gap, 1),
+        "sales_opportunity": opportunity,
         "next_action": next_action,
         "actions": actions,
         "summary": summary,

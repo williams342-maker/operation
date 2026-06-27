@@ -4,7 +4,7 @@ import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
   LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock, Rocket,
-  Award,
+  Award, Compass,
 } from "lucide-react";
 import TrialBanner from "./TrialBanner";
 import { isFounder, effectiveTier, TIER_LABELS } from "../../lib/founderTier";
@@ -12,6 +12,7 @@ import { isFounder, effectiveTier, TIER_LABELS } from "../../lib/founderTier";
 const NAV = [
   { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
   { id: "founder",     label: "Founder",     icon: Award, founderOnly: true },
+  { id: "coach",       label: "Coach",       icon: Compass, badge: "Beta" },
   { id: "listings",    label: "Listings",    icon: Box },
   { id: "renewals",    label: "Renewals",    icon: CalendarClock },
   { id: "orders",      label: "Orders",      icon: ShoppingBag },

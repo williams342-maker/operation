@@ -1204,6 +1204,20 @@ export const promoteToFounder = (slug, { inaugural = true } = {}) =>
     { headers: adminAuthHeaders() }
   ).then((r) => r.data);
 
+// iter413dg — Seller Success Dashboard ("Coach" tab). All three
+// endpoints share the same payload shape Compass consumes — one
+// source of truth between Compass, the dashboard, and future emails.
+export const fetchListingsCoachingRollup = () =>
+  http.get("/maker/listings-coaching/rollup", { headers: authHeaders() }).then((r) => r.data);
+
+export const fetchListingCoaching = (slug) =>
+  http.get(`/maker/listings/${slug}/coaching`, { headers: authHeaders() }).then((r) => r.data);
+
+export const fetchListingCoachingTimeline = (slug, limit = 10) =>
+  http.get(`/maker/listings/${slug}/coaching/timeline`, {
+    headers: authHeaders(), params: { limit },
+  }).then((r) => r.data);
+
 // iter413dd — One-time Founder welcome modal ack. Called when the maker
 // dismisses the celebration modal. Backend flips `founder_welcome_seen=true`
 // so the modal never re-appears.

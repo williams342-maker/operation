@@ -798,6 +798,13 @@ SMOKE_FILES = {
     # of the LISTING_COACHING block when a maker asks about a listing.
     "test_iter413df_impact_engine.py",
 
+    # ── iter413dg — Sales Opportunity + Timeline + Roll-up ──────────
+    # Locks: qualitative `sales_opportunity` (5★ indicator) on every
+    # coaching response, Progress Timeline endpoint with snapshot
+    # dedup + per-rule deltas, and the maker listings roll-up endpoint
+    # (worst-first prioritization across all of a seller's listings).
+    "test_iter413dg_sales_opportunity_timeline.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

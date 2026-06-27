@@ -29,6 +29,73 @@ import quality  # noqa: F401  — import side-effect registers rules
 from quality.engine import evaluate, registered_algorithms
 from quality.impact import prioritize
 
+
+# iter413dg — Progress timeline snapshot helper. Persists a compact
+# scorecard snapshot whenever the coaching endpoint is read. Two
+# safeguards: (a) deduped by content — if score AND per-rule scores
+# haven't changed, we DON'T write a new row; (b) capped at the most
+# recent 50 snapshots per listing via a one-shot trim. This keeps
+# the timeline meaningful (every entry represents real progress)
+# without unbounded growth.
+TIMELINE_CAP = 50
+
+
+async def _snapshot_quality(listing_slug: str, scorecard: dict) -> None:
+    """Write a deduped scorecard snapshot. Best-effort: any DB error
+    is logged but never blocks the coaching response (snapshot is
+    nice-to-have for the timeline, not load-bearing for coaching)."""
+    try:
+        from datetime import datetime, timezone
+        # Per-rule score map — used to compute "what changed" deltas later.
+        rule_scores = {r["rule_id"]: r["score"] for r in scorecard.get("rules", [])}
+        # Most-recent snapshot — skip the insert if score + rule_scores
+        # are identical (i.e. the maker reloaded coaching without
+        # actually changing anything).
+        prev = await db.quality_score_snapshots.find_one(
+            {"listing_slug": listing_slug, "algorithm": scorecard.get("algorithm"),
+             "version": scorecard.get("version")},
+            sort=[("taken_at", -1)],
+        )
+        if prev and prev.get("score") == scorecard.get("score") and \
+                prev.get("rule_scores") == rule_scores:
+            return
+        await db.quality_score_snapshots.insert_one({
+            "listing_slug": listing_slug,
+            "algorithm": scorecard.get("algorithm"),
+            "version": scorecard.get("version"),
+            "score": scorecard.get("score"),
+            "max_score": scorecard.get("max_score"),
+            "percent": scorecard.get("percent"),
+            "rule_scores": rule_scores,
+            "taken_at": datetime.now(timezone.utc).isoformat(),
+        })
+        # Trim history to TIMELINE_CAP newest per (listing, alg, ver).
+        cursor = db.quality_score_snapshots.find(
+            {"listing_slug": listing_slug,
+             "algorithm": scorecard.get("algorithm"),
+             "version": scorecard.get("version")},
+            {"_id": 1},
+        ).sort("taken_at", -1).skip(TIMELINE_CAP)
+        stale = [doc["_id"] async for doc in cursor]
+        if stale:
+            await db.quality_score_snapshots.delete_many({"_id": {"$in": stale}})
+    except Exception as e:
+        import logging
+        logging.getLogger("crafters").warning(
+            "[quality] snapshot persist failed for %s: %s", listing_slug, e,
+        )
+
+
+def _rule_label(scorecard: dict, rule_id: str) -> str:
+    """Look up the human-readable rule label from a fresh scorecard.
+    Used to render timeline entries with proper labels even when an
+    older snapshot only has rule_ids."""
+    for r in scorecard.get("rules", []):
+        if r["rule_id"] == rule_id:
+            return r["label"]
+    return rule_id
+
+
 router = APIRouter()
 
 
@@ -115,6 +182,7 @@ async def maker_listing_coaching(
     if prod.get("maker_slug") != maker_slug:
         raise HTTPException(403, "Not your listing.")
     card = evaluate("listing_quality", version, _build_listing_subject(prod))
+    await _snapshot_quality(slug, card)
     return prioritize(card, identifier=slug)
 
 
@@ -130,4 +198,133 @@ async def admin_listing_coaching(
     before the maker asks."""
     prod = await _load_listing_for_quality(slug)
     card = evaluate("listing_quality", version, _build_listing_subject(prod))
+    await _snapshot_quality(slug, card)
     return prioritize(card, identifier=slug)
+
+
+# iter413dg — Progress Timeline. Returns the recent score history for
+# this listing with the per-event deltas — "you went 39 → 64, gained
+# +15 on Product Video and +10 on Shipping". Powers the Seller Success
+# Dashboard's "What changed?" panel.
+@router.get("/maker/listings/{slug}/coaching/timeline")
+async def maker_listing_timeline(
+    slug: str,
+    version: Optional[str] = None,
+    limit: int = 10,
+    maker_slug: str = Depends(current_maker_slug),
+):
+    prod = await _load_listing_for_quality(slug)
+    if prod.get("maker_slug") != maker_slug:
+        raise HTTPException(403, "Not your listing.")
+    return await _build_timeline(slug, version, limit, prod)
+
+
+@router.get("/admin/listings/{slug}/coaching/timeline")
+async def admin_listing_timeline(
+    slug: str,
+    version: Optional[str] = None,
+    limit: int = 10,
+    _: dict = Depends(current_admin),
+):
+    prod = await _load_listing_for_quality(slug)
+    return await _build_timeline(slug, version, limit, prod)
+
+
+async def _build_timeline(
+    slug: str, version: Optional[str], limit: int, prod: dict,
+) -> dict:
+    """Build the progress timeline payload. Reads up to `limit`
+    snapshots NEWEST-FIRST and computes the delta against the prior
+    snapshot for each entry. Labels are resolved from a fresh evaluate
+    call so they stay accurate even if rule labels evolve across
+    algorithm versions."""
+    # Resolve effective version exactly the way evaluate() does.
+    fresh = evaluate("listing_quality", version, _build_listing_subject(prod))
+    effective_version = fresh["version"]
+    limit = max(1, min(50, int(limit or 10)))
+    rows = await db.quality_score_snapshots.find(
+        {"listing_slug": slug, "algorithm": "listing_quality",
+         "version": effective_version},
+        {"_id": 0},
+    ).sort("taken_at", -1).to_list(limit + 1)
+    entries: list = []
+    for i, snap in enumerate(rows[:limit]):
+        prev = rows[i + 1] if i + 1 < len(rows) else None
+        deltas: list = []
+        if prev:
+            for rule_id, score in (snap.get("rule_scores") or {}).items():
+                prev_score = (prev.get("rule_scores") or {}).get(rule_id, 0)
+                diff = round(float(score) - float(prev_score), 1)
+                if abs(diff) >= 0.5:
+                    deltas.append({
+                        "rule_id": rule_id,
+                        "label": _rule_label(fresh, rule_id),
+                        "delta": diff,
+                    })
+            deltas.sort(key=lambda d: -abs(d["delta"]))
+        entries.append({
+            "taken_at": snap.get("taken_at"),
+            "score": snap.get("score"),
+            "percent": snap.get("percent"),
+            "score_delta": (
+                round(snap.get("score", 0) - prev.get("score", 0), 1)
+                if prev else None
+            ),
+            "deltas": deltas,
+        })
+    return {
+        "listing_slug": slug,
+        "algorithm": "listing_quality",
+        "version": effective_version,
+        "entries": entries,
+        "current": {
+            "score": fresh["score"],
+            "max_score": fresh["max_score"],
+            "percent": fresh["percent"],
+        },
+    }
+
+
+# iter413dg — Roll-up across all of a maker's listings. Used by the
+# Seller Success Dashboard "Coach" tab to show every listing ranked
+# worst-first (i.e. priority-first). Cheap projection — does NOT run
+# the full Impact-Engine prioritization (that's per-listing on demand).
+@router.get("/maker/listings-coaching/rollup")
+async def maker_listings_rollup(
+    version: Optional[str] = None,
+    maker_slug: str = Depends(current_maker_slug),
+):
+    cursor = db.products.find(
+        {"maker_slug": maker_slug, "deleted_at": None},
+        {"_id": 0, "slug": 1, "title": 1, "image": 1, "images": 1,
+         "description": 1, "listing_video": 1, "shipping_profile_id": 1,
+         "shipping_flat_rate_cents": 1, "processing_time_days": 1,
+         "meta_description": 1, "materials": 1, "status": 1},
+    )
+    rows: list = []
+    async for prod in cursor:
+        card = evaluate("listing_quality", version, _build_listing_subject(prod))
+        plan = prioritize(card, identifier=prod["slug"])
+        rows.append({
+            "slug": prod["slug"],
+            "title": prod.get("title"),
+            "image": prod.get("image"),
+            "status": prod.get("status"),
+            "score": plan["score"],
+            "max_score": plan["max_score"],
+            "percent": plan["percent"],
+            "ceiling": plan["ceiling"],
+            "gap": plan["gap"],
+            "sales_opportunity": plan["sales_opportunity"],
+            "next_action_label": (plan["next_action"] or {}).get("label"),
+            "next_action_points": (plan["next_action"] or {}).get("points_gain"),
+        })
+    # Sort worst-first — biggest opportunity at the top.
+    rows.sort(key=lambda r: r["percent"])
+    return {
+        "maker_slug": maker_slug,
+        "algorithm": "listing_quality",
+        "version": version or "v1",
+        "count": len(rows),
+        "rows": rows,
+    }
