@@ -50,6 +50,46 @@ Each signal compares current rate (per-day, normalised by elapsed_hours since wa
 ---
 
 
+## iter413cu — Compass · official AI brand identity LIVE (2026-02)
+
+**Status:** SHIPPED. iteration_100 testing agent: **100% green** on every acceptance criterion (backend 9/9 pytest, frontend full E2E). User-approved Concept 5 (Abstract Navigation) refined per direction and rolled out across the platform.
+
+### What shipped
+- **Final brand mark** (`components/icons/CompassIcon.jsx`):
+  - Rotated rounded square + small filled directional triangle (apex slightly above optical centre so the mark reads as "pointing somewhere").
+  - Stroke 1.75 (down from lucide-default 2.0) for crisper 16px rendering.
+  - 24×24 viewBox → drop-in for any lucide-react usage.
+  - All 5 concept variants preserved as named exports for the gallery + future experimentation.
+- **`<CompassLockup>` component** — per user year-1 brand-building rule, the icon ALWAYS pairs with the "Compass" wordmark. Supports `row` and `stack` align, optional subtitle, default `size=20`.
+- **`HelpSupportWidget.jsx` rebrand**:
+  - Toggle button uses the new mark on `var(--surface)` with brand-orange hover (legacy cyan glow + rotate retired).
+  - Open-panel header replaced with `<CompassLockup size={22} subtitle align="stack" />` showing **COMPASS** / **YOUR MARKETPLACE ASSISTANT**.
+  - `ASSISTANT_BRAND` updated: `header_label="Compass"`, `header_subtitle="Your Marketplace Assistant"`, new verbatim welcome message.
+  - Bonus sweep: all four remaining `border-cyan-900/60` + `bg-cyan-950/20` tokens (input footer, Report Issue modal) converted to semantic `var(--line)` / `var(--surface)` — widget now 100% Aged Canvas semantic.
+- **Backend (`routers/help_chat.py`) system prompt rewrite** — AI now self-identifies as **Compass** and is explicitly forbidden from calling itself a "help bot" / "support chatbot". Verified at runtime: `POST /api/help/chat` with *"who are you?"* returns *"I'm **Compass** — your marketplace assistant for Crafters Market…"* The iter413cq Platform Capabilities injection still answers the video-upload question authoritatively — no regression.
+- **Brand-kit assets** at `/app/frontend/public/brand/`:
+  - `compass-master.svg` (currentColor — for inline JSX/CSS)
+  - `compass-light.svg` / `compass-dark.svg` / `compass-brand.svg` (fixed-color)
+  - `compass-avatar.svg` (512×512 padded canvas for social)
+  - `compass-favicon.svg` (32×32, thicker stroke for browser-tab legibility)
+  - `README.md` documenting construction rules, in-React usage, and sub-brand lockup conventions
+- **`/admin/compass-preview` route** preserved as visual regression / brand-kit reference. Renders all 5 concepts × all sizes × all color treatments + in-context Help-widget mockups + sub-brand lockups for Compass Discovery / Recommendations / Insights / Operations / Growth.
+
+### Sub-brand naming locked in
+All future AI-powered surfaces inherit the same lockup pattern:
+- **Compass Discovery** — buyer product discovery + gift recs
+- **Compass Recommendations** — maker recommendations + cross-sell
+- **Compass Insights** — admin marketplace intelligence (AI Ops Center cards roll up here)
+- **Compass Operations** — issue detection + deployment monitoring (iter413cr/cs surfaces slot here)
+- **Compass Growth** — seller listing assistant + shop optimisation
+
+### Tests
+- `tests/test_iter413cu_compass.py` — 9/9 backend pytest pass (AI self-identifies, capabilities injection intact, all 7 brand-kit assets HTTP 200 with correct content-type).
+- `testing_agent_v3_fork` iteration_100: 100% backend + 100% frontend.
+
+---
+
+
 ## iter413ct+ — Compass · AI brand identity (LOCKED direction, future implementation)
 
 **Decision (2026-02):** The AI is named **Compass — Your Marketplace Assistant**. Person-style names ("Helena", "Market Guide") are explicitly rejected; the AI is a *product*, not a representative.

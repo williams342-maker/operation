@@ -226,7 +226,7 @@ export default function HelpSupportWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-44 right-4 sm:right-24 z-[60] w-[min(92vw,400px)] h-[min(70vh,560px)] bg-paper border border-cyan-900/60 flex flex-col"
+            className="fixed bottom-44 right-4 sm:right-24 z-[60] w-[min(92vw,400px)] h-[min(70vh,560px)] bg-paper border border-[var(--line)] flex flex-col"
             data-testid="help-widget-panel"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]" data-testid="help-widget-brand">
@@ -310,7 +310,7 @@ export default function HelpSupportWidget() {
 
             <form
               onSubmit={(e) => { e.preventDefault(); send(); }}
-              className="border-t border-cyan-900/60 px-3 py-2.5 flex items-center gap-2 bg-paper"
+              className="border-t border-[var(--line)] px-3 py-2.5 flex items-center gap-2 bg-paper"
             >
               <input
                 value={draft}
@@ -352,10 +352,10 @@ export default function HelpSupportWidget() {
               exit={{ y: 20, opacity: 0 }}
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-[min(96vw,520px)] bg-paper border border-cyan-900/60 max-h-[85vh] overflow-y-auto"
+              className="w-[min(96vw,520px)] bg-paper border border-[var(--line)] max-h-[85vh] overflow-y-auto"
               data-testid="help-widget-report-modal"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/60 bg-cyan-950/20">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={14} className="text-brand" />
                   <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
