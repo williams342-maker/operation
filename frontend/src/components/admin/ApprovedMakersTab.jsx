@@ -4,7 +4,7 @@ import {
   fetchAdminApprovedMakers, toggleMakerBeta,
   purgeApprovedMaker, approvedMakersCsvUrl,
   sendEnrichlabsExportNow, fetchEnrichlabsExportStatus,
-  adminImpersonateMaker,
+  adminImpersonateMaker, promoteMakerToFounder,
 } from "../../lib/api";
 import { startImpersonation } from "../../lib/impersonate";
 import { formatDate } from "./_shared";
@@ -97,6 +97,34 @@ export default function ApprovedMakersTab() {
       toast.error(e?.response?.data?.detail || "Failed to impersonate maker.");
     } finally {
       setImpersonatingSlug("");
+    }
+  };
+
+  // iter413da — One-click founder promotion. Confirms (founder_number is
+  // monotonic + lifetime for inaugural), POSTs to /admin/founders/promote,
+  // refreshes the table. Idempotent on the backend so a re-click is safe.
+  const [promotingSlug, setPromotingSlug] = useState("");
+  const promoteToFounder = async (slug, name) => {
+    const ok = window.confirm(
+      `Promote "${name || slug}" to Inaugural Founder?\n\n` +
+      `• Sets tier=founder, founder_status=inaugural, lifetime expiry.\n` +
+      `• Assigns the next monotonic Founder number (#NNN).\n` +
+      `• Sends the Inaugural Founder welcome email (only on first promotion).\n` +
+      `• Unlocks the vanity URL + Founder dashboard tab + 3% commission + 50 listings/mo.\n\n` +
+      `Safe to re-run — re-promotion reuses the existing Founder number.`,
+    );
+    if (!ok) return;
+    setPromotingSlug(slug);
+    try {
+      const res = await promoteMakerToFounder(slug, "inaugural");
+      toast.success(
+        `${name || slug} → Inaugural Founder #${res.founder_number}.`,
+      );
+      await refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Failed to promote maker.");
+    } finally {
+      setPromotingSlug("");
     }
   };
 
@@ -390,6 +418,20 @@ export default function ApprovedMakersTab() {
                     <a href={`mailto:${r.email}`} className="text-ink-muted hover:text-brand">{r.email}</a>
                   </td>
                   <td className="py-3 pr-3 space-x-1">
+                    {r.tier === "founder" && (
+                      <span
+                        data-testid={`approved-founder-badge-${r.slug}`}
+                        title={
+                          r.founder_status === "inaugural"
+                            ? `Inaugural Founder #${r.founder_number} · Lifetime · 3% commission · 50 free listings/mo`
+                            : `Founder #${r.founder_number} · 3% commission`
+                        }
+                        className="inline-block px-1.5 py-0.5 bg-brand text-paper text-[9px] font-bold"
+                      >
+                        {r.founder_status === "inaugural" ? "★ INAUGURAL" : "★ FOUNDER"}
+                        {r.founder_number ? ` #${r.founder_number}` : ""}
+                      </span>
+                    )}
                     {r.is_beta && <span className="inline-block px-1.5 py-0.5 bg-brand text-ink text-[9px] font-bold">BETA</span>}
                     {["active", "trialing"].includes(r.subscription_status) && (
                       <span className="inline-block px-1.5 py-0.5 border border-emerald-500/60 text-emerald-700 text-[9px] font-bold">★ PLUS</span>
@@ -409,6 +451,17 @@ export default function ApprovedMakersTab() {
                     >
                       {impersonatingSlug === r.slug ? "…" : "Impersonate"}
                     </button>
+                    {r.tier !== "founder" && (
+                      <button
+                        onClick={() => promoteToFounder(r.slug, r.name)}
+                        disabled={promotingSlug === r.slug}
+                        data-testid={`approved-promote-founder-${r.slug}`}
+                        title="Promote this maker to Inaugural Founder (lifetime · 3% commission · 50 listings/mo · unlocks vanity URL)"
+                        className="px-2 py-1 border border-brand bg-brand/10 text-brand hover:bg-brand hover:text-paper font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+                      >
+                        {promotingSlug === r.slug ? "…" : "★ Founder"}
+                      </button>
+                    )}
                     <button
                       onClick={() => setExpandedSlug((cur) => cur === r.slug ? "" : r.slug)}
                       data-testid={`approved-chart-toggle-${r.slug}`}

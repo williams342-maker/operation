@@ -446,6 +446,13 @@ async def admin_approved_makers(_: dict = Depends(current_admin)):
             "beta_expires_at": m.get("beta_expires_at"),
             "is_veteran_owned": bool(m.get("is_veteran_owned")),
             "subscription_status": m.get("subscription_status") or "free",
+            # iter413da — Surface tier / founder_status / founder_number so the
+            # admin UI can render a FOUNDER badge AND conditionally show the
+            # "Promote to Founder" one-click button. Mirrors revenue.py's
+            # tier-resolution truth-set (founder_status == "inaugural" wins).
+            "tier": m.get("tier") or "standard",
+            "founder_status": m.get("founder_status"),
+            "founder_number": m.get("founder_number"),
             "listings_count": listings_by_slug.get(slug, 0),
             "lifetime_gmv": gmv_by_slug.get(slug, 0.0),
             "created_at": m.get("created_at"),
