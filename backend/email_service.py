@@ -2016,22 +2016,55 @@ def render_application_decision_email(
     When `founder_number` is supplied (every Phase-2 approval gets one),
     we render a Founders-tier welcome panel near the top showing their
     number, status (Inaugural lifetime vs 12-month) and the tier perks.
+
+    iter413dc — Subject line, title, and intro now flip for Founders so
+    the inbox preview and email opening immediately communicate tier
+    identity (numbered Inaugural status), not just "welcome to the
+    workshop". The supporting checklist + fee breakdown is unchanged.
     """
-    title = "Welcome to the Workshop." if approved else "Application Update."
-    intro = (
-        f"Hi {name}, your studio {studio} is in. Here's everything you need to launch."
-        if approved
-        else f"Hi {name}, thanks for applying with {studio}. We're not moving forward right now."
+    # iter413dc — Founder-aware top-of-fold copy.
+    is_founder = approved and bool(founder_number)
+    badge_class = (
+        "Inaugural Founder" if (is_founder and is_inaugural)
+        else ("Founder · 12-month" if is_founder else None)
     )
+    if approved:
+        if is_founder and is_inaugural:
+            title = f"You're Inaugural Founder #{founder_number:03d}."
+            intro = (
+                f"Hi {name} — your studio {studio} is in, and you've claimed one of "
+                f"the 100 inaugural Founder slots. Lifetime tier. Your rate never changes."
+            )
+        elif is_founder:
+            title = f"You're Founder #{founder_number:03d}."
+            intro = (
+                f"Hi {name} — your studio {studio} is in. You've earned the Founder tier "
+                f"for the next 12 months. Here's everything you need to launch."
+            )
+        else:
+            title = "Welcome to the Workshop."
+            intro = (
+                f"Hi {name}, your studio {studio} is in. "
+                f"Here's everything you need to launch."
+            )
+    else:
+        title = "Application Update."
+        intro = (
+            f"Hi {name}, thanks for applying with {studio}. "
+            f"We're not moving forward right now."
+        )
     if approved:
         site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
         link = sign_in_link or f"{site}/maker/login"
         # Founder tier banner (iter153) — every approved maker is now a
         # Founder. Render a numbered card with status so they immediately
         # understand what they're getting.
+        # iter413dc — `badge_class` is resolved at the top of this fn so
+        # title/intro/subject stay in sync. Inaugural badge gains the
+        # "of 100" suffix for explicit cap framing.
         founder_banner = ""
         if founder_number:
-            badge_class = "Inaugural Founder" if is_inaugural else "Founder · 12-month"
+            inaugural_suffix = " · of 100" if is_inaugural else ""
             status_blurb = (
                 "Lifetime perks. Your rate never changes."
                 if is_inaugural
@@ -2042,7 +2075,7 @@ def render_application_decision_email(
                 "<div style='font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:0.3em;"
                 "text-transform:uppercase;color:#ff4500;margin:0 0 6px'>◆ You're a Founder.</div>"
                 f"<div style='font-family:Impact,Arial Black,sans-serif;font-size:32px;line-height:1;"
-                f"color:#fafafa;margin:0 0 8px'>{badge_class} #{founder_number:03d}</div>"
+                f"color:#fafafa;margin:0 0 8px'>{badge_class} #{founder_number:03d}{inaugural_suffix}</div>"
                 f"<div style='font-size:12px;color:#a3a3a3;line-height:1.55'>{status_blurb}</div>"
                 "<ul style='font-size:12px;color:#e5e5e5;line-height:1.7;padding-left:18px;margin:12px 0 0'>"
                 "<li><b>3% platform commission</b> (Standard pays 5%)</li>"
@@ -2115,11 +2148,18 @@ def render_application_decision_email(
                 f"border-left:2px solid #ff4500;padding-left:14px'>{note}</p>"
             )
     html = _shell(title, intro, body, "Maker program")
-    subject = (
-        f"Welcome to Crafters Market, {studio} — your launch packet"
-        if approved
-        else f"Crafters Market application update — {studio}"
-    )
+    # iter413dc — Subject line flips for Founders so the inbox preview
+    # already signals tier identity ("Inaugural Founder #015 of 100")
+    # before the recipient even opens it. Falls back to the original
+    # welcome subject for Standard makers + the decline path.
+    if approved and is_founder and is_inaugural:
+        subject = f"Welcome to Crafters Market — You are Inaugural Founder #{founder_number:03d} of 100."
+    elif approved and is_founder:
+        subject = f"Welcome to Crafters Market — You are Founder #{founder_number:03d}."
+    elif approved:
+        subject = f"Welcome to Crafters Market, {studio} — your launch packet"
+    else:
+        subject = f"Crafters Market application update — {studio}"
     return {"subject": subject, "html": html}
 
 

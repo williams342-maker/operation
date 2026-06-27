@@ -48,7 +48,11 @@ async def test_applicant_received_beta_flair_when_beta_flag_set():
             "founder@example.com", "Maya", "Forge & Fern", is_beta=True,
         )
     assert "Founding Seller" in captured["subject"]
-    assert "Founding Seller Beta" in captured["html"]
+    # iter413dc rebaseline — the "Founding Seller Beta" wording was
+    # superseded by "Founding Access" in a prior copy refresh; the email
+    # body now surfaces that term in the footer line. Subject still uses
+    # "Founding Seller" so the inbox preview stays unchanged.
+    assert "Founding Access" in captured["html"]
     # Core promise still present
     assert "3-5 business days" in captured["html"]
     assert "welcome packet" in captured["html"].lower()

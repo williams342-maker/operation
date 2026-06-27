@@ -1494,10 +1494,51 @@ async def admin_preview_application_email(
     `send_application_decision` would dispatch — without sending anything.
     Lets admins preview the welcome packet (or rejection note) before
     clicking Approve/Reject. The `note` query param is rendered live so
-    admins see how their inline note appears in the final quote block."""
+    admins see how their inline note appears in the final quote block.
+
+    iter413dc — When previewing an approval AND a maker doc already
+    exists for this email (i.e. they were previously approved + promoted),
+    pass the resolved founder_number + is_inaugural through so the preview
+    shows the tier-aware subject/title/banner the recipient will actually
+    see. For first-time previews, fall back to a simulated #001 inaugural
+    badge so the admin sees the founder treatment before committing.
+    """
     appn = await db.maker_applications.find_one({"id": app_id}, {"_id": 0})
     if not appn:
         raise HTTPException(404, "Application not found")
+
+    # Resolve founder fields the same way send_application_decision does.
+    founder_number: Optional[int] = None
+    is_inaugural = False
+    if approved:
+        m_doc = await db.makers.find_one(
+            {"email": appn["email"]},
+            {"_id": 0, "founder_number": 1, "founder_status": 1},
+        )
+        if m_doc and m_doc.get("founder_number"):
+            founder_number = m_doc.get("founder_number")
+            is_inaugural = m_doc.get("founder_status") == "inaugural"
+        else:
+            # Simulate: every approval currently auto-promotes (iter153);
+            # if the inaugural cap still has room, the would-be status
+            # is inaugural with the next monotonic number.
+            try:
+                from routers.founders import _count_inaugural
+                from revenue import FOUNDER_INAUGURAL_CAP
+                inaug_used = await _count_inaugural()
+                is_inaugural = inaug_used < FOUNDER_INAUGURAL_CAP
+                # Approximate the next number — final allocation happens
+                # at decide-time. This is preview only, never persisted.
+                counter_doc = await db.platform_meta.find_one(
+                    {"key": "founder_counter"}, {"_id": 0, "value": 1},
+                )
+                founder_number = int((counter_doc or {}).get("value") or 0) + 1
+            except Exception:
+                # If anything goes wrong (e.g. revenue module missing),
+                # fall back to the legacy Standard preview — never block
+                # the admin's review flow.
+                founder_number = None
+                is_inaugural = False
     # Use a non-functional placeholder for the magic link so the admin sees
     # where the CTA lives without us minting a real one (links are minted
     # only at decide-time so they're always fresh).
@@ -1505,6 +1546,7 @@ async def admin_preview_application_email(
         appn["name"], appn["studio_name"], approved,
         note=note or "",
         sign_in_link="https://craftersmarket.org/maker/verify?token=preview",
+        founder_number=founder_number, is_inaugural=is_inaugural,
     )
     return {
         "recipient": appn["email"],

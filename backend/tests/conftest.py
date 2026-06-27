@@ -767,6 +767,12 @@ SMOKE_FILES = {
     # 7 canonical verification_types + filter listing.
     "test_iter413cz_verification_sessions.py",
 
+    # ── iter413dc — Tier-aware welcome email ────────────────────────
+    # Subject + title + intro + banner must surface "Inaugural Founder
+    # #NNN of 100" for inaugural approvals, plain Founder copy for the
+    # 12-month path, and the legacy welcome packet for standard makers.
+    "test_iter413dc_founder_welcome_email.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and
