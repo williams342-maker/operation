@@ -40,11 +40,16 @@ def test_capabilities_endpoint_shape():
     assert "schema_version" in body
     for key in ("features", "listing_uploads", "taxonomy", "seller_limits", "commerce", "support"):
         assert key in body, f"missing top-level key: {key}"
-    # Listing video stance (Loretta fix — must be authoritative + disabled).
+    # Listing video stance — iter413cx flipped this to enabled. The
+    # capability now exposes the size/duration caps so Compass can quote
+    # them directly.
     lv = body["features"]["listing_videos"]
-    assert lv["upload_enabled"] is False
-    assert lv["gallery_render_enabled"] is False
-    assert lv["planned_for_future_release"] is True
+    assert lv["upload_enabled"] is True
+    assert lv["gallery_render_enabled"] is True
+    assert lv["max_size_mb"] == 100
+    assert lv["max_duration_seconds"] == 60
+    assert "mp4" in lv["supported_video_formats"]
+    assert "mov" in lv["supported_video_formats"]
     assert lv.get("user_message")
     # Taxonomy carries the Loretta-relevant categories + techniques.
     cats = body["taxonomy"]["categories"]
@@ -67,7 +72,8 @@ def test_build_capabilities_payload_inline_match():
 
     payload = build_capabilities_payload()
     assert payload["schema_version"]
-    assert payload["features"]["listing_videos"]["upload_enabled"] is False
+    # iter413cx — Phase 1 video shipped. Capabilities now reports enabled.
+    assert payload["features"]["listing_videos"]["upload_enabled"] is True
     # Same key set as HTTP body.
     http_body = requests.get(f"{BASE_URL}/api/platform/capabilities", timeout=15).json()
     assert set(payload.keys()) == set(http_body.keys())
@@ -84,9 +90,9 @@ def test_help_chat_injects_capabilities_into_prompt():
     block = _capabilities_block()
     assert "CAPABILITIES" in block
     assert "listing_videos" in block
-    # The disabled-with-message contract surfaces verbatim.
-    assert '"upload_enabled": false' in block
-    assert "planned for a future release" in block.lower()
+    # iter413cx — capabilities now report enabled with the size/duration caps.
+    assert '"upload_enabled": true' in block
+    assert "mp4" in block.lower() and "mov" in block.lower()
 
 
 def test_help_report_issue_rejects_short_description():

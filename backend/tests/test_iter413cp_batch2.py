@@ -63,23 +63,32 @@ def maker_jwt():
 
 
 @pytest.mark.asyncio
-async def test_video_upload_rejected_for_authed_maker(maker_jwt):
+async def test_video_upload_endpoint_no_longer_rejects_blanket(maker_jwt):
+    """iter413cx — Phase 1 listing video shipped. The endpoint that
+    used to blanket-reject with 422/video_uploads_disabled now ACCEPTS
+    mp4/mov ≤60s ≤100MB. A garbage-bytes fake mp4 still rejects (because
+    ffprobe can't read it) but with a different code — and crucially,
+    NEVER with video_uploads_disabled."""
     slug, tok = maker_jwt
-    # Mint a tiny fake mp4 — bytes don't matter, the endpoint rejects
-    # before ever reading the file.
     fake_mp4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 32
-    async with httpx.AsyncClient(timeout=15.0) as c:
+    async with httpx.AsyncClient(timeout=30.0) as c:
         files = {"file": ("listing.mp4", io.BytesIO(fake_mp4), "video/mp4")}
         r = await c.post(
             f"{API}/maker/uploads/video",
             headers={"Authorization": f"Bearer {tok}"},
             files=files,
         )
-    assert r.status_code == 422, r.text
-    body = r.json()
-    detail = body.get("detail") or {}
-    assert detail.get("code") == "video_uploads_disabled"
-    assert "not yet supported" in detail.get("message", "").lower()
+    # Whatever it is, it must NOT be the legacy blanket reject.
+    if r.status_code == 200:
+        # Real R2 in this env accepted the bytes — that's fine.
+        return
+    detail = (r.json().get("detail") or {})
+    code = detail.get("code") if isinstance(detail, dict) else None
+    assert code != "video_uploads_disabled", \
+        "Legacy blanket reject is back — iter413cx regressed"
+    # Acceptable rejects: video_unreadable (ffprobe couldn't parse the
+    # fake bytes), or 503 if R2 isn't configured in this env.
+    assert r.status_code in (400, 503), r.text
 
 
 @pytest.mark.asyncio

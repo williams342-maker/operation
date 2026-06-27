@@ -192,6 +192,46 @@ Priority: P1 (high-touch but no integration work — pure copy + UI polish lever
 ---
 
 
+## iter413cx — Listing Video Support · Phase 1 SHIPPED (2026-02)
+
+**Status:** LIVE. 32/32 backend pytest green across iter413cx + 4 rebaselined contracts. Testing agent iteration_101 verified all 6 frontend acceptance criteria + the 4 backend ones. Compass auto-flipped its answer about videos with **zero prompt edits** — exactly the design payoff promised when iter413cq was built.
+
+### What shipped
+- **`POST /api/maker/uploads/video`** flipped from 422 blanket reject to validating accept (`routers/maker.py:1556`):
+  - MIME allow-list: `video/mp4`, `video/quicktime`, `video/x-quicktime`
+  - Size cap: 100 MB (returns code `video_too_large`)
+  - **Server-side ffprobe duration check** with 0.5s keyframe-grace at 60s (`code: video_too_long`)
+  - Unreadable files return `video_unreadable` with re-encode guidance
+  - Returns `{url, duration, size, content_type}` after R2 upload to `products/<slug>/video-<uuid>.<ext>`
+- **`MakerProductUpdate` model** + PATCH handler — adds `listing_video: dict | None` and `remove_listing_video: bool | None`. PATCH translates remove-flag into a `$unset` so the field is fully cleared.
+- **`Product` model** — `listing_video: Optional[dict]` field surfaces on PDP reads.
+- **`features.listing_videos` capabilities flipped** in `routers/platform_capabilities.py`: `upload_enabled=True`, `gallery_render_enabled=True`, `max_per_listing=1`, `supported_video_formats=['mp4','mov']`, `max_size_mb=100`, `max_duration_seconds=60`. `listing_uploads.video` mirrors the constraints.
+- **Compass system prompt** unchanged — the Help Assistant now answers *"Yes — one product video per listing. MP4 or MOV, up to 60 seconds and 100 MB. Native HTML5 playback…"* purely because of the live CAPABILITIES injection. Validates the iter413cq architecture pays for itself the moment a flag flips.
+- **`MakerListingEditor/MediaSection.jsx`** — New "Product Video (optional · 1 max)" subsection with help copy mentioning both caps. Empty state = aspect-video dashed drop zone; uploaded state = `<video controls>` preview + Replace + Remove buttons + duration/size badge. Client-side MIME + size guards fire before any network call.
+- **`MakerListingEditor.jsx`** — `videoFileRef`, `videoUploading` (`"uploading"` | `"processing"` | `false`), `videoErr` state; `onPickVideo` + `removeVideo` handlers; payload includes both `listing_video` and `remove_listing_video`. Progress UX shows distinct "Processing…" label after the upload completes so a 60s clip doesn't look stuck during ffprobe.
+- **`ProductDetail.jsx` PDP gallery** — `active=-2` sentinel renders a `<video controls poster={cover} preload="metadata" muted playsInline>` in the hero. Gallery thumb strip gains a `product-video-thumb` cell with the cover image at 80% opacity and a ▶ overlay. Self-hides when `listing_video.url` is absent — no regression on photo-only listings.
+- **`lib/api.js`** — `uploadMakerListingVideo(file, onProgress)` helper with 3-minute timeout for large uploads.
+- **ffmpeg/ffprobe** installed in the backend container (Decision A) — one-time ~200MB image cost accepted.
+- **Cover image as poster fallback** (Decision B) — zero extra seller UX step; falls back to a black tile if no cover exists.
+
+### Out of scope for Phase 1 (deferred)
+- Auto poster-thumbnail generation → Phase 2
+- Transcoding / adaptive streaming → Phase 2
+- Video analytics (views, play rate, completion rate, conversion) → Phase 3
+- Maker Story Video on profile → Future
+- Manual poster upload UI → never (cover-as-poster is the chosen Phase 1 UX)
+
+### Test rebaselines (cleanup the testing agent flagged)
+- `tests/test_iter413cp_batch2.py::test_video_upload_rejected_for_authed_maker` → renamed and rewritten to `test_video_upload_endpoint_no_longer_rejects_blanket`. Locks the new contract: 200 (accept) OR 400 with a non-`video_uploads_disabled` code OR 503 (R2 missing) — but **never** the legacy blanket reject.
+- `tests/test_iter413cq_platform_capabilities_and_help.py` → 3 assertions flipped from `upload_enabled=False` to `upload_enabled=True` with the new size/duration/format constraints.
+
+### Tests
+- `tests/test_iter413cx_listing_video_phase1.py` — 7/7 (capabilities, Compass auto-flip, auth gate, MIME reject, size reject, duration reject via real ffprobe, valid MP4 happy path). Registered in `SMOKE_FILES`.
+- Full smoke suite 32/32 across iter413cp / cq / cu / cv / cx.
+
+---
+
+
 ## iter413cw — Compass as marketplace front door (LOCKED STRATEGIC DIRECTION · large future build)
 
 User strategic recommendation (2026-02): Promote Compass from "floating help button" to **the primary entry point of Crafters Market**.
