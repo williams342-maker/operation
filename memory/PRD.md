@@ -1,3 +1,51 @@
+## VERSION 1 LOCKED · Phase D in progress (2026-02-27)
+
+**The Marketplace Coaching Platform — Version 1 — is complete.**
+
+Six connected systems form the ecosystem:
+1. Verification Session Framework (iter413cz / cz+)
+2. Versioned Quality Scoring Engine (iter413de)
+3. Impact Engine (iter413df)
+4. Compass Coaching (iter413df)
+5. Seller Success Dashboard (iter413dg)
+6. Operational tooling — `scripts/seed_dogfood_sessions.py` + `scripts/promote_founders.py`
+
+### Hard rule for the next 4 weeks
+**No new product features.** Every engineering decision must be driven by evidence gathered during dogfood, not assumptions. The hold list (`shop_quality`, `trust_score`, `seo_health`, `marketplace_health`, Operations Dashboard, Compass Homepage Search Bar, weekly email digest) is FROZEN until the validation review.
+
+### Definition of success (the only metrics that matter)
+- ✅ Better listings
+- ✅ Better seller experience
+- ✅ Better buyer confidence
+- ✅ Higher conversion
+- ✅ Higher seller retention
+
+**NOT** success: more endpoints, more dashboards, more scores. The coaching platform exists to improve marketplace OUTCOMES, not produce metrics.
+
+### Phase D — 4-week schedule
+| Week | Focus |
+|------|-------|
+| **1** | Redeploy production · seed Verification Sessions via `seed_dogfood_sessions.py` · run full end-to-end self-test as the user |
+| **2** | Loretta + the 3 founding sellers (Coastal Chic #15, Peach & Pine #16, Avery Street #17) interact with Compass + Coach. Observe patterns; resist the urge to change anything mid-flight |
+| **3** | Review the captured Verification Sessions. Identify which recommendations are: (a) consistently completed, (b) ignored, (c) misunderstood |
+| **4** | Decide between: rebalance scoring rule weights · refine coaching language · OR begin the Operations Dashboard. Decision driven by evidence, not intuition |
+
+### Post-Phase D decision tree
+Once enough production data exists, choose ONE of three paths (with the user, together):
+- **Listing Quality v2** — rebalanced rule weights from real completion data; same engine, new version, old version stays registered for analytics continuity (the engine was built for this).
+- **Operations Dashboard** — answers "which recommendation ignored most / largest improvements / who improved this week / coaching → completed actions / sessions → roadmap items" so future tuning is itself data-driven.
+- **Marketplace Intelligence Layer** — connect Verification Sessions + Quality Engine + Impact Engine + Compass + Seller Dashboard + AI Ops Center into one connected intelligence system.
+
+### Single Source of Truth (architectural rule, permanent)
+ONE coaching payload. Dashboard, Compass, future emails, future notifications, future mobile, future API consumers — all read from `/api/maker/listings/{slug}/coaching`. Any new surface adds a renderer, never a calculator. Recommendation logic NEVER duplicates.
+
+### Production state at lock
+- All Phase A–C code lives in **preview only** until the user redeploys.
+- 3 prod Inaugural Founders already live (#15 Coastal Chic, #16 Peach & Pine, #17 Avery Street) — promoted via the existing `/admin/founders/promote` endpoint that's been deployed since before Phase A.
+
+---
+
+
 ## Phase D — Marketplace Validation (2026-02 → in progress)
 
 **Status: BUILD PAUSED. VALIDATION PHASE.**
