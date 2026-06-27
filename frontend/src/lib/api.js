@@ -1247,6 +1247,26 @@ export const fetchAiOpsIssues = (window_days = 7, limit = 12) =>
   http.get(`/admin/ops/ai-issues?window_days=${window_days}&limit=${limit}`, {
     headers: adminAuthHeaders(),
   }).then((r) => r.data);
+// iter413cs — Deployment Watch Window + cards 2 & 6 + Release Timeline.
+export const fetchDeployWatchCurrent = () =>
+  http.get("/admin/ops/deploy-watch/current", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const startDeployWatch = (build_id, ttl_hours = 48) =>
+  http.post("/admin/ops/deploy-watch/start", { build_id, ttl_hours }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const closeDeployWatch = (watch_id, notes) =>
+  http.post("/admin/ops/deploy-watch/close", { watch_id, notes }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const annotateDeployWatch = (watch_id, payload) =>
+  http.post(`/admin/ops/deploy-watch/${encodeURIComponent(watch_id)}/annotate`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAiEmerging = (limit = 12) =>
+  http.get(`/admin/ops/ai-emerging?limit=${limit}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchDeployHealth = () =>
+  http.get("/admin/ops/deploy-health", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchReleaseTimeline = (q = "", limit = 25) => {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (q && q.trim()) params.set("q", q.trim());
+  return http.get(`/admin/ops/release-timeline?${params.toString()}`, {
+    headers: adminAuthHeaders(),
+  }).then((r) => r.data);
+};
 // iter413bq — Dismiss / restore action-queue items per-admin.
 export const dismissOpsItem = (item_id, mode = "24h", status_signature = null) =>
   http.post("/admin/ops-dashboard/dismiss",

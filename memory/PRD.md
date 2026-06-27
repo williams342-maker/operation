@@ -1,3 +1,62 @@
+## iter413cs — Deployment Watch Window + AI Operations Cards 2 & 6 + Release Timeline (2026-02)
+
+**Status:** SHIPPED. The Operations Dashboard now opens a monitored Watch Window automatically on every deploy, surfaces emerging issues + signal spikes vs the 7-day baseline, and records every release in a searchable Release Timeline.
+
+### What shipped
+- **`routers/deploy_watch.py`** — Watch Window lifecycle, Cards 2 & 6, Release Timeline.
+  - `GET /api/admin/ops/deploy-watch/current` → active watch + live health signals
+  - `POST /api/admin/ops/deploy-watch/start` (admin) — manual start with build_id + ttl_hours
+  - `POST /api/admin/ops/deploy-watch/close` (admin) — manual close + summary write
+  - `POST /api/admin/ops/deploy-watch/{watch_id}/annotate` (admin) — `features_shipped` (list) + `operator_notes`
+  - `GET /api/admin/ops/deploy-watch/history` — last N closed watches
+  - `GET /api/admin/ops/ai-emerging` — **Card 2** — clusters with no prior presence (since watch start OR last 24h fallback)
+  - `GET /api/admin/ops/deploy-health` — **Card 6** — 4-signal aggregation (AI bugs, support tickets, help conversations, emerging clusters) vs 7d baseline, severity bands at +20%/+50%/+100% (yellow/orange/red)
+  - `GET /api/admin/ops/release-timeline?q=` — **Release Timeline** — searchable journal, each watch enriched with `ai_issues_count` + `ai_issue_clusters` so future questions like "when did the X regression start?" resolve without grepping git
+- **Lifecycle hooks:**
+  - `ensure_watch_for_current_build()` runs in `server.py` startup — opens a 48h watch when `BUILD_SHA` / `GIT_COMMIT` / fallback date changes. Idempotent.
+  - `_job_close_expired_deploy_watches` runs every 30 minutes via `scheduler.py` — closes any active watch past `expires_at` and writes the summary (`ai_bug_reports`, `new_clusters`, `resolved_during_watch`, `feature_confusion_topics`, `health`).
+- **`components/admin/DeploymentWatchPanel.jsx`** — Mounted at the top of `OperationsDashboard.jsx`:
+  - Watch Window banner (build id, health color, time elapsed/remaining, refresh + close-now controls)
+  - Card 6 — 4 signals grid w/ baseline daily rate + delta label
+  - Card 2 — Emerging issues list w/ severity color + per-row deep-link to Contact Inbox
+  - Release Timeline — searchable, each row shows build, health, status, started_by, features_shipped (line items), operator notes, AI cluster summary, ai_issues_count badge, edit modal
+- **Tests:** `tests/test_iter413cs_deploy_watch.py` — 8/8 pass (auth gate, current shape, start/close/history lifecycle, annotation persistence, timeline search match, emerging clusters, health-signal shape, sweep idempotency w/ direct unit call). Registered in `SMOKE_FILES`.
+
+### Severity model (Card 6)
+Each signal compares current rate (per-day, normalised by elapsed_hours since watch start) against the 7d baseline rate. Bands: stable (<+20%), warning (+20–49% / yellow), elevated (+50–99% / orange), critical (+100%+ / red). Overall health = worst-of signals. When baseline=0 and current>0, signal becomes yellow (or orange if rate ≥ 2/day) — catches first-of-its-kind activity post-deploy.
+
+### Bug fixed mid-implementation
+- `_open_watch()` returned the Mongo insert doc with the `_id` BSON field intact → FastAPI 500 on `/start`. Fixed by popping `_id` before returning.
+
+---
+
+
+## iter413cs+ — Homepage UX & AI Experience refinement (FUTURE BATCH)
+
+Captured verbatim from user feedback (2026-02). Rated current homepage 8.8/10; this is a polish pass, not a redesign.
+
+1. **Rebrand AI widget** — "Help & Support" → "Market Guide · AI Marketplace Assistant" so it reads as a shopping companion, not a ticket system.
+2. **Rewrite welcome message** — opening line should communicate value: *"Hi! I'm Market Guide, Crafters Market's AI Marketplace Assistant. I can help you discover handmade products, answer questions about buying or selling, recommend makers, or help you start selling on Crafters Market."*
+3. **Improve starter prompts** — replace support-style chips with discovery/shopping intent:
+   - "Help me find the perfect handmade gift"
+   - "Recommend handmade wall art"
+   - "Find makers near me"
+   - "Explain how custom orders work"
+   - "Help me open my own shop"
+4. **Update hero copy** — remove CNC bias: *"Real workshops. Real makers. Handmade goods with stories behind every piece. From woodworkers and fiber artists to jewelers, potters, leatherworkers, glass artists, and metal makers — no mass production, no drop shipping. Just independent creators doing exceptional work."*
+5. **Dynamic hero rotation** — cycle headlines per maker discipline (Woodworking, Fiber Arts, Jewelry, Pottery, Glass).
+6. **Veteran banner** — keep but reduce visual dominance; copy *"🇺🇸 Proudly Supporting Veteran-Owned Makers · Learn More →"*.
+7. **Strengthen Sell Your Work CTA** — slightly heavier border + arrow icon + mild hover animation; keep subordinate to Shop.
+8. **AI personality** — Market Guide must always answer from Platform Knowledge service (iter413cq foundation is already in place — copy + persona pass is what's missing).
+9. **Long-term vision** — evolve Market Guide into Marketplace Concierge with explicit buyer and seller modes:
+   - Buyers: product discovery, gift recs, custom-order assist, maker recs, shipping
+   - Sellers: listing guidance, shop optimisation, platform education, issue reporting, feature discovery
+
+Priority: P1 (high-touch but no integration work — pure copy + UI polish leveraging the iter413cq capabilities backbone).
+
+---
+
+
 ## iter413cr — AI Operations Center · Card 1 (2026-02)
 
 **Requested by user:** Turn the Operations Dashboard into an *AI Operations Center* — operational intelligence driven by real conversations, not guesses. First card: "Top AI-diagnosed issues (last 7d)" with clustering, trend, and severity.

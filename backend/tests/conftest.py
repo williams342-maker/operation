@@ -741,6 +741,12 @@ SMOKE_FILES = {
     # with trend + severity) that powers the Ops Dashboard card.
     "test_iter413cr_ai_operations.py",
 
+    # ── iter413cs — Deployment Watch Window + Release Timeline ──────
+    # Locks the full Watch Window lifecycle (boot, start, close,
+    # annotate, sweep), Card 2 (emerging clusters), Card 6 (health
+    # signals), and the searchable Release Timeline.
+    "test_iter413cs_deploy_watch.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

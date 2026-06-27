@@ -17,6 +17,7 @@ import {
   fetchOpsDashboardOverview, dismissOpsItem, restoreOpsItem,
   fetchNotFoundRecent, fetchAiOpsIssues,
 } from "../../lib/api";
+import DeploymentWatchPanel from "./DeploymentWatchPanel";
 
 // iter413bq — localStorage key for collapsed-section state. Bump the
 // version suffix when the section list changes so old entries don't
@@ -252,6 +253,12 @@ export default function OperationsDashboard({ onJumpToTab }) {
           </button>
         </div>
       </header>
+
+      {/* iter413cs — Deployment Watch Window + Release Timeline panel.
+          Pinned at the top of the dashboard so post-deploy monitoring
+          is the first thing admin sees. Self-contained: own loader,
+          own refresh, won't block the rest of the dashboard. */}
+      <DeploymentWatchPanel onJumpToTab={jump} />
 
       {/* ─────────────── Section 1 · Executive Summary ─────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="ops-summary">

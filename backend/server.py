@@ -68,6 +68,7 @@ from routers.meta_capi import router as meta_capi_router  # iter413bl
 from routers.tiktok_capi import router as tiktok_capi_router  # iter413cf
 from routers.ops_dashboard import router as ops_dashboard_router  # iter413bp
 from routers.ai_operations import router as ai_operations_router  # iter413cr — AI Operations Center
+from routers.deploy_watch import router as deploy_watch_router  # iter413cs — Deployment Watch Window
 from routers.brand_kit import router as brand_kit_router  # iter413bw
 from routers.not_found_log import router as not_found_log_router  # iter413bz
 from routers.restock_waitlist import router as restock_waitlist_router
@@ -163,6 +164,7 @@ api.include_router(meta_capi_router)  # iter413bl — Meta Conversions API (serv
 api.include_router(tiktok_capi_router)  # iter413cf — TikTok Events API (server-side)
 api.include_router(ops_dashboard_router)  # iter413bp — admin operations dashboard aggregator
 api.include_router(ai_operations_router)  # iter413cr — AI Operations Center (top AI-diagnosed issues, future cards)
+api.include_router(deploy_watch_router)  # iter413cs — Deployment Watch Window + emerging / health cards
 api.include_router(brand_kit_router)  # iter413bw — maker brand kit (Garage Builders identity)
 api.include_router(not_found_log_router)  # iter413bz — 404 referrer beacon + admin surface
 api.include_router(restock_waitlist_router)
@@ -401,6 +403,16 @@ async def on_startup():
         await _ensure_feed_auth("pinterest")
     except Exception:
         logger.exception("[feed_auth] bootstrap failed (non-fatal)")
+    # iter413cs — Open or refresh a Deployment Watch Window for this build.
+    # Idempotent: rebooting with the same BUILD_SHA reuses the active watch.
+    try:
+        from routers.deploy_watch import ensure_watch_for_current_build
+        watch = await ensure_watch_for_current_build()
+        if watch:
+            logger.info("[deploy-watch] active build=%s expires_at=%s",
+                        watch.get("build_id"), watch.get("expires_at"))
+    except Exception:
+        logger.exception("[deploy-watch] startup hook failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 

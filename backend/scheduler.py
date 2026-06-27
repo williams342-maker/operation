@@ -38,6 +38,18 @@ async def _job_auto_renew_promotions() -> None:
         logger.exception("[scheduler] promotion auto-renew failed: %s", e)
 
 
+# iter413cs — Deployment Watch Window auto-close. Runs every 30 minutes,
+# closes any active watch past its expires_at, writes the summary.
+async def _job_close_expired_deploy_watches() -> None:
+    try:
+        from routers.deploy_watch import close_expired_deploy_watches
+        r = await close_expired_deploy_watches()
+        if r.get("closed"):
+            logger.info("[scheduler] deploy-watch sweep: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] deploy-watch sweep failed: %s", e)
+
+
 async def _job_expire_listings() -> None:
     from revenue import expire_due_listings
     try:
@@ -1813,6 +1825,12 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # (session_id, channel) pairs.
     sched.add_job(_job_conversion_replay, CronTrigger(hour=5, minute=30),
                   id="conversion_replay", replace_existing=True)
+    # iter413cs — Deployment Watch Window auto-close sweep. Every 30
+    # minutes, closes any active watch past expires_at and writes the
+    # release-summary row. Cheap (single Mongo find on the active
+    # watch). Safe across multiple workers (idempotent close).
+    sched.add_job(_job_close_expired_deploy_watches, CronTrigger(minute="*/30"),
+                  id="close_expired_deploy_watches", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(
