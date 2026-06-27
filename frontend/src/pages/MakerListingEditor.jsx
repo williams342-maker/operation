@@ -418,40 +418,12 @@ export default function MakerListingEditor() {
     setCropTargetIdx(i);
     setCropQueue((q) => [src, ...q]);
   };
-  const videoFileRef = useRef(null);
-  const [videoUploading, setVideoUploading] = useState(0);   // 0..100
-  const [videoErr, setVideoErr] = useState("");
-
-  const onPickVideo = async (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    setVideoErr("");
-    if (f.size > 50 * 1024 * 1024) {
-      setVideoErr("Video must be 50MB or smaller.");
-      return;
-    }
-    if (!["video/mp4", "video/webm", "video/quicktime", "video/x-quicktime"].includes(f.type)
-        && !/\.(mp4|webm|mov)$/i.test(f.name)) {
-      setVideoErr("Only .mp4, .webm, or .mov files are supported.");
-      return;
-    }
-    try {
-      setVideoUploading(1);
-      const r = await uploadMakerVideo(f, (e) => {
-        if (e?.total) setVideoUploading(Math.round((e.loaded / e.total) * 100));
-      });
-      set({ video_url: r.url });
-      toast.success("Video uploaded.");
-    } catch (err) {
-      const msg = err?.response?.data?.detail || "Video upload failed.";
-      setVideoErr(msg);
-      toast.error(msg);
-    } finally {
-      setVideoUploading(0);
-    }
-  };
-  const removeVideo = () => set({ video_url: "" });
+  // iter413cp — Listing videos are rejected at the server (422
+  // video_uploads_disabled) until the gallery is upgraded to render
+  // them. The upload UI in MediaSection was replaced with a "coming
+  // soon" notice. The state below was the upload progress / error
+  // handlers — removed as dead code. Restore from git history when
+  // video rendering ships.
   const removeImage = (i) => set({ images: form.images.filter((_, idx) => idx !== i) });
   const promoteCover = (i) => {
     if (i === 0) return;
@@ -1015,8 +987,6 @@ export default function MakerListingEditor() {
           dragSrc={dragSrc} dragOver={dragOver}
           onDragStart={onDragStart} onDragOver={onDragOver}
           onDragLeaveTile={onDragLeaveTile} onDrop={onDrop} onDragEnd={onDragEnd}
-          videoFileRef={videoFileRef} onPickVideo={onPickVideo}
-          videoUploading={videoUploading} videoErr={videoErr} removeVideo={removeVideo}
           uploadingPhotos={imageUploads}
           uploadStatus={uploadStatus}
           retryImageUpload={retryImageUpload}

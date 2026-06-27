@@ -1,3 +1,30 @@
+## iter413co + iter413cp — Loretta Alvarado Seller Feedback Batches 1 & 2 (2026-02)
+
+### Batch 1 (iter413co) — Category-aware Technique Taxonomy + Custom→Other
+- **New module**: `frontend/src/lib/techniqueOptions.js` — `TECHNIQUES_BY_CATEGORY` map, `techniquesForCategory(category)`, `ALL_TECHNIQUES`. Future-proofed to swap with admin-managed Mongo source via the function abstraction.
+- **3 new categories**: Glass, Paper Crafts, Mixed Media (added to CATEGORIES in constants.js).
+- **Wiring**: `NewListingModal` + `MakerListingEditor` derive techniques from selected category and auto-reset technique on category change. `ApplyPage` + `BetaPage` switched from CNC-only to ALL_TECHNIQUES.
+- **Refinements per Loretta**: Laser split into "Laser Cutting" + "Laser Engraving" in 5 categories. Sewing added to Fiber & Textiles. Laser Engraving added to Leather Goods. Chainmaille + Leatherwork added to Jewelry & Wearables. Wood Burning added to Home Decor. "Machine-Made" → "Digital Fabrication" + "Hybrid" in Other category. "Custom" → "Other" sitewide.
+- **Tests**: iter95 — 18/18 module contracts pass.
+
+### Batch 2 (iter413cp) — Configurable Product Guides + Outdoor Mounting fix + Video upload rejection
+- **New module**: `frontend/src/lib/productGuides.js` — PRODUCT_GUIDES registry with `categories` allowlist, `excludeCategories` hard-block, `keywords` + `requiresKeywords`. Single source of truth for guide eligibility. Future-Loretta guide stubs in comments (Indoor Care / Cleaning / Assembly / Gift / Food Safe / Care Instructions).
+- **Bug fixed**: Outdoor Mounting Guide no longer shows on indoor fiber/wall/paper/pottery/jewelry/leather/wedding/kitchen/lighting/glass/holiday/home decor listings even if keyword "garden" appears in description. Fiber & Textiles + 12 other categories are in the exclude list. **Loretta's exact reported case (indoor fiber + "garden" keyword) returns null.**
+- **Listing video upload rejected**: `POST /api/maker/uploads/video` returns 422 `video_uploads_disabled` with helpful message. UI in MediaSection replaced with "Videos coming soon — planned for a future release" notice. Dead state cleaned up from MakerListingEditor.jsx (videoFileRef/onPickVideo/etc.).
+- **Tests**: iter96 — 2/2 backend + 6/6 frontend module + homepage smoke. All green.
+
+### Batch 3 (iter413cq) — PENDING NEXT SESSION
+Loretta feedback P1 + P2 remaining:
+- **Platform Knowledge service** — new `GET /api/platform/capabilities` endpoint surfacing live feature-flag state (videos on/off, accepted file types, category list, seller limits). Wire into AI Help Assistant's tool-calling layer so answers come from runtime state, not static prompt.
+- **AI "Report Issue" workflow** — CTA inside Help Assistant when it diagnoses a bug. Pre-fills listing ID/URL/seller/category/browser/device + AI's diagnosis. Drops into Contact Inbox tagged `kind="ai_diagnosed_bug"` (reuses iter413cb impersonation-bug pattern).
+
+### Future enhancement (Loretta note, not for this sprint)
+- Replace "Technique" with "Primary Technique" + optional "Secondary Technique" field. Many makers combine methods (Laser Engraving + Hand Painting, Wood Turning + Resin, etc.). Improves search/SEO without forcing a single-pick.
+
+---
+
+
+
 ## iter413cl — Founder Dashboard UX + Custom URL Gate (2026-02)
 
 **Bug:** Founders were getting confused — pushed to "Upgrade to Plus" which would RAISE their commission (3% → 4%) and LOWER their free quota (50 → 15). Stacked "Founding Access" + "Founder" badges in the header looked like two different things to them.
