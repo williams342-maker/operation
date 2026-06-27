@@ -1,76 +1,22 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, ArrowRight } from "lucide-react";
+import { pickGuideForProduct as _pickFromRegistry } from "../lib/productGuides";
 
 /**
- * GuideCrossLinkCard (iter303 / Phase 4 Bundle C — PDP enhancement)
+ * GuideCrossLinkCard (iter303 / iter413cp)
  * ----------------------------------------------------------------
- * Surfaces a contextual "Learn:" guide card on PDP based on the
- * product's technique + category. Every plasma/laser/router PDP becomes
- * a doorway to the educational guides, which:
- *   1. Compounds internal-link equity to the guide pages.
- *   2. Reduces buyer hesitation by answering "is this the right
- *      technique for my project?" before the brief.
- *   3. Gives Google a strong on-PDP topical signal for technique
- *      keywords ("plasma cutting", "laser engraving", etc.).
+ * Surfaces a contextual "Learn:" guide card on the PDP. The matching
+ * logic now lives in `lib/productGuides.js` — a configurable registry
+ * with category eligibility + exclusion + keyword gates. This was
+ * refactored after Loretta's feedback that the Outdoor Mounting Guide
+ * was appearing on indoor fiber artwork because the old keyword-only
+ * matcher had no category guard.
  *
- * Mapping priority (most-specific wins):
- *   • Outdoor-tagged + metal       → Metal Gauge & Finish Guide
- *   • Outdoor-tagged               → Outdoor Mounting Guide
- *   • Metal/steel material         → Metal Gauge & Finish Guide
- *   • PLASMA / LASER / ROUTER tech → Plasma vs Laser vs Router
- *   • Fallback                     → null (render nothing)
+ * Kept the named export `pickGuideForProduct` for backwards-compat
+ * with any tests / surfaces that imported it directly.
  */
-const _hasAnyKeyword = (haystack, needles) => {
-  const h = (haystack || "").toLowerCase();
-  return needles.some((n) => h.includes(n));
-};
-
-export function pickGuideForProduct(product) {
-  if (!product) return null;
-  const tech = (product.technique || "").toUpperCase();
-  const cat = product.category || "";
-  const desc = product.description || "";
-  const tags = (product.tags || []).join(" ");
-  const haystack = `${cat} ${desc} ${tags}`;
-
-  const isOutdoor = _hasAnyKeyword(haystack, [
-    "outdoor", "weatherproof", "garden", "yard", "ranch", "exterior",
-  ]);
-  const isMetal = _hasAnyKeyword(haystack, [
-    "steel", "metal", "aluminum", "copper", "brass", "iron",
-  ]) || ["PLASMA", "LASER"].includes(tech);
-
-  if (isOutdoor && isMetal) {
-    return {
-      slug: "metal-gauge-finish-guide",
-      title: "Metal Gauge & Finish Guide",
-      blurb: "Pick the right gauge and finish to handle your climate.",
-    };
-  }
-  if (isOutdoor) {
-    return {
-      slug: "outdoor-mounting-guide",
-      title: "Outdoor Mounting Guide",
-      blurb: "Anchor, seal, and weatherproof your piece so it lasts.",
-    };
-  }
-  if (isMetal) {
-    return {
-      slug: "metal-gauge-finish-guide",
-      title: "Metal Gauge & Finish Guide",
-      blurb: "Powder-coat vs raw patina, gauge sizing, finish systems.",
-    };
-  }
-  if (["PLASMA", "LASER", "ROUTER", "CNC"].includes(tech)) {
-    return {
-      slug: "plasma-vs-laser-vs-router",
-      title: "Plasma vs Laser vs Router",
-      blurb: `Why ${tech.toLowerCase()} for this piece — and when each technique wins.`,
-    };
-  }
-  return null;
-}
+export const pickGuideForProduct = _pickFromRegistry;
 
 export default function GuideCrossLinkCard({ product }) {
   const guide = pickGuideForProduct(product);

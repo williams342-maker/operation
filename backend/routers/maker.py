@@ -1558,37 +1558,29 @@ async def maker_upload_video(
     file: UploadFile = File(...),
     slug: str = Depends(current_maker_slug),
 ):
-    """Upload a listing showcase video (.mp4 / .webm / .mov, 50 MB cap) to R2.
-    Returns the public URL for the maker to attach to a listing's `video_url`
-    field via the editor. Files are served from R2's CDN — no transcoding."""
-    try:
-        from r2_storage import (
-            ALLOWED_VIDEO_TYPES, is_configured as _r2_ok, upload_video_bytes,
-        )
-    except Exception:
-        raise HTTPException(503, "R2 storage is not available.")
-    if not _r2_ok():
-        raise HTTPException(503, "R2 storage is not configured.")
+    """iter413cp — Listing video upload is currently REJECTED.
 
-    fname = (file.filename or "").lower()
-    ct = (file.content_type or "").lower()
-    if ct not in ALLOWED_VIDEO_TYPES and not fname.endswith((".mp4", ".webm", ".mov")):
-        raise HTTPException(400, "Only .mp4, .webm, or .mov videos are supported.")
+    The endpoint accepted uploads but the public PDP gallery doesn't
+    render the resulting video, which created a confusing maker
+    experience (Loretta Alvarado feedback, 2026-02). Until the gallery
+    is upgraded to render videos, we reject all video uploads with a
+    clear 422 + actionable message so the UI shim, server, and seller
+    are all in agreement.
 
-    body = await file.read()
-    try:
-        url = upload_video_bytes(
-            body,
-            key_prefix=f"videos/{slug}",
-            filename=fname,
-            content_type=ct or "video/mp4",
-        )
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        logger.exception("video upload failed for maker=%s: %s", slug, e)
-        raise HTTPException(502, "Could not upload video.")
-    return {"url": url, "size": len(body)}
+    Bring this back online once the gallery rendering ships — restore
+    the previous body from git history (iter413co or earlier)."""
+    _ = file  # parameter kept so the route surface doesn't change
+    _ = slug
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "code": "video_uploads_disabled",
+            "message": "Listing videos are not yet supported. We're "
+                       "building video playback into the product page "
+                       "and it's planned for a future release. For now, "
+                       "use photos to capture extra angles or detail.",
+        },
+    )
 
 
 @router.post("/maker/uploads/banner")

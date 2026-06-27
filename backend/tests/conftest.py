@@ -726,6 +726,10 @@ SMOKE_FILES = {
     # Locks the extended gate (Plus OR Founder) + resolver behavior.
     "test_iter413cl_founder_custom_url.py",
 
+    # ── iter413cp — Batch 2 (Loretta feedback): video upload reject ──
+    # Locks the 422 video_uploads_disabled response + auth enforcement.
+    "test_iter413cp_batch2.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

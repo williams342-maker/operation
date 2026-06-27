@@ -307,61 +307,26 @@ export default function MediaSection({
       {errors.images && <FieldError msg={errors.images} />}
 
       <div className="mt-6 pt-6 border-t border-line">
-        <Label>Video <span className="text-ink-muted">(optional · MP4 / WebM / MOV up to 50MB)</span></Label>
-
-        {form.video_url ? (
-          <div className="border border-line p-3" data-testid="editor-video-preview">
-            <video
-              src={form.video_url} controls preload="metadata"
-              className="w-full max-h-64 bg-black"
-            />
-            <div className="flex items-center justify-between mt-3 gap-3">
-              <span className="font-mono text-[10px] text-ink-muted truncate">{form.video_url}</span>
-              <button
-                type="button" onClick={removeVideo}
-                className="px-2 py-1 border border-line hover:border-red-400 hover:text-red-400 font-mono text-[10px] uppercase tracking-[0.22em] inline-flex items-center gap-1"
-                data-testid="editor-video-remove"
-              >
-                <Trash2 size={10} /> Remove
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <button
-                type="button" onClick={() => videoFileRef.current?.click()}
-                disabled={!!videoUploading}
-                className="border border-dashed border-line hover:border-brand hover:text-brand text-ink-muted flex items-center justify-center gap-2 py-6 transition disabled:opacity-50"
-                data-testid="editor-video-upload"
-              >
-                <Upload size={16} />
-                <span className="font-mono text-[11px] uppercase tracking-[0.22em]">
-                  {videoUploading ? `Uploading… ${videoUploading}%` : "Upload from computer"}
-                </span>
-              </button>
-              <div className="flex items-center justify-center font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
-                — or paste URL —
-              </div>
-            </div>
-            <input
-              type="url" value={form.video_url}
-              onChange={(e) => set({ video_url: e.target.value })}
-              placeholder="https://… or hosted YouTube/Vimeo link"
-              className="w-full mt-3 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-sm"
-              data-testid="editor-video-url"
-            />
-          </>
-        )}
-        <input
-          ref={videoFileRef} type="file" hidden
-          accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-          onChange={onPickVideo} data-testid="editor-video-input"
-        />
-        {videoErr && <FieldError msg={videoErr} />}
-        <p className="font-mono text-[10px] text-ink-muted mt-2">
-          ◆ JPG · PNG · GIF · WEBP · max 5MB per photo. Videos served from R2 CDN — no transcoding.
-        </p>
+        {/* iter413cp — Loretta feedback: listing video upload was
+            accepted by the editor but never rendered on the public
+            PDP, creating a confusing seller experience. Until the
+            product gallery is upgraded to render videos, we reject
+            uploads at both the UI AND the server layer (see
+            backend/routers/maker.py upload_maker_video). */}
+        <Label>Video <span className="text-ink-muted">(coming soon)</span></Label>
+        <div
+          className="mt-2 border border-dashed border-line bg-paper/40 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3"
+          data-testid="editor-video-coming-soon"
+        >
+          <Upload size={18} className="text-ink-muted shrink-0" aria-hidden="true" />
+          <p className="font-mono text-[11px] text-ink-muted leading-relaxed flex-1">
+            Listing videos aren&apos;t supported yet — the product gallery
+            currently displays photos only. We&apos;re building video
+            playback into the PDP and it&apos;s planned for a future
+            release. For now, capture extra angles or detail shots
+            with photos above.
+          </p>
+        </div>
       </div>
     </Section>
   );

@@ -15,46 +15,67 @@
 // as a substring/prefix match, so older PLASMA/LASER/etc. URLs still
 // resolve.
 //
+// ──────────────────────────────────────────────────────────────────
+// FUTURE-PROOFING (per Loretta's batch-1 refinement note):
+// Call sites always go through `techniquesForCategory(category)` —
+// the underlying map is an implementation detail. When the admin
+// dashboard adds a "Manage Techniques" surface, swap the function
+// body for an in-memory cache hydrated from
+// `GET /api/admin/techniques-config` (Mongo-backed) without touching
+// any consumer. Same for ALL_TECHNIQUES. No call site reaches into
+// TECHNIQUES_BY_CATEGORY directly outside this module.
+// ──────────────────────────────────────────────────────────────────
+//
 // Maintenance: when adding a new entry to CATEGORIES (in
 // `MakerListingEditor/constants.js`), also add a matching entry here.
 // Categories without an explicit map fall back to `DEFAULT_TECHNIQUES`
 // which is a generic safe list.
 
-const DEFAULT_TECHNIQUES = ["Mixed Media", "Hand-Made", "Machine-Made", "Other"];
+const DEFAULT_TECHNIQUES = ["Mixed Media", "Hand-Made", "Digital Fabrication", "Hybrid", "Other"];
 
 // Category → ordered technique list. Lower-case-insensitive lookup so
 // minor casing drift doesn't break the dropdown.
 export const TECHNIQUES_BY_CATEGORY = {
   // ── Metal-forward ──────────────────────────────────────────────
   "Wall Art":            ["Plasma", "Laser", "Painting", "Photography", "Mixed Media", "Embroidery", "Wood Burning", "Other"],
-  "Custom Signs":        ["Plasma", "Laser", "Router", "CNC", "Hand-Painted", "Vinyl", "Wood Burning", "Other"],
+  // iter413co.1 — Loretta refinement: split Laser → Cutting + Engraving
+  // where engraving is genuinely common. Cutting and engraving are
+  // distinct skills, distinct equipment, distinct buyer search intent.
+  "Custom Signs":        ["Plasma", "Laser Cutting", "Laser Engraving", "Router", "CNC", "Hand-Painted", "Vinyl", "Wood Burning", "Other"],
   "Outdoor Art":         ["Plasma", "Laser", "Forge", "Stone Carving", "Mosaic", "Cast", "Other"],
-  "Business Signage":    ["Plasma", "Laser", "Router", "Vinyl", "Hand-Painted", "Engraving", "Other"],
+  "Business Signage":    ["Plasma", "Laser Cutting", "Laser Engraving", "Router", "Vinyl", "Hand-Painted", "Engraving", "Other"],
   "Address Numbers":     ["Plasma", "Laser", "Forge", "Cast", "Hand-Painted", "Other"],
   "Garden & Yard Art":   ["Plasma", "Laser", "Forge", "Stone Carving", "Mosaic", "Mixed Media", "Other"],
-  "Memorial & Tribute":  ["Engraving", "Forge", "Calligraphy", "Stone Carving", "Mixed Media", "Other"],
+  "Memorial & Tribute":  ["Engraving", "Laser Cutting", "Laser Engraving", "Forge", "Calligraphy", "Stone Carving", "Mixed Media", "Other"],
 
   // ── Wood-forward ───────────────────────────────────────────────
   "Woodworking":         ["Hand Carving", "Scroll Saw", "Router", "Wood Turning", "Pyrography", "CNC", "Joinery", "Other"],
   "Furniture":           ["Hand Carving", "Joinery", "Wood Turning", "CNC", "Upholstery", "Mixed Media", "Other"],
-  "Kitchen & Bar":       ["Wood Turning", "Forge", "Engraving", "Pottery", "Resin", "Other"],
+  "Kitchen & Bar":       ["Wood Turning", "Forge", "Engraving", "Laser Cutting", "Laser Engraving", "Pottery", "Resin", "Other"],
 
   // ── 3D / sculptural ────────────────────────────────────────────
   "Sculpture":           ["Forge", "Stone Carving", "Wood Carving", "Cast", "Mixed Media", "Mosaic", "Other"],
   "Lighting & Lamps":    ["Glassblowing", "Stained Glass", "Metalwork", "Wood", "Resin", "Mixed Media", "Other"],
 
   // ── Soft goods / wearables ─────────────────────────────────────
-  "Home Decor":          ["Hand-Painted", "Macramé", "Mosaic", "Embroidery", "Quilting", "Mixed Media", "Other"],
+  // iter413co.1 — Loretta: add Wood Burning to Home Decor.
+  "Home Decor":          ["Hand-Painted", "Macramé", "Mosaic", "Embroidery", "Quilting", "Wood Burning", "Mixed Media", "Other"],
   "Wedding Gifts":       ["Engraving", "Embroidery", "Calligraphy", "Hand-Painted", "Mixed Media", "Other"],
-  "Jewelry & Wearables": ["Wire Wrapping", "Silversmithing", "Resin", "Lost Wax Casting", "Enameling", "Electroforming", "Embroidery", "Beading", "Other"],
-  "Fiber & Textiles":    ["Embroidery", "Thread Painting", "Quilting", "Crochet", "Knitting", "Weaving", "Needle Felting", "Macramé", "Mixed Media", "Other"],
-  "Leather Goods":       ["Tooling", "Hand Stitching", "Carving", "Dyeing", "Braiding", "Burnishing", "Other"],
+  // iter413co.1 — Loretta: split Laser, add Chainmaille + Leatherwork.
+  "Jewelry & Wearables": ["Wire Wrapping", "Silversmithing", "Resin", "Lost Wax Casting", "Enameling", "Electroforming", "Embroidery", "Beading", "Chainmaille", "Leatherwork", "Laser Cutting", "Laser Engraving", "Other"],
+  // iter413co.1 — Loretta: add Sewing between Thread Painting and Quilting.
+  "Fiber & Textiles":    ["Embroidery", "Thread Painting", "Sewing", "Quilting", "Crochet", "Knitting", "Weaving", "Needle Felting", "Macramé", "Mixed Media", "Other"],
+  // iter413co.1 — Loretta: add Laser Engraving before Other.
+  "Leather Goods":       ["Tooling", "Hand Stitching", "Carving", "Dyeing", "Braiding", "Burnishing", "Laser Engraving", "Other"],
 
   // ── Earth & clay ───────────────────────────────────────────────
   "Pottery & Ceramics":  ["Wheel Throwing", "Hand Building", "Slip Casting", "Raku", "Glazing", "Sgraffito", "Other"],
 
   // ── Seasonal & catch-all ───────────────────────────────────────
   "Holiday & Seasonal":  ["Mixed Media", "Embroidery", "Plasma", "Laser", "Hand-Painted", "Wood Burning", "Other"],
+  // iter413co.1 — Loretta: drop "Machine-Made" (describes a
+  // manufacturing method, not a craft). Use "Digital Fabrication" +
+  // "Hybrid" instead, which fit the marketplace positioning.
   "Other":               DEFAULT_TECHNIQUES,
 
   // ── iter413co — Newly added categories per Loretta's feedback ──
