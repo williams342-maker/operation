@@ -157,6 +157,12 @@ class HelpChatRequest(BaseModel):
     session_id: Optional[str] = None
     page_url: Optional[str] = None
     user_role: Optional[str] = None  # visitor | buyer | maker | admin
+    # iter413cz — Optional Verification Session Framework binding. When
+    # set AND the referenced session is still open, every turn is
+    # mirrored to db.verification_sessions for institutional learning.
+    # Safe to pass on any chat call — unknown / closed sessions are
+    # silently ignored.
+    verification_session_id: Optional[str] = None
 
 
 @router.post("/help/chat")
@@ -219,6 +225,21 @@ async def help_chat(req: HelpChatRequest):
         "report_issue_cue": bool(bug_cue),
         "created_at": now_iso(),
     })
+    # iter413cz — Mirror the exchange into the bound Verification Session
+    # if one is supplied. Best-effort: a stale id or closed session is a
+    # silent no-op so the chat call never errors on optional metadata.
+    if req.verification_session_id:
+        try:
+            from routers.verification_sessions import record_compass_turn
+            await record_compass_turn(
+                session_id=req.verification_session_id,
+                question=req.message,
+                response=reply_str,
+                user_role=role,
+                page_url=req.page_url,
+            )
+        except Exception as e:
+            logger.warning("[verify] record_compass_turn failed: %s", e)
     return {
         "session_id": session_id,
         "reply": reply_str,

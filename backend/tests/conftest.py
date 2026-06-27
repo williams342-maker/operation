@@ -762,6 +762,11 @@ SMOKE_FILES = {
     # Pass LORETTA_BASE_URL=https://craftersmarket.org to target prod.
     "test_loretta_production_preflight.py",
 
+    # ── iter413cz — Verification Session Framework ──────────────────
+    # Locks the full lifecycle: start/append/Compass-mirror/close + the
+    # 7 canonical verification_types + filter listing.
+    "test_iter413cz_verification_sessions.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

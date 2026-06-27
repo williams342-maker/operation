@@ -73,6 +73,15 @@ export default function HelpSupportWidget() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [sessionId, setSessionId] = useState(() => localStorage.getItem("cm_help_session"));
+  // iter413cz — Verification Session Framework binding. When an admin
+  // opens Compass with `?session=<verification_session_id>` (or via
+  // the admin tool), every chat turn auto-records into that session.
+  // Persisted in sessionStorage so a tab refresh keeps the binding;
+  // explicitly clearable via Compass's "New" button (resetChat).
+  const [verificationSessionId, setVerificationSessionId] = useState(() => {
+    try { return sessionStorage.getItem("cm_verify_session") || null; }
+    catch (_e) { return null; }
+  });
   // iter413cq — bug-report cue tracking + modal state
   const [bugCueOpen, setBugCueOpen] = useState(false);
   const [reportModal, setReportModal] = useState(false);
@@ -110,12 +119,21 @@ export default function HelpSupportWidget() {
   // iter413cv — Email deep-link: /?compass=1 auto-opens Compass on
   // landing. Strips the query param after handling so refresh doesn't
   // re-open the widget unexpectedly.
+  // iter413cz — Also captures &session=<verification_session_id> to
+  // bind subsequent chat turns to a Verification Session.
   useEffect(() => {
     try {
       const params = new URLSearchParams(location.search || "");
-      if (params.get("compass") === "1") {
-        setOpen(true);
+      const wantsOpen = params.get("compass") === "1";
+      const verifyId = params.get("session");
+      if (verifyId) {
+        setVerificationSessionId(verifyId);
+        try { sessionStorage.setItem("cm_verify_session", verifyId); } catch (_e) { /* noop */ }
+      }
+      if (wantsOpen) setOpen(true);
+      if (wantsOpen || verifyId) {
         params.delete("compass");
+        params.delete("session");
         const q = params.toString();
         const url = location.pathname + (q ? `?${q}` : "");
         window.history.replaceState({}, "", url);
@@ -135,6 +153,7 @@ export default function HelpSupportWidget() {
         session_id: sessionId,
         page_url: location.pathname,
         user_role: role,
+        verification_session_id: verificationSessionId,
       });
       if (res?.session_id) setSessionId(res.session_id);
       setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
@@ -155,6 +174,11 @@ export default function HelpSupportWidget() {
     setSessionId(null);
     setBugCueOpen(false);
     setReportResult(null);
+    // iter413cz — Resetting the chat also breaks the verification
+    // session binding so a fresh chat doesn't get attributed to an
+    // older study by accident.
+    setVerificationSessionId(null);
+    try { sessionStorage.removeItem("cm_verify_session"); } catch (_e) { /* noop */ }
     localStorage.removeItem("cm_help_session");
     localStorage.removeItem("cm_help_messages");
   };
