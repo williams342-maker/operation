@@ -773,6 +773,12 @@ SMOKE_FILES = {
     # 12-month path, and the legacy welcome packet for standard makers.
     "test_iter413dc_founder_welcome_email.py",
 
+    # ── iter413dd — Founder welcome modal ack contract ──────────────
+    # Default flag false → ack flips to true → idempotent re-ack → auth
+    # required. Pairs with the elevated welcome email (iter413dc) as
+    # the in-product touchpoint.
+    "test_iter413dd_founder_welcome_ack.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

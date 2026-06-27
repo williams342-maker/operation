@@ -441,6 +441,12 @@ class Maker(BaseModel):
     founder_rolled_at: Optional[str] = None
     founder_grace_revoked_at: Optional[str] = None
     founder_number: Optional[int] = None       # monotonic, never reused
+    # iter413dd — Set true after the maker dismisses the one-time
+    # "You're Founder #NNN of 100 · Welcome" modal that fires on their
+    # first dashboard load post-promotion. Same identity reinforcement
+    # as the welcome email — second touchpoint, in-product. Set ONCE
+    # then never resurfaced.
+    founder_welcome_seen: bool = False
     is_beta_tester: bool = False
     # Veteran $10/mo boost credit ledger. Replenished monthly by the
     # `veteran_boost_credit` cron; burned ahead of cash promotion fees.

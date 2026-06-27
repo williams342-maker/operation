@@ -26,6 +26,7 @@ import BriefsTab from "./MakerDashboard/BriefsTab";
 import ReviewsTab from "./MakerDashboard/ReviewsTab";
 import ProfileForm from "./MakerDashboard/ProfileForm";
 import BrandKitCard from "../components/maker/BrandKitCard"; // iter413bw
+import FounderWelcomeModal from "../components/maker/FounderWelcomeModal"; // iter413dd
 import useModalA11y from "../hooks/useModalA11y";
 
 // Legacy `#upgrade` URLs (the old top-level Upgrade tab) now route to the
@@ -428,6 +429,12 @@ export default function MakerDashboard() {
 
   return (
     <>
+      {/* iter413dd — One-time Founder welcome modal. Auto-hides for
+          non-founders and for founders who've already dismissed it. */}
+      <FounderWelcomeModal
+        maker={maker}
+        onSeen={() => setMaker((m) => m ? { ...m, founder_welcome_seen: true } : m)}
+      />
       <ShopManagerLayout
         maker={maker}
         tab={tab}

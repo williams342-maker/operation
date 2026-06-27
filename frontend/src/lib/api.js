@@ -1204,6 +1204,12 @@ export const promoteToFounder = (slug, { inaugural = true } = {}) =>
     { headers: adminAuthHeaders() }
   ).then((r) => r.data);
 
+// iter413dd — One-time Founder welcome modal ack. Called when the maker
+// dismisses the celebration modal. Backend flips `founder_welcome_seen=true`
+// so the modal never re-appears.
+export const ackFounderWelcome = () =>
+  http.post("/maker/founder-welcome/ack", {}, { headers: authHeaders() }).then((r) => r.data);
+
 // iter413bw — Maker Brand Kit (Garage Builders identity).
 export const applyBrandKit = () =>
   http.post("/maker/brand-kit/apply", {}, { headers: authHeaders() }).then((r) => r.data);

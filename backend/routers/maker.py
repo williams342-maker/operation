@@ -105,6 +105,19 @@ async def maker_me(slug: str = Depends(current_maker_slug)):
     return maker
 
 
+# iter413dd — One-time Founder welcome modal ack. Flips the
+# `founder_welcome_seen` flag on the maker doc so the dashboard never
+# resurfaces the celebration modal. Idempotent: a second call is a no-op.
+# Public success even for non-founders (so the frontend doesn't need to
+# branch — silently true). Authenticated as the maker themselves.
+@router.post("/maker/founder-welcome/ack")
+async def maker_ack_founder_welcome(slug: str = Depends(current_maker_slug)):
+    await db.makers.update_one(
+        {"slug": slug}, {"$set": {"founder_welcome_seen": True}},
+    )
+    return {"ok": True}
+
+
 @router.patch("/maker/profile", response_model=Maker)
 async def maker_update_profile(
     payload: MakerProfileUpdate,
