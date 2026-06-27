@@ -747,6 +747,10 @@ SMOKE_FILES = {
     # signals), and the searchable Release Timeline.
     "test_iter413cs_deploy_watch.py",
 
+    # ── iter413cv — Compass brand application across customer-facing
+    # surfaces (email shell CTA, /brand/* SVG assets, SVG favicon link).
+    "test_iter413cv_compass_brand_application.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

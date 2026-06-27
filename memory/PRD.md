@@ -50,6 +50,46 @@ Each signal compares current rate (per-day, normalised by elapsed_hours since wa
 ---
 
 
+## iter413cv — Compass brand application across customer-facing surfaces (2026-02)
+
+**Status:** SHIPPED. 24/24 backend pytest pass (iter413cv new + iter413cu fixed + iter413ah email contract regression-checked). Brand reinforcement applied without disturbing the parent Crafters Market identity.
+
+### Terminology shift (per user direction — locked)
+Internal docs, PRs, and roadmap items now use **Compass Platform** as the umbrella. Sub-experiences:
+- **Compass Assistant** — chat interface (this is what shipped in iter413cu)
+- **Compass Discovery** — search & recommendations (future)
+- **Compass Growth** — seller optimization (future)
+- **Compass Insights** — analytics (future)
+- **Compass Operations** — admin intelligence (NOT renamed yet — gradual rollout per user direction)
+
+Never refer to Compass as "the chatbot" or "the help widget" in planning docs again.
+
+### Brand roadmap (4 stages)
+| Stage | Surfaces | Audience |
+| --- | --- | --- |
+| **1 — Current** | Compass Assistant | Buyers + Sellers |
+| **2** | Compass Discovery · Compass Recommendations · Compass Shop Review | Still customer-facing |
+| **3** | Compass Insights (marketplace analytics, seller recommendations, growth suggestions) | Sellers |
+| **4** | Compass Operations (deployment monitoring, AI Ops Center, release health) | Internal admin until brand matures |
+
+### What shipped in iter413cv
+- **`public/index.html`** — Added `<link rel="icon" type="image/svg+xml" href="/brand/compass-favicon.svg" />` and Safari pinned-tab `<link rel="mask-icon" href="/brand/compass-master.svg" color="#ff4500" />`. PNG fallbacks preserved.
+- **`components/sections/Footer.jsx`** — New "Ask Compass" CTA card under the wordmark + tagline. Uses `<CompassLockup align="stack" subtitle>` so users see the mark + COMPASS / YOUR MARKETPLACE ASSISTANT pairing. Dispatches the `compass:open` custom event when clicked.
+- **`components/HelpSupportWidget.jsx`** — Listens for `compass:open` event AND parses `?compass=1` query param on mount. Either opens the widget; the query param is stripped via `history.replaceState` so refresh doesn't re-trigger.
+- **`backend/email_service.py` `_shell()`** — New row added at the foot of every transactional email: *"◈ Ask Compass — your marketplace assistant"* linking to `{FRONTEND_URL}/?compass=1`. Crafters Market masthead stays the parent brand at the top.
+
+### Tests
+- `tests/test_iter413cv_compass_brand_application.py` — 9 tests covering email shell CTA + deep-link, FRONTEND_URL env override, all 7 /brand/* assets HTTP 200 with correct content-type, SVG favicon link present in index.html, Safari mask-icon present. Registered in SMOKE_FILES.
+- Fixed iter413cu test bootstrapping (loads `/app/frontend/.env` so BASE_URL is non-empty when run from CLI). All 9 iter413cu tests now pass.
+- iter413ah email branding contract — all 6 still green (no regression).
+
+### Deferred per user direction
+- **Don't rename the AI Operations Center to "Compass Operations" yet.** Stage 4 — wait until Compass is familiar to buyers/sellers.
+- **OG image / Twitter card image** — kept the existing PNG hero; PNG regen with Compass branding requires image-generation budget. SVG avatar already in `/brand/compass-avatar.svg` for any social platform that accepts SVG.
+
+---
+
+
 ## iter413cu — Compass · official AI brand identity LIVE (2026-02)
 
 **Status:** SHIPPED. iteration_100 testing agent: **100% green** on every acceptance criterion (backend 9/9 pytest, frontend full E2E). User-approved Concept 5 (Abstract Navigation) refined per direction and rolled out across the platform.

@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Instagram, Mail, MapPin } from "lucide-react";
 import { reopenBanner } from "../../lib/consent";
+import { CompassLockup } from "../icons/CompassIcon";
 
 // iter413at — Live CI badge that fetches /api/ci/health on mount.
 // Renders a discreet mono-caps line under the brand tagline. Fails open:
@@ -259,6 +260,28 @@ export default function Footer() {
           >
             Built on craft · Driven by makers
           </div>
+          {/* iter413cv — Soft introduction of Compass to first-time
+              visitors. Clickable so curious users can pop the assistant
+              open immediately (dispatches a custom event the
+              HelpSupportWidget listens for). Kept understated: ink-muted
+              copy with the lockup as the brand cue. Per user direction,
+              roll out the sub-brands (Discovery / Growth / Insights /
+              Operations) gradually — this row introduces Compass itself,
+              nothing more. */}
+          <button
+            type="button"
+            onClick={() => {
+              try { window.dispatchEvent(new CustomEvent("compass:open")); } catch (_e) { /* noop */ }
+            }}
+            className="mt-6 inline-flex items-center gap-3 px-3 py-2 border border-line hover:border-brand transition-colors group"
+            data-testid="footer-compass-intro"
+            aria-label="Open Compass — Your Marketplace Assistant"
+          >
+            <CompassLockup size={18} subtitle align="stack" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted group-hover:text-brand transition-colors">
+              Ask Compass →
+            </span>
+          </button>
         </div>
 
         <div className="border-t border-line pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">

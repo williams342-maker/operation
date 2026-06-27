@@ -98,6 +98,31 @@ export default function HelpSupportWidget() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, open]);
 
+  // iter413cv — Allow other parts of the app to open Compass via a
+  // custom event so we don't have to thread a setter through the
+  // component tree (e.g. the Footer "Ask Compass" CTA).
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("compass:open", onOpen);
+    return () => window.removeEventListener("compass:open", onOpen);
+  }, []);
+
+  // iter413cv — Email deep-link: /?compass=1 auto-opens Compass on
+  // landing. Strips the query param after handling so refresh doesn't
+  // re-open the widget unexpectedly.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search || "");
+      if (params.get("compass") === "1") {
+        setOpen(true);
+        params.delete("compass");
+        const q = params.toString();
+        const url = location.pathname + (q ? `?${q}` : "");
+        window.history.replaceState({}, "", url);
+      }
+    } catch (_e) { /* noop */ }
+  }, [location.pathname, location.search]);
+
   const send = async (overrideText) => {
     const text = (overrideText ?? draft).trim();
     if (!text || busy) return;

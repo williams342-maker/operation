@@ -486,6 +486,13 @@ def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
     # ugly cream box. Image is served from the production CDN — every
     # email client fetches assets via absolute URL.
     #
+    # iter413cv — Soft Compass introduction at the email foot.
+    # Keeps Crafters Market as the parent brand on the masthead;
+    # introduces Compass as a sub-product at the foot so buyers learn
+    # "Ask Compass" through repetition over time. Deep-link
+    # `/?compass=1` is handled in HelpSupportWidget — auto-opens the
+    # widget on landing.
+    #
     # Layout note: kept as a single <table> row with the monogram in a
     # fixed-width left cell and the wordmark in a flexible right cell.
     # Outlook/Yahoo mangle CSS flexbox; tables are the only reliable
@@ -516,7 +523,10 @@ def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
         <tr><td style="padding:20px 32px;border-top:1px solid #262626;font-size:10px;letter-spacing:0.22em;color:#525252;text-transform:uppercase">
           {footer or "Precision craft · delivered."} · craftersmarket.org
         </td></tr>
-        <tr><td style="padding:14px 32px 22px;font-size:9px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;text-align:center">
+        <tr><td style="padding:14px 32px 8px;font-size:10px;letter-spacing:0.18em;color:#a3a3a3;text-transform:uppercase;text-align:center">
+          ◈ <a href="{site}/?compass=1" style="color:#ff4500;text-decoration:none">Ask Compass</a> — your marketplace assistant
+        </td></tr>
+        <tr><td style="padding:6px 32px 22px;font-size:9px;letter-spacing:0.32em;color:#ff4500;text-transform:uppercase;text-align:center">
           Built on craft · Driven by makers
         </td></tr>
       </table>
