@@ -757,6 +757,11 @@ SMOKE_FILES = {
     # answer auto-update via CAPABILITIES injection.
     "test_iter413cx_listing_video_phase1.py",
 
+    # ── iter413cy — Loretta production verification preflight ───────
+    # Run BEFORE every scheduled walk-through with the founding seller.
+    # Pass LORETTA_BASE_URL=https://craftersmarket.org to target prod.
+    "test_loretta_production_preflight.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

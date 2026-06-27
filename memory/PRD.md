@@ -192,6 +192,78 @@ Priority: P1 (high-touch but no integration work — pure copy + UI polish lever
 ---
 
 
+## iter413cy — Loretta Production Verification Preflight + Locked Roadmap (2026-02)
+
+**Status:** Preflight 9/9 green against preview. Production verification is now a **human-led** step — Loretta walks the checklist at `/app/memory/loretta_verification.md` against `craftersmarket.org`. The automated preflight catches anything broken before her time is spent.
+
+### What shipped
+- **`/app/memory/loretta_verification.md`** — 7-section checklist covering all 6 Loretta items plus Listing Video Phase 1. Sign-off block at the bottom. Failures get routed into the Compass Report Issue flow (lands as `ai_diagnosed_bug` in Contact Inbox → AI Ops Center "AI-diagnosed issues" card).
+- **`tests/test_loretta_production_preflight.py`** — 9-test automated suite that runs against **any** environment (preview by default, prod via `LORETTA_BASE_URL=https://craftersmarket.org`). Covers Fiber & Textile techniques, existing-listing regression, video capabilities flip, video endpoint contract, Compass self-identification, Compass video answer flip, bug-cue routing, brand asset availability, favicon link in index.html. Registered in `SMOKE_FILES`.
+
+### Locked Roadmap (user-stated priority order — 2026-02)
+
+**P1 — Production verification (in progress · human step)**
+Run the preflight against prod → walk through the 7-section checklist with Loretta → sign off. Once all 7 sections pass, comment "VERIFIED iter413cy" on the doc and unblock P2.
+
+**P2 — Listing Quality Score (modular scoring engine architecture)**
+Replaces the "Videos Welcome" prompt with a comprehensive listing optimisation tool. Per user architectural directive: build as a **modular scoring engine** where each future signal (videos, AI descriptions, shipping profiles, reviews, badges, SEO completeness, etc.) registers its own scoring rule. Initial signals:
+- Cover photo present + quality
+- Photo count + variety (3+ angles)
+- Product video present (iter413cx integration)
+- Description length + readability
+- Materials field filled
+- Dimensions / weight / processing time
+- Shipping profile attached
+- Category + technique completeness
+- SEO completeness (title, slug, meta description)
+- AI-generated suggestions from Compass
+
+Display as a percentage with prioritised recommendations and estimated impact. Becomes the central optimisation surface in every seller dashboard.
+
+**Proposed module shape:**
+```
+backend/listing_quality/
+  ├── __init__.py        # registry: register_rule(name, fn, weight)
+  ├── rules/
+  │   ├── cover_photo.py
+  │   ├── photo_count.py
+  │   ├── product_video.py
+  │   ├── description.py
+  │   ├── shipping.py
+  │   ├── seo.py
+  │   └── …               # one file per rule, easy to add
+  └── score.py           # evaluates registered rules against a listing
+```
+Endpoint: `GET /api/maker/listings/{slug}/quality-score` → `{score: 0-100, rules: [{name, weight, status, recommendation, estimated_impact}]}`.
+
+**P3 — Seller Success Dashboard**
+Expand Maker Dashboard from a list-of-things into a coaching dashboard:
+- Listing Quality Score (per-listing + portfolio rollup)
+- Listings-with-videos %
+- Views / favorites / orders aggregates
+- Suggested next improvement (highest-impact recommendation across all listings)
+- AI recommendations from Compass (rolls into "Compass Growth" sub-brand eventually)
+
+**P4 — Compass Stage 2**
+Continue building Compass as the marketplace front door per iter413cw direction:
+- Progressive context loading (silent — *"Context available. Context revealed only when helpful."*)
+- Seller coaching (Compass Growth surface)
+- Buyer assistance (Compass Discovery surface)
+- Marketplace-aware recommendations
+- Personalised onboarding
+- Context-aware suggestion chips (per page type — receipt vs application vs listing)
+
+### Hold-for-later (per user direction)
+- Video transcoding · adaptive streaming · auto-generated posters · processing queues · video analytics — defer until meaningful video adoption justifies the engineering cost.
+
+### Guiding principle (locked)
+> *"Will this help recruit more makers, help makers sell more, or help buyers purchase with more confidence?"*
+
+If yes → up the roadmap. If no → backlog until marketplace growth justifies it.
+
+---
+
+
 ## iter413cx — Listing Video Support · Phase 1 SHIPPED (2026-02)
 
 **Status:** LIVE. 32/32 backend pytest green across iter413cx + 4 rebaselined contracts. Testing agent iteration_101 verified all 6 frontend acceptance criteria + the 4 backend ones. Compass auto-flipped its answer about videos with **zero prompt edits** — exactly the design payoff promised when iter413cq was built.
