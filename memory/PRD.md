@@ -31,6 +31,61 @@ Each signal compares current rate (per-day, normalised by elapsed_hours since wa
 ---
 
 
+## iter413ct — Homepage UX & AI Experience refinement (2026-02)
+
+**Status:** SHIPPED. Verified 100% green by testing agent (`/app/test_reports/iteration_99.json`). Per user direction, the AI rename was held to a NEUTRAL placeholder ("AI Marketplace Assistant") so the permanent **Compass** brand can be applied in one centralised swap when the icon is ready.
+
+### What shipped
+- **`components/HelpSupportWidget.jsx`** — Centralised brand strings into a single `ASSISTANT_BRAND` constant (header label, header sub-line generator, welcome message). Header now reads "AI Marketplace Assistant" (was "Help & Support"). New verbatim welcome message. Starter hints collapsed from a per-role dictionary into a single 5-prompt discovery-focused array (gift / wall art / makers / custom orders / open shop) that renders identically for every visitor/buyer/maker/admin. New `data-testid="help-widget-brand"` so the eventual rebrand is testable.
+- **`components/sections/Hero.jsx`** — Set 0 body copy broadened to include fiber artists, jewelers, potters, leatherworkers, glass artists, and metal makers (no longer "small businesses doing honest work"). Sell Your Work CTA upgraded to 3px ink border + hammer + trailing arrow + hover lift with brand-colored offset shadow — clearly steps up its prominence vs the previous flat outlined treatment without overpowering Shop.
+- **`components/SupportVeteransStrip.jsx`** — Reduced visual weight: removed dark navy gradient + striped flag backdrop + star-field flicker. Now a single-line paper-themed strip with smaller seal, 🇺🇸 prefix, "Proudly Supporting Veteran-Owned Makers · Learn More →" copy. Hero remains the homepage focal point.
+
+### Tests
+- Frontend-only batch — verified via `testing_agent_v3_fork` iteration_99 across 7 acceptance criteria. Backend unchanged (iter413cq remains green for the chat round-trip). Sell CTA renders both icons, veteran strip on paper bg (rgb 236,230,218), hero body contains all 6 new maker terms, no residue of old support strings.
+
+### Followups (low-priority, captured by testing agent)
+- `HelpSupportWidget.jsx` is approaching ~475 lines. When Compass rebrand lands, consider extracting the Report Issue modal (~125 lines) into its own file.
+- Pre-existing console noise: `wss://.../api/ws/chat/help` 403/404 spam when a fake `cm_buyer_jwt` token is set. Unrelated to iter413ct — worth a future cleanup batch.
+
+---
+
+
+## iter413ct+ — Compass · AI brand identity (LOCKED direction, future implementation)
+
+**Decision (2026-02):** The AI is named **Compass — Your Marketplace Assistant**. Person-style names ("Helena", "Market Guide") are explicitly rejected; the AI is a *product*, not a representative.
+
+### Rename surfaces (apply in a single future batch)
+The neutral "AI Marketplace Assistant" label currently in production is the **placeholder** put in place by iter413ct. When the visual identity is ready, swap it everywhere by editing the single `ASSISTANT_BRAND` constant in `HelpSupportWidget.jsx`:
+- `header_label` → "Compass"
+- Add `header_sub_brand` → "Your Marketplace Assistant" (currently the role label sits there)
+- `welcome` → *"Hi! I'm Compass, your Marketplace Assistant. I can help you discover handmade products, find the right maker, answer questions about buying or selling, guide you through custom orders, or help you grow your shop."*
+
+### Cohesive sub-brand naming convention
+All future AI-powered surfaces live under the Compass umbrella so the marketplace has *one* AI ecosystem, not five:
+- **Compass Discovery** — buyer product discovery + gift recommendations
+- **Compass Recommendations** — maker recommendations + cross-sell
+- **Compass Insights** — admin marketplace intelligence (the AI Operations Center cards roll up here)
+- **Compass Operations** — issue detection + deployment monitoring (Watch Window + Card 1/2/6 from iter413cr/cs slot here)
+- **Compass Growth** — seller listing assistant + shop optimisation + education
+
+### Visual identity (deferred — needs design work)
+NOT a traditional nautical compass. Direction: modern geometric icon drawing from a compass needle / four-point navigation star / location pin. Must feel modern + handcrafted + premium. To be sourced via `design_agent_full_stack` once the textual rebrand is approved for code.
+
+### Personality
+Knowledgeable · Friendly · Trustworthy · Professional · Helpful without being intrusive. Avoid the "support chatbot" tone — Compass is a guide.
+
+### Implementation tip for next agent
+Because iter413ct already centralised the brand strings into `ASSISTANT_BRAND`, the rebrand is a ~10-line code change plus an icon swap. The hard part (centralisation) is done. The remaining work is:
+1. Decide on the icon (design agent)
+2. Update `ASSISTANT_BRAND` + add `header_sub_brand` field
+3. Sweep any user-facing surface that still hardcodes "Crafters Market Help" or "AI Marketplace Assistant" — currently only `HelpSupportWidget.jsx` does
+4. Update the AI system prompt in `routers/help_chat.py` so the model identifies itself as Compass
+
+Priority: P1 after Listing Video Support Phase 1 ships, OR sooner if the user finalises the icon.
+
+---
+
+
 ## iter413cs+ — Homepage UX & AI Experience refinement (FUTURE BATCH)
 
 Captured verbatim from user feedback (2026-02). Rated current homepage 8.8/10; this is a polish pass, not a redesign.
