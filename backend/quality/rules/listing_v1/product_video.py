@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="product_video", weight=15, label="Product video",
     description="Short videos showing motion / detail materially lift conversion.",
+    default_effort="medium",
+    edit_link_template="/maker/listings/{slug}/edit#video",
 )
 def product_video(subject) -> RuleResult:
     video = subject.get("listing_video") or {}

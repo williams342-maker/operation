@@ -27,6 +27,7 @@ from core import db
 from maker_auth import current_admin, current_maker_slug
 import quality  # noqa: F401  — import side-effect registers rules
 from quality.engine import evaluate, registered_algorithms
+from quality.impact import prioritize
 
 router = APIRouter()
 
@@ -95,3 +96,38 @@ async def list_scorecards():
     routes defaults to the algorithm's current default."""
     return {"scorecards": [{"algorithm": a, "version": v}
                             for (a, v) in registered_algorithms()]}
+
+
+# ── iter413df — Impact Engine coaching endpoints ─────────────────────
+# Same scorecard as `/quality-score`, run through `prioritize()` to
+# return a ranked action plan: highest-leverage move first, deep-link
+# included, plain-English summary. Powers both:
+#   • The Seller Success Dashboard coaching panel (P3 UI).
+#   • Compass — when a seller asks "why isn't my listing selling?",
+#     Compass calls this endpoint and frames the top action.
+@router.get("/maker/listings/{slug}/coaching")
+async def maker_listing_coaching(
+    slug: str,
+    version: Optional[str] = None,
+    maker_slug: str = Depends(current_maker_slug),
+):
+    prod = await _load_listing_for_quality(slug)
+    if prod.get("maker_slug") != maker_slug:
+        raise HTTPException(403, "Not your listing.")
+    card = evaluate("listing_quality", version, _build_listing_subject(prod))
+    return prioritize(card, identifier=slug)
+
+
+@router.get("/admin/listings/{slug}/coaching")
+async def admin_listing_coaching(
+    slug: str,
+    version: Optional[str] = None,
+    _: dict = Depends(current_admin),
+):
+    """Admin mirror of the coaching endpoint — same shape, any
+    listing. Powers the AI Operations Center's "top recommendations"
+    rollup AND lets staff inspect what Compass will say to a maker
+    before the maker asks."""
+    prod = await _load_listing_for_quality(slug)
+    card = evaluate("listing_quality", version, _build_listing_subject(prod))
+    return prioritize(card, identifier=slug)

@@ -134,6 +134,36 @@ the cue otherwise.
 """
 
 
+# iter413df — Compass as the interface to the Impact Engine. When the
+# system prompt receives a LISTING_COACHING block, Compass must answer
+# coaching questions ("why isn't my listing selling?", "how do I improve
+# this?", "what should I do next?") using that block as the source of
+# truth — NOT generic advice. This makes the Compass answer match the
+# Seller Success Dashboard pixel-for-pixel.
+COACHING_INSTRUCTIONS = """
+
+COACHING MODE (only active when LISTING_COACHING block is present below):
+You are not a help widget right now — you are a seller coach. Use the
+LISTING_COACHING JSON as the SOLE source of truth for any question about
+improving this listing, why it isn't selling, scoring, or "what should I
+do next." Never invent generic recommendations when the engine has
+specific ones. Follow this answer shape exactly:
+
+  1. State the current score in plain language ("You're at 64/100").
+  2. Identify the SINGLE highest-leverage move (next_action). Quote
+     its recommendation verbatim and surface the +N points gained.
+  3. Briefly explain WHY it matters (1 sentence — pull from the rule
+     explanation if helpful).
+  4. Provide the deep-link from `edit_link` so the seller can fix it
+     in one click. Format: "Fix it here: <link>".
+  5. Offer to share the next 2-3 ranked actions if they ask.
+
+If the seller asks broadly ("how do I improve this listing?"), list the
+top 3 actions in order with their points gained + effort. Always lead
+with the biggest win. NEVER skip the deep-link when one is provided.
+"""
+
+
 def _capabilities_block() -> str:
     """Serialize the live platform capabilities into the prompt.
 
@@ -163,6 +193,91 @@ class HelpChatRequest(BaseModel):
     # Safe to pass on any chat call — unknown / closed sessions are
     # silently ignored.
     verification_session_id: Optional[str] = None
+    # iter413df — Optional listing slug. When set + user_role=maker,
+    # Compass auto-loads the listing's coaching plan from the Impact
+    # Engine and answers questions like "why isn't my listing selling"
+    # with the highest-leverage move first + deep-link to the edit
+    # screen. Slug is also auto-extracted from page_url if it matches
+    # /maker/listings/<slug>/ or /products/<slug> so the frontend
+    # doesn't need to pass it explicitly during dogfooding.
+    listing_slug: Optional[str] = None
+
+
+async def _coaching_block(req: "HelpChatRequest", role: str) -> str:
+    """iter413df — Inject Impact-Engine coaching context into the
+    Compass system prompt when the maker is asking about a listing.
+
+    Returns "" silently when:
+      • role != maker (coaching is maker-only)
+      • no listing slug can be resolved (no page_url match, no explicit field)
+      • the listing doesn't exist OR isn't owned by the asking maker
+      • the scoring engine raises (no rules registered yet, etc.)
+    Best-effort — never blocks the chat call."""
+    if role != "maker":
+        return ""
+    slug = (req.listing_slug or "").strip().lower() or None
+    if not slug and req.page_url:
+        # Extract slug from common maker page URLs.
+        import re
+        for pattern in (
+            r"/maker/listings/([a-z0-9][a-z0-9\-]+)",
+            r"/products/([a-z0-9][a-z0-9\-]+)",
+            r"/listings/([a-z0-9][a-z0-9\-]+)",
+        ):
+            m = re.search(pattern, req.page_url)
+            if m:
+                slug = m.group(1)
+                break
+    if not slug:
+        return ""
+    try:
+        import quality  # noqa: F401  — register rules
+        from quality.engine import evaluate
+        from quality.impact import prioritize
+        prod = await db.products.find_one(
+            {"slug": slug, "deleted_at": None}, {"_id": 0},
+        )
+        if not prod:
+            return ""
+        # Build the subject identically to routers/quality_scoring.py so
+        # the coaching answer always matches the dashboard scorecard.
+        from routers.quality_scoring import _build_listing_subject
+        card = evaluate("listing_quality", None, _build_listing_subject(prod))
+        plan = prioritize(card, identifier=slug)
+        # Slim plan for prompt injection — drop verbose explanations,
+        # keep only the action list + summary so Compass has the SAME
+        # answer the dashboard would surface.
+        slim_actions = [
+            {
+                "rule_id": a["rule_id"],
+                "label": a["label"],
+                "recommendation": a["recommendation"],
+                "points_gain": a["points_gain"],
+                "impact": a.get("estimated_impact"),
+                "effort": a.get("effort"),
+                "edit_link": a.get("edit_link"),
+            }
+            for a in plan["actions"][:6]
+        ]
+        return (
+            "\n\nLISTING_COACHING (live Impact Engine output — use this VERBATIM "
+            "when the maker asks anything about improving this listing, "
+            "selling more, scoring, or what to do next; ALWAYS lead with "
+            "the #1 action and include its deep-link):\n"
+            + json.dumps({
+                "listing_slug": slug,
+                "score": plan["score"],
+                "max_score": plan["max_score"],
+                "percent": plan["percent"],
+                "ceiling": plan["ceiling"],
+                "summary": plan["summary"],
+                "next_action": plan["next_action"],
+                "actions": slim_actions,
+            }, indent=2)
+        )
+    except Exception as e:
+        logger.warning("help_chat: coaching block unavailable: %s", e)
+        return ""
 
 
 @router.post("/help/chat")
@@ -195,11 +310,20 @@ async def help_chat(req: HelpChatRequest):
 
     context_block = f"\n\nUSER ROLE: {role}\nCURRENT PAGE: {req.page_url or '(unknown)'}"
     capabilities_block = _capabilities_block()
+    coaching_block = await _coaching_block(req, role)
+    # iter413df — Only activate COACHING_INSTRUCTIONS when we have real
+    # coaching data. Without the data, the instructions caused the LLM
+    # to invent scores + deep-links for non-makers ("listing scoring
+    # leakage") instead of falling back to generic help-widget answers.
+    coaching_instructions = COACHING_INSTRUCTIONS if coaching_block else ""
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=session_id,
-        system_message=SYSTEM_PROMPT_BASE + capabilities_block + context_block + history_block,
+        system_message=(
+            SYSTEM_PROMPT_BASE + capabilities_block + coaching_instructions
+            + coaching_block + context_block + history_block
+        ),
     ).with_model("anthropic", "claude-sonnet-4-5-20250929")
 
     try:

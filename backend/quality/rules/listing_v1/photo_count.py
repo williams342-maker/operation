@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="photo_count", weight=15, label="Photo variety",
     description="Multiple angles reduce return rates and build trust.",
+    default_effort="medium",
+    edit_link_template="/maker/listings/{slug}/edit#photos",
 )
 def photo_count(subject) -> RuleResult:
     images = subject.get("images") or []

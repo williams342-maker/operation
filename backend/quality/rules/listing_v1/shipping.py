@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="shipping", weight=10, label="Shipping",
     description="Shipping cost + processing time MUST be set before checkout works.",
+    default_effort="low",
+    edit_link_template="/maker/listings/{slug}/edit#shipping",
 )
 def shipping(subject) -> RuleResult:
     has_profile = bool(subject.get("shipping_profile_id"))

@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="cover_photo", weight=15, label="Cover photo",
     description="A cover image is required — it's what buyers see in search results.",
+    default_effort="low",
+    edit_link_template="/maker/listings/{slug}/edit#cover-photo",
 )
 def cover_photo(subject) -> RuleResult:
     image = subject.get("image") or ""

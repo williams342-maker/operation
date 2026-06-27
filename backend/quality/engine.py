@@ -68,11 +68,17 @@ class RuleResult:
 
     All fields except `passed` and `score` are optional so simple
     presence checks can be one-liners; richer rules surface actionable
-    recommendations + impact estimates."""
+    recommendations + impact estimates.
+
+    iter413df — `effort` joined `estimated_impact` as a first-class
+    coaching signal. The Impact Engine ranks failing rules by the
+    (impact, effort) matrix to surface "highest-leverage move first".
+    Both fields override the rule's defaults declared at registration."""
     passed: bool
     score: float                            # 0 .. weight
     recommendation: str = ""
     estimated_impact: Optional[str] = None  # "low" | "medium" | "high"
+    effort: Optional[str] = None            # "low" | "medium" | "high"
     explanation: str = ""
     # Optional structured payload for UI-rich rules (e.g. quality
     # rule that wants to show "3 / 5 photos" or surface a thumbnail).
@@ -86,26 +92,43 @@ class _RegisteredRule:
     weight: float
     fn: Callable[[Any], RuleResult]
     description: str = ""
+    # iter413df — Default effort + deep-link template per rule. Rules
+    # can still override `effort` at evaluation time via RuleResult.
+    # `edit_link_template` is a relative URL with {slug} interpolation
+    # so the Impact Engine can build maker-specific deep-links into
+    # the appropriate edit screen.
+    default_effort: str = "medium"
+    edit_link_template: str = ""
 
 
 def register_rule(
     *, algorithm: str, version: str, rule_id: str,
     weight: float, label: str, description: str = "",
+    default_effort: str = "medium", edit_link_template: str = "",
 ):
     """Decorator — register a rule against (algorithm, version).
 
     Re-registering the SAME (algorithm, version, rule_id) replaces
     the previous registration (so `import quality.rules` is idempotent
-    in dev with hot-reload). A logger.warning surfaces the swap."""
+    in dev with hot-reload). A logger.warning surfaces the swap.
+
+    iter413df — `default_effort` and `edit_link_template` feed the
+    Impact Engine. Effort matrix: low / medium / high. Link template
+    accepts a `{slug}` placeholder, e.g. `/maker/listings/{slug}/edit#video`."""
     if weight <= 0:
         raise ValueError(f"Rule weight must be > 0 (got {weight} for {rule_id})")
+    if default_effort not in {"low", "medium", "high"}:
+        raise ValueError(f"default_effort must be low|medium|high (got {default_effort!r})")
 
     def wrap(fn: Callable[[Any], RuleResult]) -> Callable[[Any], RuleResult]:
         key = (algorithm, version)
         bucket = _REGISTRY.setdefault(key, [])
         existing = next((i for i, r in enumerate(bucket) if r.rule_id == rule_id), None)
-        rule = _RegisteredRule(rule_id=rule_id, label=label, weight=float(weight),
-                               fn=fn, description=description)
+        rule = _RegisteredRule(
+            rule_id=rule_id, label=label, weight=float(weight),
+            fn=fn, description=description,
+            default_effort=default_effort, edit_link_template=edit_link_template,
+        )
         if existing is not None:
             logger.warning("[quality] swap rule %s/%s/%s", algorithm, version, rule_id)
             bucket[existing] = rule
@@ -162,6 +185,14 @@ def evaluate(algorithm: str, version: Optional[str], subject: Any) -> dict:
                 "passed": bool(res.passed),
                 "recommendation": res.recommendation or "",
                 "estimated_impact": res.estimated_impact,
+                # iter413df — Effort + edit link surface so the Impact
+                # Engine can rank by leverage AND deep-link straight
+                # into the right edit screen. Effort defaults to the
+                # rule's declared `default_effort` if the rule fn
+                # didn't override it. Edit link interpolates {slug}
+                # at the Impact-Engine layer (engine stays pure).
+                "effort": res.effort or rule.default_effort,
+                "edit_link_template": rule.edit_link_template or "",
                 "explanation": res.explanation or "",
                 "details": res.details or {},
             })
@@ -177,6 +208,8 @@ def evaluate(algorithm: str, version: Optional[str], subject: Any) -> dict:
                 "passed": False,
                 "recommendation": "Internal scoring error — engineering notified.",
                 "estimated_impact": None,
+                "effort": rule.default_effort,
+                "edit_link_template": rule.edit_link_template or "",
                 "explanation": f"rule crashed: {type(e).__name__}",
                 "details": {},
             })

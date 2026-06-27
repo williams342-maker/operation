@@ -792,6 +792,12 @@ SMOKE_FILES = {
     # (maker-self, admin-any, public scorecards introspection).
     "test_iter413de_quality_scoring.py",
 
+    # ── iter413df — Impact Engine + Compass coaching ────────────────
+    # Locks: per-rule effort + edit_link template, ranked action plan,
+    # slug interpolation, coaching endpoints, Compass auto-injection
+    # of the LISTING_COACHING block when a maker asks about a listing.
+    "test_iter413df_impact_engine.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

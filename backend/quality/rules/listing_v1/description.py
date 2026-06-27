@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="description", weight=15, label="Description",
     description="A 120+ char description signals craft and helps SEO.",
+    default_effort="medium",
+    edit_link_template="/maker/listings/{slug}/edit#description",
 )
 def description(subject) -> RuleResult:
     desc = (subject.get("description") or "").strip()

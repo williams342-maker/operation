@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="seo", weight=15, label="SEO completeness",
     description="Title length + meta_description + slug quality all matter for search.",
+    default_effort="low",
+    edit_link_template="/maker/listings/{slug}/edit#seo",
 )
 def seo(subject) -> RuleResult:
     title = (subject.get("title") or "").strip()

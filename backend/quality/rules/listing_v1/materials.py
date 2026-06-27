@@ -6,6 +6,8 @@ from quality.engine import register_rule, RuleResult
     algorithm="listing_quality", version="v1",
     rule_id="materials", weight=15, label="Materials",
     description="Listed materials build trust + power faceted search filters.",
+    default_effort="low",
+    edit_link_template="/maker/listings/{slug}/edit#materials",
 )
 def materials(subject) -> RuleResult:
     mats = subject.get("materials") or []
