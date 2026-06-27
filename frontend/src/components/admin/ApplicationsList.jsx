@@ -281,10 +281,44 @@ function ApplicationRow({ app, onChange }) {
   const decide = async (approved) => {
     setBusy(true);
     try {
-      await decideMakerApplication(app.id, { approved, note });
+      const r = await decideMakerApplication(app.id, { approved, note });
       await onChange();
+      return r; // iter413db — surfaces maker_slug for the combo button
     } finally {
       setBusy(false);
+    }
+  };
+  // iter413db — One-click "Approve as Inaugural Founder". Approves the
+  // application (which auto-creates the maker + auto-promotes per the
+  // cap-based allocator), then explicitly forces inaugural status via
+  // /admin/founders/promote so a maker hitting the workflow after the
+  // 100-slot cap is full still lands as Inaugural. Idempotent on the
+  // backend — re-running reuses founder_number, never re-spams the
+  // welcome email.
+  const approveAsFounder = async () => {
+    const ok = window.confirm(
+      `Approve "${app.studio_name}" AND grant Inaugural Founder?\n\n` +
+      `• Sends the standard approval email + welcome packet.\n` +
+      `• Forces tier=founder, founder_status=inaugural, lifetime expiry.\n` +
+      `• Bypasses the 100-slot cap (use sparingly once the cap fills).\n` +
+      `• Assigns the next monotonic Founder number (#NNN).\n\n` +
+      `Standard "Approve" already auto-promotes inside the cap — use this only when you want to OVERRIDE the auto-allocator.`
+    );
+    if (!ok) return;
+    try {
+      const decided = await decide(true);
+      const slug = decided?.maker_slug;
+      if (!slug) {
+        toast.error("Approved, but couldn't resolve maker slug — promote manually from Approved Makers.");
+        return;
+      }
+      const r = await promoteToFounder(slug, { inaugural: true });
+      toast.success(
+        `${app.studio_name} → Inaugural Founder #${r.founder_number}.`
+      );
+      await onChange();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Approve-as-Founder failed.");
     }
   };
   const remove = async () => {
@@ -443,6 +477,15 @@ function ApplicationRow({ app, onChange }) {
               data-testid={`app-approve-${app.id}`}
             >
               Approve
+            </button>
+            <button
+              onClick={approveAsFounder}
+              disabled={busy}
+              title="Approve AND force Inaugural Founder status (bypasses the 100-slot cap)"
+              className="px-5 py-3 border border-brand bg-brand/10 text-brand hover:bg-brand hover:text-paper font-mono text-[11px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+              data-testid={`app-approve-as-founder-${app.id}`}
+            >
+              ★ Approve as Founder
             </button>
             <button
               onClick={() => decide(false)}

@@ -4,7 +4,7 @@ import {
   fetchAdminApprovedMakers, toggleMakerBeta,
   purgeApprovedMaker, approvedMakersCsvUrl,
   sendEnrichlabsExportNow, fetchEnrichlabsExportStatus,
-  adminImpersonateMaker, promoteMakerToFounder,
+  adminImpersonateMaker, promoteToFounder,
 } from "../../lib/api";
 import { startImpersonation } from "../../lib/impersonate";
 import { formatDate } from "./_shared";
@@ -116,7 +116,7 @@ export default function ApprovedMakersTab() {
     if (!ok) return;
     setPromotingSlug(slug);
     try {
-      const res = await promoteMakerToFounder(slug, "inaugural");
+      const res = await promoteToFounder(slug, { inaugural: true });
       toast.success(
         `${name || slug} → Inaugural Founder #${res.founder_number}.`,
       );

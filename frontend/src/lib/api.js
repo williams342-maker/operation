@@ -1226,17 +1226,6 @@ export const sendEnrichlabsExportNow = () =>
 export const fetchEnrichlabsExportStatus = () =>
   http.get("/admin/makers/approved/enrichlabs-status", { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter413da — One-click "Promote to Founder" used by the Approved Makers
-// admin table. Idempotent: re-running on an already-founder maker reuses
-// the existing founder_number and skips the welcome email. Returns the
-// updated tier / founder_status / founder_number so the UI can refresh.
-export const promoteMakerToFounder = (slug, forceStatus = "inaugural") =>
-  http.post(
-    "/admin/founders/promote",
-    { slug, force_status: forceStatus },
-    { headers: adminAuthHeaders() },
-  ).then((r) => r.data);
-
 // iter413ca — Admin impersonation. Returns { token, target_type, target_sub,
 // target_email, target_name, imp_by, expires_in_seconds }. The frontend
 // caller is responsible for stashing the token + meta in localStorage and

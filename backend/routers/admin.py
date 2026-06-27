@@ -1714,6 +1714,16 @@ async def admin_decide_application(
     appn["note"] = body.note
     appn["decided_at"] = decided_at
     appn["decided_by"] = decided_by
+    # iter413db — Surface the resulting maker slug on the decide response
+    # so the admin UI can chain into /admin/founders/promote for the
+    # "Approve as Inaugural Founder" combo without a second roundtrip
+    # through the application list. Only populated on approve.
+    if body.approved:
+        m_for_slug = await db.makers.find_one(
+            {"email": appn["email"]}, {"_id": 0, "slug": 1},
+        )
+        if m_for_slug:
+            appn["maker_slug"] = m_for_slug.get("slug")
     return appn
 
 
