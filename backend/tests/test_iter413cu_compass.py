@@ -45,8 +45,13 @@ class TestCompassChatIdentity:
         for phrase in legacy_phrases:
             assert phrase not in reply_lower, f"Reply contains legacy phrase {phrase!r}: {data['reply']!r}"
 
-    def test_video_not_supported_still_works(self, session):
-        """iter413cq must remain green post-rebrand."""
+    def test_video_supported_via_capabilities(self, session):
+        """iter413cq capabilities injection must remain green post-rebrand.
+
+        Rebaselined in iter413cz: iter413cx flipped listing-video uploads
+        from disabled → enabled with the 60s/100MB/MP4-or-MOV constraints.
+        The reply must now affirm support AND surface those constraints
+        — proving the prompt is reading live CAPABILITIES, not stale text."""
         r = session.post(
             f"{BASE_URL}/api/help/chat",
             json={"message": "can I upload a video to my listing?", "user_role": "maker"},
@@ -55,24 +60,17 @@ class TestCompassChatIdentity:
         assert r.status_code == 200, r.text
         data = r.json()
         reply_lower = data["reply"].lower()
-        # Must indicate not supported / coming later.
-        not_supported_signals = [
-            "not supported",
-            "not currently supported",
-            "not yet supported",
-            "not available",
-            "isn't supported",
-            "can't",
-            "cannot",
-            "coming",
-            "future release",
-            "future",
-            "disabled",
-            "doesn't support",
-            "does not support",
-        ]
-        assert any(s in reply_lower for s in not_supported_signals), (
-            f"Reply should indicate video upload not supported: {data['reply']!r}"
+        # Must affirm support.
+        affirm_signals = ["yes", "supported", "you can"]
+        assert any(s in reply_lower for s in affirm_signals), (
+            f"Reply should affirm video upload support: {data['reply']!r}"
+        )
+        # Must surface the live constraints from CAPABILITIES.
+        assert "60" in reply_lower or "sixty" in reply_lower, (
+            f"Reply should mention 60-second duration cap: {data['reply']!r}"
+        )
+        assert "100" in reply_lower or "mp4" in reply_lower or "mov" in reply_lower, (
+            f"Reply should mention 100MB cap or MP4/MOV formats: {data['reply']!r}"
         )
 
 

@@ -1,3 +1,53 @@
+## iter413cz — Generalized Verification Session Framework (2026-02)
+
+**Status:** SHIPPED. 11/11 pytest pass + frontend deep-link smoke + Compass mirror E2E + 32/32 across adjacent smoke (iter413cu / cq / cx). Replaces the one-off Loretta tracker with a permanent observation-layer that becomes infrastructure for every future onboarding, interview, beta, and AI-evaluation session.
+
+### What shipped
+- **`routers/verification_sessions.py`** — admin-only CRUD over a single `db.verification_sessions` collection. Flat schema (no migrations to grow). Seven canonical `VERIFICATION_TYPES`: `production_verification`, `founder_onboarding`, `feature_validation`, `seller_interview`, `buyer_research`, `beta_feedback`, `ai_evaluation`.
+  - `POST /api/admin/verification-sessions/start` — open with `{verification_type, title, feature_area?, subject?}`. Rejects unknown types with 400.
+  - `POST /api/admin/verification-sessions/{id}/turns` — manual `{kind, author, text, meta?}` append. `kind=issue` / `kind=recommendation` auto-bump denormalised counters for fast dashboard rollup. Closed sessions reject with 404.
+  - `POST /api/admin/verification-sessions/{id}/close` — sets `closed_at/closed_by/completion_status (passed|failed|abandoned)`, persists optional `summary` as a `note` turn tagged `closing_summary=true`.
+  - `GET /api/admin/verification-sessions/{id}` — full session including the `turns` array.
+  - `GET /api/admin/verification-sessions?verification_type=&feature_area=&status=&limit=` — newest-first list. Drops the heavy `turns` array on list reads for cheap dashboard polling. Always returns `valid_types` so the UI can build filter dropdowns without hardcoding.
+  - **Public helper `record_compass_turn(session_id, question, response, user_role?, page_url?)`** — best-effort mirror used by `help_chat.py`. Silent no-op on missing / closed session so chat never errors on stale metadata.
+- **`routers/help_chat.py` hook** — `HelpChatRequest.verification_session_id: Optional[str]` field. After a successful Claude turn, calls `record_compass_turn(...)` to mirror both the user question and Compass response into the bound session. Wrapped in try/except so any verify failure logs at WARN and never disturbs the chat round-trip.
+- **`components/HelpSupportWidget.jsx`** — reads `?session=<id>` from the URL on mount (alongside `?compass=1`), persists to `sessionStorage.cm_verify_session` so tab refresh keeps the binding, strips both params via `history.replaceState`. Every `helpChat()` POST carries `verification_session_id` in the body. "Reset chat" clears both the help session id AND the verification binding so the next chat doesn't get mis-attributed.
+- **`tests/test_iter413cz_verification_sessions.py`** — 11/11 pass:
+  - admin auth gate on start + list
+  - rejects unknown `verification_type` with 400
+  - all 7 canonical types accepted (parametrized)
+  - full lifecycle: open → manual issue + recommendation → Compass chat carrying session id → fetch shows all 4 turn kinds (question/response/issue/recommendation) + counters incremented → close with summary → late-append blocked with 404
+  - list with `verification_type` + `feature_area` filters returns target row, includes `valid_types`, omits the heavy `turns` array
+- **Test rebaseline (iter413cu)** — `test_video_not_supported_still_works` → `test_video_supported_via_capabilities`. Stale assertion left over from iter413cu (when videos were disabled) that asserted "not supported"; iter413cx flipped the capability live and Compass now correctly says "Yes — one product video per listing, MP4/MOV, 60s, 100MB." Test now asserts BOTH affirmation AND the constraints surface — proves the capabilities injection still wins.
+
+### E2E verification points (all green)
+| Check | Result |
+|---|---|
+| Session creation (all 7 types) | ✓ |
+| Session lifecycle (open → annotate → mirror → close → block-late) | ✓ |
+| Compass message auto-mirror via `verification_session_id` | ✓ |
+| Frontend `?compass=1&session=<id>` parsing → `sessionStorage` + URL strip | ✓ (screenshot smoke) |
+| AI Ops Center handoff (filter by `verification_type` / `feature_area` / `status`) | ✓ |
+| No regression in normal Compass chat (no session bound) | ✓ |
+| Lint clean | ✓ python + JS |
+
+### Why this matters
+Every interview, founder walk, beta session, or AI eval now writes a structured, searchable, denormalised paper trail into Mongo automatically. The same framework powers:
+- **P1 — Loretta production verification** (next): open a `production_verification` session, share `?compass=1&session=<id>` link, walk the checklist, every Compass turn auto-records, issues tagged, close with `passed/failed`.
+- **P3 — Seller Success Dashboard** (later): roll up `issues_count` + `recommendations_count` per `feature_area` to surface recurring confusions across cohorts.
+- **AI Operations Center** (already shipped): a future "Verification Sessions" card can show open sessions, recent close-rate per cohort, and trending issue tags by listing/area.
+
+### Out of scope (deferred)
+- Admin UI for verification sessions — endpoints are full; building the dashboard tab is a separate P3-aligned slice.
+- Automatic session creation from beta-cohort flagging — deferred until a beta cohort exists.
+
+### Registered in SMOKE_FILES
+- `tests/test_iter413cz_verification_sessions.py` (slot at conftest.py:768)
+
+---
+
+
+
 ## iter413cs — Deployment Watch Window + AI Operations Cards 2 & 6 + Release Timeline (2026-02)
 
 **Status:** SHIPPED. The Operations Dashboard now opens a monitored Watch Window automatically on every deploy, surfaces emerging issues + signal spikes vs the 7-day baseline, and records every release in a searchable Release Timeline.

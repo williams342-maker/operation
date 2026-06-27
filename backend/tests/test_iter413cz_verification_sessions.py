@@ -73,7 +73,7 @@ def test_rejects_unknown_type(admin_jwt):
     r = requests.post(
         f"{BASE_URL}/api/admin/verification-sessions/start",
         headers=_h(admin_jwt),
-        json={"verification_type": "garbage_type", "title": "x"},
+        json={"verification_type": "garbage_type", "title": "unknown type probe"},
         timeout=15,
     )
     assert r.status_code == 400
