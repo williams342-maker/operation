@@ -1148,6 +1148,19 @@ export const uploadMakerListingImage = (blob, onProgress) => {
   }).then((r) => r.data);
 };
 
+// iter413cx — Listing Video · Phase 1. Single MP4/MOV per listing.
+// Returns {url, duration, size, content_type}. Server validates MIME +
+// size (≤100MB) + duration (≤60s via ffprobe).
+export const uploadMakerListingVideo = (file, onProgress) => {
+  const fd = new FormData();
+  fd.append("file", file, file?.name || "video.mp4");
+  return http.post("/maker/uploads/video", fd, {
+    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress,
+    timeout: 180_000, // 3 min — large videos may take a while
+  }).then((r) => r.data);
+};
+
 // Clone listing
 export const duplicateMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/duplicate`, null, { headers: authHeaders() }).then((r) => r.data);

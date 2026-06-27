@@ -245,6 +245,67 @@ export default function MakerListingEditor() {
 
   // ---- Photos ----
   const fileRef = useRef(null);
+  // iter413cx — Listing Video · Phase 1 state.
+  // `videoUploading` = false | "uploading" | "processing" (ffprobe step).
+  // `videoErr` carries the most recent error string for inline display.
+  const videoFileRef = useRef(null);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoErr, setVideoErr] = useState("");
+
+  const onPickVideo = async (e) => {
+    const f = e.target.files?.[0];
+    if (e.target) e.target.value = ""; // allow re-picking the same file
+    if (!f) return;
+    setVideoErr("");
+    // Client-side guards (server is authoritative — these just save round-trips).
+    const MAX_BYTES = 100 * 1024 * 1024;
+    if (!/(mp4|quicktime|x-quicktime)/.test(f.type) && !/\.(mp4|mov)$/i.test(f.name)) {
+      setVideoErr("Video must be MP4 or MOV.");
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      setVideoErr(`Video must be 100 MB or smaller. Yours is ${(f.size / 1024 / 1024).toFixed(1)} MB.`);
+      return;
+    }
+    setVideoUploading("uploading");
+    try {
+      const { uploadMakerListingVideo } = await import("../lib/api");
+      const res = await uploadMakerListingVideo(f, (ev) => {
+        // Once the upload completes, the server runs ffprobe — surface
+        // that step distinctly so a 60s video doesn't look stuck.
+        if (ev?.loaded && ev?.total && ev.loaded >= ev.total) {
+          setVideoUploading("processing");
+        }
+      });
+      set({
+        listing_video: {
+          url: res.url,
+          duration: res.duration,
+          size: res.size,
+          content_type: res.content_type,
+          uploaded_at: new Date().toISOString(),
+        },
+      });
+      toast.success("Video uploaded");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = (typeof detail === "object" && detail?.message)
+        ? detail.message
+        : (detail || err?.message || "Upload failed.");
+      setVideoErr(msg);
+      toast.error(msg);
+    } finally {
+      setVideoUploading(false);
+    }
+  };
+
+  const removeVideo = () => {
+    set({ listing_video: null });
+    setVideoErr("");
+    // The PATCH endpoint clears the field when remove_listing_video=true.
+    // We tag this on the form so submit() includes it; cleared again after save.
+    set({ _remove_listing_video: true });
+  };
   // Crop queue: pending files waiting to go through the crop modal.
   const [cropQueue, setCropQueue] = useState([]);     // [dataUrl, ...]
   // When set, the head of cropQueue replaces an existing photo at this
@@ -636,6 +697,11 @@ export default function MakerListingEditor() {
     dimensions: [form.length_in, form.width_in, form.height_in].filter(Boolean).join(" × ") || null,
     images: form.images,
     video_url: form.video_url || null,
+    // iter413cx — Phase 1 listing video. Either include the structured
+    // doc (newly uploaded) or send remove_listing_video=true if the
+    // maker explicitly cleared it.
+    listing_video: form.listing_video || null,
+    remove_listing_video: form._remove_listing_video ? true : null,
     in_stock: Math.max(0, Number(form.in_stock) || 0),
     variants: form.variants.map((v) => ({
       id: v.id, label: v.label.trim(),
@@ -991,6 +1057,11 @@ export default function MakerListingEditor() {
           uploadStatus={uploadStatus}
           retryImageUpload={retryImageUpload}
           retryAllFailedUploads={retryAllFailedUploads}
+          videoFileRef={videoFileRef}
+          onPickVideo={onPickVideo}
+          videoUploading={videoUploading}
+          videoErr={videoErr}
+          removeVideo={removeVideo}
         />
 
         <AiAssistantSection

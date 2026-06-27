@@ -101,13 +101,17 @@ def build_capabilities_payload() -> dict:
         # ── Feature flags (live, runtime-driven) ──────────────────────
         "features": {
             "listing_videos": {
-                "upload_enabled": False,
-                "gallery_render_enabled": False,
-                "planned_for_future_release": True,
+                "upload_enabled": True,
+                "gallery_render_enabled": True,
+                "max_per_listing": 1,
+                "supported_video_formats": ["mp4", "mov"],
+                "accepted_mime_types": ["video/mp4", "video/quicktime"],
+                "max_size_mb": 100,
+                "max_duration_seconds": 60,
+                "autoplay": False,
                 "user_message": (
-                    "Listing videos aren't supported yet — the product gallery "
-                    "displays photos only. Video playback on listings is planned "
-                    "for a future release."
+                    "Listings support one product video — MP4 or MOV, up to 60 seconds "
+                    "and 100 MB. Native playback with native controls; no autoplay."
                 ),
             },
             "community_videos": {
@@ -138,10 +142,12 @@ def build_capabilities_payload() -> dict:
                 "max_per_listing": 12,
             },
             "video": {
-                "accepted_mime_types": [],
-                "max_size_mb": 0,
-                "rejected_with_code": "video_uploads_disabled",
-                "note": "Currently rejected at the API. See features.listing_videos.",
+                "accepted_mime_types": ["video/mp4", "video/quicktime"],
+                "max_size_mb": 100,
+                "max_duration_seconds": 60,
+                "max_per_listing": 1,
+                "supported_extensions": ["mp4", "mov"],
+                "note": "One product video per listing. Native HTML5 playback on the PDP gallery.",
             },
         },
 

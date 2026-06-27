@@ -307,26 +307,86 @@ export default function MediaSection({
       {errors.images && <FieldError msg={errors.images} />}
 
       <div className="mt-6 pt-6 border-t border-line">
-        {/* iter413cp — Loretta feedback: listing video upload was
-            accepted by the editor but never rendered on the public
-            PDP, creating a confusing seller experience. Until the
-            product gallery is upgraded to render videos, we reject
-            uploads at both the UI AND the server layer (see
-            backend/routers/maker.py upload_maker_video). */}
-        <Label>Video <span className="text-ink-muted">(coming soon)</span></Label>
-        <div
-          className="mt-2 border border-dashed border-line bg-paper/40 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3"
-          data-testid="editor-video-coming-soon"
-        >
-          <Upload size={18} className="text-ink-muted shrink-0" aria-hidden="true" />
-          <p className="font-mono text-[11px] text-ink-muted leading-relaxed flex-1">
-            Listing videos aren&apos;t supported yet — the product gallery
-            currently displays photos only. We&apos;re building video
-            playback into the PDP and it&apos;s planned for a future
-            release. For now, capture extra angles or detail shots
-            with photos above.
-          </p>
-        </div>
+        {/* iter413cx — Listing Video · Phase 1.
+            One MP4/MOV per listing, ≤60s, ≤100MB. Native HTML5 preview
+            once uploaded; replace/remove inline. Server validates size
+            + duration server-side (ffprobe) so the UI cap is a courtesy. */}
+        <Label>Product Video <span className="text-ink-muted">(optional · 1 max)</span></Label>
+        <p className="font-mono text-[11px] text-ink-muted mt-1 mb-2 leading-relaxed">
+          Show your product in motion, demonstrate craftsmanship, or highlight important details. MP4 or MOV, up to 60 seconds and 100 MB.
+        </p>
+
+        {form.listing_video?.url ? (
+          <div className="mt-2 border border-line bg-paper p-3" data-testid="editor-video-uploaded">
+            <video
+              src={form.listing_video.url}
+              controls
+              preload="metadata"
+              poster={form.images?.[0]}
+              className="w-full max-w-md bg-black"
+              data-testid="editor-video-preview"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                {form.listing_video.duration?.toFixed(1)}s · {(form.listing_video.size / 1024 / 1024).toFixed(1)} MB
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => videoFileRef?.current?.click()}
+                  disabled={videoUploading}
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand border border-line px-2 py-1 disabled:opacity-50"
+                  data-testid="editor-video-replace"
+                >
+                  <RotateCw size={11} className="inline mr-1" /> Replace
+                </button>
+                <button
+                  type="button"
+                  onClick={removeVideo}
+                  disabled={videoUploading}
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-danger border border-danger/60 hover:bg-danger/10 px-2 py-1 disabled:opacity-50"
+                  data-testid="editor-video-remove"
+                >
+                  <Trash2 size={11} className="inline mr-1" /> Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => videoFileRef?.current?.click()}
+            disabled={videoUploading}
+            className="mt-2 w-full sm:max-w-md aspect-video border-2 border-dashed border-line hover:border-brand bg-paper/40 flex flex-col items-center justify-center gap-2 transition-colors disabled:opacity-60"
+            data-testid="editor-video-add"
+          >
+            {videoUploading ? (
+              <>
+                <Loader2 size={22} className="text-brand animate-spin" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                  {videoUploading === "processing" ? "Processing…" : "Uploading…"}
+                </span>
+              </>
+            ) : (
+              <>
+                <Upload size={22} className="text-ink-muted" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+                  Add product video
+                </span>
+              </>
+            )}
+          </button>
+        )}
+
+        <input
+          ref={videoFileRef}
+          type="file"
+          accept="video/mp4,video/quicktime,.mp4,.mov"
+          hidden
+          onChange={onPickVideo}
+          data-testid="editor-video-input"
+        />
+        {videoErr && <FieldError msg={videoErr} />}
       </div>
     </Section>
   );

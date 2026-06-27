@@ -751,6 +751,12 @@ SMOKE_FILES = {
     # surfaces (email shell CTA, /brand/* SVG assets, SVG favicon link).
     "test_iter413cv_compass_brand_application.py",
 
+    # ── iter413cx — Listing Video Support · Phase 1 ─────────────────
+    # Locks the upload endpoint accept path (MP4 + MOV, ≤60s, ≤100MB,
+    # ffprobe-validated), platform capabilities flip, and the Compass
+    # answer auto-update via CAPABILITIES injection.
+    "test_iter413cx_listing_video_phase1.py",
+
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of
     # env-tolerant skips (live Stripe/Kit/Shippo/Cloudflare 502) and

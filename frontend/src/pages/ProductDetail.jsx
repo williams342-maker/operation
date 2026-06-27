@@ -426,6 +426,21 @@ export default function ProductDetail() {
                   style={{ width: "100%", height: "100%", background: "#0a0a0a" }}
                   data-testid="product-model-viewer"
                 />
+              ) : active === -2 && p.listing_video?.url ? (
+                // iter413cx — Listing Video · Phase 1. Native HTML5
+                // playback with the listing cover as the poster fallback,
+                // controls visible, no autoplay, muted until interact.
+                <video
+                  src={p.listing_video.url}
+                  poster={p.images?.[0]}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  muted
+                  className="w-full h-full bg-black object-contain"
+                  data-testid="product-video-player"
+                  aria-label="Product video"
+                />
               ) : (
                 <button
                   type="button"
@@ -472,6 +487,29 @@ export default function ProductDetail() {
                   <img src={img} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
+              {/* iter413cx — Video thumbnail in the gallery strip. Uses
+                  the listing cover (p.images[0]) as the poster image and
+                  overlays a ▶ icon so the buyer knows this slot is a
+                  video, not a photo. */}
+              {p.listing_video?.url && (
+                <button
+                  onClick={() => setActive(-2)}
+                  className={`relative aspect-square overflow-hidden border ${active === -2 ? "border-brand" : "border-line"} group`}
+                  data-testid="product-video-thumb"
+                  aria-label="Play product video"
+                >
+                  {p.images?.[0] ? (
+                    <img src={p.images[0]} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                  ) : (
+                    <div className="w-full h-full bg-black" />
+                  )}
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-paper/85 border border-line text-ink">
+                      ▶
+                    </span>
+                  </span>
+                </button>
+              )}
               {p.model_url && (
                 <button
                   onClick={() => setActive(-1)}

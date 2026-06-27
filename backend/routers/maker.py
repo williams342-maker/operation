@@ -183,7 +183,14 @@ class MakerProductUpdate(BaseModel):
     materials: Optional[List[str]] = None
     dimensions: Optional[str] = None
     model_url: Optional[str] = None
-    video_url: Optional[str] = None
+    video_url: Optional[str] = None  # legacy single URL (kept for back-compat)
+    # iter413cx — Phase 1 listing video. When set, the PDP gallery renders
+    # the video as an additional slot. None clears the existing video.
+    # Shape: {url, duration, size, content_type, uploaded_at}
+    listing_video: Optional[dict] = None
+    # iter413cx — Maker can request removal of the listing video without
+    # touching other fields. Set to True to clear the listing_video doc.
+    remove_listing_video: Optional[bool] = None
     images: Optional[List[str]] = None
     variants: Optional[List["ProductVariantInput"]] = None
     variant_axis1_name: Optional[str] = None
@@ -357,8 +364,19 @@ async def maker_update_product(
                         raise HTTPException(502, "Could not upload option image.")
 
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
-    if updates:
-        await db.products.update_one({"slug": product_slug}, {"$set": updates})
+    # iter413cx — Listing video controls. `remove_listing_video=True` is
+    # a flag, not data — strip it out of the $set payload and translate
+    # it into an unset on the document so the next read returns no video.
+    unsets: dict = {}
+    if updates.pop("remove_listing_video", False):
+        unsets["listing_video"] = ""
+    if updates or unsets:
+        op: dict = {}
+        if updates:
+            op["$set"] = updates
+        if unsets:
+            op["$unset"] = unsets
+        await db.products.update_one({"slug": product_slug}, op)
     updated = await db.products.find_one({"slug": product_slug}, {"_id": 0})
 
     # iter352 — Real-time Pinterest catalog sync. Only fires when one of
@@ -1558,29 +1576,146 @@ async def maker_upload_video(
     file: UploadFile = File(...),
     slug: str = Depends(current_maker_slug),
 ):
-    """iter413cp — Listing video upload is currently REJECTED.
+    """iter413cx — Listing Video Support · Phase 1.
 
-    The endpoint accepted uploads but the public PDP gallery doesn't
-    render the resulting video, which created a confusing maker
-    experience (Loretta Alvarado feedback, 2026-02). Until the gallery
-    is upgraded to render videos, we reject all video uploads with a
-    clear 422 + actionable message so the UI shim, server, and seller
-    are all in agreement.
+    One MP4 or MOV per listing, ≤60s, ≤100MB. Server-side validates
+    MIME + size + duration (via ffprobe — the deploy container installs
+    ffmpeg, no client-side trust). Uploaded to R2 under
+    `products/<slug>/video-<uuid>.<ext>`. Does NOT persist the URL onto
+    a listing — that's the caller's job via the listing update endpoint
+    (the same pattern as listing-image, which keeps this route reusable
+    for both create-new and replace-existing flows).
 
-    Bring this back online once the gallery rendering ships — restore
-    the previous body from git history (iter413co or earlier)."""
-    _ = file  # parameter kept so the route surface doesn't change
-    _ = slug
-    raise HTTPException(
-        status_code=422,
-        detail={
-            "code": "video_uploads_disabled",
-            "message": "Listing videos are not yet supported. We're "
-                       "building video playback into the product page "
-                       "and it's planned for a future release. For now, "
-                       "use photos to capture extra angles or detail.",
-        },
-    )
+    Returns: { url, duration, size, content_type }
+    """
+    try:
+        from r2_storage import (
+            ALLOWED_CONTENT_TYPES,
+            is_configured as _r2_ok,
+            upload_bytes,
+        )
+    except Exception:
+        raise HTTPException(503, "R2 storage is not available.")
+    if not _r2_ok():
+        raise HTTPException(503, "R2 storage is not configured.")
+
+    # MIME allow-list. Browsers may send video/quicktime OR
+    # video/x-quicktime for .mov; both are in r2_storage's allow-list.
+    ct = (file.content_type or "").lower()
+    if ct not in ("video/mp4", "video/quicktime", "video/x-quicktime"):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "video_unsupported_format",
+                "message": "Listing videos must be MP4 or MOV.",
+            },
+        )
+
+    body = await file.read()
+    if len(body) == 0:
+        raise HTTPException(400, "Empty file.")
+
+    MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100 MB
+    if len(body) > MAX_VIDEO_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "video_too_large",
+                "message": f"Video must be 100 MB or smaller. Got {len(body) / 1024 / 1024:.1f} MB.",
+            },
+        )
+
+    # Server-authoritative duration via ffprobe. We persist the buffer
+    # to a temp file because ffprobe doesn't reliably read from stdin
+    # for MOV (which uses moov-atom seeking).
+    duration_s = await _probe_video_duration(body, ct)
+    if duration_s is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "video_unreadable",
+                "message": "Couldn't read this video. Try re-encoding to MP4 (H.264) and re-uploading.",
+            },
+        )
+    MAX_VIDEO_DURATION_S = 60.0
+    if duration_s > MAX_VIDEO_DURATION_S + 0.5:  # 0.5s grace for keyframe rounding
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "video_too_long",
+                "message": f"Listing videos must be 60 seconds or shorter. Yours is {duration_s:.1f}s.",
+            },
+        )
+
+    import uuid as _uuid
+    ext = ALLOWED_CONTENT_TYPES.get(ct, "mp4")
+    key = f"products/{slug}/video-{_uuid.uuid4().hex}.{ext}"
+    try:
+        url = upload_bytes(body, key, ct)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("video upload failed maker=%s: %s", slug, e)
+        raise HTTPException(502, "Could not upload video to storage.")
+
+    return {
+        "url": url,
+        "duration": round(duration_s, 2),
+        "size": len(body),
+        "content_type": ct,
+    }
+
+
+async def _probe_video_duration(body: bytes, content_type: str) -> float | None:
+    """Run ffprobe on a video blob and return its duration in seconds.
+
+    Returns None when the probe fails (corrupt file, codec we can't
+    read, or ffprobe missing — though we install it in the container).
+    Kept in the same module as the upload route since this is its only
+    caller; if more video features land it'll graduate to a helper.
+    """
+    import asyncio
+    import tempfile
+    suffix = ".mov" if "quicktime" in content_type else ".mp4"
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(body)
+            tmp_path = tmp.name
+    except Exception as e:
+        logger.exception("video probe: failed to write temp file: %s", e)
+        return None
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            tmp_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+        except asyncio.TimeoutError:
+            proc.kill()
+            logger.warning("video probe: ffprobe timed out")
+            return None
+        if proc.returncode != 0:
+            return None
+        try:
+            return float((stdout or b"").decode().strip())
+        except (ValueError, AttributeError):
+            return None
+    except FileNotFoundError:
+        # ffprobe binary missing — startup logs warn about this.
+        logger.error("video probe: ffprobe not installed in container")
+        return None
+    finally:
+        try:
+            import os as _os
+            _os.unlink(tmp_path)
+        except Exception:
+            pass
 
 
 @router.post("/maker/uploads/banner")

@@ -84,6 +84,10 @@ class Product(BaseModel):
     images: List[str] = []
     model_url: Optional[str] = None   # 3D viewer (.glb / .gltf URL); optional
     video_url: Optional[str] = None   # short showcase video (mp4/webm/mov), max ~50MB
+    # iter413cx — Phase 1 listing video. Structured doc: {url, duration,
+    # size, content_type, uploaded_at}. Single video per listing. PDP
+    # gallery renders this as an additional slot with a ▶ overlay.
+    listing_video: Optional[dict] = None
     maker_slug: str
     in_stock: int = 4
     featured: bool = False
