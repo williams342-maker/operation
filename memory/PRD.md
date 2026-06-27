@@ -1,3 +1,68 @@
+## Phase D — Marketplace Validation (2026-02 → in progress)
+
+**Status: BUILD PAUSED. VALIDATION PHASE.**
+
+The first generation of the coaching platform is complete. The user has explicitly closed the feature-development phase and entered a structured dogfood + validation pass. **Defer all new functionality** until validation gives clear signal.
+
+### What's complete (foundation of the Marketplace Intelligence Layer)
+- **iter413cz / cz+** — Verification Session Framework (canonical observation infrastructure: 7 session types, structured platform_area / participants / severity / tags / linked_refs / resolution_status / follow_up_owner / metadata bag; per-turn enrichment with category / severity / ai_confidence / attachments; PATCH for mid-flight enrichment; filterable list endpoint).
+- **iter413de** — Versioned Quality Scoring Engine (`listing_quality@v1` shipped; engine supports multi-version coexistence, crash-isolated rules, public `/api/quality/scorecards` introspection).
+- **iter413df** — Impact Engine + Compass coaching integration (ranked action plan by points × impact × effort; deep-links per rule; Compass auto-injects LISTING_COACHING when a maker is on a listing edit page; strict answer-shape instructions; visitors do NOT receive coaching).
+- **iter413dg** — Seller Success Dashboard (`Coach` tab in MakerDashboard) + qualitative Sales Opportunity 5★ indicator + Progress Timeline + listings roll-up. Consumes the same `/coaching` payload Compass injects — one source of truth.
+
+### Strict hold list (user mandate, do NOT build until validation completes)
+- `shop_quality@v1`
+- `trust_score@v1`
+- `seo_health@v1`
+- `marketplace_health@v1`
+- Any new Coach tab UI variants
+- Compass Homepage Search Bar (iter413cw)
+- Weekly coaching email digest
+
+### Dogfood protocol (run by the user)
+Capture every coaching interaction through the Verification Session Framework:
+1. **Subjects:** the user's own listings + Coastal Chic + Peach & Pine + Avery Street + Loretta (during production verification).
+2. **One `production_verification` Verification Session per subject** — share `https://craftersmarket.org/?compass=1&session=<id>` deep-links; every Compass coaching turn auto-mirrors.
+3. Tag observations with the new structured fields: `platform_area=dashboard|compass`, `severity`, `tags=["coaching","recommendation_clarity","rule_weight","completion","drop_off"]`, `resolution_status`, `follow_up_owner`.
+4. **Questions to answer (drive future rule weighting):**
+   - Which recommendations are immediately understood?
+   - Which are ignored?
+   - Which create confusion?
+   - Which consistently result in completed improvements?
+   - Where do sellers stop following the coaching flow?
+
+### Single Source of Truth (architectural rule going forward)
+**One coaching payload.** Dashboard, Compass, future emails, future notifications, future mobile — all consume the same `/api/maker/listings/{slug}/coaching` endpoint. NEVER duplicate recommendation logic. Any new surface adds a renderer, not a calculator.
+
+### Success Metrics (Phase D — leading)
+Track these BEFORE adding more algorithms:
+- listings with videos (raw count + % of total)
+- average quality score across all approved listings
+- quality score improvement over time (rolling 7d / 30d)
+- completed recommendations (delta-detected from Progress Timeline)
+- Compass coaching usage (help_questions with LISTING_COACHING block fired)
+- repeat coaching sessions (same maker_slug returning to Coach tab within N days)
+- seller return rate (D1 / D7 / D30 returning maker actives)
+
+### Next Major Milestone (POST-validation)
+**Marketplace Intelligence Layer** — connect the existing systems into ONE intelligence loop:
+  Verification Sessions → Quality Engine → Impact Engine → Compass → Seller Dashboard → AI Operations Center.
+
+These evolve into a connected system, not separate products.
+
+### Recommended next BUILD (after dogfood, per user)
+**Operations Dashboard** answering:
+- Which recommendation is most frequently ignored?
+- Which rule produces the largest score improvements?
+- Which sellers improved the most this week?
+- Which Compass coaching conversations resulted in completed actions?
+- Which verification sessions generated new roadmap items?
+
+This lets the coaching engine be tuned from evidence in OUR marketplace before expanding to additional scoring systems.
+
+---
+
+
 ## iter413cz — Generalized Verification Session Framework (2026-02)
 
 **Status:** SHIPPED. 11/11 pytest pass + frontend deep-link smoke + Compass mirror E2E + 32/32 across adjacent smoke (iter413cu / cq / cx). Replaces the one-off Loretta tracker with a permanent observation-layer that becomes infrastructure for every future onboarding, interview, beta, and AI-evaluation session.
