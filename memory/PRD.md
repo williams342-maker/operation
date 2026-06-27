@@ -1,3 +1,67 @@
+## iter413cq — Batch 3 Scope (Next Session) + Post-Deploy Verification
+
+### Batch 3 — Platform Knowledge service + AI Help Assistant + Report Issue (NEXT SESSION)
+
+User approved Batches 1+2 to ship to production. Batch 3 is the priority for the next session.
+
+**Implementation plan:**
+
+1. **`GET /api/platform/capabilities`** (new public endpoint)
+   - Returns a single JSON snapshot of the live platform state:
+     - `videos.listing_upload_enabled: false` (matches iter413cp reject)
+     - `videos.gallery_render_enabled: false`
+     - `videos.planned_for_future_release: true`
+     - `categories: [...]` — sourced from `CATEGORIES` array
+     - `techniques_by_category: {...}` — sourced from `TECHNIQUES_BY_CATEGORY`
+     - `accepted_image_types: [...]`, `max_image_mb: 5`, `max_images_per_listing: <MAX_IMAGES>`
+     - `product_guides: [...]` — sourced from `PRODUCT_GUIDES` registry
+     - `seller_limits.free_listings_per_month`, `seller_limits.founder_listings_per_month`
+     - `feature_flags.*` — pulled from any existing flag store
+   - No auth required (the AI surfaces this in any session)
+   - Cached at edge for 60s
+
+2. **AI Help Assistant integration**
+   - The existing assistant builds prompts from static text. New flow:
+     - At conversation start, fetch `/api/platform/capabilities`
+     - Inject the result as a structured system-context block
+     - Update system prompt to instruct: "ONLY answer platform-capability questions from the JSON below. If something isn't in the JSON, say 'I don't have authoritative data on that yet.'"
+   - Specifically resolves the contradictory "videos" answers Loretta reported.
+
+3. **AI "Report Issue" workflow**
+   - When the assistant detects a bug-flavored exchange (intent classifier or simple keyword/regex on "broken / not working / bug / error / can't / doesn't"), surface a "📋 Report Issue" CTA in the chat tail.
+   - Click → modal pre-filled with:
+     - Listing ID + URL (if conversation referenced a listing)
+     - Seller email + slug
+     - Category + technique
+     - User-Agent + viewport (browser/device)
+     - The assistant's auto-diagnosis (last 2 turns summarized)
+     - Optional: attached screenshot (file input, R2 upload)
+   - Submit → POST to a new admin-readable endpoint that drops into `db.contact_messages` with `kind="ai_diagnosed_bug"` (reuses the iter413cb impersonation-bug-report fan-out pattern)
+   - Fans out to Slack/Discord via `notify_team()`
+
+4. **Smoke tests + testing_agent_v3_fork after**:
+   - Capabilities endpoint shape contract
+   - Help Assistant injects capabilities into prompt
+   - "Report Issue" modal pre-fills correctly and the resulting contact_messages row contains the right structure
+
+### Post-deployment verification checklist (after redeploy to production)
+
+The user explicitly asked to verify these 6 items in production after the redeploy. Carry them through to the next session even if Batch 3 lands first — they're independent.
+
+1. Fiber & Textile listings (e.g. Loretta's) show correct technique options in the editor (Embroidery / Thread Painting / Sewing / Quilting / Crochet / Knitting / Weaving / Needle Felting / Macramé / Mixed Media / Other).
+2. Existing CNC listings render normally on PDP — historical `technique="PLASMA"` / `"LASER"` / etc. still resolve in `/shop?technique=PLASMA` filters and the Plasma vs Laser guide still surfaces on metal categories.
+3. Product Guides display correctly across all categories — outdoor mounting only on outdoor categories, metal gauge only on metal, no cross-contamination.
+4. Video uploads rejected with the new 422 + "coming soon" messaging — both the UI (no upload affordance) and the server (graceful error if someone hits the endpoint directly).
+5. No SEO regressions from the Technique taxonomy changes — `/shop?technique=<old>` URLs still resolve, sitemap regenerates cleanly, breadcrumbs don't reference removed terms.
+6. (After Batch 3 ships) Help Assistant no longer references unsupported listing videos — instead consistently states they're planned for a future release.
+
+### Held off (per user instruction this session)
+- Maker-facing "What's new" daily digest — revisit after Crafters Market has a larger active seller base + more frequent feature releases.
+
+---
+
+
+
 ## iter413co + iter413cp — Loretta Alvarado Seller Feedback Batches 1 & 2 (2026-02)
 
 ### Batch 1 (iter413co) — Category-aware Technique Taxonomy + Custom→Other
