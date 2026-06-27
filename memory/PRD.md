@@ -1,3 +1,43 @@
+## Phase D Evaluation Framework (2026-02-27)
+
+The questions below replace "find bugs" as the primary lens for Phase D observation. Bug reports still belong in Verification Sessions (tagged `category=bug`), but the real evaluation work is behavioral.
+
+### Six observation questions (drives the dogfood pass)
+1. **Which recommendations are completed within a day?**
+   *(Read via Progress Timeline deltas — `rule_id` transitioned from failing → passing inside 24h.)*
+2. **Which recommendations are consistently ignored?**
+   *(Read via score snapshots that stay flat on the same failing rule across multiple Coach visits.)*
+3. **Which recommendations confuse sellers?**
+   *(Captured in Verification Sessions as `kind=issue, category=ux_confusion` turns.)*
+4. **Does Compass reduce the number of support questions?**
+   *(Compare help_questions volume before/after coaching block became active. Look for shift from "how do I X" → "what should I do next".)*
+5. **Do sellers voluntarily return to the Coach dashboard after making improvements?**
+   *(Repeat-visit count per maker_slug within a 7-day window.)*
+6. **Are quality scores generally increasing over time?**
+   *(Per-maker rolling average from `quality_score_snapshots`.)*
+
+These six questions tell us whether the COACHING MODEL is working — not whether the code shipped.
+
+### Week-4 Evidence Summary template
+End-of-cohort review document — NOT a list of individual verification sessions. Five sections, each backed by quotes / counts pulled from the captured sessions:
+
+1. **What worked well** — recommendations that consistently drove action. Quote 2-3 specific sessions where the seller saw the rec → completed it inside a day → score moved.
+2. **What caused confusion** — recommendations that sellers misunderstood. Quote the exact moment of confusion from the session turn log. (e.g., *"shipping_profile_id vs flat rate — sellers don't know which one applies to them"*).
+3. **Missing coaching** — problems sellers encountered that the engine DIDN'T address. These are candidate rules for a future Listing Quality v2 (e.g., *"sellers keep asking about pricing strategy — engine has no `pricing` rule"*).
+4. **Rule weighting candidates** — rules that appear over- or under-weighted based on observed behavior. (e.g., *"materials@15 always completed but never moves conversion — weight too high"* or *"product_video@15 completed by only 1/5 — effort too high vs payoff"*).
+5. **Unexpected insights** — patterns nobody predicted. (e.g., *"sellers re-open Compass after every photo upload to ask if it's enough — suggests a per-edit confirmation loop is needed"*).
+
+This document becomes the SOLE input for the Week 4 decision: Listing Quality v2 vs Operations Dashboard vs Marketplace Intelligence Layer. No new build starts without it.
+
+### Where the evidence comes from (read-only queries already available)
+- Verification Sessions: `GET /api/admin/verification-sessions?status=closed&platform_area=dashboard&tag=coaching`
+- Quality snapshots: `GET /api/maker/listings/{slug}/coaching/timeline` (per-listing) — for cross-cohort, query `db.quality_score_snapshots` directly.
+- Compass usage: query `db.help_questions` filtered by sessions where the system prompt contained `LISTING_COACHING` (we can add an explicit flag if needed — small task, doesn't violate the hold list).
+- Coach dashboard visits: any pageview log on `/maker/dashboard?tab=coach` from the existing analytics.
+
+---
+
+
 ## VERSION 1 LOCKED · Phase D in progress (2026-02-27)
 
 **The Marketplace Coaching Platform — Version 1 — is complete.**
