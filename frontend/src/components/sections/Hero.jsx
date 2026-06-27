@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Users, Hammer, HandHeart, HeartHandshake, Wrench, ShoppingBag } from "lucide-react";
+import { Users, Hammer, HandHeart, HeartHandshake, Wrench, ShoppingBag, ArrowRight } from "lucide-react";
 import SitePromo from "../SitePromo";
 
 const SETS = [
@@ -36,7 +36,7 @@ const SETS = [
       highlight: "Crafted",
       post: "to Last.",
     },
-    body: "Real workshops. Real makers. Handmade goods with stories behind every piece. Woodworkers, leather workers, metal crafters, and creators — no mass production, no drop-shipping. Just small businesses doing honest work.",
+    body: "Real workshops. Real makers. Handmade goods with stories behind every piece. From woodworkers and fiber artists to jewelers, potters, leatherworkers, glass artists, and metal makers — no mass production, no drop shipping. Just independent creators doing exceptional work.",
     photos: [
       { src: "/hero-photos/0-0.jpg", alt: "Woodworking plane curling fresh shavings" },
       { src: "/hero-photos/0-1.jpg", alt: "Leather worker hand-tooling a stitched piece" },
@@ -222,11 +222,15 @@ export default function Hero() {
               </Link>
               <Link
                 to="/apply"
-                className="inline-flex items-center gap-2 px-6 py-3 border-2 border-ink hover:bg-ink hover:text-paper text-ink font-mono text-xs uppercase tracking-[0.22em] transition-colors"
+                className="group inline-flex items-center gap-2 px-6 py-3 border-[3px] border-ink hover:border-brand bg-paper hover:bg-ink hover:text-paper text-ink font-mono text-xs uppercase tracking-[0.22em] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--brand)]"
                 data-testid="home-hero-cta-sell"
               >
                 <Hammer size={14} />
                 Sell Your Work
+                <ArrowRight
+                  size={14}
+                  className="transition-transform duration-200 group-hover:translate-x-1"
+                />
               </Link>
             </motion.div>
 

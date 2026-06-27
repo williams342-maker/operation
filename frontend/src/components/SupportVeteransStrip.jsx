@@ -18,48 +18,42 @@ import { ArrowRight } from "lucide-react";
 export default function SupportVeteransStrip() {
   return (
     <section
-      className="relative isolate overflow-hidden border-b border-line bg-gradient-to-r from-[#0a0e1c] via-[#0d1126] to-[#0a0e1c] pt-[calc(var(--beta-banner-h,0px)+96px)]"
+      className="relative isolate overflow-hidden border-b border-line bg-paper pt-[calc(var(--beta-banner-h,0px)+88px)]"
       data-testid="support-veterans-strip"
     >
-      {/* Subtle striped backdrop (American flag stripe motif) */}
+      {/* iter413ct — Toned-down treatment. Removed the heavy navy gradient,
+          striped flag backdrop, and star-field flicker. The seal still
+          carries the brand cue; the text strip stays low-key so the hero
+          section remains the homepage focal point. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.08]"
+        className="pointer-events-none absolute inset-0 opacity-[0.04]"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(180deg, #b22234 0 6px, transparent 6px 24px)",
-        }}
-      />
-      {/* Star-field flicker on the left edge */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-0 top-0 bottom-0 w-1/3 opacity-[0.10]"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 30% 30%, #ffffff 1px, transparent 2px), radial-gradient(circle at 70% 70%, #ffffff 1px, transparent 2px)",
-          backgroundSize: "32px 32px, 48px 48px",
+            "repeating-linear-gradient(180deg, #b22234 0 4px, transparent 4px 24px)",
         }}
       />
 
       <Link
         to="/makers?veteran=1"
-        className="relative max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-2.5 md:py-3 flex items-center gap-3 md:gap-4 group"
+        className="relative max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-1.5 md:py-2 flex items-center gap-3 group"
         data-testid="support-veterans-cta"
       >
-        <SupportSeal className="w-9 h-9 md:w-12 md:h-12 shrink-0 transition-transform group-hover:rotate-[-6deg]" />
+        <SupportSeal className="w-6 h-6 md:w-7 md:h-7 shrink-0 transition-transform group-hover:rotate-[-6deg]" />
 
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[9px] md:text-[10px] uppercase tracking-[0.3em] text-[#b22234]">
-            ◆ Crafters Market salutes
-          </div>
-          <h2 className="font-display text-sm md:text-lg uppercase leading-tight text-ink truncate inline-flex items-center gap-2">
+          <h2 className="font-mono text-[11px] md:text-xs uppercase tracking-[0.22em] text-ink truncate inline-flex items-center gap-2">
+            <span className="text-[#b22234]" aria-hidden>🇺🇸</span>
             <span className="border-b border-transparent group-hover:border-[#b22234] transition-colors">
-              Support our <span className="text-[#b22234]">Veteran-Owned</span> Makers.
+              Proudly Supporting <span className="text-[#b22234]">Veteran-Owned</span> Makers
             </span>
-            <ArrowRight
-              size={14}
-              className="opacity-50 group-hover:opacity-100 transition-all group-hover:translate-x-1"
-            />
+            <span className="text-ink-muted group-hover:text-[#b22234] transition-colors inline-flex items-center gap-1">
+              Learn More
+              <ArrowRight
+                size={12}
+                className="opacity-70 group-hover:opacity-100 transition-all group-hover:translate-x-0.5"
+              />
+            </span>
           </h2>
         </div>
       </Link>

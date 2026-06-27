@@ -57,6 +57,40 @@ Priority: P1 (high-touch but no integration work — pure copy + UI polish lever
 ---
 
 
+## iter413cs++ — Listing Video Support · Phase 1 (FUTURE BATCH)
+
+User vision (2026-02): video should *complement* product photography to drive conversion, not duplicate the photo workflow. Phase 1 = one MP4/MOV per listing, ≤60s, ≤100MB, native HTML5 playback, mobile-friendly, no autoplay-with-sound.
+
+### Phase 1 scope
+- **Listing editor split** — distinct "Photos" and "Product Video" sections in `MakerListingEditor`. Drag-drop video with help text *"Show your product in motion, demonstrate craftsmanship, or highlight important details."*
+- **Backend uploads** — flip `POST /api/maker/uploads/video` from the iter413cp 422 reject to an accept path. Validate: MIME ∈ {video/mp4, video/quicktime}, size ≤100MB, **duration ≤60s** (ffprobe), reject unsafe codecs. Persist `{video_url, poster_image, duration, file_size, upload_status}` on the listing.
+- **Gallery render** — video becomes another gallery slot (▶ overlay on thumbnail). PDP desktop: thumb strip includes the video; mobile: same swipe behaviour as photo. Native `<video controls poster=…>` — no autoplay, muted until interact.
+- **Seller affordances** — upload progress (`Uploading… → Processing… → Ready`), Replace Video, Remove Video, preview before publish.
+- **AI Knowledge** — extend `/api/platform/capabilities` (iter413cq) `features.listing_videos` with `upload_enabled=true`, `supported_video_formats`, `max_video_size_mb`, `max_video_duration_seconds`. Help Assistant auto-updates — no prompt edits needed because it already defers to CAPABILITIES.
+- **Tests:**
+  - Backend: valid MP4 upload, valid MOV upload, reject unsupported format, reject oversized, reject over-duration, delete, replace.
+  - Frontend: upload progress, preview, gallery playback (desktop + mobile), graceful error handling.
+
+### Phase 2 (deferred until Phase 1 stable)
+- Cloudflare Stream OR FFmpeg transcoding
+- Auto poster-thumbnail generation
+- Adaptive streaming, multiple quality levels
+- Mobile compression / processing queue
+
+### Phase 3 — Seller analytics
+Track per-video: Views · Play Rate · Completion Rate · Conversion Rate. Determine whether product videos actually improve sales.
+
+### Future Marketplace Vision (two video types)
+- **Product Video** (on listings) — show product in motion, demonstrate craftsmanship. Examples: mailbox topper rotating, pottery glazing, thread-painting close-up, leather wallet opening.
+- **Maker Story Video** (on maker profile) — *"Hi, I'm Betsy. I create fiber artwork from my home studio using thread painting techniques inspired by wildlife."* Strengthens emotional connection between buyers and independent makers — reinforces "Built by Makers" identity.
+
+Recommendation per user: **ship Phase 1 completely first**, test thoroughly, then iterate. A polished one-video experience > a partially-implemented multi-video system.
+
+Priority: P1 (high-leverage conversion lever — also unlocks the AI Help Assistant to answer "Yes, MP4/MOV, ≤60s, ≤100MB" from CAPABILITIES instead of "not supported yet").
+
+---
+
+
 ## iter413cr — AI Operations Center · Card 1 (2026-02)
 
 **Requested by user:** Turn the Operations Dashboard into an *AI Operations Center* — operational intelligence driven by real conversations, not guesses. First card: "Top AI-diagnosed issues (last 7d)" with clustering, trend, and severity.

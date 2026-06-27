@@ -9,28 +9,40 @@ import { helpChat, helpReportIssue } from "../lib/api";
 // This widget answers platform-mechanics: Stripe Connect, listing schema,
 // pricing, custom orders, payouts, returns, etc. Auto-detects user role
 // from localStorage tokens so answers tailor to maker vs buyer vs visitor.
+//
+// iter413ct — Repositioned from a support-ticket UX to a marketplace
+// concierge UX. Display strings are centralised in ASSISTANT_BRAND so
+// the eventual permanent rebrand is a one-line change. Header label is
+// intentionally neutral ("AI Marketplace Assistant") until the user
+// finalises the long-term brand name.
 
-const STARTER_HINTS = {
-  visitor: [
-    "How do custom orders work?",
-    "What's the shipping cost?",
-    "How do I sell on Crafters Market?",
-  ],
-  buyer: [
-    "How do I track my order?",
-    "Can I cancel a custom order?",
-    "What's the return policy?",
-  ],
-  maker: [
-    "How do I connect Stripe?",
-    "What's the GPC path field?",
-    "How does Crafters Plus pay back?",
-  ],
-  admin: [
-    "How do I purge seed clips?",
-    "Where do I check feed health?",
-  ],
+// ▸▸▸ Brand surface — single source of truth. Change once when the
+// permanent name is chosen; do NOT inline these strings elsewhere.
+const ASSISTANT_BRAND = {
+  // Header label shown in the widget chrome. Keep neutral until the
+  // permanent name is locked.
+  header_label: "AI Marketplace Assistant",
+  // Eyebrow under the header. Stays the same across rebrands.
+  header_sub: (role) => `Role: ${role}`,
+  // Welcome message — one greeting for everyone. Tone: welcoming,
+  // value-forward, both-audiences.
+  welcome: (
+    "Hi! I'm Crafters Market's AI Marketplace Assistant. I can help you " +
+    "discover handmade products, answer questions about buying or selling, " +
+    "recommend makers, or help you start selling on Crafters Market."
+  ),
 };
+
+// iter413ct — Starter prompts repositioned around discovery + maker
+// onboarding. Same five chips render for every role; the assistant
+// itself tailors the answer based on USER ROLE in the system prompt.
+const STARTER_HINTS = [
+  "Help me find the perfect handmade gift",
+  "Recommend handmade wall art",
+  "Find makers near me",
+  "Explain how custom orders work",
+  "Help me open my own shop",
+];
 
 function detectRole() {
   try {
@@ -41,14 +53,8 @@ function detectRole() {
   return "visitor";
 }
 
-function roleGreeting(role) {
-  const lines = {
-    visitor: "Hi — I'm Crafters Market Help. Ask anything about ordering, selling, or how the platform works.",
-    buyer: "Hi — I'm Crafters Market Help. Order questions, returns, custom orders — I've got you.",
-    maker: "Hey — Maker Help here. Stripe Connect, listings, payouts, GPC paths, Plus subscription — fire away.",
-    admin: "Ops console help. Ask about seed tools, feed health, admin endpoints.",
-  };
-  return lines[role] || lines.visitor;
+function roleGreeting(_role) {
+  return ASSISTANT_BRAND.welcome;
 }
 
 export default function HelpSupportWidget() {
@@ -198,13 +204,13 @@ export default function HelpSupportWidget() {
   const params = new URLSearchParams(location.search);
   if (params.get("nohelp") === "1") return null;
 
-  const hints = STARTER_HINTS[role] || STARTER_HINTS.visitor;
+  const hints = STARTER_HINTS;
 
   return (
     <>
       <button
         onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "Close help" : "Open help & support"}
+        aria-label={open ? "Close marketplace assistant" : "Open marketplace assistant"}
         data-testid="help-widget-toggle"
         className="fixed bottom-24 right-24 z-[60] bg-paper text-brand w-12 h-12 flex items-center justify-center border-2 border-cyan-700/70 hover:border-cyan-400 hover:rotate-3 transition-all shadow-[0_0_20px_rgba(34,211,238,0.25)]"
       >
@@ -225,11 +231,11 @@ export default function HelpSupportWidget() {
               <div className="flex items-center gap-2">
                 <Sparkles size={14} className="text-brand" />
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">
-                    Help &amp; Support
+                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand" data-testid="help-widget-brand">
+                    {ASSISTANT_BRAND.header_label}
                   </div>
                   <div className="font-mono text-[9px] text-ink-muted uppercase tracking-[0.18em]">
-                    Role: {role}
+                    {ASSISTANT_BRAND.header_sub(role)}
                   </div>
                 </div>
               </div>
