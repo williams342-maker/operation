@@ -767,6 +767,13 @@ SMOKE_FILES = {
     # 7 canonical verification_types + filter listing.
     "test_iter413cz_verification_sessions.py",
 
+    # ── iter413cz+ — Future-proofed session schema (P2-enabling) ─────
+    # Locks the additive schema extension: new structured fields,
+    # enum validation, PATCH endpoint (mutate-only-supplied + metadata
+    # merge), close() follow-up promotion, per-turn enrichment,
+    # filter-on-new-attributes.
+    "test_iter413czplus_session_extensions.py",
+
     # ── iter413dc — Tier-aware welcome email ────────────────────────
     # Subject + title + intro + banner must surface "Inaugural Founder
     # #NNN of 100" for inaugural approvals, plain Founder copy for the
@@ -778,6 +785,12 @@ SMOKE_FILES = {
     # required. Pairs with the elevated welcome email (iter413dc) as
     # the in-product touchpoint.
     "test_iter413dd_founder_welcome_ack.py",
+
+    # ── iter413de — Versioned Quality Scoring Engine ────────────────
+    # Locks: registration, multi-version coexistence, crash isolation,
+    # score clamping + listing_quality@v1 rule set + HTTP endpoints
+    # (maker-self, admin-any, public scorecards introspection).
+    "test_iter413de_quality_scoring.py",
 
     # ── iter413au — Final test rot triage (full graduation) ────────
     # All ~25 remaining files brought into SMOKE gate after a wave of

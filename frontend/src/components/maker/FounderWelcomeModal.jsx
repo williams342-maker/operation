@@ -26,6 +26,31 @@ export default function FounderWelcomeModal({ maker, onSeen }) {
     try { await ackFounderWelcome(); } catch (_e) { /* non-blocking */ }
     onSeen?.();
   };
+  // iter413dd+ — Deep-link variant: ack the modal AND route the user
+  // into Settings → Account & Plan, then scroll the Vanity URL card
+  // into view. Turns the celebration moment into the first real act
+  // of ownership (claiming /makers/<name>) instead of a passive teaser.
+  const dismissAndClaimVanity = async () => {
+    await dismiss();
+    // Open Settings → Account section via the existing event the
+    // dashboard already listens for (`cm:open-settings`).
+    window.dispatchEvent(new CustomEvent("cm:open-settings", {
+      detail: { section: "account" },
+    }));
+    // The dashboard also reads `?tab=settings` to switch tabs when
+    // already mounted — set both so direct deep-links survive any
+    // route remount.
+    const url = "/maker/dashboard?tab=settings&section=account";
+    window.history.pushState({}, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    // Scroll into view after the section paints. Two RAFs cover the
+    // worst case where SettingsTab re-renders after the event.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = document.querySelector('[data-testid="custom-url-section"]')
+              || document.querySelector('[data-testid="custom-url-locked"]');
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }));
+  };
   // Esc-to-dismiss + focus-trap. Hook returns a ref the dialog mounts on.
   const dialogRef = useModalA11y(dismiss);
 

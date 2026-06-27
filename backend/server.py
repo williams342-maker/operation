@@ -70,6 +70,7 @@ from routers.ops_dashboard import router as ops_dashboard_router  # iter413bp
 from routers.ai_operations import router as ai_operations_router  # iter413cr — AI Operations Center
 from routers.deploy_watch import router as deploy_watch_router  # iter413cs — Deployment Watch Window
 from routers.verification_sessions import router as verification_sessions_router  # iter413cz
+from routers.quality_scoring import router as quality_scoring_router  # iter413de
 from routers.brand_kit import router as brand_kit_router  # iter413bw
 from routers.not_found_log import router as not_found_log_router  # iter413bz
 from routers.restock_waitlist import router as restock_waitlist_router
@@ -167,6 +168,7 @@ api.include_router(ops_dashboard_router)  # iter413bp — admin operations dashb
 api.include_router(ai_operations_router)  # iter413cr — AI Operations Center (top AI-diagnosed issues, future cards)
 api.include_router(deploy_watch_router)  # iter413cs — Deployment Watch Window + emerging / health cards
 api.include_router(verification_sessions_router)  # iter413cz — Verification Session Framework
+api.include_router(quality_scoring_router)  # iter413de — Quality Scoring Engine
 api.include_router(brand_kit_router)  # iter413bw — maker brand kit (Garage Builders identity)
 api.include_router(not_found_log_router)  # iter413bz — 404 referrer beacon + admin surface
 api.include_router(restock_waitlist_router)
