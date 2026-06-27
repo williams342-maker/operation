@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
 import { createMakerProduct, uploadMakerModel } from "../../lib/api";
 import { LabeledField } from "./_shared";
 import { CATEGORIES } from "../MakerListingEditor/constants";
@@ -72,7 +72,7 @@ export default function NewListingModal({ onClose, onCreated }) {
   const techOptions = useMemo(() => techniquesForCategory(category), [category]);
   const [technique, setTechnique] = useState(techOptions[0]);
   // Keep technique in sync when category changes.
-  React.useEffect(() => { setTechnique(techOptions[0]); }, [techOptions]);
+  useEffect(() => { setTechnique(techOptions[0]); }, [techOptions]);
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState(4);
   const [description, setDescription] = useState("");
