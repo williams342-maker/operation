@@ -107,6 +107,53 @@ The Week-4 review template should ask for evidence, NOT specific tabs, so that i
 - Marketplace metrics
 - Manual observations
 
+### Weekly evidence-capture ritual (adopted 2026-06-28, per user direction)
+Each week of Phase D, capture **both** human-readable and machine-readable evidence so week-over-week comparison is possible without manually reading screenshots.
+
+**Folder structure** (suggested):
+```
+/phase-d-evidence/
+    week1/
+        activation-funnel.png    ← screenshot of /admin/dashboard?tab=activation-funnel
+        activation-funnel.json   ← curl response from GET /api/admin/activation-funnel?tier=founder&include_rows=true
+        summary.md               ← short weekly summary (template below)
+    week2/  ... week3/  ... week4/
+```
+
+**Weekly summary template:**
+```
+Week N Summary
+
+Build: <git short SHA from build-provenance strip>
+
+Founders Approved:        <funnel.approved.count>
+Profile Completion:       <funnel.profile_completed.count>
+Listings Published:       <funnel.first_listing_published.count>
+TTFL Median:              <ttfl.median_days> days
+
+New usability feedback:
+  - <seller>: <feature> — <one-line summary>
+
+Observations:
+  - <free-text. Was the early-promotion trigger met? Did any specific stage leak?>
+```
+
+By Week 4 you'll have four concise summaries instead of having to reconstruct the month from screenshots.
+
+### Phase D instrumentation — DONE
+At this point the Phase D process has a clear, frozen structure:
+- ✓ Verified build provenance (Activation Funnel build strip)
+- ✓ Deployment checklist (6 steps above)
+- ✓ Activation Funnel (read-only admin tab)
+- ✓ Founder feedback log (this PRD section)
+- ✓ Evidence sources defined (tool-agnostic list above)
+- ✓ Early-promotion criteria documented (≥2 founders: welcome delivered, no login, ≥14d idle)
+- ✓ Feature freeze maintained
+- ✓ Weekly evidence-capture ritual (PNG + JSON + summary.md)
+
+Focus now shifts from **building** to **observing**. No further engineering work until evidence justifies it.
+
+
 
 ---
 
