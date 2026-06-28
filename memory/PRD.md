@@ -83,6 +83,13 @@ Track these per approved founder. Spreadsheet OR ad-hoc query — no new code un
 
 NOT the trigger: a single founder hitting a friction point, or general intuition that "reminders would be nice." The bar is **observed, repeated activation failure with no other cause**.
 
+
+### Shipped — read-only Admin Activation Funnel report (iter413dh-evidence · 2026-06-28)
+- Backend: `GET /api/admin/activation-funnel?tier=founder|all_approved&include_rows=bool` → 8-stage funnel + TTFL distribution + early-promotion trigger flag + per-founder rows. Source: `/app/backend/routers/activation_funnel.py`.
+- Frontend: new `AdminDashboard` tab "Activation Funnel" (capability `marketplace` OR `content`). Source: `/app/frontend/src/components/admin/ActivationFunnelTab.jsx`.
+- Coverage: 11/11 backend pytest checks (`/app/backend/tests/test_iter413dh_activation_funnel.py`), 100% Playwright frontend pass.
+- Read-only contract: no mutations, no founder-facing surface, no reminders. Purely evidence for the Week-4 decision.
+
 ---
 
 
