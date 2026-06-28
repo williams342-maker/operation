@@ -45,6 +45,21 @@ One-click unsubscribe in every reminder email; granular preference (reminders OF
 
 Active log of usability + UX reports collected from Founding Sellers during the Phase-D validation window. Each entry is intentionally lightweight — captured in this PRD instead of a dedicated admin tab so we don't introduce new collections / endpoints / maintenance surface during the feature freeze. If the volume exceeds ~20 entries during Week-4 review (or recurring themes appear), we'll revisit whether a dedicated feedback management tool is justified.
 
+### Standing prompts (ask every founding seller during Phase D outreach)
+
+These are conversation prompts, **not** in-product surveys. Capture answers manually as new rows in the table below.
+
+1. **Perceived speed** (added 2026-06-28 per owner direction, ties to parked perf audit):
+   > "Did the site feel fast enough while applying, logging in, or setting up your first listing?"
+   - Yes, it felt fine
+   - It felt a little slow
+   - It felt very slow
+   - I had trouble loading something
+
+   **Phase D exception trigger:** if 3+ founders independently answer "very slow" / "had trouble loading" OR the Activation Funnel shows drop-off *before* `first_login` while `welcome_delivered` stays high, the parked performance audit (`/app/memory/phase-d-audits/2026-06-28-perf-baseline.md`) gets promoted out of backlog and items #1, #2, #6, #7 (image sizing + cache headers) are approved as a narrow exception.
+
+### Feedback log
+
 | # | Date | Seller | Feature | Severity | Category | Status | Fixed in | Summary / recommendation |
 |---|------|--------|---------|----------|----------|--------|----------|---------------------------|
 | 1 | 2026-06-28 | Loretta | AI SEO Tags | Low | UX | Open | — | AI Suggest Tags currently emits hyphenated phrases (`wall-art`, `hand-painted`, `fiber-arts`). Seller manually rewrites them to natural spacing (`wall art`, `hand painted`, `fiber arts`). Recommendation: tune the prompt to emit natural-language keyword phrases (no hyphens); post-process the model output to dedupe, trim whitespace, normalize capitalization, strip punctuation, enforce a max length, and rank by relevance. Future enhancement (defer): expose 3 groups in the UI — Primary keywords, Long-tail keywords, Style/Theme. UX goal: most sellers click Accept without editing. |
