@@ -1,3 +1,77 @@
+## Phase D — Week 4 Candidate: Founder Activation Reminder
+
+**Status: DEFERRED to Week 4 evidence review.** Captured per user direction on 2026-02-27 — held to the Phase D rule rather than built ad-hoc. May be promoted earlier if the early-promotion trigger fires (see below).
+
+### Full spec (build only if Week 4 evidence ranks this above other candidates)
+
+**1. Weekly reminder cadence**
+- Send every 7 days to approved founders who are: not opted out, no active listings OR onboarding incomplete.
+- Stop automatically when: shop complete, ≥1 active listing, user opts out, account disabled.
+
+**2. Progress-aware messaging** (the email body branches on detected state)
+| Detected state | Heading | CTA button |
+|---|---|---|
+| Profile incomplete | "You're one step away from opening your shop." | Complete Your Profile |
+| No products | "Your shop is ready — now add your first listing." | Add Your First Product |
+| Draft listings only | "Your products are almost ready. Publish your first listing." | Publish Your Listing |
+
+**3. One-click magic-link login**
+- DB-backed (NOT the existing stateless JWT path) — required for single-use enforcement + audit log.
+- Cryptographically secure 256-bit token, **hashed** in DB (plaintext never stored).
+- Single-use; invalidated on first successful exchange.
+- 7-day TTL.
+- HTTPS-only; bound to seller account.
+- Compatible with existing password login (doesn't replace it).
+- URL: `https://craftersmarket.org/auth/magic?token={{token}}` → verify → auto-authenticate → redirect to `/maker/dashboard` (complete shop) OR `/maker/dashboard/onboarding` (first incomplete step).
+- Expired-link landing: *"Your secure login link has expired. Click here to receive a new one."*
+
+**4. Admin reminder dashboard** (new tab in admin/dashboard)
+Per-founder rows showing: last reminder sent · reminder count · magic link issued · last magic login · activation status (active/stalled/dormant) · Send reminder now button · Pause reminders toggle.
+
+**5. Reminder analytics**
+Open rate · click-through rate · activation conversion rate from reminder · time-to-activation cohort distribution.
+
+**6. Audit logging** (per magic-link use)
+IP · user-agent · timestamp · success/failure · token_hash (NOT raw token) · seller_id.
+
+**7. Opt-out management**
+One-click unsubscribe in every reminder email; granular preference (reminders OFF, all marketing OFF) on the maker settings page.
+
+**Rate-limiting**: max 3 magic-link tokens per email per 24h to prevent abuse.
+
+---
+
+## Phase D — Activation Evidence Collection (active during weeks 1–3)
+
+Track these per approved founder. Spreadsheet OR ad-hoc query — no new code unless the existing analytics can't surface it. Goal: build the dataset that informs the Week-4 decision.
+
+| Field | Source |
+|---|---|
+| Date approved | `db.maker_applications.decided_at` |
+| Welcome email delivered | Mailgun event log (existing) |
+| Welcome email opened | Mailgun open-tracking (existing — `email_events` collection) |
+| Magic link clicked | Existing `help_questions` / new login_audit if available; otherwise infer from `db.makers.last_login_at` after welcome email send |
+| Last login | `db.makers.last_login_at` (verify the field is populated; if not, this is a small evidence-gathering helper — acceptable) |
+| Shop profile completed | `db.makers` — `portrait`, `cover`, `bio`, `location` all non-empty |
+| First listing created | `db.products` — earliest `created_at` for `maker_slug` |
+| First listing published | `db.products` — earliest `created_at` where `status="active"` |
+| Days since approval | computed: now() - `decided_at` |
+| Current activation status | derived: `active` (≥1 active listing) / `onboarding` (profile complete, no listing) / `stalled` (profile incomplete, ≥7d since approval) / `dormant` (≥30d since approval, no progress) |
+
+### Week-4 review questions for this dataset
+1. **How many founders stalled after approval?** (status = `stalled` or `dormant` at review time)
+2. **At what step did they stop?** (profile? first-listing creation? first-listing publish?)
+3. **Would automated reminders likely increase activation?** (judgement call informed by the timeline — e.g., if all stalled founders show `welcome opened, last_login=null, 14+ days since approval`, reminders are likely the right fix)
+4. **Is this higher priority than the other Phase D candidates?** (Listing Quality v2 · Operations Dashboard · Marketplace Intelligence Layer)
+
+### Early-promotion trigger (the ONLY way this jumps the queue mid-Phase-D)
+**IF** during weeks 1–3 we observe **multiple founders** failing to activate purely because they **forgot to return** after the welcome email (signal: welcome opened, magic link unused, no second-session login event, no profile mutations, ≥14 days idle) → bring the evidence to the user immediately. That becomes the evidence-driven justification for promoting the Activation Reminder system out of backlog into the next build sprint.
+
+NOT the trigger: a single founder hitting a friction point, or general intuition that "reminders would be nice." The bar is **observed, repeated activation failure with no other cause**.
+
+---
+
+
 ## Phase D Evaluation Framework (2026-02-27)
 
 The questions below replace "find bugs" as the primary lens for Phase D observation. Bug reports still belong in Verification Sessions (tagged `category=bug`), but the real evaluation work is behavioral.
