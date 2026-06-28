@@ -71,6 +71,7 @@ from routers.ai_operations import router as ai_operations_router  # iter413cr �
 from routers.deploy_watch import router as deploy_watch_router  # iter413cs — Deployment Watch Window
 from routers.verification_sessions import router as verification_sessions_router  # iter413cz
 from routers.quality_scoring import router as quality_scoring_router  # iter413de
+from routers.activation_funnel import router as activation_funnel_router  # iter413dh-evidence
 from routers.brand_kit import router as brand_kit_router  # iter413bw
 from routers.not_found_log import router as not_found_log_router  # iter413bz
 from routers.restock_waitlist import router as restock_waitlist_router
@@ -169,6 +170,7 @@ api.include_router(ai_operations_router)  # iter413cr — AI Operations Center (
 api.include_router(deploy_watch_router)  # iter413cs — Deployment Watch Window + emerging / health cards
 api.include_router(verification_sessions_router)  # iter413cz — Verification Session Framework
 api.include_router(quality_scoring_router)  # iter413de — Quality Scoring Engine
+api.include_router(activation_funnel_router)  # iter413dh-evidence — Founder Activation Funnel report
 api.include_router(brand_kit_router)  # iter413bw — maker brand kit (Garage Builders identity)
 api.include_router(not_found_log_router)  # iter413bz — 404 referrer beacon + admin surface
 api.include_router(restock_waitlist_router)
