@@ -1,0 +1,34 @@
+{
+  "summary": "iter413dh — Activation Funnel (Phase D evidence) tested both backend (11 pytest cases, 100% pass) and frontend (Playwright vs localhost:3000 per agent-to-agent note about stale public CDN bundle). Every spec checkpoint passes: admin login → sidebar pill appears alphabetized → page renders with '◆ Phase D · evidence' header → all 8 funnel stages render with count/pct/vs-prev → TTFL card with empty-state → trigger card with 'below threshold' state → stalled table empty-state → cohort toggle reloads (founder=2 ↔ all_approved=14) → refresh works without error → generated-at timestamp shown → ZERO mutation controls inside the tab DOM (read-only contract enforced).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ActivationFunnelTab → FunnelStages", "issues": ["When the previous stage count is 0 (e.g. welcome_delivered=0 in the founder cohort), the 'vs prev' column intentionally renders '—' for stages 3 (first_login) and 5 (first_listing_created visually shows 100% but the underlying calc for first_buyer_inquiry uses first_listing_published=0 → null). This matches the React logic (dropFromPrev=null when prev=0) and is mathematically correct, but a future tweak could show 'n/a' instead of '—' so it doesn't read like a missing data point."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter413dh_activation_funnel.py",
+    "/app/test_reports/pytest/iter413dh_activation_funnel.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ActivationFunnelTab.jsx (450 lines) is right at the readability edge — single-file is fine for now but if more visualizations land here, split FunnelStages / TtflCard / TriggerCard / StalledTable into separate files under /components/admin/activation/.",
+    "Backend router/activation_funnel.py: `_profile_complete()` checks portrait/cover/bio/location — confirm this matches the actual schema used elsewhere (other tabs may use different field names like 'avatar' or 'banner'). If a maker has avatar but no portrait, they'll be (silently) counted as profile-incomplete here.",
+    "Activation row `email` is currently rendered as a mailto: link in the stalled table — strictly that is an outbound user action (opens mail client) and arguably a borderline 'mutation' under the strict read-only Phase-D rule. Leave as-is; flag for product reviewer."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter413dh_activation_funnel.py (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (all data-testids resolved after data load)"},
+  "test_credentials": "Admin: williams342@gmail.com (OPS_EMAIL super-admin) via maker_auth.issue_admin_magic_token() → POST /api/admin/auth/verify",
+  "seed_data_creation": "None — used existing approved-maker data (2 founders, 14 all_approved).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite /app/backend/tests/test_iter413dh_activation_funnel.py is reusable as a regression — covers 8-stage shape, both cohorts, TTFL shape, trigger active/below-threshold logic, row fields, include_rows toggle, auth gates (401/403 without JWT and bogus JWT), and read-only contract (POST/PUT/PATCH/DELETE all return 404/405). Frontend MUST be tested against http://localhost:3000 inside the container — the public preview URL serves a stale Cloudflare-cached JS bundle (per agent-to-agent note in the original review request); the new tab won't be visible there until the CDN invalidates.",
+  "rca of the issue": "N/A — no defects found. Initial Playwright run reported 'stages not present' because the queries fired before the GET /api/admin/activation-funnel response settled. Re-querying after `page.wait_for_selector('[data-testid=\"activation-stage-approved-count\"]')` resolved all elements correctly. This is a test-script timing observation, not a product bug."
+}

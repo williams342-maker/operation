@@ -41,6 +41,20 @@ One-click unsubscribe in every reminder email; granular preference (reminders OF
 
 ---
 
+## Founding Seller Feedback (Phase D Evidence)
+
+Active log of usability + UX reports collected from Founding Sellers during the Phase-D validation window. Each entry is intentionally lightweight — captured in this PRD instead of a dedicated admin tab so we don't introduce new collections / endpoints / maintenance surface during the feature freeze. If the volume exceeds ~20 entries during Week-4 review (or recurring themes appear), we'll revisit whether a dedicated feedback management tool is justified.
+
+| # | Date | Seller | Feature | Severity | Category | Status | Fixed in | Summary / recommendation |
+|---|------|--------|---------|----------|----------|--------|----------|---------------------------|
+| 1 | 2026-06-28 | Loretta | AI SEO Tags | Low | UX | Open | — | AI Suggest Tags currently emits hyphenated phrases (`wall-art`, `hand-painted`, `fiber-arts`). Seller manually rewrites them to natural spacing (`wall art`, `hand painted`, `fiber arts`). Recommendation: tune the prompt to emit natural-language keyword phrases (no hyphens); post-process the model output to dedupe, trim whitespace, normalize capitalization, strip punctuation, enforce a max length, and rank by relevance. Future enhancement (defer): expose 3 groups in the UI — Primary keywords, Long-tail keywords, Style/Theme. UX goal: most sellers click Accept without editing. |
+
+Logging procedure: new feedback gets appended as a new row. Once an item ships, set Status → Fixed and record the iteration SHA in "Fixed in". Items judged out-of-scope or duplicates get Status → Wontfix / Duplicate with a one-line rationale in the Summary column.
+
+---
+
+
+
 ## Phase D — Activation Evidence Collection (active during weeks 1–3)
 
 Track these per approved founder. Spreadsheet OR ad-hoc query — no new code unless the existing analytics can't surface it. Goal: build the dataset that informs the Week-4 decision.
