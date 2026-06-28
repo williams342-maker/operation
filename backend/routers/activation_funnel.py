@@ -35,6 +35,8 @@ Response:
 """
 from __future__ import annotations
 
+import os
+import subprocess
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -44,6 +46,38 @@ from core import db
 from maker_auth import current_admin
 
 router = APIRouter()
+
+
+# Build-provenance metadata (iter413dh-evidence · 2026-06-28).
+# Computed once at module import so every response shares the same build
+# fingerprint without forking `git` per request. The values give every
+# screenshot / observation a traceable code baseline during Phase D.
+def _git(args: list, default: str = "unknown") -> str:
+    try:
+        out = subprocess.check_output(
+            ["git", *args],
+            cwd="/app",
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+        return out.decode().strip() or default
+    except Exception:
+        return default
+
+
+_BUILD_INFO = {
+    "git_short_sha": _git(["rev-parse", "--short", "HEAD"]),
+    "git_full_sha": _git(["rev-parse", "HEAD"]),
+    "commit_iso": _git(["log", "-1", "--format=%cI"]),
+    "commit_subject": _git(["log", "-1", "--format=%s"]),
+    "preview_host": (
+        os.environ.get("preview_endpoint")
+        or os.environ.get("PREVIEW_ENDPOINT")
+        or os.environ.get("APP_URL")
+        or "unknown"
+    ),
+    "backend_started_at": datetime.now(timezone.utc).isoformat(),
+}
 
 
 def _parse_ts(value):
@@ -274,6 +308,7 @@ async def admin_activation_funnel(
     return {
         "generated_at": now.isoformat(),
         "cohort": tier,
+        "build": _BUILD_INFO,
         "funnel": funnel,
         "ttfl": ttfl_stats,
         "early_promotion_trigger": {

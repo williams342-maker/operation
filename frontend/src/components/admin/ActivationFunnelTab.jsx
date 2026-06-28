@@ -144,6 +144,7 @@ export default function ActivationFunnelTab() {
 
       {data && (
         <>
+          <BuildStrip build={data.build} generatedAt={data.generated_at} />
           <FunnelStages funnel={data.funnel} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TtflCard ttfl={data.ttfl} />
@@ -159,6 +160,79 @@ export default function ActivationFunnelTab() {
         </>
       )}
     </div>
+  );
+}
+
+// ─── Build provenance strip ─────────────────────────────────────────
+// iter413dh-evidence · 2026-06-28 — gives every screenshot a traceable
+// code baseline so observations made during multi-week Phase D
+// validation can be tied back to the exact pod build that produced
+// them. All five fields come straight from the backend response.
+function BuildStrip({ build, generatedAt }) {
+  if (!build) return null;
+  const previewLabel = (() => {
+    if (!build.preview_host || build.preview_host === "unknown") return "unknown";
+    try {
+      return new URL(build.preview_host).host;
+    } catch {
+      return build.preview_host;
+    }
+  })();
+  return (
+    <section
+      className="border border-line bg-surface/30 px-4 md:px-5 py-3"
+      data-testid="activation-build-strip"
+    >
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+        ◆ Build provenance
+      </div>
+      <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-4 gap-y-2 font-mono text-[10px]">
+        <div>
+          <dt className="uppercase tracking-[0.18em] text-ink-muted">Git SHA</dt>
+          <dd
+            className="text-brand"
+            title={build.git_full_sha || ""}
+            data-testid="activation-build-sha"
+          >
+            {build.git_short_sha || "unknown"}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.18em] text-ink-muted">Commit</dt>
+          <dd
+            className="text-ink truncate"
+            title={build.commit_subject || ""}
+            data-testid="activation-build-commit"
+          >
+            {build.commit_iso ? build.commit_iso.slice(0, 19).replace("T", " ") : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.18em] text-ink-muted">Backend started</dt>
+          <dd className="text-ink" data-testid="activation-build-backend-started">
+            {build.backend_started_at
+              ? build.backend_started_at.slice(0, 19).replace("T", " ")
+              : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.18em] text-ink-muted">Preview deploy</dt>
+          <dd
+            className="text-ink truncate"
+            title={build.preview_host || ""}
+            data-testid="activation-build-preview"
+          >
+            {previewLabel}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.18em] text-ink-muted">Data generated</dt>
+          <dd className="text-ink" data-testid="activation-build-generated-at">
+            {generatedAt ? generatedAt.slice(0, 19).replace("T", " ") : "—"}
+          </dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 

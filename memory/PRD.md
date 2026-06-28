@@ -87,8 +87,26 @@ NOT the trigger: a single founder hitting a friction point, or general intuition
 ### Shipped — read-only Admin Activation Funnel report (iter413dh-evidence · 2026-06-28)
 - Backend: `GET /api/admin/activation-funnel?tier=founder|all_approved&include_rows=bool` → 8-stage funnel + TTFL distribution + early-promotion trigger flag + per-founder rows. Source: `/app/backend/routers/activation_funnel.py`.
 - Frontend: new `AdminDashboard` tab "Activation Funnel" (capability `marketplace` OR `content`). Source: `/app/frontend/src/components/admin/ActivationFunnelTab.jsx`.
-- Coverage: 11/11 backend pytest checks (`/app/backend/tests/test_iter413dh_activation_funnel.py`), 100% Playwright frontend pass.
+- **Build-provenance strip (added 2026-06-28)** at the top of the tab: git short SHA + full SHA tooltip, commit timestamp, backend process-start timestamp, preview-deploy host, and "data generated at" timestamp. Every screenshot or observation captured during validation is now tied to a known code baseline.
+- Coverage: 12/12 backend pytest checks (`/app/backend/tests/test_iter413dh_activation_funnel.py`), 100% Playwright frontend pass.
 - Read-only contract: no mutations, no founder-facing surface, no reminders. Purely evidence for the Week-4 decision.
+
+### Phase D deployment discipline (adopted 2026-06-28, per user direction)
+1. Complete work locally and verify.
+2. Run automated tests.
+3. Save to GitHub (traceable commit for evidence).
+4. Click Preview to generate a fresh deployment.
+5. Verify the preview shows the expected changes (e.g., Activation Funnel tab present; build-provenance strip displays the expected short SHA).
+6. Only then begin collecting observations or sharing the preview with testers.
+
+### Phase D evidence sources (not coupled to specific UI tabs)
+The Week-4 review template should ask for evidence, NOT specific tabs, so that if a more valuable metric emerges the template stays unchanged.
+- Activation Funnel (admin tab — read-only)
+- Verification Session summaries (existing framework)
+- Founding Seller Feedback log (this PRD section)
+- Marketplace metrics
+- Manual observations
+
 
 ---
 

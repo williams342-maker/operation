@@ -37,10 +37,40 @@ def test_activation_funnel_founder_cohort_200(auth_headers):
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    for key in ("generated_at", "cohort", "funnel", "ttfl", "early_promotion_trigger", "rows"):
+    for key in ("generated_at", "cohort", "funnel", "ttfl", "early_promotion_trigger", "rows", "build"):
         assert key in body, f"missing key: {key}"
     assert body["cohort"] == "founder"
     assert isinstance(body["rows"], list)
+
+
+def test_activation_funnel_build_provenance(auth_headers):
+    """Build strip metadata — iter413dh-evidence · 2026-06-28.
+
+    Every Phase-D observation needs to be tied back to the exact code
+    baseline that produced it. The endpoint returns five identifiers:
+    git SHA (short + full), commit timestamp, commit subject, backend
+    process-start timestamp, and the preview-deploy host.
+    """
+    r = requests.get(
+        f"{BASE_URL}/api/admin/activation-funnel?tier=founder&include_rows=false",
+        headers=auth_headers, timeout=30,
+    )
+    assert r.status_code == 200
+    build = r.json().get("build") or {}
+    for key in (
+        "git_short_sha", "git_full_sha", "commit_iso", "commit_subject",
+        "preview_host", "backend_started_at",
+    ):
+        assert key in build, f"missing build field: {key}"
+        assert isinstance(build[key], str)
+    # Short SHA must be a prefix of the full SHA (or both 'unknown' in
+    # detached/CI sandboxes — that's still a valid signal).
+    if build["git_short_sha"] != "unknown":
+        assert build["git_full_sha"].startswith(build["git_short_sha"])
+    # backend_started_at must be ISO-8601 parseable
+    from datetime import datetime
+    datetime.fromisoformat(build["backend_started_at"].replace("Z", "+00:00"))
+
 
 
 def test_activation_funnel_all_8_stages(auth_headers):
