@@ -82,8 +82,8 @@ If the environment-variable editor is not self-service, raise a ticket with **Em
 
 ## Status
 
-- [ ] Owner verifies preview env-var stays as `https://active-project-4.preview.emergentagent.com`
-- [ ] Owner updates prod env-var to `https://craftersmarket.org`
-- [ ] Owner triggers prod redeploy
-- [ ] Owner runs the verification curl above
-- [ ] Ticket closed
+- [x] Owner verified preview env-var stays as `https://active-project-4.preview.emergentagent.com`
+- [x] Owner updated prod env-var to `https://craftersmarket.org`
+- [x] Owner triggered prod redeploy
+- [x] Agent ran post-flight verification curl (2026-06-29) — bundle `main.506f7601.js`, **0** `active-project-4` refs, 13/13 smoke pass, 52 live `/api/*` calls all hit `craftersmarket.org`
+- [x] **Ticket closed 2026-06-29**
