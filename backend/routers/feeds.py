@@ -181,14 +181,29 @@ async def google_merchant_feed():
 
 
 # iter413cd — TikTok Ads catalog. TikTok for Business → Assets →
-# Catalogs accepts Google Merchant Center format natively, so this is a
-# pure alias of the same row builder. Listed separately so the Channel
-# Health panel surfaces it as its own row and so admins can paste a
-# purpose-named URL into TikTok's importer.
+# Catalogs accepts Google Merchant Center format natively, EXCEPT for
+# the `availability` field — TikTok rejects `in_stock` / `out_of_stock`
+# (underscores, Google's spec) and only accepts the space-separated
+# variants. iter413dj (2026-06-29) — remap availability only for this
+# endpoint so Google / Meta / Pinterest feeds stay untouched.
+_TIKTOK_AVAILABILITY = {
+    "in_stock": "in stock",
+    "out_of_stock": "out of stock",
+    "preorder": "preorder",
+    "backorder": "available for order",
+    "discontinued": "discontinued",
+}
+
+
 @router.get("/feeds/tiktok.csv")
 async def tiktok_feed():
-    """TikTok Ads catalog feed (Google Merchant Center schema)."""
+    """TikTok Ads catalog feed (Google Merchant Center schema with
+    TikTok-required space-separated availability values)."""
     rows = await _build_rows()
+    for row in rows:
+        avail = row.get("availability")
+        if avail in _TIKTOK_AVAILABILITY:
+            row["availability"] = _TIKTOK_AVAILABILITY[avail]
     return _csv_response(rows, "craftersmarket-tiktok.csv")
 
 
