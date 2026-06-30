@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ChevronDown, FileText, Truck, RotateCcw, Wand2, Boxes, CreditCard,
-  ShieldCheck, Lock, Ban, Copyright, AlertTriangle, UserX, Mail,
+  ShieldCheck, Lock, Ban, Copyright, AlertTriangle, UserX, Mail, Handshake,
 } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 
@@ -225,9 +225,11 @@ const SECTIONS = [
   {
     id: "marketplace",
     // iter318a — alias anchors so direct deep-links from the footer
-    // (Buyer Protection / Maker Agreement) land on this section, which
-    // owns BOTH the buyer-side and seller-side rules.
-    aliasIds: ["buyer-protection", "maker-agreement"],
+    // (Buyer Protection) land on this section, which owns the
+    // buyer-side / commission-rate rules. The "maker-agreement" alias
+    // was removed in iter413dk because the Maker Agreement now has
+    // its own dedicated section below.
+    aliasIds: ["buyer-protection"],
     icon: ShieldCheck,
     title: "Makers Market — Seller & Commission Policy",
     intro: "Crafters Market's Makers Market allows approved Artists to list and sell their work directly to buyers on our platform.",
@@ -268,6 +270,164 @@ const SECTIONS = [
       tone: "info",
       text: "All Makers Market sellers are vetted and approved by Crafters Market. Seller profiles include their individual shop policies. We encourage buyers to review a seller's policy before purchasing.",
     },
+  },
+
+  // iter413dk — Dedicated Maker Agreement section. Source: owner-uploaded
+  // "Crafters_Market_Maker_Agreement.docx" (June 30, 2026 draft). Clauses
+  // marked LEGAL_REVIEW_REQUIRED below are placeholders the docx explicitly
+  // flags for attorney review before this section is treated as binding.
+  // Until those placeholders are filled, the operative seller terms are
+  // still the "For Sellers" bullets in the top-of-page Terms of Service
+  // and the fee/commission schedule in the Marketplace section above.
+  {
+    id: "maker-agreement",
+    icon: Handshake,
+    title: "Maker Agreement",
+    intro: "This Maker Agreement (\u201cAgreement\u201d) is a binding legal agreement between you (\u201cMaker,\u201d \u201cSeller,\u201d or \u201cyou\u201d) and Crafters Market. By applying to become a Maker, listing items for sale, or using the seller tools on the Platform, you agree to the terms below. This Agreement supplements the Crafters Market Terms of Service. Where this Agreement and the Terms of Service conflict, the more specific term controls for issues relating to Maker activity.",
+    blocks: [
+      {
+        heading: "1. Acceptance and Eligibility",
+        bullets: [
+          "You must be 18 years or older (or the age of majority in your jurisdiction) and legally able to enter into a binding contract.",
+          "You must be the actual creator of items you list — Crafters Market is a handmade marketplace and does not permit resale, drop-shipping, or mass-produced inventory.",
+          "Acceptance of this Agreement is required before your maker application is approved and again whenever the Agreement is materially updated.",
+        ],
+      },
+      {
+        heading: "2. Your Role as a Maker",
+        text: "You are the seller of the items you list. You are solely responsible for:",
+        bullets: [
+          "The design, creation, production, quality, safety, and legality of your products.",
+          "Accurate and truthful product descriptions, photos, pricing, and inventory levels.",
+          "Fulfilling orders, including packaging, shipping, and customer service.",
+          "Collecting, reporting, and remitting all applicable taxes (see Section 9).",
+        ],
+      },
+      {
+        text: "Crafters Market is not your employer, partner, or co-seller. Sales contracts are formed directly between you and the Buyer; Crafters Market provides the marketplace, payment-processing facilitation, and discovery tools.",
+      },
+      {
+        heading: "3. Shop Policies",
+        bullets: [
+          "You may create and publish your own Shop Policies (returns, custom-order timelines, communication windows, etc.) on your maker profile.",
+          "Your Shop Policies must comply with this Agreement, the Crafters Market Terms of Service, and applicable consumer-protection law.",
+          "Once published, your Shop Policies must be honored for orders placed during that policy's effective window.",
+          "Policy changes apply only to orders placed after the change is published; pending orders are governed by the policy in effect at the time of purchase.",
+        ],
+      },
+      {
+        heading: "4. Listing Requirements & Prohibited Items",
+        bullets: [
+          "You agree to list only items you are authorized to sell and that comply with the Crafters Market Prohibited Items policy (see the Prohibited Items section below) and all applicable laws.",
+          "Listings must include accurate categorization, complete title and description, dimensions/materials where applicable, at least one representative photograph, and a price denominated in U.S. dollars.",
+          "You must keep listing inventory levels accurate; overselling an item is a violation that can trigger seller-misconduct review.",
+          "Listings violating intellectual-property law, safety regulations, or platform policy may be removed without notice. Repeated or severe violations may lead to account suspension or termination (see Section 11).",
+        ],
+      },
+      {
+        heading: "5. Intellectual Property",
+        bullets: [
+          "You represent and warrant that you own or have all necessary rights to the items you list and to any photographs, text, video, audio, or other content you upload to Crafters Market (\u201cMaker Content\u201d).",
+          "You grant Crafters Market a worldwide, non-exclusive, royalty-free, sublicensable license to host, display, reproduce, adapt for display, distribute, and create derivative works of your Maker Content solely for the purposes of operating, marketing, and promoting Crafters Market and the visibility of your shop and listings.",
+          "This license includes the right to syndicate your Maker Content to product catalogs (Google Merchant Center, Meta, Pinterest, TikTok, and similar channels), search engines, email and push notifications, and Crafters Market\u2019s own marketing channels and social media accounts.",
+          "The license survives only as long as your content is on the Platform; you may remove the license for a given piece of Maker Content by deleting that content from the Platform, except for residual copies in our backups and any cached or syndicated copies on third-party services whose retention we do not control.",
+          "You retain all ownership of your underlying intellectual property; this license is for use of the Maker Content on or in connection with the Platform only.",
+        ],
+      },
+      {
+        heading: "6. Fulfillment & Performance Standards",
+        bullets: [
+          "You agree to meet the shipping timelines stated on your listing and in your Shop Policies. Where a timeline is not stated, default platform timelines (see Order Processing & Fulfillment) apply.",
+          "You agree to communicate with buyers professionally and respond to direct messages within a reasonable time \u2014 generally within two (2) business days.",
+          "You agree to honor your published return and exchange policies, the Crafters Market Returns Policy, and any consumer-protection rights that cannot be waived by contract.",
+          "Repeated late shipments, missed communications, or refusal to honor your own published policies may trigger seller-misconduct review (see Section 11).",
+        ],
+      },
+      {
+        heading: "7. Payments and Payouts",
+        bullets: [
+          "Payments are processed via Stripe and routed to your verified bank account through Stripe Connect. Use of Stripe Connect requires you to accept Stripe\u2019s Connected Account Agreement.",
+          "You are responsible for completing Stripe\u2019s identity verification (KYC) and providing accurate banking information. Crafters Market cannot release payouts to unverified accounts.",
+          "Platform fees (commission + processing) and any applicable off-site ad fees or promoted-listing fees are deducted from each sale before payout. The current fee schedule is set out in the Marketplace section above and is incorporated into this Agreement by reference.",
+          "You are responsible for chargebacks, refunds, and disputes initiated by buyers. Crafters Market may withhold or claw back amounts from future payouts as needed to fund refunds and chargebacks attributable to your shop.",
+          "If a refund is issued, the platform commission attributable to that refunded amount is also refunded to you; processing fees retained by Stripe are not refunded by Stripe in most circumstances and are therefore not refunded by Crafters Market.",
+          "Payout cadence is set by Stripe\u2019s standard schedule unless you adjust it in your Stripe Express dashboard.",
+        ],
+      },
+      {
+        heading: "8. Custom Orders & Digital Products",
+        bullets: [
+          "If you accept custom or made-to-order work, you are responsible for clearly stating production timelines, proof / approval steps (if any), revision policy, and any non-refundability before the buyer pays.",
+          "For digital products and downloadable files, you must clearly state the license you are granting the buyer (e.g., personal-use-only, small-commercial, extended-commercial) and the format(s) delivered.",
+          "Digital products are generally not eligible for return once downloaded; you must surface this on your listing.",
+          "Custom orders may be cancelled before production begins; once materials are sourced or fabrication has started, cancellation is at your discretion subject to consumer-protection law.",
+        ],
+      },
+      {
+        heading: "9. Taxes and Legal Compliance",
+        bullets: [
+          "You are solely responsible for determining, collecting, reporting, and remitting all taxes (including but not limited to sales, use, income, and self-employment taxes) arising from your sales on Crafters Market, except where Crafters Market is required to collect and remit on your behalf under marketplace facilitator laws.",
+          "Where marketplace-facilitator law requires Crafters Market to collect and remit sales tax on your behalf, the platform will do so and remove that responsibility from you for the applicable jurisdictions.",
+          "You are responsible for complying with all laws applicable to your products (e.g., labeling, safety, age restrictions, hazardous materials, lighter-than-air shipping, fiber-content disclosure, FDA/USDA requirements where applicable).",
+          "Crafters Market may issue you an IRS Form 1099-K or other tax form where required, based on your payout activity. You agree to provide accurate tax-identification information (W-9 or W-8 series as applicable) in your Stripe Connect onboarding.",
+        ],
+      },
+      {
+        heading: "10. Indemnification",
+        bullets: [
+          "You agree to indemnify, defend, and hold harmless Crafters Market and its officers, directors, employees, agents, and affiliates from and against any third-party claims, demands, losses, damages, costs, and expenses (including reasonable attorneys\u2019 fees) arising out of or related to: (a) your products or services; (b) your Maker Content; (c) your breach of this Agreement or the Terms of Service; (d) your violation of any law or third-party right (including intellectual-property, privacy, or publicity rights); or (e) any dispute between you and a buyer.",
+          "Crafters Market reserves the right, at its own expense, to assume the exclusive defense and control of any matter otherwise subject to indemnification by you, in which case you agree to cooperate with Crafters Market\u2019s defense.",
+        ],
+      },
+      {
+        heading: "11. Termination and Suspension",
+        bullets: [
+          "Crafters Market may suspend or terminate your maker account, remove individual listings, or pause your payouts at any time for violation of this Agreement, the Terms of Service, applicable law, or for activity that materially harms buyers, other makers, or the Platform.",
+          "You may close your maker account at any time from your maker dashboard. Closure does not relieve you of obligations on open orders, outstanding refund liability, or chargeback exposure on completed sales.",
+          "Upon termination, your published listings are removed and your shop profile is unpublished. Crafters Market may retain a copy of your account records, transaction history, and tax-relevant data for as long as required by law and for legitimate operational, accounting, and dispute-resolution purposes.",
+          "Sections that by their nature should survive termination (including Intellectual Property residual licenses for content not yet deleted, Payments \u2014 chargeback liability, Taxes, Indemnification, and Governing Law) survive termination of this Agreement.",
+        ],
+      },
+      {
+        heading: "12. Governing Law",
+        // LEGAL_REVIEW_REQUIRED — owner-uploaded draft (June 30, 2026)
+        // marks this clause as a placeholder pending counsel input. Once
+        // your attorney finalizes governing-law, venue, and dispute-
+        // resolution mechanics (e.g. mandatory arbitration carve-outs,
+        // small-claims exception, class-action waiver), replace this
+        // bullet list with the finalized text.
+        bullets: [
+          "Placeholder: to be finalized by legal counsel. Until this section is finalized, disputes between you and Crafters Market that cannot be resolved informally will be governed by the law and venue specified in the main Terms of Service, if any, or by the default rules of the jurisdiction in which Crafters Market is organized.",
+        ],
+      },
+    ],
+    callout: {
+      tone: "warn",
+      icon: AlertTriangle,
+      text: "Draft for legal review. Sections 7 (Payments & Payouts — Stripe Connect specifics), 9 (Taxes), 10 (Indemnification), and 12 (Governing Law) should be reviewed by counsel licensed in your operating jurisdiction(s) before being treated as fully binding. Pending that review, makers continue to be bound by the seller terms in the Terms of Service section and the fee schedule in the Marketplace section.",
+    },
+    outro: (
+      <>
+        <p className="mb-3">
+          By becoming a Maker on Crafters Market, you acknowledge that you have read,
+          understood, and agree to this Maker Agreement and the Crafters Market Terms
+          of Service.
+        </p>
+        <p className="mb-3 text-ink-muted">
+          Questions about this Agreement?{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">
+            {SUPPORT_EMAIL}
+          </a>
+        </p>
+        <p className="text-ink-muted text-sm">
+          <span>Effective date:</span>{" "}
+          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <span className="mx-2">·</span>
+          <span>Last updated:</span>{" "}
+          <b className="text-ink">June 30, 2026</b>
+        </p>
+      </>
+    ),
   },
 
   {
