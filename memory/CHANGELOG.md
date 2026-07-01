@@ -1,3 +1,42 @@
+## 2026-07-01 — Admin dashboard: "Policy crawl health" card
+
+Surfaced the policy-publish notification pipeline in the existing admin
+SEO dashboard so operators can eyeball crawl health at a glance and
+manually re-ping with one click.
+
+### What ships (`SettingsTab.jsx` · `PolicyCrawlHealthCard`)
+
+- **Latest-ping summary strip:** timestamp · URL count · IndexNow badge
+  (✓ 200 / ✕ err) · GSC badge (✓ 200 / ⏱ Throttled / ⏱ Skipped / ✕ Err).
+- **"Ping now" button** → posts to `POST /api/admin/seo/policies-published`
+  and refreshes state. Just-pinged confirmation banner rendered inline.
+- **Audit trail** (collapsible details/summary): last N pings with the
+  same per-leg badges so operators can spot regressions/streaks.
+- **Empty-state** when no pings have run yet (points to Monday 06:15
+  UTC cron as the automatic fallback).
+- **Test IDs** wired: `policy-crawl-health-card`, `-fire`, `-latest`,
+  `-latest-indexnow`, `-latest-gsc`, `-just-pinged`,
+  `-history-toggle`, `-history`, `-empty`, `-error`.
+
+### Slot
+
+Rendered in the admin Settings tab right after `SearchEnginePingCard`
+so the two search-engine cards live next to each other.
+
+### Verified live in browser
+
+- Card visible on `/admin/dashboard?tab=settings`.
+- One-click "Ping now" → POST fires → banner shows "◆ Submitted 17
+  URLs · IndexNow ok · GSC throttled" → audit trail expands to show 3
+  historical rows with correct badge colours (IN ✓ 200 · GSC ⏱
+  THROTTLED · GSC ✕ ERR distinct).
+
+### Files touched
+
+- `/app/frontend/src/components/admin/SettingsTab.jsx` — added
+  `PolicyCrawlHealthCard` (~185 lines) + wired it into the SEO section.
+
+
 ## 2026-07-01 — Policy-publish audit trail + status endpoint
 
 Added a lightweight audit trail so operators can see at a glance whether

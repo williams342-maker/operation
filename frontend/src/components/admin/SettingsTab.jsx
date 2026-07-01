@@ -2953,6 +2953,193 @@ function SearchEnginePingCard() {
 // the last 7d of `stripe_webhook_log` rows (populated by both the
 // main checkout webhook and the Connect webhook).
 // ─────────────────────────────────────────────────────────────────────
+// Policy crawl health — Trust & Policy Center IndexNow + GSC audit
+// trail. Backed by GET /api/admin/seo/policies-published/status
+// (returns the last 5 policy pings with per-leg status). "Ping now"
+// posts to /api/admin/seo/policies-published which fires IndexNow for
+// all 17 canonical policy URLs + a GSC sitemap re-submit.
+// See backend/seo_policy_notify.py.
+// ─────────────────────────────────────────────────────────────────────
+function PolicyCrawlHealthCard() {
+  const API = process.env.REACT_APP_BACKEND_URL;
+  const [status, setStatus] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [justPinged, setJustPinged] = useState(null);
+
+  const authHeader = () => ({
+    Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}`,
+  });
+
+  const refresh = async () => {
+    setErr("");
+    try {
+      const r = await fetch(`${API}/api/admin/seo/policies-published/status`, {
+        headers: authHeader(),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setStatus(await r.json());
+    } catch (e) {
+      setErr(e.message || "Failed to load");
+    }
+  };
+
+  const fire = async () => {
+    setBusy(true);
+    setErr("");
+    setJustPinged(null);
+    try {
+      const r = await fetch(`${API}/api/admin/seo/policies-published`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setJustPinged(await r.json());
+      await refresh();
+    } catch (e) {
+      setErr(e.message || "Ping failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const latest = status?.history?.[0];
+
+  const gscBadge = (row) => {
+    if (row.gsc_skipped) {
+      return { label: "⏱ Skipped", cls: "border-neutral-500/60 text-neutral-500" };
+    }
+    if (row.gsc_throttled) {
+      return { label: "⏱ Throttled", cls: "border-amber-500/60 text-amber-600" };
+    }
+    if (row.gsc_ok) {
+      return { label: "✓ 200",       cls: "border-emerald-500/60 text-emerald-700" };
+    }
+    return   { label: "✕ Err",        cls: "border-red-500/60 text-red-400" };
+  };
+  const indexBadge = (row) => (row.indexnow_ok
+    ? { label: `✓ ${row.indexnow_status ?? 200}`, cls: "border-emerald-500/60 text-emerald-700" }
+    : { label: `✕ ${row.indexnow_status || "err"}`, cls: "border-red-500/60 text-red-400" }
+  );
+
+  return (
+    <section className="border border-line p-4 md:p-5" data-testid="policy-crawl-health-card">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Trust &amp; Policy Center · crawl health
+          </div>
+          <h3 className="font-display text-xl mt-1 text-ink">Policy crawl health</h3>
+          <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl">
+            Pings <b className="text-ink">17 canonical trust &amp; policy URLs</b> to
+            IndexNow (Bing / Yandex / Naver / Seznam / Yep) and re-submits the
+            sitemap to <b className="text-ink">Google Search Console</b>. Auto-fires
+            every Monday 06:15 UTC; also whenever the Legal Launch Binder is
+            rebuilt.
+          </p>
+        </div>
+        <button
+          onClick={fire}
+          disabled={busy}
+          data-testid="policy-crawl-health-fire"
+          className="shrink-0 px-4 py-2 border border-brand bg-brand/5 text-brand hover:bg-brand hover:text-[#0a0a0a] font-mono text-[10px] uppercase tracking-[0.22em] font-bold transition disabled:opacity-50"
+        >
+          {busy ? "Pinging…" : "▶ Ping now"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="mt-4 font-mono text-xs text-red-400"
+             data-testid="policy-crawl-health-error">{err}</div>
+      )}
+
+      {/* Latest ping compact summary */}
+      {latest ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 font-mono text-[11px] text-ink-muted"
+             data-testid="policy-crawl-health-latest">
+          <span className="text-ink-muted">Last ping:</span>
+          <code className="text-ink">{latest.at}</code>
+          <span className="text-ink-muted">·</span>
+          <span>{latest.url_count} URLs</span>
+          <span className="text-ink-muted">·</span>
+          <span className="text-ink-muted">IndexNow</span>
+          <span className={`px-2 py-0.5 border font-bold uppercase tracking-[0.22em] text-[10px] ${indexBadge(latest).cls}`}
+                data-testid="policy-crawl-health-latest-indexnow">
+            {indexBadge(latest).label}
+          </span>
+          <span className="text-ink-muted">·</span>
+          <span className="text-ink-muted">GSC</span>
+          <span className={`px-2 py-0.5 border font-bold uppercase tracking-[0.22em] text-[10px] ${gscBadge(latest).cls}`}
+                data-testid="policy-crawl-health-latest-gsc">
+            {gscBadge(latest).label}
+          </span>
+          {(latest.indexnow_error || latest.gsc_error) && (
+            <span className="text-red-400 basis-full">
+              {latest.indexnow_error && <>IndexNow: {latest.indexnow_error} · </>}
+              {latest.gsc_error && <>GSC: {latest.gsc_error}</>}
+            </span>
+          )}
+        </div>
+      ) : status ? (
+        <div className="mt-4 font-mono text-[11px] text-ink-muted"
+             data-testid="policy-crawl-health-empty">
+          No policy pings recorded yet. Click &ldquo;Ping now&rdquo; to fire the first one,
+          or wait for the Monday 06:15 UTC scheduled sweep.
+        </div>
+      ) : null}
+
+      {/* Just-pinged confirmation banner (only shown right after a manual fire) */}
+      {justPinged && (
+        <div className="mt-3 border-l-2 border-brand pl-3 font-mono text-[11px] text-ink"
+             data-testid="policy-crawl-health-just-pinged">
+          ◆ Submitted {justPinged.url_count} URLs · IndexNow{" "}
+          <b>{justPinged.indexnow?.ok ? "ok" : "failed"}</b> · GSC{" "}
+          <b>
+            {justPinged.gsc?.skipped
+              ? "skipped"
+              : justPinged.gsc?.throttled
+              ? "throttled"
+              : justPinged.gsc?.ok
+              ? "ok"
+              : "failed"}
+          </b>
+        </div>
+      )}
+
+      {/* Audit trail — last N pings */}
+      {status?.history?.length > 1 && (
+        <details className="mt-4 font-mono text-[11px] text-ink-muted"
+                 data-testid="policy-crawl-health-history-toggle">
+          <summary className="cursor-pointer hover:text-brand">
+            ↓ Audit trail · last {status.history.length} of {status.limit}
+          </summary>
+          <ul className="mt-2 space-y-1 pl-4"
+              data-testid="policy-crawl-health-history">
+            {status.history.map((row, idx) => (
+              <li key={row.at + idx} className="flex flex-wrap items-center gap-2">
+                <code className="text-ink text-[10px]">{row.at}</code>
+                <span>·</span>
+                <span>{row.url_count} URLs</span>
+                <span>·</span>
+                <span className={`px-1.5 py-0 border text-[10px] uppercase tracking-[0.18em] font-bold ${indexBadge(row).cls}`}>
+                  IN {indexBadge(row).label}
+                </span>
+                <span className={`px-1.5 py-0 border text-[10px] uppercase tracking-[0.18em] font-bold ${gscBadge(row).cls}`}>
+                  GSC {gscBadge(row).label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
+
+
 // ─────────────────────────────────────────────────────────────────────
 // iter292 — Sales channel feeds card.
 // Surfaces the 3 catalog feed URLs (Pinterest / Google / Meta) with a
@@ -5841,6 +6028,8 @@ export default function SettingsTab() {
       <SeoHealthCard />
 
       <SearchEnginePingCard />
+
+      <PolicyCrawlHealthCard />
 
       <EmailProviderAuditCard />
 
