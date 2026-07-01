@@ -1,0 +1,53 @@
+{
+  "summary": "Frontend E2E testing of Trust & Policy Center v1 (Phase D docs work). Tested /trust, /policies index, all 12 /policies/:slug detail pages, redirects (/terms, /tos -> /policies/terms), unknown-slug fallback, legacy /policy, footer links, and Trust Center search (grouped results + empty state + section jump-links). All 16 requested scenarios functionally PASS. One HTML-validity console warning found (nested <p> in PolicyDetailPage outro/intro wrapper).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "console_warnings": [
+      {
+        "component": "PolicyDetailPage.jsx",
+        "issue": "React logs 'validateDOMNesting: <p> cannot appear as a descendant of <p>' on every /policies/:slug page. Cause: lines 128-132 wrap {section.intro} in <p>, and lines 190-194 wrap {section.outro} in <p>. Both section.intro and section.outro from SECTIONS in PolicyPage.jsx are already React elements containing their own <p> tags, so double-wrapping produces invalid HTML and will trigger hydration errors under SSR.",
+        "selector": "article.prose-none > p",
+        "priority": "MEDIUM",
+        "fix_suggestion": "Change the outer <p className=...> wrappers to <div className=...> in PolicyDetailPage.jsx at lines 128-132 (intro) and 190-194 (outro). Do not change PolicyPage.jsx."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix nested <p> HTML in PolicyDetailPage.jsx lines 128-132 and 190-194 by replacing outer <p> wrappers with <div> (React validateDOMNesting warning; not blocking any user flow but should be resolved before production/SSR)."
+  ],
+  "critical_code_review_comments": [
+    "PolicyDetailPage.jsx wraps section.intro and section.outro (which are already ReactElements containing <p>) in an outer <p>, producing invalid HTML that fires React validateDOMNesting warnings on every policy detail page. Cosmetic/console-only today, but will cause SSR hydration mismatch.",
+    "PolicyPage.jsx SECTIONS is imported by both TrustCenterPage and PolicyDetailPage — good single-source-of-truth pattern, but PolicyPage.jsx is very large (>2000 lines from console traces). Consider extracting SECTIONS to a data module (e.g. /data/policies/sections.jsx) so legacy /policy and new /policies/:slug pages share content without importing the full legacy page component."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (backend testing skipped per request)", "frontend": "100% (16/16 flows PASS)"},
+  "test_credentials": "none required (all pages public)",
+  "seed_data_creation": "none",
+  "detailed_results": {
+    "GET /trust renders + 6 buyer pillars": "PASS — h1='Buy with confidence.Sell with confidence.', all six pillar cards visible (pillar-buyer-protection, pillar-verified-makers, pillar-secure-payments, pillar-shop-policies, pillar-fair-returns, pillar-shipping).",
+    "Trust search 'returns' shows grouped results incl Returns policy row": "PASS — trust-search-results visible, trust-search-policy-returns row rendered with section jump-links.",
+    "Trust search 'xyzzynomatch' empty state": "PASS — trust-search-empty visible.",
+    "Search result navigates to /policies/:slug#toc-N and scrolls": "PASS — clicked section-level result, landed on /policies/maker-agreement#toc-14.",
+    "Pillar card link 'Read Buyer Protection' -> /policies/buyer-protection": "PASS.",
+    "GET /policies renders index with 3 sections + 12 policy rows": "PASS — section-core, section-operational, section-trust, section-glossary all visible; all 12 policy-row-{slug} rendered.",
+    "Policies index shows policy-hierarchy and section-glossary blocks": "PASS.",
+    "GET /policies/terms — h1, meta v2.0 + 2026-06-30, TOC, >=15 sections, 2 revision entries, related, appendices": "PASS — h1='Terms of Service.', meta contains '2.0' and '2026-06-30', 17 body blocks rendered, revision-history has v2.0 and v1.0, related-policies visible, attorney-review-appendices visible.",
+    "GET /policies/buyer-protection renders with v1.0 metadata": "PASS.",
+    "GET remaining /policies/{privacy,cookies,maker-agreement,returns,shipping,prohibited-items,community-guidelines}": "PASS — all render with meta + toc + appendices.",
+    "GET /policies/ip-dmca as Operational policy": "PASS.",
+    "GET /policies/marketplace-promise and /privacy-at-a-glance labeled 'Trust Center'": "PASS — category label reads 'Trust Center'.",
+    "GET /policies/nonexistent-slug -> soft 404 redirect to /policies": "PASS — url resolves to /policies and policies-index-page renders.",
+    "Legacy /policy still renders all sections": "PASS — body length 37,584 chars, renders correctly.",
+    "/terms -> /policies/terms redirect": "PASS.",
+    "/tos -> /policies/terms redirect": "PASS.",
+    "Footer: footer-trust -> /trust, footer-privacy -> /policies/privacy": "PASS — both data-testids present with correct hrefs.",
+    "Console: no React key warnings or hooks-order errors": "PASS for key warnings and hooks-order. HOWEVER — validateDOMNesting <p> in <p> warnings fire on every /policies/:slug page (see console_warnings above)."
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Trust & Policy Center v1 is functionally complete. Only remaining nit is validateDOMNesting warnings in PolicyDetailPage.jsx (outro/intro wrappers). Screenshots of /trust and /policies/buyer-protection captured — AttorneyReviewAppendices callout visible with yellow border. No backend changes were made or tested (Phase D freeze respected)."
+}

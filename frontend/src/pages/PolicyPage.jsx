@@ -13,7 +13,7 @@ const SUPPORT_EMAIL = "team@craftersmarket.org";
 //  liability boundaries. Mirrors the structure in the user's
 //  reference mockup (11 sections), wired to current site config.
 // ============================================================
-const SECTIONS = [
+export const SECTIONS = [
   // iter413dl — "Our Marketplace Promise". Plain-language values
   // statement, sits above the legal documents. Non-legal.
   {
@@ -52,42 +52,173 @@ const SECTIONS = [
     id: "terms",
     icon: FileText,
     title: "Terms of Service",
-    intro: "Welcome to Crafters Market. By using our website and services, you agree to these Terms.",
+    intro: "These Terms of Service (\u201cTerms\u201d) govern your use of Crafters Market (\u201cthe Platform,\u201d \u201cwe,\u201d \u201cus\u201d) as a curated multi-vendor marketplace connecting independent Makers with Buyers. By accessing, browsing, purchasing, listing, or otherwise using the Platform you agree to be bound by these Terms, the Maker Agreement (if you sell), and every policy referenced below. If you do not agree, do not use the Platform.",
     blocks: [
       {
-        heading: "For Buyers",
+        heading: "1. Introduction",
         bullets: [
-          "All sales are between you and the individual seller, not Crafters Market",
-          "We only provide the platform — questions or issues about orders should be directed to the seller",
-          "Once you purchase, the seller is responsible for shipping and fulfilling your order",
+          "Effective date: [Insert Date \u2014 to be set on legal sign-off]. Version 2.0. Last updated 2026-06-30.",
+          "Purpose: define the rights, responsibilities, and boundaries that apply to everyone who uses Crafters Market.",
+          "Marketplace model: Crafters Market is a Platform. Contracts of sale are between Buyers and Makers. We are not a party to those contracts and do not take title to Listings or Orders.",
+          "Relationship to other policies: these Terms sit at the top of the marketplace policy hierarchy (below applicable law). Where a topic-specific policy provides more detail, that detail controls within its topic.",
         ],
       },
       {
-        heading: "For Sellers",
+        heading: "2. Eligibility & Accounts",
         bullets: [
-          "You must sell only items you make yourself — no reselling or drop-shipping",
-          "You are responsible for accurately describing your items, shipping on time, and handling customer service",
-          "We charge a percentage commission on every sale (the exact fee is shown in the Makers Market section below and again before you list)",
-          "You must follow our Prohibited Items policy — no counterfeit, illegal, or harmful products",
+          "You must be at least 18 years old (or the age of majority in your jurisdiction) to create an account, list items, or complete a purchase requiring a payment method.",
+          "You are responsible for the accuracy of your account information and for maintaining the security of your login credentials.",
+          "One account per person or business entity. You may not create duplicate accounts to evade suspension, fee obligations, or Platform enforcement.",
+          "You are responsible for all activity that occurs under your account.",
         ],
       },
       {
-        heading: "General",
+        heading: "3. Buyers \u2014 Your Agreement With the Maker",
         bullets: [
-          "We may remove listings or suspend accounts that violate these rules",
-          "All payments are processed securely via Stripe; we are not responsible for disputes between buyers and sellers beyond what Stripe's protections cover",
-          "These terms may be updated at any time — continued use of Crafters Market means you accept the changes",
+          "When you place an Order, the contract of sale is between you (the Buyer) and the individual Maker who created the Listing.",
+          "The Maker is responsible for describing the Listing accurately, fulfilling the Order, and providing customer service (including questions about materials, sizing, timing, and customization).",
+          "Crafters Market facilitates the transaction, hosts the Listing, and provides Buyer Protection as described in the Buyer Protection Policy \u2014 but is not the seller of record.",
+          "For questions about your Order, contact the Maker first through the on-platform messaging tools. If the issue is not resolved, follow the Buyer Protection Policy escalation process.",
+        ],
+      },
+      {
+        heading: "4. Makers \u2014 Your Agreement With the Platform and With Buyers",
+        bullets: [
+          "You may list only original items you personally make, design, or hand-finish. No reselling, no drop-shipping, no mass-produced or wholesale goods, and no counterfeit or infringing items.",
+          "You are responsible for accurate Listings (materials, dimensions, processing times, shipping options, care instructions, and any customization details).",
+          "You are responsible for shipping Orders within your stated processing time and for reasonable customer service.",
+          "You agree to the Maker Agreement, the Prohibited Items Policy, and every marketplace policy referenced in this document.",
+          "You are responsible for your own taxes, business licensing, and legal compliance in your jurisdiction. Crafters Market may collect and remit marketplace-facilitator sales tax where required by law.",
+        ],
+      },
+      {
+        heading: "5. Fees, Payments & Payouts",
+        bullets: [
+          "Crafters Market charges a marketplace commission on each sale. Exact rates and any listing/renewal or subscription fees are published in the Fee & Pricing Policy and in the Makers Market section of the site.",
+          "Payments are processed by Stripe (and any successor processor). By accepting Orders you agree to Stripe\u2019s Connected Account Agreement and Services Agreement.",
+          "Makers must complete Stripe onboarding (identity verification, payout account) before withdrawing funds. Stripe may hold, reserve, or freeze funds as required by its risk and compliance programs.",
+          "Crafters Market may deduct fees, refunds, chargebacks, and any amounts owed under these Terms, the Maker Agreement, or applicable policies from Maker balances or future payouts.",
+          "Refunds and reversals are governed by the Returns & Refunds Policy and the Buyer Protection Policy.",
+        ],
+      },
+      {
+        heading: "6. Listings, User Content & Intellectual Property",
+        bullets: [
+          "You retain ownership of the copyrights, trademarks, and other rights you already hold in the content you upload (photos, descriptions, Listings, journal posts, messages, reviews, and other \u201cUser Content\u201d).",
+          "You grant Crafters Market a worldwide, non-exclusive, royalty-free license to host, display, reproduce, adapt for format/size, and promote your User Content on the Platform and through connected surfaces (Google, Meta, Pinterest, TikTok, email, and other channels) for the purpose of operating and marketing the marketplace.",
+          "You represent that you have all rights necessary to upload and license your User Content and that it does not infringe any third-party rights.",
+          "You may not use another Maker\u2019s User Content, brand assets, or Listings without written permission. The Intellectual Property & DMCA Policy explains how to report infringement and how repeat-infringer accounts are handled.",
+        ],
+      },
+      {
+        heading: "7. Prohibited Uses",
+        bullets: [
+          "You may not use the Platform to violate any law, infringe intellectual property, or list items forbidden by the Prohibited Items Policy.",
+          "You may not attempt to circumvent marketplace fees, direct Buyers off-platform for the same transaction, or use the messaging system to solicit off-platform payment for on-platform Listings.",
+          "You may not scrape, mirror, or reverse-engineer the Platform, or interfere with its normal operation (rate-limiting evasion, denial-of-service behavior, malicious code, credential stuffing, etc.).",
+          "You may not use the Platform to harass, threaten, defraud, or discriminate against other users. Conduct standards are described in the Community Guidelines.",
+        ],
+      },
+      {
+        heading: "8. Moderation, Suspension & Termination",
+        bullets: [
+          "Crafters Market may remove Listings, restrict features, freeze payouts, suspend, or terminate accounts that violate these Terms, the Maker Agreement, or any marketplace policy.",
+          "We will use reasonable efforts to notify affected users, but immediate action may be taken where there is evidence of fraud, safety risk, IP infringement, or legal exposure to other users.",
+          "Makers may appeal enforcement actions through the Appeals Process. Buyers may appeal Order-level decisions through the Buyer Protection escalation flow.",
+          "Termination does not extinguish obligations that by their nature survive \u2014 including confidentiality, indemnity, tax and fee obligations, and IP licenses granted for content that remains publicly accessible.",
+        ],
+      },
+      {
+        heading: "9. Disclaimers",
+        bullets: [
+          "The Platform is provided \u201cas is\u201d and \u201cas available\u201d without warranties of any kind, express or implied, to the fullest extent permitted by law.",
+          "Crafters Market does not warrant the quality, safety, legality, or accuracy of Listings, User Content, or Maker-provided information. Buyer Protection provides a marketplace-level safety net but is not a warranty of the product itself.",
+          "The Platform is not a party to Buyer\u2013Maker contracts and does not guarantee performance by either party beyond what is expressly stated in the Buyer Protection Policy.",
+        ],
+      },
+      {
+        heading: "10. Limitation of Liability",
+        bullets: [
+          "To the maximum extent permitted by law, Crafters Market\u2019s aggregate liability arising out of or relating to these Terms or your use of the Platform is limited to the greater of (a) the marketplace commission we actually received from your Orders in the 12 months preceding the claim or (b) USD $100.",
+          "Crafters Market is not liable for indirect, incidental, consequential, special, exemplary, or punitive damages, including lost profits, lost goodwill, or lost data, even if advised of the possibility.",
+          "Nothing in this section limits liability that cannot be limited under applicable law (for example, fraud, willful misconduct, or certain consumer-protection rights).",
+        ],
+      },
+      {
+        heading: "11. Indemnification",
+        bullets: [
+          "You agree to indemnify and hold Crafters Market and its officers, directors, employees, and agents harmless from any claim, loss, cost, or expense (including reasonable attorneys\u2019 fees) arising from (a) your Listings, User Content, or Orders, (b) your breach of these Terms or any marketplace policy, (c) your violation of applicable law, or (d) your infringement of a third party\u2019s rights.",
+          "Crafters Market may participate in the defense of any such claim at its own expense and reserves the right to assume the exclusive defense and control of any matter for which you are required to indemnify us.",
+        ],
+      },
+      {
+        heading: "12. Dispute Resolution & Governing Law",
+        bullets: [
+          "These Terms are governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules.",
+          "Buyers and Makers agree to attempt to resolve disputes with each other first through on-platform messaging and, if that fails, through the Buyer Protection Policy for Order-related disputes.",
+          "Disputes with Crafters Market that cannot be resolved informally will be brought exclusively in the state or federal courts located in King County, Washington \u2014 unless a mandatory arbitration provision is later adopted (see Attorney Review Notes at the end of this document).",
+          "Nothing in this section prevents either party from seeking injunctive or equitable relief to protect intellectual property, confidential information, or Platform integrity.",
+        ],
+      },
+      {
+        heading: "13. Marketplace-Facilitator Taxes & International Users",
+        bullets: [
+          "Where required by law, Crafters Market may collect and remit sales, use, VAT, GST, or similar transactional taxes as a marketplace facilitator.",
+          "Makers remain responsible for their own income taxes, self-employment taxes, and any taxes not collected by the Platform.",
+          "The Platform is currently operated from the United States. If you access the Platform from outside the U.S., you are responsible for compliance with local laws. Cross-border shipping is subject to Buyer duties and customs charges as described in the Shipping & Logistics Policy.",
+        ],
+      },
+      {
+        heading: "14. Changes to These Terms",
+        bullets: [
+          "We may update these Terms as the Platform evolves. When we make material changes we will post the new version with a new effective date and, where practical, notify active users by email or in-app notice.",
+          "Continued use of the Platform after the effective date constitutes acceptance of the updated Terms. Prior versions are preserved in the Revision History (below) and available on request.",
+        ],
+      },
+      {
+        heading: "15. Miscellaneous",
+        bullets: [
+          "Entire agreement: these Terms, the Maker Agreement (where applicable), and the marketplace policies referenced here are the entire agreement between you and Crafters Market regarding the Platform.",
+          "Severability: if any provision is unenforceable, the remaining provisions remain in effect.",
+          "No waiver: our failure to enforce a provision is not a waiver of the right to do so later.",
+          "Assignment: you may not assign these Terms without our consent. We may assign these Terms in connection with a merger, acquisition, or sale of assets.",
+          "Contact: policy@craftersmarket.org for legal notices; team@craftersmarket.org for general support.",
+        ],
+      },
+      {
+        heading: "Revision History",
+        bullets: [
+          "v2.0 \u2014 2026-06-30 \u2014 Marketplace-model rewrite. Adds Maker/Buyer role split, marketplace-facilitator tax section, expanded moderation & appeals references, limitation-of-liability and indemnity clauses, dispute-resolution framework.",
+          "v1.0 \u2014 2025-12-01 \u2014 Initial Beta Terms (short-form, retail framing).",
+        ],
+      },
+      {
+        heading: "Related Policies",
+        bullets: [
+          "Maker Agreement \u2014 the full seller contract, including exclusivity, taxes, and payout terms.",
+          "Buyer Protection Policy \u2014 how disputes are handled and when the Platform intervenes.",
+          "Returns & Refunds Policy \u2014 return windows, refund methods, damaged/lost items.",
+          "Shipping & Logistics Policy \u2014 processing times, carriers, risk of loss, international shipping.",
+          "Prohibited Items Policy \u2014 what may and may not be sold on the Platform.",
+          "Community Guidelines \u2014 conduct standards for messaging, reviews, and community spaces.",
+          "Privacy Policy & Cookie Policy \u2014 how we collect, use, and protect data.",
+          "Intellectual Property & DMCA Policy \u2014 how to report infringement and how repeat-infringer accounts are handled.",
+          "Fee & Pricing Policy \u2014 current commissions, listing fees, and payout schedule.",
         ],
       },
     ],
     callout: {
       tone: "info",
-      text: "These Terms of Service operate alongside the topic-specific policies below (Shipping, Returns, Marketplace, Privacy, Prohibited Items, etc.). Where a specific policy provides more detail, that detail controls.",
+      text: "These Terms of Service sit at the top of the marketplace policy hierarchy \u2014 below applicable law and above the topic-specific policies. Where a topic-specific policy provides more detail (shipping, returns, buyer protection, etc.), that detail controls within its topic.",
     },
     outro: (
       <>
-        <span className="text-ink-muted">Last updated:</span>{" "}
-        <b className="text-ink">April 2026</b>
+        <span className="text-ink-muted">Version:</span>{" "}
+        <b className="text-ink">2.0</b>
+        <span className="text-ink-muted"> · Last updated:</span>{" "}
+        <b className="text-ink">2026-06-30</b>
+        <span className="text-ink-muted"> · Effective:</span>{" "}
+        <b className="text-ink">Pending legal sign-off</b>
       </>
     ),
   },
@@ -519,6 +650,235 @@ const SECTIONS = [
     ),
   },
 
+  // iter413dl — Buyer Protection Policy v1.0 (2026-06-30). New dedicated
+  // section. Formalizes the buyer-side dispute framework referenced from
+  // Returns & Refunds §13 (Marketplace Assistance) and the Marketplace
+  // section (fees + protection). Replaces the previous "buyer-protection"
+  // alias that redirected to the Marketplace fees section.
+  {
+    id: "buyer-protection",
+    icon: ShieldCheck,
+    title: "Buyer Protection Policy",
+    intro: "Crafters Market is committed to a trusted marketplace where Buyers can confidently purchase from independent Makers. This Policy explains what Buyer Protection covers, how each party is expected to behave when issues arise, and how Marketplace Assistance is engaged. Read together with the Terms of Service, Returns & Refunds Policy, Maker Agreement, and each Maker\u2019s Shop Policy.",
+    blocks: [
+      {
+        heading: "1. Purpose",
+        bullets: [
+          "Effective date: [Insert Date — to be set on legal sign-off].",
+          "Last updated: 2026-06-30. Version 1.0.",
+          "Explain how Crafters Market assists Buyers and Makers when issues arise with an Order.",
+          "Outline responsibilities of each party and the circumstances under which Marketplace Assistance is engaged.",
+        ],
+      },
+      {
+        heading: "2. Marketplace Role",
+        text: "Crafters Market is an online marketplace connecting Buyers with independent Makers. Unless expressly stated otherwise:",
+        bullets: [
+          "Makers are responsible for producing, packaging, shipping, and fulfilling Orders.",
+          "Buyers purchase directly from the Maker.",
+          "Crafters Market is not the manufacturer or seller of listed products.",
+          "Crafters Market may facilitate communication and investigate disputes but does not guarantee refunds or specific outcomes.",
+        ],
+      },
+      {
+        heading: "3. What Buyer Protection Covers",
+        text: "Buyer Protection may apply when an Order involves one or more of:",
+        bullets: [
+          "The item never arrives.",
+          "The wrong item is received.",
+          "The item arrives materially different from the Listing description.",
+          "The item arrives significantly damaged during shipping.",
+          "A verified Custom Order does not match the final approved design.",
+          "The Maker stops responding after payment and fails to fulfill the Order.",
+        ],
+      },
+      {
+        heading: "Not covered by Buyer Protection",
+        bullets: [
+          "Buyer\u2019s remorse (\u201cchanged my mind\u201d).",
+          "Minor differences resulting from handmade craftsmanship (grain variation, brush strokes, weave, glaze pooling).",
+          "Variations in natural materials such as wood, leather, fabric, stone, or metal.",
+          "Delays caused by weather, customs, carrier disruptions, or other events beyond reasonable control (see Shipping §14 Force Majeure).",
+          "Issues already disclosed in the Listing or the Maker\u2019s Shop Policy.",
+        ],
+      },
+      {
+        heading: "4. Buyer Responsibilities",
+        text: "To receive assistance, Buyers should:",
+        bullets: [
+          "Review the Maker\u2019s Shop Policy before purchasing.",
+          "Read the product description and options carefully.",
+          "Review photographs and customization details.",
+          "Provide accurate shipping information at checkout.",
+          "Inspect deliveries promptly.",
+          "Contact the Maker before escalating whenever practical.",
+          "Cooperate by providing requested documentation.",
+        ],
+      },
+      {
+        heading: "5. Maker Responsibilities",
+        text: "Makers are expected to:",
+        bullets: [
+          "Accurately describe products.",
+          "Honor published Shop Policies and the Maker Agreement.",
+          "Ship within stated processing times.",
+          "Respond to Buyer inquiries within a reasonable time \u2014 generally within two business days.",
+          "Make good-faith efforts to resolve legitimate issues.",
+          "Cooperate during investigations.",
+        ],
+      },
+      {
+        heading: "6. Reporting an Issue",
+        text: "If a problem occurs, Buyers should first contact the Maker through the Crafters Market messaging system. If the issue cannot be resolved directly, Buyers may request Marketplace Assistance. When submitting a request, Buyers may be asked to provide:",
+        bullets: [
+          "Order number.",
+          "Description of the issue.",
+          "Photographs of the item and packaging (when applicable).",
+          "Tracking information (if available).",
+          "Copies of relevant communications with the Maker.",
+          "Any additional documentation reasonably requested.",
+        ],
+      },
+      {
+        heading: "7. Marketplace Review Process",
+        text: "When Marketplace Assistance is requested, Crafters Market may:",
+        bullets: [
+          "Review the Listing.",
+          "Review communications between Buyer and Maker.",
+          "Request additional information from either party.",
+          "Review shipping or tracking information.",
+          "Evaluate available evidence in aggregate.",
+          "Facilitate communication between the parties.",
+          "Assist with payment-processor dispute procedures where appropriate.",
+          "Each case is reviewed individually based on the available information.",
+        ],
+      },
+      {
+        heading: "8. Resolution Options",
+        text: "Depending on circumstances, possible outcomes may include:",
+        bullets: [
+          "Encouraging the Maker to complete the Order.",
+          "Replacement of damaged or incorrect items.",
+          "Repair where appropriate.",
+          "Partial refund.",
+          "Full refund.",
+          "Cancellation before fulfillment.",
+          "No action if the evidence does not support the claim.",
+          "Crafters Market reserves the right to determine whether Marketplace Assistance is appropriate based on the facts presented.",
+        ],
+      },
+      {
+        heading: "9. Custom Orders",
+        text: "Custom and personalized items require special consideration.",
+        bullets: [
+          "Buyer Protection MAY apply when: the final product materially differs from the approved proof; the wrong customization is produced; or the Maker fails to deliver the agreed custom work.",
+          "Buyer Protection generally does NOT apply when: the Buyer approved the final proof; the Buyer requests changes after production began; or differences are consistent with handmade craftsmanship and the approved design.",
+          "See the Returns & Refunds Policy \u00a74 and the Maker Agreement \u00a716 for the underlying rules.",
+        ],
+      },
+      {
+        heading: "10. Digital Products",
+        text: "Digital Products are generally considered delivered once the Buyer has received access to the purchased files.",
+        bullets: [
+          "Buyer Protection MAY apply if files cannot be accessed, files are materially different from the Listing, or files are corrupted or unusable.",
+          "Digital Products are generally not refundable solely because the Buyer changes their mind after delivery.",
+          "See the Returns & Refunds Policy \u00a75 for the underlying rules.",
+        ],
+      },
+      {
+        heading: "11. Shipping Issues",
+        text: "When shipping problems occur:",
+        list: [
+          ["Maker should:", "provide shipment information, assist with carrier investigations, and work with the Buyer in good faith."],
+          ["Buyer should:", "verify the shipping address provided, monitor tracking notifications, and report delivery problems promptly."],
+          ["Crafters Market:", "may facilitate communication but is generally not responsible for carrier performance or shipping delays."],
+        ],
+      },
+      {
+        heading: "12. Chargebacks",
+        bullets: [
+          "If a Buyer initiates a payment dispute or chargeback through their payment provider, Crafters Market\u2019s internal review may be paused while the payment processor completes its investigation.",
+          "Both Buyers and Makers are expected to cooperate during this process.",
+          "See the Returns & Refunds Policy \u00a714 for detailed chargeback mechanics.",
+        ],
+      },
+      {
+        heading: "13. Fraud Prevention",
+        text: "To protect the marketplace, Crafters Market reserves the right to investigate suspected:",
+        bullets: [
+          "Fraudulent claims.",
+          "Return abuse.",
+          "Payment fraud.",
+          "False damage reports.",
+          "Manipulated evidence.",
+          "Abusive dispute activity.",
+          "Knowingly submitting false claims may result in account restrictions or other enforcement actions.",
+        ],
+      },
+      {
+        heading: "14. Marketplace Enforcement",
+        text: "When investigations reveal repeated or serious policy violations, Crafters Market may take actions including:",
+        bullets: [
+          "Educational warnings.",
+          "Listing removal.",
+          "Temporary account suspension.",
+          "Permanent account termination.",
+          "Additional account review.",
+          "Payout restrictions where permitted by law.",
+          "See the Prohibited Items Policy \u00a718 and the Maker Agreement \u00a721 for the enforcement escalation ladder.",
+        ],
+      },
+      {
+        heading: "15. Limitations",
+        bullets: [
+          "Buyer Protection is intended to support fair marketplace transactions but does not constitute an insurance program or guarantee.",
+          "Nothing in this Policy modifies the legal relationship established in the Terms of Service or overrides applicable consumer-protection law.",
+        ],
+      },
+      {
+        heading: "16. Policy Updates",
+        bullets: [
+          "We may update this Policy from time to time. Material changes will be communicated by posting the updated Policy to the Platform, by email, and / or by in-product notice prior to taking effect.",
+          "The Effective Date and Last Updated values reflect the current version.",
+          "Continued use of the Platform after the effective date of an update constitutes acceptance.",
+          "This Policy is incorporated into the Terms of Service.",
+        ],
+      },
+    ],
+    callout: {
+      tone: "warn",
+      icon: AlertTriangle,
+      text: "Draft v1.0 for legal review. Sections 8 (Resolution Options), 12 (Chargebacks), 13 (Fraud Prevention), 14 (Marketplace Enforcement), and 15 (Limitations \u2014 particularly the \u201cnot insurance\u201d framing) should be reviewed by counsel licensed in your operating jurisdiction(s) before this Policy is treated as fully binding.",
+    },
+    outro: (
+      <>
+        <p className="mb-3 text-ink-muted">
+          Questions about this Policy or need to open a dispute? Contact the Maker
+          first through the Platform messaging system; if you can\u2019t reach resolution,
+          email{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          with subject \u201cBuyer Protection Case\u201d and the details listed in Section 6.
+        </p>
+        <p className="text-ink-muted text-sm">
+          <span>Version:</span> <b className="text-ink">1.0</b>
+          <span className="mx-2">·</span>
+          <span>Effective date:</span>{" "}
+          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <span className="mx-2">·</span>
+          <span>Last updated:</span>{" "}
+          <b className="text-ink">June 30, 2026</b>
+        </p>
+        <p className="text-ink-muted text-xs mt-2 leading-relaxed">
+          <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v1.0 · 2026-06-30 — First dedicated Buyer Protection Policy section. 16 numbered sections. Replaces the prior \u201cbuyer-protection\u201d alias that redirected to the Marketplace fees section. Cross-referenced with ToS, Maker Agreement, Returns &amp; Refunds, Shipping, Prohibited Items.</span>
+        </p>
+      </>
+    ),
+  },
+
   {
     id: "custom",
     icon: Wand2,
@@ -611,12 +971,11 @@ const SECTIONS = [
 
   {
     id: "marketplace",
-    // iter318a — alias anchors so direct deep-links from the footer
-    // (Buyer Protection) land on this section, which owns the
-    // buyer-side / commission-rate rules. The "maker-agreement" alias
-    // was removed in iter413dk because the Maker Agreement now has
-    // its own dedicated section below.
-    aliasIds: ["buyer-protection"],
+    // iter413dl — Both alias anchors dropped in this wave now that
+    // both destinations have their own dedicated sections:
+    // "buyer-protection" → its own section below (v1.0)
+    // "maker-agreement"  → its own section below (v3.0)
+    aliasIds: [],
     icon: ShieldCheck,
     title: "Makers Market — Seller & Commission Policy",
     intro: "Crafters Market's Makers Market allows approved Artists to list and sell their work directly to buyers on our platform.",
