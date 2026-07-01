@@ -105,9 +105,18 @@ export const SECTIONS = [
         heading: "6. Listings, User Content & Intellectual Property",
         bullets: [
           "You retain ownership of the copyrights, trademarks, and other rights you already hold in the content you upload (photos, descriptions, Listings, journal posts, messages, reviews, and other \u201cUser Content\u201d).",
-          "You grant Crafters Market a worldwide, non-exclusive, royalty-free license to host, display, reproduce, adapt for format/size, and promote your User Content on the Platform and through connected surfaces (Google, Meta, Pinterest, TikTok, email, and other channels) for the purpose of operating and marketing the marketplace.",
+          "You grant Crafters Market a worldwide, non-exclusive, royalty-free license to host, display, reproduce, adapt for format/size, and promote your User Content on the Platform and through connected surfaces (Google, Meta, Pinterest, TikTok, email, and other channels) for the purpose of operating and marketing the marketplace. This license also covers AI-assisted operational and marketing use as defined in Section 6a below.",
           "You represent that you have all rights necessary to upload and license your User Content and that it does not infringe any third-party rights.",
           "You may not use another Maker\u2019s User Content, brand assets, or Listings without written permission. The Intellectual Property & DMCA Policy explains how to report infringement and how repeat-infringer accounts are handled.",
+        ],
+      },
+      {
+        heading: "6a. AI Use \u2014 Creator-Owned AI Policy",
+        bullets: [
+          "Operational AI (allowed under the license in Section 6): Crafters Market may use AI-powered tools to operate and market the marketplace \u2014 including search, recommendations, fraud and spam detection, translations, accessibility, customer support, Listing optimization, SEO metadata, ad generation across Google/Meta/Pinterest/TikTok/Reddit, email campaigns, blog articles, product-description assistance, video scripts, and social captions. Operational AI is considered part of running and promoting the Platform.",
+          "AI model training (NOT covered by the license in Section 6): Crafters Market will not use Maker Content to train image-generation models, large language models, recommendation foundation models, or other commercial AI systems, and will not license Maker Content to third parties for AI training, unless the Maker has provided explicit, affirmative, opt-in consent.",
+          "If we ever launch an AI Training Program it will be opt-in only, with a separate consent step, a clear explanation of intended use, the ability to opt out later (subject to reasonable technical limitations for previously-trained models), and no reduction in visibility, ranking, payouts, or marketplace access for Makers who decline.",
+          "Full details are in the Maker Agreement (AI Use \u2014 Creator-Owned AI Policy) and the Privacy Policy (How We Use AI).",
         ],
       },
       {
@@ -188,6 +197,7 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
+          "v2.1 \u2014 2026-06-30 \u2014 Added Section 6a AI Use (Creator-Owned AI Policy): distinguishes AI-for-operations (allowed under content license) from AI model training (opt-in only, never a condition of marketplace access).",
           "v2.0 \u2014 2026-06-30 \u2014 Marketplace-model rewrite. Adds Maker/Buyer role split, marketplace-facilitator tax section, expanded moderation & appeals references, limitation-of-liability and indemnity clauses, dispute-resolution framework.",
           "v1.0 \u2014 2025-12-01 \u2014 Initial Beta Terms (short-form, retail framing).",
         ],
@@ -214,7 +224,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">2.0</b>
+        <b className="text-ink">2.1</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -1142,6 +1152,19 @@ export const SECTIONS = [
         ],
       },
       {
+        heading: "10a. AI Use — Creator-Owned AI Policy",
+        bullets: [
+          "Your creativity belongs to you. This section clarifies what Crafters Market may and may not do with your User Content when AI tools are involved. It sits alongside — and is expressly narrower than — the general license in Section 10.",
+          "Allowed under the Section 10 license (\u201cOperational AI\u201d): Crafters Market may use AI-powered tools to operate and market the Platform. Examples include search relevance, personalized recommendations, fraud and spam detection, on-platform translations, accessibility enhancements, customer-support assistance, Listing optimization suggestions, SEO metadata generation, and AI-assisted marketing across Google Ads, Meta (Facebook/Instagram), Pinterest, TikTok, Reddit, email campaigns, blog articles, product-description drafts, promotional graphics, video scripts, and social captions.",
+          "Operational AI is considered part of running and promoting the marketplace, and does not require a separate consent from you.",
+          "NOT allowed under the Section 10 license (\u201cAI Model Training\u201d): Crafters Market will not use your User Content to train image-generation models, large language models, recommendation foundation models, or other commercial AI/machine-learning systems, and will not license your User Content to third parties for AI training, unless you have provided explicit, affirmative, opt-in consent for that specific purpose.",
+          "Silence, inaction, or continued marketplace participation are not consent to AI Model Training. Consent must be affirmative.",
+          "If we launch an AI Training Program in the future, participation will require: (a) a separate consent step distinct from acceptance of this Maker Agreement; (b) a clear description of the intended training use, data scope, and any counterparties; (c) the ability to withdraw consent at any time, subject to reasonable technical limitations for models already trained; and (d) no reduction in your visibility, ranking, payouts, marketplace access, or other Maker benefits for declining to participate.",
+          "This section survives termination of the Maker Agreement with respect to any consent you may have granted before termination.",
+          "This section is a companion to Section 6a of the Terms of Service and the \u201cHow We Use AI\u201d section of the Privacy Policy. In the event of a conflict between the three, this section controls with respect to AI use of Maker Content.",
+        ],
+      },
+      {
         heading: "11. Shipping & Fulfillment",
         bullets: [
           "You must meet the processing times stated on your Listings and in your Shop Policies. Where a timeline is not stated, default Platform timelines (see Order Processing & Fulfillment section) apply.",
@@ -1355,7 +1378,7 @@ export const SECTIONS = [
           </a>
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.0</b>
+          <span>Version:</span> <b className="text-ink">3.1</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
@@ -1365,6 +1388,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.1 · 2026-06-30 — Added Section 10a AI Use (Creator-Owned AI Policy). Distinguishes Operational AI (allowed under the Section 10 content license — search, recommendations, ads, SEO, translations, listing optimization) from AI Model Training (opt-in only, never a condition of marketplace access). Cross-referenced with ToS §6a and Privacy Policy "How We Use AI".</span>
           <br />
           <span>v3.0 · 2026-06-30 — Expanded from v2.1 per implementation brief: 25 numbered sections + Verification / AI-Assisted Content / Marketplace Growth provisions. Cross-referenced with ToS, Privacy Policy, Returns & Refunds, Community Guidelines, Prohibited Items.</span>
           <br />
@@ -1636,7 +1661,7 @@ export const SECTIONS = [
         heading: "1. Introduction",
         bullets: [
           "Effective date: [Insert Date — to be set on legal sign-off].",
-          "Last updated: 2026-06-30. Version 3.0.",
+          "Last updated: 2026-06-30. Version 3.1.",
           "Purpose: this Policy is intended to provide transparent, plain-language disclosure of how Crafters Market collects, uses, and shares information.",
           "Relationship to the Terms of Service: this Policy supplements the Terms of Service and is incorporated by reference. Where it conflicts with the Terms of Service on a privacy-specific issue, this Policy controls.",
           "Scope: this Policy applies to Buyers, Makers, applicants for the Maker program, and visitors to the Platform. It does not apply to information collected by third parties on their own services even when linked from the Platform.",
@@ -1747,12 +1772,17 @@ export const SECTIONS = [
         ],
       },
       {
-        heading: "11. AI & Automated Services",
+        heading: "11. AI & Automated Services — Creator-Owned AI Policy",
         bullets: [
-          "We may use AI-assisted tools to improve search, generate Listing suggestions, provide customer-support automation, detect fraud, and improve marketplace functionality.",
-          "Use of AI by Crafters Market does not transfer ownership of your User Content. You remain the owner of what you upload and remain responsible for ensuring that AI-assisted material you publish does not infringe copyright, trademark, or licensing terms.",
-          "We DO NOT train external commercial AI models on your personal information.",
-          "We may use aggregated, de-identified data to improve our own AI-assisted features.",
+          "Your creativity belongs to you. This section explains, in plain English, how Crafters Market uses AI in relation to your personal information and User Content, and — importantly — what we do NOT do.",
+          "Operational AI (allowed): We use AI-powered tools to operate and market the Platform. This includes search relevance and personalization, recommendations, fraud and spam detection, on-platform translations, accessibility enhancements, customer-support assistance, Listing optimization, SEO metadata generation, and AI-assisted marketing across Google, Meta (Facebook/Instagram), Pinterest, TikTok, Reddit, email campaigns, blog articles, product-description drafts, promotional graphics, video scripts, and social captions.",
+          "Operational AI is part of running and promoting the marketplace. It does not require a separate consent step beyond your acceptance of the Terms of Service, the Maker Agreement (if you sell), and this Privacy Policy.",
+          "AI Model Training (NOT allowed without your explicit consent): We do not use your User Content — your photos, Listings, descriptions, journals, or other creative work — to train image-generation models, large language models, recommendation foundation models, or other commercial AI/machine-learning systems, and we do not license your User Content to third parties for AI training.",
+          "Silence, inaction, or continued marketplace participation are not consent to AI Model Training. Consent must be affirmative and specific to a defined training program.",
+          "Personal information (as opposed to creative User Content) is never used to train external commercial AI models.",
+          "If we launch an AI Training Program in the future, it will be opt-in only, with a separate consent step, a clear description of intended use, the ability to withdraw consent later (subject to reasonable technical limitations for previously-trained models), and no reduction in your visibility, ranking, payouts, or marketplace access if you decline.",
+          "Aggregated, de-identified data. We may use aggregated statistics (e.g., \u201chow many Buyers viewed a Listing this week\u201d) that cannot reasonably be tied back to an individual Maker or Buyer to improve our own operational-AI features.",
+          "Cross-reference: Section 6a of the Terms of Service and Section 10a of the Maker Agreement contain the marketplace-wide AI use rules. If any of those three references conflict, the Maker Agreement controls with respect to Maker Content.",
         ],
       },
       {
@@ -1874,7 +1904,7 @@ export const SECTIONS = [
     outro: (
       <>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.0</b>
+          <span>Version:</span> <b className="text-ink">3.1</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
@@ -1884,6 +1914,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.1 · 2026-06-30 — Rewrote §11 as the Creator-Owned AI Policy. Distinguishes Operational AI (allowed under the license) from AI Model Training (opt-in only, never a condition of marketplace access). Cross-referenced with ToS §6a and Maker Agreement §10a.</span>
           <br />
           <span>v3.0 · 2026-06-30 — Expanded to 14 numbered sections covering Information We Collect, Sharing, Retention, User Rights, Cookies, Security, Children\u2019s Privacy, International Transfers, AI &amp; Automated Services, Communications, Account Closure, and Changes. Preserved Google API Services User Data disclosure verbatim (OAuth verification requirement).</span>
           <br />
