@@ -161,7 +161,29 @@ async def sitemap_xml(http_request: Request):
         # (target query "crafters market vs etsy fees") so we boost to 0.7.
         ("/pricing",       "monthly", "0.7"),
         ("/contact",       "monthly", "0.4"),
-        ("/policy",        "yearly",  "0.2"),
+        # iter425 — Legal/Trust hub pages. Priority is elevated on
+        # /policies/privacy and /policies/terms because these are the
+        # canonical URLs referenced from Google OAuth verification and
+        # from every user-facing consent surface (cookie banner, EUAs,
+        # checkout). See LegacyPolicyRedirect.jsx for the /policy →
+        # /policies/<slug> compatibility layer.
+        ("/trust",                              "monthly", "0.7"),
+        ("/trust/vendors",                      "monthly", "0.5"),
+        ("/policies",                           "monthly", "0.6"),
+        ("/policies/terms",                     "yearly",  "0.7"),
+        ("/policies/privacy",                   "yearly",  "0.7"),
+        ("/policies/cookies",                   "yearly",  "0.5"),
+        ("/policies/maker-agreement",           "yearly",  "0.5"),
+        ("/policies/buyer-protection",          "yearly",  "0.6"),
+        ("/policies/returns",                   "yearly",  "0.6"),
+        ("/policies/shipping",                  "yearly",  "0.5"),
+        ("/policies/prohibited-items",          "yearly",  "0.5"),
+        ("/policies/community-guidelines",      "yearly",  "0.5"),
+        ("/policies/fee-pricing",               "yearly",  "0.6"),
+        ("/policies/ip-dmca",                   "yearly",  "0.5"),
+        ("/policies/accessibility",             "yearly",  "0.5"),
+        ("/policies/marketplace-promise",       "yearly",  "0.5"),
+        ("/policies/privacy-at-a-glance",       "yearly",  "0.5"),
     ]
     products = await db.products.find(
         {"deleted_at": None, "status": {"$ne": "draft"}},

@@ -1,3 +1,46 @@
+## 2026-07-01 — Sitemap + canonical coverage for Trust & Policy Center
+
+Extended the SEO / canonical layer so search engines and OAuth verifiers
+get an unambiguous canonical signal for every legal and trust page.
+
+### Sitemap additions (backend `/api/sitemap.xml`, 260 URLs total)
+
+Replaced the single low-priority `/policy` legacy entry with the full
+Trust & Policy Center URL set:
+
+- `/trust` (0.7, monthly), `/trust/vendors` (0.5, monthly)
+- `/policies` (0.6, monthly)
+- 14 × `/policies/<slug>` — every policy from the manifest, with
+  `/policies/privacy` and `/policies/terms` boosted to 0.7 (they are
+  the canonical URLs referenced from Google OAuth verification and from
+  every user-facing consent surface).
+
+### Canonical link coverage (frontend)
+
+Verified via Playwright that each URL now advertises its correct
+`<link rel="canonical">`:
+
+- `/policies/privacy` → `https://craftersmarket.org/policies/privacy`
+- `/policies` → `https://craftersmarket.org/policies`
+- `/trust/vendors` → `https://craftersmarket.org/trust/vendors` (NEW —
+  added `useStructuredData({ … })` block to `TrustVendorsPage.jsx` with
+  a Breadcrumb JSON-LD tree pointing back to the Trust Center)
+
+`PolicyDetailPage`, `PoliciesIndexPage`, and `TrustCenterPage` already
+emitted canonical + JSON-LD via `useStructuredData` and were left
+untouched.
+
+### Regression tests
+
+`test_iter413p_canonical_contract.py` and `test_iter321_seo_trust_audit.py`
+— 12 passed, 0 failed.
+
+### Files touched
+
+- `/app/backend/routers/seo.py` — sitemap policy/trust block.
+- `/app/frontend/src/pages/TrustVendorsPage.jsx` — added `useStructuredData`.
+
+
 ## 2026-07-01 — Legacy /policy redirect (Google OAuth verification fix)
 
 Google's OAuth verifier flagged a mismatch between the Cloud Console

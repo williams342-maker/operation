@@ -5,6 +5,7 @@ import {
   CreditCard, Cloud, BarChart3, Megaphone, Mail, Truck, Bug, Sparkles,
 } from "lucide-react";
 import { VENDORS, VENDOR_CATEGORIES } from "../data/policies/vendors";
+import { useStructuredData } from "../lib/seo";
 
 // ============================================================
 //  Trust · Vendors — /trust/vendors
@@ -128,6 +129,31 @@ function VendorCard({ vendor }) {
 export default function TrustVendorsPage() {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+
+  useStructuredData({
+    title: "Third-Party Vendors · Trust Center · Crafters Market",
+    description:
+      "Which vendors receive Crafters Market data, what data they receive, and why. Full transparency across payments, hosting, analytics, ads, email, shipping, monitoring, and AI providers.",
+    url: "https://craftersmarket.org/trust/vendors",
+    image: "https://craftersmarket.org/downloads/cnc-garage-builders.png",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "Third-Party Vendors · Trust Center · Crafters Market",
+      url: "https://craftersmarket.org/trust/vendors",
+      isPartOf: {
+        "@type": "WebSite",
+        "@id": "https://craftersmarket.org/#website",
+      },
+      breadcrumb: {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Trust Center", item: "https://craftersmarket.org/trust" },
+          { "@type": "ListItem", position: 2, name: "Vendors",       item: "https://craftersmarket.org/trust/vendors" },
+        ],
+      },
+    },
+  });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
