@@ -2362,3 +2362,44 @@ Applied 7 refinements from the second-round attorney feedback (user-supplied ver
 **Counsel Review Packet regenerated:** 130 pages (was 127), 556.8 KB. All 7 refinements verified in the PDF text.
 
 **Verified in preview:** `/policies/fee-pricing` shows 60-day notice + Stripe/card-network hold language + v1.1 badge.
+
+---
+
+## iter413v3 — Final legal-hardening pass v3 (2026-06-30, Phase D)
+
+Applied all 6 refinements from the third-round attorney feedback ("Final Legal Hardening Pass v3").
+
+**P1 (implemented before launch):**
+1. **Non-waivable rights carve-out** — Added "Nothing in this Policy limits any non-waivable rights or protections provided under applicable law" clause to Returns §16, Shipping §15, Buyer Protection §15, Terms §12 Governing Law, and Maker Agreement §27 Governing Law. Improves enforceability without weakening the Platform.
+
+2. **Material Policy Change Notice (Terms §14)** — 30 days for material changes to fees or user obligations; immediate effectiveness for security, legal, fraud-prevention, or urgent technical/operational changes. Fee changes specifically deferred to Fee & Pricing §12 (60-day rule).
+
+3. **AI Disclosure Standard (Prohibited Items §14)** — Codified AI-assisted (grammar, background removal, keywords, SEO, brainstorming — no disclosure needed) vs. materially AI-generated (primary artistic expression or final product substantially created by generative AI — disclosure required). No numeric percentage threshold — percentages create loopholes.
+
+4. **Stripe Refund Responsibility (Fee & Pricing §8)** — Rewritten to expressly state that Stripe payment-processing fees are governed by the processor (Stripe) and its published schedule; Stripe may retain a non-refundable portion of processing fees on refunded transactions; that portion is not credited back to the Maker balance.
+
+**P2 (optional improvements, both implemented):**
+5. **Documentation During Payout Holds (Terms §5 + Maker §14 + Fee-Pricing §9)** — Reasonable-efforts obligation to communicate the general reason for a hold, with carve-outs for law, card-network rules, fraud investigations, and regulatory requirements. No specific evidence/documentation thresholds promised.
+
+6. **Click-Acceptance for Material Fee Increases (Fee & Pricing §12)** — Where a fee change materially increases the Maker's cost of selling, Makers may be required to review and click-accept the updated Policy before creating new Listings or receiving payouts. Stronger evidence of contractual acceptance than continued use alone.
+
+**Explicitly NOT implemented** (per user's third-round instructions):
+- No indemnification cap (existing gross-negligence + willful-misconduct carve-out preserved)
+- No universal insurance requirement (revisit if high-risk categories launch)
+- No DPA (revisit if enterprise customers)
+- No export control (U.S.-focused marketplace)
+- No non-solicitation
+
+**Version bumps:**
+- Terms of Service 2.4 → **2.5**
+- Maker Agreement 3.4 → **3.5**
+- Buyer Protection 1.0 → **1.1**
+- Returns & Refunds 3.2 → **3.3**
+- Shipping 3.0 → **3.1**
+- Prohibited Items 3.1 → **3.2**
+- Fee & Pricing 1.1 → **1.2**
+
+**Counsel Review Packet regenerated:** 133 pages (was 130), 570.9 KB. All 6 refinements verified in the PDF via automated text extraction.
+
+**Verified in preview:** `/policies/fee-pricing` shows v1.2 badge, Click-Acceptance clause, Stripe non-recoverable clause, and Communication-during-holds language.
+

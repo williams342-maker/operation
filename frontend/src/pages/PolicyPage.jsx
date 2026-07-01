@@ -103,6 +103,7 @@ export const SECTIONS = [
           "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry.",
           "A payout hold under this Section lasts only as long as reasonably necessary to resolve the underlying issue \u2014 including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger will be released on the normal payout cadence.",
           "Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. In those cases, resolution is governed by Stripe's Connected Account Agreement and the applicable card-network rules.",
+          "Communication during holds. Crafters Market will make reasonable efforts to inform the affected Maker of the general reason for a payout hold, unless prohibited by law, card-network rules, an ongoing fraud investigation, or a regulatory requirement. Crafters Market does not commit to any specific evidence, documentation, or notice threshold beyond what is reasonably practical under the circumstances.",
           "Crafters Market may deduct fees, refunds, chargebacks, and any amounts owed under these Terms, the Maker Agreement, or applicable policies from Maker balances or future payouts.",
           "Refunds and reversals are governed by the Returns & Refunds Policy and the Buyer Protection Policy.",
         ],
@@ -175,7 +176,7 @@ export const SECTIONS = [
           "Class-Action Waiver. You and Crafters Market each agree to bring claims only in an individual capacity, and not as a plaintiff or class member in any purported class, collective, consolidated, mass, or representative proceeding. The arbitrator has no authority to conduct any class, collective, or representative proceeding.",
           "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
           "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
-          "Governing Law. These Terms are governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules. For any dispute that is not subject to arbitration under this Section (for example, small-claims actions and requests for injunctive relief), the exclusive venue is the state or federal courts located in King County, Washington.",
+          "Governing Law. These Terms are governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules. For any dispute that is not subject to arbitration under this Section (for example, small-claims actions and requests for injunctive relief), the exclusive venue is the state or federal courts located in King County, Washington. Nothing in this Section limits any non-waivable rights or protections provided under applicable law, including any mandatory consumer-protection statutes in the User's home jurisdiction.",
           "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting these Terms. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Opting out does not affect any other provision of these Terms.",
         ],
       },
@@ -191,6 +192,8 @@ export const SECTIONS = [
         heading: "14. Changes to These Terms",
         bullets: [
           "We may update these Terms as the Platform evolves. When we make material changes we will post the new version with a new effective date and, where practical, notify active users by email or in-app notice.",
+          "Notice period. Material changes to fees or user obligations will take effect no earlier than thirty (30) days after we post the updated Terms and notify active users. Changes required for security, legal or regulatory compliance, fraud prevention, or urgent technical or operational reasons may take effect immediately or on a shorter notice window; we will explain the reason for the accelerated timing where practical.",
+          "Fee changes specifically are governed by the notice window in the Fee & Pricing Policy §12 (60 days for fee increases and new fees; reductions and promotional pricing may take effect immediately).",
           "Continued use of the Platform after the effective date constitutes acceptance of the updated Terms. Prior versions are preserved in the Revision History (below) and available on request.",
         ],
       },
@@ -215,6 +218,7 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
+          "v2.5 \u2014 2026-06-30 \u2014 Final legal-hardening pass (v3): §5 Communication-during-holds (reasonable-efforts obligation subject to law / card-network / fraud / regulatory carve-outs); §12 Governing Law adds explicit non-waivable-rights carve-out; §14 clarifies material-change notice — 30 days for material fees/user-obligation changes; immediate effectiveness for security, legal, fraud-prevention, or urgent technical/operational changes; fee changes deferred to Fee & Pricing Policy §12 (60-day rule).",
           "v2.4 \u2014 2026-06-30 \u2014 Second-round legal-review pass: §4 adds Maker responsibility for origin claims (Made in USA / Handmade / etc.); §5 clarifies that some payout holds are Stripe- or card-network-controlled; §6a clarifies that Operational AI does not authorize the Platform or any third-party ad provider to train commercial foundation models on Maker Content; §12 adds remote-first arbitration (video conference or written submissions by default), King County WA remains the legal seat.",
           "v2.3 \u2014 2026-06-30 \u2014 Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA acknowledgment). Deployed effective-date deployment hook so the effective date is injected at build time from REACT_APP_POLICY_EFFECTIVE_DATE instead of manually placed in each policy.",
           "v2.2 \u2014 2026-06-30 \u2014 Legal-review pass: §5 payout holds tied to Stripe lifecycle + limited operational triggers; §11 adds gross-negligence + willful-misconduct carve-out; §12 replaced placeholder with two-tier informal-then-arbitration structure, class-action waiver, small-claims carve-out, 30-day opt-out.",
@@ -245,7 +249,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">2.4</b>
+        <b className="text-ink">2.5</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -409,6 +413,7 @@ export const SECTIONS = [
           "The Effective Date and Last Updated values reflect the current version.",
           "Continued use of the Platform after the effective date of an update constitutes acceptance.",
           "This Policy supplements and is incorporated into the Terms of Service.",
+          "Non-waivable rights. Nothing in this Policy limits any non-waivable rights or protections provided under applicable law, including mandatory consumer-protection statutes in the Buyer's home jurisdiction. Where this Policy and applicable law conflict on a right that cannot be waived, the applicable law controls.",
         ],
       },
       {
@@ -443,7 +448,7 @@ export const SECTIONS = [
           and we will engage Marketplace Assistance under the Returns & Refunds Policy.
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.0</b>
+          <span>Version:</span> <b className="text-ink">3.1</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -453,6 +458,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.1 · 2026-06-30 — Final legal-hardening pass (v3): §15 adds explicit non-waivable-rights carve-out.</span>
           <br />
           <span>v3.0 · 2026-06-30 — Marketplace-specific rewrite. Removed assumption that Crafters Market is the carrier / warehouse. 15 numbered sections + future-shipping-features placeholder. Cross-referenced with ToS, Maker Agreement, Returns & Refunds, Privacy.</span>
           <br />
@@ -645,6 +652,7 @@ export const SECTIONS = [
           "The Effective Date and Last Updated values at the top of this Policy reflect the current version.",
           "Continued use of the Platform after the effective date of an update constitutes acceptance.",
           "Where required by law, we will obtain affirmative re-acceptance for material changes.",
+          "Non-waivable rights. Nothing in this Policy limits any non-waivable rights or protections provided under applicable law, including mandatory consumer-protection statutes in the Buyer's home jurisdiction. Where this Policy and applicable law conflict on a right that cannot be waived, the applicable law controls.",
         ],
       },
     ],
@@ -664,7 +672,7 @@ export const SECTIONS = [
           can engage Marketplace Assistance per Section 13.
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.0</b>
+          <span>Version:</span> <b className="text-ink">3.3</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -674,6 +682,10 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.3 · 2026-06-30 — Final legal-hardening pass (v3): §16 adds explicit non-waivable-rights carve-out.</span>
+          <br />
+          <span>v3.2 · 2026-06-30 — Second-round legal-review pass: §6 rewritten to separate 7-day transit-damage reporting recommendation from applicable return windows and Buyer Protection rights.</span>
           <br />
           <span>v3.0 · 2026-06-30 — Replaced retail-style policy with marketplace-specific framework. 16 numbered sections + Policy Hierarchy + Marketplace Assistance role clarified. Cross-referenced with ToS, Maker Agreement, Privacy Policy, Community Guidelines, Prohibited Items.</span>
           <br />
@@ -866,6 +878,7 @@ export const SECTIONS = [
         bullets: [
           "Buyer Protection is intended to support fair marketplace transactions but does not constitute an insurance program or guarantee.",
           "Nothing in this Policy modifies the legal relationship established in the Terms of Service or overrides applicable consumer-protection law.",
+          "Non-waivable rights. Nothing in this Policy limits any non-waivable rights or protections provided under applicable law, including mandatory consumer-protection statutes in the Buyer's home jurisdiction. Where this Policy and applicable law conflict on a right that cannot be waived, the applicable law controls.",
         ],
       },
       {
@@ -895,7 +908,7 @@ export const SECTIONS = [
           with subject \u201cBuyer Protection Case\u201d and the details listed in Section 6.
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">1.0</b>
+          <span>Version:</span> <b className="text-ink">1.1</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -905,6 +918,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v1.1 · 2026-06-30 — Final legal-hardening pass (v3): §15 Limitations adds explicit non-waivable-rights carve-out.</span>
           <br />
           <span>v1.0 · 2026-06-30 — First dedicated Buyer Protection Policy section. 16 numbered sections. Replaces the prior \u201cbuyer-protection\u201d alias that redirected to the Marketplace fees section. Cross-referenced with ToS, Maker Agreement, Returns &amp; Refunds, Shipping, Prohibited Items.</span>
         </p>
@@ -1136,7 +1151,9 @@ export const SECTIONS = [
       {
         heading: "8. Refunds, Chargebacks & Adjustments",
         bullets: [
-          "When an Order is refunded (in full or in part), Crafters Market refunds the corresponding portion of the item subtotal to the Buyer. The tier commission and the payment-processing fee on the refunded amount are also reversed and credited back to the Maker balance, except that (a) Stripe may retain a small processing fee on refunded transactions per its published schedule and (b) any Off-Site Advertising Fee on an off-site-ad sale is retained if the attribution has already been paid to the advertising network.",
+          "When an Order is refunded (in full or in part), Crafters Market refunds the corresponding portion of the item subtotal to the Buyer. The tier commission on the refunded amount is reversed and credited back to the Maker balance in accordance with this Policy.",
+          "Stripe payment-processing fees. Stripe payment-processing fees are governed by the payment processor (Stripe) and its published schedule. Stripe may retain a non-refundable portion of processing fees on refunded transactions; that portion is set by Stripe and may not be recoverable by the Platform or the Maker. Where Stripe retains a non-refundable processing fee, that portion is not credited back to the Maker balance.",
+          "Off-site ad fees on refunded attributed sales. Any Off-Site Advertising Fee on an off-site-ad-attributed sale is retained if the corresponding advertising cost has already been paid to the advertising network at the time of refund.",
           "For chargebacks initiated by a Buyer's card issuer, Crafters Market will attempt to resolve the dispute with the Buyer, the Maker, and Stripe. If a chargeback is lost or settled in favor of the Buyer, the disputed amount is debited from the Maker balance, along with any chargeback fee levied by the card network or Stripe.",
           "Marketplace-Assistance refunds funded by Crafters Market under the Buyer Protection Policy are handled per that policy. Where the Platform funds a Buyer refund because the Maker did not fulfill a contested Order, Crafters Market may recover the refunded amount from future Maker payouts.",
           "Any adjustment (fee correction, chargeback reversal, bonus credit, promotional refund) will be recorded on the Maker's Payout & Fees statement in the Maker Dashboard. Makers may raise a fee dispute in writing within 60 days of the payout statement in which the item appeared.",
@@ -1149,6 +1166,7 @@ export const SECTIONS = [
           "The first payout for a new Maker may be delayed by Stripe until identity and bank verification are complete.",
           "Payout holds initiated by Crafters Market are limited to the operational triggers described in Terms of Service §5 and Maker Agreement §14: Stripe risk/compliance, fraud investigation, active chargeback or dispute, identity-verification review, or an active legal/regulatory inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue.",
           "Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. Those holds are governed by Stripe's Connected Account Agreement and the applicable card-network rules.",
+          "Communication during holds. Crafters Market will make reasonable efforts to inform the Maker of the general reason for a payout hold, unless prohibited by law, card-network rules, an ongoing fraud investigation, or a regulatory requirement. We do not commit to any specific evidence, documentation, or notice threshold beyond what is reasonably practical under the circumstances.",
           "Funds not subject to a legitimate hold trigger continue to release on the normal payout cadence.",
         ],
       },
@@ -1175,8 +1193,9 @@ export const SECTIONS = [
           "Crafters Market may update this Fee & Pricing Policy from time to time to reflect changes in commissions, listing fees, subscription pricing, advertising fees, or any other commercial term.",
           "Changes will apply prospectively — never retroactively to a completed sale.",
           "Fee increases and new fees. We will provide at least sixty (60) days' advance notice of any change that increases an existing fee or introduces a new fee, via email to the address on file for the Maker account and via an in-Dashboard notice.",
+          "Click-acceptance for material fee increases. Where a fee change materially increases the Maker's cost of selling on the Platform, we may require you to review and click-accept the updated Policy before creating new Listings or receiving payouts on or after the effective date. Click-acceptance is stronger evidence of contractual acceptance than continued use alone and does not replace the notice period in the preceding bullet.",
           "Fee reductions and promotional pricing. Fee reductions, promotional discounts, waived fees, temporary rate cuts, and other Maker-favorable changes may take effect immediately or on a shorter notice window, at Crafters Market's discretion. We will still record the change in this Policy's revision history.",
-          "Continued use of the Platform after the applicable notice period constitutes acceptance of the updated Policy. If you do not agree to a fee increase or new fee, you may cancel Crafters Plus, pause your Shop, or close your Maker account before the change takes effect. Any Founding Seller fee protections continue to be governed by the Maker Agreement §4.",
+          "Continued use of the Platform after the applicable notice period (and, where required, click-acceptance of a material increase) constitutes acceptance of the updated Policy. If you do not agree to a fee increase or new fee, you may cancel Crafters Plus, pause your Shop, or close your Maker account before the change takes effect. Any Founding Seller fee protections continue to be governed by the Maker Agreement §4.",
           "The current version of this Policy always lives at /policies/fee-pricing. Prior versions are summarized in the Revision History section of this document.",
         ],
       },
@@ -1198,7 +1217,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">1.1</b>
+        <b className="text-ink">1.2</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -1386,6 +1405,7 @@ export const SECTIONS = [
           "Standard payout schedule is set by Stripe\u2019s defaults unless you adjust it in your Stripe Express dashboard.",
           "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue, including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger are released on the normal payout cadence.",
           "Stripe- or card-network-controlled holds. Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. In those cases, resolution is governed by Stripe's Connected Account Agreement and the applicable card-network rules, and we will assist you with information and cooperation where reasonably practical.",
+          "Communication during holds. Crafters Market will make reasonable efforts to inform you of the general reason for a payout hold, unless prohibited by law, card-network rules, an ongoing fraud investigation, or a regulatory requirement. We do not commit to any specific evidence, documentation, or notice threshold beyond what is reasonably practical under the circumstances.",
           "Reserves: we may require a rolling reserve on payouts for accounts with elevated dispute or chargeback risk.",
           "Negative balances: if refunds or chargebacks exceed pending payouts, the resulting negative balance must be settled by you. We may recover negative balances from subsequent payouts or, if necessary, by direct collection.",
           "Failed transfers: if a payout to your bank fails, we will retry per Stripe\u2019s retry schedule; persistent failure may pause payouts until banking information is corrected.",
@@ -1530,7 +1550,7 @@ export const SECTIONS = [
         heading: "27. Governing Law & Dispute Resolution (Maker-Specific)",
         bullets: [
           "This Section mirrors the dispute-resolution framework in the Terms of Service §12 so that this Agreement is enforceable on its own without cross-reference. In the event of a conflict between this Section and Terms of Service §12, this Section controls with respect to Maker-Platform disputes; the Terms control with respect to Buyer-Platform disputes.",
-          "Governing Law. This Agreement is governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules.",
+          "Governing Law. This Agreement is governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules. Nothing in this Section limits any non-waivable rights or protections provided under applicable law, including any mandatory consumer-protection or seller-protection statutes in the Maker's home jurisdiction.",
           "Step 1 \u2014 Informal Resolution (30 days). Before initiating any formal proceeding against Crafters Market under this Agreement, you agree to first send a written description of your dispute to policy@craftersmarket.org and give Crafters Market 30 days to attempt an informal resolution.",
           "Step 2 \u2014 Mandatory, Individual Arbitration. If a Maker-Platform dispute is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules (or Consumer Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Arbitration will be administered remotely by default (video conference or written submissions) unless the arbitrator determines that an in-person hearing is necessary. Judgment on the award may be entered in any court of competent jurisdiction.",
           "Class-Action Waiver. You and Crafters Market each agree to bring Maker-Platform claims only in an individual capacity, and not as a plaintiff or class member in any purported class, collective, consolidated, mass, or representative proceeding. The arbitrator has no authority to conduct any class, collective, or representative proceeding.",
@@ -1595,7 +1615,7 @@ export const SECTIONS = [
           </a>
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.4</b>
+          <span>Version:</span> <b className="text-ink">3.5</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -1605,6 +1625,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.5 · 2026-06-30 — Final legal-hardening pass (v3): §14 Communication-during-holds (reasonable-efforts obligation subject to law / card-network / fraud / regulatory carve-outs); §27 Governing Law adds explicit non-waivable-rights carve-out (including any mandatory seller-protection statute in the Maker&rsquo;s home jurisdiction).</span>
           <br />
           <span>v3.4 · 2026-06-30 — Second-round legal-review pass: §10a clarifies that Operational AI does NOT authorize the Platform or any third-party ad provider to train commercial foundation models on Maker Content; §14 clarifies that some payout holds are Stripe- or card-network-controlled; §27 adds remote-first arbitration (video/written by default), King County WA remains the legal seat.</span>
           <br />
@@ -2476,10 +2498,15 @@ export const SECTIONS = [
       },
       {
         heading: "14. AI-Generated Content",
+        text: "How Crafters Market distinguishes AI-assisted creative work from materially AI-generated work, and what must be disclosed:",
         bullets: [
+          "AI-assisted means AI was used only as a tool to assist the Maker's own creative process. Examples: grammar correction, spelling and translation, background removal, minor image cleanup, keyword or tag generation, SEO or listing-copy assistance, or brainstorming. AI-assisted work does not require an AI-disclosure tag on the Listing.",
+          "Materially AI-generated means the primary artistic expression or the final product was substantially created by generative AI rather than by the Maker. Examples: prompt-generated artwork printed onto a product, an AI-generated pattern used as the primary design, or a product whose distinguishing creative element was produced by AI rather than by the Maker.",
+          "Listings that are materially AI-generated must be clearly disclosed as such in the Listing title or description. Non-disclosure of a materially AI-generated Listing is a violation of this Policy and the Maker Agreement.",
+          "Crafters Market intentionally does not use a numeric percentage threshold (e.g., \u201c50% AI\u201d). Percentages create loopholes and are difficult to enforce. The test is whether the primary artistic expression or final product was substantially created by AI or by the Maker.",
           "AI-assisted work is permitted when: (a) the Maker has the legal right to use the resulting content; (b) no third-party intellectual property is infringed by the AI output; and (c) Listings accurately represent the product being sold and disclose AI-generation where the work is materially AI-generated rather than merely AI-assisted.",
           "AI cannot be used to circumvent the handmade / handcrafted / designed-by-Maker categories defined in the Maker Agreement \u00a77.",
-          "Makers remain responsible for all AI-assisted content they publish, including copyright, trademark, publicity, and training-set-license compliance.",
+          "Makers remain responsible for all AI-assisted and AI-generated content they publish, including copyright, trademark, publicity, and training-set-license compliance.",
         ],
       },
       {
@@ -2568,7 +2595,7 @@ export const SECTIONS = [
           — subject line \u201cPolicy Report\u201d speeds triage.
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.0</b>
+          <span>Version:</span> <b className="text-ink">3.2</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -2578,6 +2605,10 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.2 · 2026-06-30 — Final legal-hardening pass (v3): §14 AI-Generated Content rewritten to codify the AI-assisted vs. materially-AI-generated distinction (no numeric percentage threshold — the test is whether the primary artistic expression or final product was substantially created by AI or by the Maker). Adds concrete examples and required-disclosure rule.</span>
+          <br />
+          <span>v3.1 · 2026-06-30 — Second-round legal-review pass: §12 adds Maker responsibility for origin claims (Made in USA / Handmade / etc.); Platform reserves moderation authority.</span>
           <br />
           <span>v3.0 · 2026-06-30 — Original marketplace-specific policy. 20 numbered sections + Future Categories block. Cross-referenced with ToS, Maker Agreement, Returns &amp; Refunds, IP Policy.</span>
           <br />
