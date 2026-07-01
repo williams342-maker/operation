@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { FileText, Truck, RotateCcw, ShieldCheck, Lock, Ban, Users, Copyright, Cookie, Handshake, Sparkles } from "lucide-react";
+import { FileText, Truck, RotateCcw, ShieldCheck, Lock, Ban, Users, Copyright, Cookie, Handshake, Sparkles, Receipt } from "lucide-react";
 import {
   CORE_POLICIES,
   OPERATIONAL_POLICIES,
@@ -22,6 +22,7 @@ const ICON_BY_SLUG = {
   "prohibited-items": Ban,
   "community-guidelines": Users,
   "ip-dmca": Copyright,
+  "fee-pricing": Receipt,
   "marketplace-promise": Sparkles,
   "privacy-at-a-glance": Lock,
 };

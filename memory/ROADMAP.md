@@ -32,9 +32,7 @@ Engineering ship approval received 2026-06-30. **Locked release sequence** below
    `_SIGNUP`, `_PURCHASE`) once user retrieves them; also update any GTM/gtag
    event mappings and server-side conversion events.
 5. Verify conversion telemetry end-to-end (test funnel event → Google Ads dashboard).
-6. **P1 — Publish Fee & Pricing Policy** at `/policies/fee-pricing`. Highest
-   post-launch engineering priority. Prevents commission changes from
-   requiring edits across multiple documents.
+6. ~~**P1 — Publish Fee & Pricing Policy** at `/policies/fee-pricing`~~ → **SHIPPED 2026-06-30 (iter413fp)**. v1.0 standalone Operational Policy: commissions, listing fees, Crafters Plus subscription, Stripe payment-processing, off-site ad fees, Promoted Listings, refunds/chargebacks/adjustments, payout timing, marketplace-facilitator sales tax, prospective-change (30-day notice), and cross-refs to Terms/Maker Agreement/Returns/Buyer Protection/Shipping. Counsel Review Packet regenerated to 127 pages (was 117). Prevents commission changes from requiring edits across multiple documents.
 7. **P2 — Cookie Preference Center**. Improves privacy compliance and gives
    users granular consent controls without changing the underlying legal
    policies.

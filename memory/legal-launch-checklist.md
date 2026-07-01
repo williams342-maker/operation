@@ -86,17 +86,19 @@
 | Approved by | Pending final counsel sign-off |
 | Approval date | — |
 
-### 6a. DMCA Agent Registration (OPERATIONAL BLOCKER)
+### 6a. DMCA Agent Registration (COMPLETED)
 
 | Field | Value |
 | --- | --- |
-| Task | 🔴 **Register Crafters Market's Designated DMCA Agent with the U.S. Copyright Office before public launch.** |
+| Task | ✅ **Register Crafters Market's Designated DMCA Agent with the U.S. Copyright Office before public launch.** |
 | Where | https://dmca.copyright.gov/osp/ |
-| Cost | ~$6 for a 3-year filing |
-| Deliverable | (a) DMCA Agent registered; (b) Postal address published on the IP & DMCA Policy page; (c) dmca@craftersmarket.org inbox provisioned and routed to Legal/Trust & Safety. |
-| Status | 🔴 Not started — must complete before public launch |
+| Registration Number | **DMCA-1074892** · Active · Effective 2026-06-30 |
+| Designated Agent | Micheal Williams · 1864 North Cutter Place, Oak Harbor, WA 98277 · williams342@gmail.com · (360) 507-6178 |
+| Deliverable | ✅ (a) DMCA Agent registered; ✅ (b) Postal address + email + phone published on the IP & DMCA Policy page (§2); ✅ (c) Attorney note cleared and implementation note updated. |
+| Status | ✅ Complete |
 | Owner | Founder |
-| Completion date | — |
+| Completion date | 2026-06-30 |
+| Renewal reminder | U.S. Copyright Office DMCA registrations must be renewed every 3 years — next renewal due 2029-06. Add to quarterly-review cadence tracking. |
 
 ### 7. FTC Marketplace Language
 
@@ -186,7 +188,7 @@
 
 ## Post-Launch Roadmap (locked order — see ROADMAP.md)
 
-1. ⏳ Publish `/policies/fee-pricing` — highest post-launch engineering priority
+1. ✅ Publish `/policies/fee-pricing` — completed 2026-06-30. Standalone Fee & Pricing Policy v1.0 published; extracted from Terms §5 and Maker Agreement §14 into a single source of truth. See PolicyPage.jsx `fee-pricing` section and manifest entry.
 2. ⏳ Cookie Preference Center
 3. ⏳ Maker Agreement versioned acceptance (with IP + UA audit trail — design locked in `maker-agreement-acceptance-design.md`)
 4. ⏳ **INFORM Consumers Act automation** — auto-comply once sellers cross the threshold (200+ new sellers or $5k+ gross revenue in continuous 12 months). New backlog item as of 2026-06-30.
@@ -216,6 +218,7 @@ Append rows as items are completed and approved.
 | 2026-06-30 | First-pass legal review | Rocket Lawyer | 12-doc bundled packet reviewed; directional guidance received |
 | 2026-06-30 | AI Policy Clarification (Item 5) | Founder | Company philosophy confirmed |
 | 2026-06-30 | Legal Launch Checklist created | Founder + Emergent | This document |
+| 2026-06-30 | Fee & Pricing Policy v1.0 published | Founder + Emergent | Standalone `/policies/fee-pricing` — extracted from Terms §5 and Maker Agreement §14; added refund/chargeback/adjustments, payout timing, prospective-change clause, marketplace-facilitator tax section |
 | _pending_ | Final counsel sign-off (all items) | _(counsel)_ | _blocked on updated packet PDF regen_ |
 | _pending_ | DMCA Agent registration (Item 6a) | Founder | _operational task before launch_ |
 | _pending_ | Effective date substitution (Item 9) | Engineering + Founder | _at deployment_ |

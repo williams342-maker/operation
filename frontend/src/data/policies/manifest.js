@@ -61,7 +61,7 @@ export const POLICIES = [
     ],
     implementation_notes: [
       "Effective date will be set at production launch — do not hardcode a specific date until deployment.",
-      "Wire link to Fee & Pricing Policy once that page is published.",
+      "Fee & Pricing Policy published at /policies/fee-pricing (v1.0, 2026-06-30) — the cross-reference in Terms §5 now resolves to the standalone document.",
       "Verify Stripe Connected Account Agreement URL still resolves.",
       "Section 6a AI Use cross-references Maker Agreement §10a and Privacy Policy §11 — verify anchors match after any future renumbering.",
       "Section 12 opt-out inbox (policy@craftersmarket.org) must be provisioned before launch and monitored during the opt-out window.",
@@ -376,32 +376,71 @@ export const POLICIES = [
 
   // ---------------------- OPERATIONAL POLICIES ----------------------
   {
+    slug: "fee-pricing",
+    section_id: "fee-pricing",
+    title: "Fee & Pricing Policy",
+    short_title: "Fee & Pricing",
+    category: "operational",
+    version: "1.0",
+    effective_date: POLICY_EFFECTIVE_DATE,
+    last_updated: "2026-06-30",
+    description:
+      "The single source of truth for Crafters Market commercial terms: commissions, listing fees, Crafters Plus subscription, payment-processing fees, off-site advertising fees, Promoted Listings, refund/chargeback handling, payout timing, and marketplace-facilitator sales tax. Prospective-only fee changes with 30-day advance notice.",
+    related: ["terms", "maker-agreement", "returns", "buyer-protection", "shipping"],
+    revision_history: [
+      { version: "1.0", date: "2026-06-30", summary: "Initial standalone Fee & Pricing Policy. Extracted from the legacy 'Makers Market — Fee & Commission Policy' block and consolidated with previously-scattered fee language from Terms §5 and Maker Agreement §14. Adds explicit refund/chargeback handling, payout-timing references, marketplace-facilitator tax section, prospective-change clause (30-day advance notice), currency/FX section, and Founding-Seller-benefits-as-discount-on-tier framing." },
+    ],
+    keywords: ["fees", "pricing", "commission", "listing fee", "subscription", "crafters plus", "founding seller", "stripe", "payment processing", "off-site ad fee", "off-site advertising", "promoted listing", "refund", "chargeback", "adjustment", "payout", "payout timing", "marketplace facilitator", "sales tax", "prospective change", "notice", "usd", "currency", "fx"],
+    attorney_notes: [
+      { section: "Section 2 — Fee Schedule", note: "Confirm the disclosed fee schedule (5%/4% commission, 3% processing, $0.20 listing fee, $12/mo Crafters Plus, 12% off-site ad fee, $5/week Promoted Listing) matches the operational rates configured in Stripe and the Maker Dashboard before launch." },
+      { section: "Section 3 — Founding Seller Program", note: "Confirm the 'benefits as discount on top of the tier' framing. If a Founding Seller cohort receives a specific fixed commission percentage, add that to §3 explicitly for that cohort." },
+      { section: "Section 6 — Off-Site Advertising Fee", note: "Confirm the 12% off-site-ad fee replaces (not stacks on) the tier commission on attributed sales. Confirm the attribution window language should be more specific (e.g., '30-day click attribution')." },
+      { section: "Section 8 — Refunds, Chargebacks & Adjustments", note: "Confirm the retention of the Off-Site Advertising Fee on refunded attributed sales when the advertising cost has already been paid to the network. Confirm the 60-day Maker fee-dispute window." },
+      { section: "Section 10 — Marketplace-Facilitator Sales Tax", note: "Confirm marketplace-facilitator obligations across active state/VAT/GST regimes and align with Terms §13. Operational verification with the payment processor is tracked separately." },
+      { section: "Section 12 — Changes to This Policy", note: "Confirm 30-day advance notice is sufficient. Some marketplaces use 60 days for fee increases and 15 days for reductions. Confirm the 'continued use = acceptance' framing is enforceable in the jurisdictions where Makers reside." },
+    ],
+    implementation_notes: [
+      "Effective date will be set at production launch — do not hardcode a specific date until deployment.",
+      "Wire the Maker Dashboard 'Payout & Fees statement' referenced in Section 8 to the actual statement UI once built (post-Phase D backlog).",
+      "Wire a Maker-facing notification hook that pushes any fee change to email and Maker Dashboard 30 days before the effective date (post-Phase D backlog).",
+      "Ensure the 'first 10 free lifetime Listings' counter in the Maker Dashboard does not refresh when Listings are deleted (Free tier).",
+      "Ensure the 'first 15 free monthly new Listings' counter resets on the 1st of each calendar month (Crafters Plus tier) and does not roll over.",
+    ],
+    cross_ref_checklist: [
+      "Terms of Service",
+      "Maker Agreement",
+      "Buyer Protection Policy",
+      "Returns & Refunds Policy",
+      "Shipping & Logistics Policy",
+    ],
+  },
+
+  {
     slug: "ip-dmca",
     section_id: "ip",
     title: "Intellectual Property & DMCA Policy",
     short_title: "IP & DMCA",
     category: "operational",
-    version: "2.0",
+    version: "2.1",
     effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
-      "How to report copyright infringement (DMCA), how counter-notices work, how trademark and other IP claims are handled, and how repeat-infringer accounts are handled on Crafters Market.",
+      "How to report copyright infringement (DMCA), how counter-notices work, how trademark and other IP claims are handled, and how repeat-infringer accounts are handled on Crafters Market. Designated Agent registered with the U.S. Copyright Office (Registration DMCA-1074892).",
     related: ["terms", "maker-agreement", "prohibited-items", "community-guidelines"],
     revision_history: [
-      { version: "2.0", date: "2026-06-30", summary: "Legal-review pass: expanded from stub to full DMCA safe-harbor policy. Added Designated DMCA Agent contact, formal notice requirements per 17 U.S.C. § 512, counter-notice procedure with 10-14 business day window, § 512(i) repeat-infringer policy (3 substantiated notices / 12 months → permanent removal), parallel trademark process, rights-holder cooperation clause." },
+      { version: "2.1", date: "2026-06-30", summary: "Designated DMCA Agent registration with the U.S. Copyright Office confirmed (Registration DMCA-1074892, effective 2026-06-30). §2 updated with registered agent contact information. Cleared the pending-registration attorney note and implementation note." },
+      { version: "2.0", date: "2026-06-30", summary: "Legal-review pass: expanded from stub to full DMCA safe-harbor policy. Added Designated DMCA Agent section, formal notice requirements per 17 U.S.C. § 512, counter-notice procedure with 10-14 business day window, § 512(i) repeat-infringer policy (3 substantiated notices / 12 months → permanent removal), parallel trademark process, rights-holder cooperation clause." },
       { version: "1.0", date: "2026-06-30", summary: "Initial published DMCA framework (stub)." },
     ],
     keywords: ["dmca", "copyright", "trademark", "infringement", "takedown", "counter notice", "designated agent", "repeat infringer", "safe harbor", "512", "u.s. copyright office"],
     attorney_notes: [
-      { section: "Designated Agent Registration", note: "OPERATIONAL BLOCKER — Register Crafters Market's Designated DMCA Agent with the U.S. Copyright Office before public launch. Cost: ~$6 (3-year filing). Publish postal address on the policy page once registered." },
       { section: "Counter-Notice Procedure", note: "IMPLEMENTED 10–14 business day put-back window per 17 U.S.C. § 512." },
       { section: "Repeat-Infringer Threshold", note: "IMPLEMENTED 3 substantiated notices / 12 months → permanent removal. Confirm counsel is comfortable with the threshold." },
       { section: "Trademark", note: "IMPLEMENTED parallel-but-distinct trademark takedown process. DMCA covers copyright only." },
     ],
     implementation_notes: [
-      "Register Designated DMCA Agent with U.S. Copyright Office (dmca.copyright.gov/osp) before launch — this is an operational task, not just documentation.",
-      "Provision dmca@craftersmarket.org inbox and route to Legal/Trust & Safety.",
-      "Publish designated-agent postal address on the policy page once registration is complete.",
+      "Route incoming email/postal DMCA notices to the Designated Agent (Micheal Williams) and to Legal/Trust & Safety.",
+      "Maintain the U.S. Copyright Office registration renewal (3-year cycle) — next renewal due 2029.",
     ],
     cross_ref_checklist: [
       "Terms of Service",

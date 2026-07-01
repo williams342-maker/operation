@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ChevronDown, FileText, Truck, RotateCcw, Wand2, Boxes, CreditCard,
   ShieldCheck, Lock, Ban, Copyright, AlertTriangle, UserX, Mail, Handshake,
-  Users,
+  Users, Receipt,
 } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 import { POLICY_EFFECTIVE_DATE } from "../data/policies/effectiveDate";
@@ -1045,6 +1045,159 @@ export const SECTIONS = [
       tone: "info",
       text: "All Makers Market participants are vetted and approved by Crafters Market. Maker Shop pages include their individual Shop Policies. We encourage Buyers to review a Maker's Shop Policy before purchasing.",
     },
+  },
+
+  // iter413fp — Fee & Pricing Policy v1.0 (2026-06-30). Consolidated,
+  // standalone commercial-terms document. Existed previously as a
+  // sub-block inside the "marketplace" section; extracted here so that
+  // pricing changes don't require editing Terms, Maker Agreement, or
+  // multiple other documents.
+  //
+  // Cross-refs: Terms §5 (Fees, Payments & Payouts), Maker Agreement §14
+  // (Fees & Stripe Connect), Returns & Refunds Policy, Buyer Protection
+  // Policy, Shipping & Logistics Policy.
+  {
+    id: "fee-pricing",
+    icon: Receipt,
+    title: "Fee & Pricing Policy",
+    intro: "This Fee & Pricing Policy is the single source of truth for the commercial terms of selling on Crafters Market: commissions, listing fees, subscription fees, payment-processing fees, optional advertising fees, refund/chargeback handling, and payout timing. It supplements (and where more specific, controls over) the Fee-related sections of the Terms of Service and the Maker Agreement.",
+    blocks: [
+      {
+        heading: "1. Who This Policy Applies To",
+        bullets: [
+          "This Policy applies to every approved Maker on Crafters Market, including Founding Sellers, Free-tier Makers, and Crafters Plus subscribers.",
+          "Buyers do not pay Platform fees. Buyers pay the item price, any Maker-set shipping, and any applicable sales tax collected by Crafters Market as a marketplace facilitator or by the Maker where required.",
+          "All fees below are calculated on the item subtotal in U.S. dollars, excluding shipping and sales tax, unless otherwise stated.",
+        ],
+      },
+      {
+        heading: "2. Fee Schedule at a Glance",
+        list: [
+          ["Free tier — commission:", "5% of the item subtotal on each completed sale."],
+          ["Free tier — listing fee:", "First 10 active Listings are free for the lifetime of the account. Each additional new Listing or renewal is $0.20."],
+          ["Free tier — monthly fee:", "$0. No subscription required."],
+          ["Crafters Plus — commission:", "4% of the item subtotal (1% lower than Free tier)."],
+          ["Crafters Plus — listing fee:", "First 15 new Listings each calendar month are free. Each additional new Listing or renewal is $0.20."],
+          ["Crafters Plus — subscription:", "$12 / month, billed via Stripe. Auto-renews monthly; cancel any time from the Maker Dashboard. Cancellation takes effect at the end of the current billing period."],
+          ["Payment processing (all tiers):", "3% of the item subtotal, retained to cover Stripe payment-processing costs. Applies to every completed sale."],
+          ["Total deducted per sale:", "Free tier: 8% (5% commission + 3% processing). Crafters Plus: 7% (4% commission + 3% processing)."],
+          ["Off-site advertising fee:", "12% of the item subtotal on sales attributable to Crafters Market off-site ad campaigns (Google, Meta). Charged only when an off-site ad directly drives the sale — see Section 6 below."],
+          ["Promoted Listing fee:", "$5 / week per promoted Listing. Opt-in only; you control which Listings are promoted and when."],
+        ],
+      },
+      {
+        heading: "3. Founding Seller Program",
+        bullets: [
+          "Founding Sellers are the Version 1 cohort of Makers admitted to Crafters Market. Founding Seller benefits are described in the Maker Agreement §4 (Founding Seller Program) and may include preferred placement, reduced fees, or inaugural perks announced for the cohort.",
+          "Any Founding Seller fee reduction (for example, a temporary commission discount) is layered on top of the tier that Founding Seller has selected (Free or Crafters Plus). Founding Seller benefits are a discount on the schedule in Section 2, not a separate tier.",
+          "Founding Seller benefits are personal to the Maker account, non-transferable, and may be revoked, modified, or ended at Crafters Market's sole discretion per the Maker Agreement §4.",
+        ],
+      },
+      {
+        heading: "4. Payment Processing (Stripe)",
+        bullets: [
+          "All Buyer payments are processed by Stripe (and any successor payment processor). By accepting Orders you agree to Stripe's Connected Account Agreement and Services Agreement, in addition to the Terms of Service and the Maker Agreement.",
+          "The 3% payment-processing fee in Section 2 is retained by Crafters Market to cover the payment-processor charges we incur on your sale (interchange, network fees, Stripe processing fees, and platform-processing overhead). It is not an additional profit line item.",
+          "Stripe may hold, reserve, or freeze funds independently of Crafters Market as required by its risk, compliance, and reserve programs. Those Stripe-initiated holds are governed by Stripe's own agreements, not this Policy.",
+        ],
+      },
+      {
+        heading: "5. Listing Fees",
+        bullets: [
+          "A Listing fee is charged when you publish a new Listing beyond your tier's free allowance, or when you renew a Listing that has expired.",
+          "Free tier: the first 10 active Listings on the account are free for the lifetime of the account. After the 10th active Listing, each new Listing or renewal is $0.20. If you delete a Listing that is inside the first 10, the free-Listing count does not refresh.",
+          "Crafters Plus tier: the first 15 new Listings each calendar month are free. After the 15th new Listing that month, each additional new Listing or renewal is $0.20. The 15-Listing allowance resets on the 1st of each calendar month and does not roll over.",
+          "Listing-fee charges accrue to a Maker balance and are settled against your next payout. Crafters Market does not bill your card for Listing fees on the Free tier; the Crafters Plus $12 monthly fee is billed to your saved card on the anniversary of your subscription start.",
+          "Listing fees are non-refundable when you delete a Listing that has already been published, except as required by law.",
+        ],
+      },
+      {
+        heading: "6. Off-Site Advertising Fee",
+        bullets: [
+          "Crafters Market runs paid advertising for Maker Listings across off-platform surfaces including Google, Meta, Pinterest, and TikTok. When one of those ad clicks results in a completed sale within the attribution window, that sale is treated as an off-site-ad sale.",
+          "The Off-Site Advertising Fee is 12% of the item subtotal, applied only on sales attributed to a Crafters Market off-site ad campaign. It replaces (does not stack on top of) the standard commission on that sale.",
+          "The 3% payment-processing fee still applies on off-site-ad sales; total deduction on an attributed sale is 15% (12% off-site ad fee + 3% processing).",
+          "Off-site advertising is a marketplace-run program and is not opt-in per Maker at this time. If we introduce an opt-out mechanism, it will be documented here and in the Maker Agreement.",
+          "For clarity: sales that are not attributed to a Crafters Market off-site ad campaign remain on the standard tier commission (5% Free / 4% Plus).",
+        ],
+      },
+      {
+        heading: "7. Promoted Listings",
+        bullets: [
+          "Promoted Listings are an optional, opt-in Maker product that gives your Listing preferred placement on Crafters Market search and category pages.",
+          "The fee is $5 per week per promoted Listing, charged in advance and non-refundable once the promotion window has started.",
+          "You choose which Listings to promote, when to start, and when to stop. Promoted Listings do not carry any additional commission — the standard tier commission on Section 2 still applies to sales that come from a Promoted Listing.",
+        ],
+      },
+      {
+        heading: "8. Refunds, Chargebacks & Adjustments",
+        bullets: [
+          "When an Order is refunded (in full or in part), Crafters Market refunds the corresponding portion of the item subtotal to the Buyer. The tier commission and the payment-processing fee on the refunded amount are also reversed and credited back to the Maker balance, except that (a) Stripe may retain a small processing fee on refunded transactions per its published schedule and (b) any Off-Site Advertising Fee on an off-site-ad sale is retained if the attribution has already been paid to the advertising network.",
+          "For chargebacks initiated by a Buyer's card issuer, Crafters Market will attempt to resolve the dispute with the Buyer, the Maker, and Stripe. If a chargeback is lost or settled in favor of the Buyer, the disputed amount is debited from the Maker balance, along with any chargeback fee levied by the card network or Stripe.",
+          "Marketplace-Assistance refunds funded by Crafters Market under the Buyer Protection Policy are handled per that policy. Where the Platform funds a Buyer refund because the Maker did not fulfill a contested Order, Crafters Market may recover the refunded amount from future Maker payouts.",
+          "Any adjustment (fee correction, chargeback reversal, bonus credit, promotional refund) will be recorded on the Maker's Payout & Fees statement in the Maker Dashboard. Makers may raise a fee dispute in writing within 60 days of the payout statement in which the item appeared.",
+        ],
+      },
+      {
+        heading: "9. Payout Timing",
+        bullets: [
+          "Payouts are issued via Stripe Connect to the Maker's verified bank account on the payout schedule configured in the Maker's Stripe account (default: daily rolling with a standard delay for new sellers; see Stripe's documentation).",
+          "The first payout for a new Maker may be delayed by Stripe until identity and bank verification are complete.",
+          "Payout holds initiated by Crafters Market are limited to the operational triggers described in Terms of Service §5 and Maker Agreement §14: Stripe risk/compliance, fraud investigation, active chargeback or dispute, identity-verification review, or an active legal/regulatory inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue.",
+          "Funds not subject to a legitimate hold trigger continue to release on the normal payout cadence.",
+        ],
+      },
+      {
+        heading: "10. Sales Tax & Marketplace-Facilitator Obligations",
+        bullets: [
+          "In U.S. states that treat Crafters Market as a marketplace facilitator, Crafters Market collects and remits sales tax on qualifying Orders on the Maker's behalf. Marketplace-facilitator sales tax is added to the Buyer's total at checkout and does not reduce the Maker payout.",
+          "In jurisdictions where Crafters Market is not a marketplace facilitator, the Maker remains responsible for collecting and remitting the tax due on the Maker's own sales.",
+          "Sales tax is not part of the item subtotal on which commissions and fees are calculated (see Section 1). Sales tax is passed through and does not increase Maker or Platform revenue.",
+          "For international Orders, Buyers are the importer of record and are responsible for any duties, VAT/GST, or customs fees, as described in the Shipping & Logistics Policy.",
+        ],
+      },
+      {
+        heading: "11. Currency, FX & Payment Methods",
+        bullets: [
+          "All prices on Crafters Market are set and quoted in U.S. dollars (USD) at Version 1. All fees and payouts are settled in USD.",
+          "If the marketplace introduces additional currencies or Maker-side payout currencies, this Policy will be updated with the FX handling and any conversion fees before the change takes effect.",
+          "Accepted Buyer payment methods are listed in the Payment Policy section of the site and include Visa, Mastercard, American Express, Discover, Apple Pay, Google Pay, and Stripe Link.",
+        ],
+      },
+      {
+        heading: "12. Changes to This Policy",
+        bullets: [
+          "Crafters Market may update this Fee & Pricing Policy from time to time to reflect changes in commissions, listing fees, subscription pricing, advertising fees, or any other commercial term.",
+          "Changes will apply prospectively — never retroactively to a completed sale. We will provide at least 30 days' advance notice of any change that increases fees or introduces a new fee, via email to the address on file for the Maker account and via an in-Dashboard notice.",
+          "Continued use of the Platform after the notice period constitutes acceptance of the updated Policy. If you do not agree to the change, you may cancel Crafters Plus, pause your Shop, or close your Maker account before the change takes effect. Any Founding Seller fee protections continue to be governed by the Maker Agreement §4.",
+          "The current version of this Policy always lives at /policies/fee-pricing. Prior versions are summarized in the Revision History section of this document.",
+        ],
+      },
+      {
+        heading: "13. Related Policies & Cross-References",
+        bullets: [
+          "Terms of Service §5 — Fees, Payments & Payouts (the underlying contractual authority for this Policy).",
+          "Maker Agreement §14 — Fees & Stripe Connect (Maker-specific fee obligations, payout holds, and offset rights).",
+          "Buyer Protection Policy — when Crafters Market funds a refund and when it recovers that amount from the Maker.",
+          "Returns & Refunds Policy — how returns, exchanges, and refunds are processed and how they interact with commissions and processing fees.",
+          "Shipping & Logistics Policy — risk of loss, carrier responsibility, and international-duty handling; shipping revenue is separate from the item-subtotal fee schedule in this Policy.",
+        ],
+      },
+    ],
+    callout: {
+      tone: "info",
+      text: "This Policy is the definitive source for Crafters Market fees. Where any other document summarizes fees for context, this Policy controls if there is a conflict.",
+    },
+    outro: (
+      <>
+        <span className="text-ink-muted">Version:</span>{" "}
+        <b className="text-ink">1.0</b>
+        <span className="text-ink-muted"> · Last updated:</span>{" "}
+        <b className="text-ink">2026-06-30</b>
+        <span className="text-ink-muted"> · Effective:</span>{" "}
+        <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
+      </>
+    ),
   },
 
   // iter413dl — Maker Agreement v3.0. Expanded from owner-uploaded v2.1
@@ -2439,19 +2592,43 @@ export const SECTIONS = [
         heading: "2. Designated DMCA Agent",
         text: (
           <>
-            Crafters Market has designated an agent to receive notifications of
-            claimed copyright infringement under the U.S. Digital Millennium
-            Copyright Act (DMCA), 17 U.S.C. § 512. Send DMCA notices and
-            counter-notices to: <b>DMCA Agent, Crafters Market</b>, email{" "}
+            Crafters Market has registered a Designated DMCA Agent with the
+            U.S. Copyright Office under the U.S. Digital Millennium Copyright
+            Act (DMCA), 17 U.S.C. § 512.
+            <br />
+            <br />
+            <b>Registration Status:</b> Active · Effective 2026-06-30 ·
+            Registration Number DMCA-1074892
+            <br />
+            <br />
+            <b>Send DMCA notices and counter-notices to the registered
+            Designated Agent:</b>
+            <br />
+            <br />
+            Micheal Williams
+            <br />
+            Designated DMCA Agent, Crafters Market
+            <br />
+            1864 North Cutter Place
+            <br />
+            Oak Harbor, WA 98277
+            <br />
+            United States
+            <br />
+            Email:{" "}
             <a
-              href={`mailto:dmca@craftersmarket.org`}
+              href="mailto:williams342@gmail.com"
               className="text-brand hover:underline"
             >
-              dmca@craftersmarket.org
+              williams342@gmail.com
             </a>
-            . Postal address will be added on registration of the agent with
-            the U.S. Copyright Office; that registration is being completed
-            before public launch.
+            <br />
+            Phone: (360) 507-6178
+            <br />
+            <br />
+            To be effective under 17 U.S.C. § 512, copyright notices and
+            counter-notices must be sent to the registered Designated Agent
+            using the contact information above.
           </>
         ),
       },

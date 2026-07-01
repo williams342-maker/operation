@@ -2284,3 +2284,43 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 **Other (25 files):** test_homepage_strip_fixes, test_iter133_story_card, test_iter139_journal_image_upload, test_iter20_follow_notify, test_iter226_integration_diags_ga4, test_iter26_scheduler, test_iter310c_recent_jobs, test_iter315_listing_budgets, test_iter326_founder_number_repair, test_iter334c_pricing_digest, test_iter334v_all_roas, test_iter347_ads_push_meta_microsoft, test_iter43_save_drop_cohorts_chat, test_iter48_design_files_upload, test_iter50_shop_appearance, test_iter51_autoboost_feedback_reply, test_iter58_checkout_min_total, test_iter59_order_detail, test_iter70_welcome_packet_preview, test_iter7_admin_cart_ai, test_iter84_admin_feedback_inbox, test_iter96_updates_digest, test_iter9_followups, test_listing_stats_and_renewal_tools, test_showcase_views.
 
 **TIMEOUT (4 files):** test_iter312_help_chat, test_iter66_file_bundles, test_iter67_dxf_to_svg, test_showcase_moderation. Long-running integration suites — exceed the 18-20s per-file gate threshold. Keep out of smoke; can be exercised manually or with a separate `pytest -m slow` gate.
+
+
+---
+
+## iter413fp — Fee & Pricing Policy v1.0 (2026-06-30, Phase D)
+
+**Delivered:** Standalone `/policies/fee-pricing` Operational Policy extracted from Terms §5 and Maker Agreement §14 into a single source of truth.
+
+**Sections:**
+1. Who This Policy Applies To (Makers vs Buyers, USD basis)
+2. Fee Schedule at a Glance (Free 5%/Plus 4% commission, 3% processing, $0.20 listing fee, $12/mo Plus, 12% off-site ad, $5/wk Promoted)
+3. Founding Seller Program (discount-on-tier framing, cross-ref Maker Agreement §4)
+4. Payment Processing (Stripe)
+5. Listing Fees (Free lifetime allowance, Plus monthly reset)
+6. Off-Site Advertising Fee (replaces not stacks; 12% + 3% = 15% total on attributed sales)
+7. Promoted Listings ($5/week opt-in)
+8. Refunds, Chargebacks & Adjustments (60-day Maker fee-dispute window; Off-Site Ad Fee retained on refunded attributed sales when ad cost already paid)
+9. Payout Timing (Stripe schedule; operational-trigger holds only)
+10. Sales Tax & Marketplace-Facilitator Obligations
+11. Currency, FX & Payment Methods (USD-only at v1)
+12. Changes to This Policy (prospective only; 30-day advance notice)
+13. Related Policies & Cross-References
+
+**Wiring:**
+- Added SECTION to `PolicyPage.jsx` SECTIONS array (id `fee-pricing`, Receipt icon)
+- Added POLICIES entry to `manifest.js` (category `operational`, v1.0, 6 attorney notes, 5 implementation notes)
+- Added `pillar-fee-pricing` card to `TrustCenterPage.jsx` For-Makers section
+- Added `Receipt` icon mapping in ICON_BY_SLUG for both `TrustCenterPage.jsx` and `PoliciesIndexPage.jsx`
+- Trust Center search index picks up new keywords (commission, payout, chargeback, subscription, etc.)
+- Cross-refs in Terms manifest (`related` already listed `fee-pricing`); cleared the "wire link once published" implementation note
+
+**Counsel Review Packet:**
+- Regenerated 2026-06-30, WeasyPrint pipeline
+- 127 pages (was 117), 541.6 KB
+- Cover sheet doc count auto-increments to 14
+- Full Fee & Pricing body renders at page 102
+
+**Verified in preview:** `/policies/fee-pricing`, `/policies`, `/trust` (pillar + search hits on `commission`, `payout`).
+
+**Blocked:** Google Ads Conversion Labels — still awaiting real IDs from user.

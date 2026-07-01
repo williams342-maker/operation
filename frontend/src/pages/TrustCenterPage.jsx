@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, ShieldCheck, Handshake, ScrollText, Cookie, FileText, Truck, RotateCcw, Ban, Users, Copyright, Sparkles, Lock } from "lucide-react";
+import { Search, ShieldCheck, Handshake, ScrollText, Cookie, FileText, Truck, RotateCcw, Ban, Users, Copyright, Sparkles, Lock, Receipt } from "lucide-react";
 import {
   POLICIES,
   CORE_POLICIES,
@@ -32,6 +32,7 @@ const ICON_BY_SLUG = {
   "prohibited-items": Ban,
   "community-guidelines": Users,
   "ip-dmca": Copyright,
+  "fee-pricing": Receipt,
   "marketplace-promise": Sparkles,
   "privacy-at-a-glance": Lock,
 };
@@ -329,6 +330,14 @@ export default function TrustCenterPage() {
               blurb="Version 1 participants get early-adopter benefits, direct-line support, and a seat at the table as the marketplace grows."
               link="/policies/marketplace-promise"
               testId="pillar-founding"
+            />
+            <PillarCard
+              icon={Receipt}
+              title="Transparent Fees"
+              blurb="Full commercial terms in one place: commissions, listing fees, Crafters Plus subscription, payment-processing, Promoted Listings, and off-site ad fees. Fee changes are always prospective with 30-day notice."
+              link="/policies/fee-pricing"
+              linkLabel="Read Fee & Pricing Policy"
+              testId="pillar-fee-pricing"
             />
           </div>
 
