@@ -23,9 +23,9 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 _Queued items from the Trust & Policy Center v1 project (2026-06-30).
 Engineering ship approval received 2026-06-30. **Locked release sequence** below._
 
-### Locked Release Sequence (approved 2026-06-30)
+### Locked Release Sequence (approved 2026-06-30 · updated after Rocket Lawyer review)
 
-1. Counsel review of Appendix A annotations across all 12 policies.
+1. Counsel review of Appendix A annotations across all 13 policies (Trust & Policy Center v1 + Accessibility Statement).
 2. Remove attorney annotations from `manifest.js`.
 3. Publish Trust Center to production (`craftersmarket.org/trust`).
 4. Add Google Ads conversion labels (`GOOGLE_ADS_CONVERSION_LABEL_APPLICATION`,
@@ -42,6 +42,20 @@ Engineering ship approval received 2026-06-30. **Locked release sequence** below
    versioning, timestamped acceptance, IP/User-Agent audit trail (where
    appropriate), and future re-acceptance when agreement versions change.
    Strongest long-term legal foundation.
+9. **P4 — INFORM Consumers Act automation.** Auto-comply once a Maker
+   crosses the 200-new-transactions or $5,000-gross-revenue-in-12-months
+   threshold: collect verified bank account / tax ID / working email /
+   working phone, and disclose that information (or the seller identity
+   summary) as required by the Act. Track threshold crossings server-side.
+10. **P5 — Marketplace Facilitator Tax operational verification.** Confirm
+    with the payment processor (Stripe Tax or equivalent) that
+    marketplace-facilitator sales tax is being calculated, collected, and
+    remitted correctly in every applicable state before launch. Not a
+    policy rewrite — this is an ops task and a testing pass.
+11. **P6 — Accessibility enhancements.** WCAG 2.1 Level AA conformance
+    testing, alt-text tooling for Listings, keyboard-nav audit,
+    focus-indicator sweep, screen-reader smoke test. Publish an updated
+    Accessibility Statement annually.
 
 ### Later backlog (order not locked)
 

@@ -331,6 +331,50 @@ export default function TrustCenterPage() {
               testId="pillar-founding"
             />
           </div>
+
+          {/* iter413ee — AI Promise badge. Creator-Owned AI Policy is a
+              trust signal that differentiates Crafters Market from larger
+              platforms. Rendered as its own row for visibility. */}
+          <div className="grid md:grid-cols-1 gap-4 md:gap-6 mt-4 md:mt-6">
+            <div
+              className="border border-brand/50 bg-brand/5 p-6 md:p-8"
+              data-testid="pillar-ai-promise"
+            >
+              <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
+                <div className="flex-shrink-0">
+                  <div className="w-14 h-14 flex items-center justify-center bg-brand text-[#0a0a0a] border border-brand">
+                    <Sparkles size={22} />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-2">
+                    ◆ AI Promise · Creator-Owned AI Policy
+                  </div>
+                  <h3 className="font-display text-2xl md:text-3xl tracking-[-0.005em] text-ink mb-3">
+                    Your creativity belongs to you.
+                  </h3>
+                  <p className="font-body text-base text-ink-muted leading-relaxed max-w-2xl">
+                    Crafters Market uses AI to <b className="text-ink">operate and
+                    promote</b> the marketplace &mdash; search, recommendations,
+                    ads across Google/Meta/Pinterest/TikTok, SEO, translations,
+                    listing optimization. We <b className="text-ink">do not</b>{" "}
+                    use your work to train AI models, and we do not license your
+                    content to third parties for AI training. If we ever launch
+                    an AI training program, it will be opt-in only &mdash; and
+                    declining will never reduce your visibility, ranking, or
+                    payouts.
+                  </p>
+                  <Link
+                    to="/policies/maker-agreement#toc-9"
+                    className="inline-flex items-center gap-1 mt-4 font-mono text-xs uppercase tracking-[0.18em] text-brand hover:text-ink transition-colors"
+                    data-testid="pillar-ai-promise-link"
+                  >
+                    Read the full policy <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Standards */}

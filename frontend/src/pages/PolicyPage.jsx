@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ChevronDown, FileText, Truck, RotateCcw, Wand2, Boxes, CreditCard,
   ShieldCheck, Lock, Ban, Copyright, AlertTriangle, UserX, Mail, Handshake,
+  Users,
 } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
 
@@ -97,6 +98,8 @@ export const SECTIONS = [
           "Crafters Market charges a marketplace commission on each sale. Exact rates and any listing/renewal or subscription fees are published in the Fee & Pricing Policy and in the Makers Market section of the site.",
           "Payments are processed by Stripe (and any successor processor). By accepting Orders you agree to Stripe\u2019s Connected Account Agreement and Services Agreement.",
           "Makers must complete Stripe onboarding (identity verification, payout account) before withdrawing funds. Stripe may hold, reserve, or freeze funds as required by its risk and compliance programs.",
+          "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry.",
+          "A payout hold under this Section lasts only as long as reasonably necessary to resolve the underlying issue \u2014 including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger will be released on the normal payout cadence.",
           "Crafters Market may deduct fees, refunds, chargebacks, and any amounts owed under these Terms, the Maker Agreement, or applicable policies from Maker balances or future payouts.",
           "Refunds and reversals are governed by the Returns & Refunds Policy and the Buyer Protection Policy.",
         ],
@@ -157,16 +160,20 @@ export const SECTIONS = [
         heading: "11. Indemnification",
         bullets: [
           "You agree to indemnify and hold Crafters Market and its officers, directors, employees, and agents harmless from any claim, loss, cost, or expense (including reasonable attorneys\u2019 fees) arising from (a) your Listings, User Content, or Orders, (b) your breach of these Terms or any marketplace policy, (c) your violation of applicable law, or (d) your infringement of a third party\u2019s rights.",
+          "Carve-out. This indemnification obligation does not apply to claims arising from Crafters Market\u2019s own (i) gross negligence or (ii) willful misconduct.",
           "Crafters Market may participate in the defense of any such claim at its own expense and reserves the right to assume the exclusive defense and control of any matter for which you are required to indemnify us.",
         ],
       },
       {
         heading: "12. Dispute Resolution & Governing Law",
         bullets: [
-          "These Terms are governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules.",
-          "Buyers and Makers agree to attempt to resolve disputes with each other first through on-platform messaging and, if that fails, through the Buyer Protection Policy for Order-related disputes.",
-          "Disputes with Crafters Market that cannot be resolved informally will be brought exclusively in the state or federal courts located in King County, Washington \u2014 unless a mandatory arbitration provision is later adopted (see Attorney Review Notes at the end of this document).",
-          "Nothing in this section prevents either party from seeking injunctive or equitable relief to protect intellectual property, confidential information, or Platform integrity.",
+          "Step 1 \u2014 Informal Resolution (30 days). Before initiating any formal proceeding against Crafters Market, you agree to first send a written description of your dispute to policy@craftersmarket.org and give Crafters Market 30 days to attempt an informal resolution. Buyers and Makers should first attempt to resolve Order-related disputes with each other via on-platform messaging and, if that fails, through the Buyer Protection Policy escalation flow.",
+          "Step 2 \u2014 Mandatory, Individual Arbitration. If a dispute against Crafters Market is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules (or its Commercial Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Judgment on the award may be entered in any court of competent jurisdiction.",
+          "Class-Action Waiver. You and Crafters Market each agree to bring claims only in an individual capacity, and not as a plaintiff or class member in any purported class, collective, consolidated, mass, or representative proceeding. The arbitrator has no authority to conduct any class, collective, or representative proceeding.",
+          "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
+          "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
+          "Governing Law. These Terms are governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules. For any dispute that is not subject to arbitration under this Section (for example, small-claims actions and requests for injunctive relief), the exclusive venue is the state or federal courts located in King County, Washington.",
+          "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting these Terms. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Opting out does not affect any other provision of these Terms.",
         ],
       },
       {
@@ -197,6 +204,7 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
+          "v2.2 \u2014 2026-06-30 \u2014 Legal-review pass: §5 payout holds tied to Stripe lifecycle + limited operational triggers; §11 adds gross-negligence + willful-misconduct carve-out; §12 replaced placeholder with two-tier informal-then-arbitration structure, class-action waiver, small-claims carve-out, 30-day opt-out.",
           "v2.1 \u2014 2026-06-30 \u2014 Added Section 6a AI Use (Creator-Owned AI Policy): distinguishes AI-for-operations (allowed under content license) from AI model training (opt-in only, never a condition of marketplace access).",
           "v2.0 \u2014 2026-06-30 \u2014 Marketplace-model rewrite. Adds Maker/Buyer role split, marketplace-facilitator tax section, expanded moderation & appeals references, limitation-of-liability and indemnity clauses, dispute-resolution framework.",
           "v1.0 \u2014 2025-12-01 \u2014 Initial Beta Terms (short-form, retail framing).",
@@ -224,11 +232,11 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">2.1</b>
+        <b className="text-ink">2.2</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
-        <b className="text-ink">Pending legal sign-off</b>
+        <b className="text-ink">On production launch (date set at go-live)</b>
       </>
     ),
   },
@@ -1205,7 +1213,7 @@ export const SECTIONS = [
           "Payments are processed via Stripe and routed to your verified bank account through Stripe Connect. Use of Stripe Connect requires you to accept Stripe\u2019s Connected Account Agreement.",
           "You must complete Stripe\u2019s identity verification (KYC) and provide accurate banking information. Payouts cannot be released to unverified accounts.",
           "Standard payout schedule is set by Stripe\u2019s defaults unless you adjust it in your Stripe Express dashboard.",
-          "Payout holds: we may hold payouts where required by law, in response to a Buyer dispute, during a fraud review, or pending resolution of an open investigation.",
+          "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue, including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger are released on the normal payout cadence.",
           "Reserves: we may require a rolling reserve on payouts for accounts with elevated dispute or chargeback risk.",
           "Negative balances: if refunds or chargebacks exceed pending payouts, the resulting negative balance must be settled by you. We may recover negative balances from subsequent payouts or, if necessary, by direct collection.",
           "Failed transfers: if a payout to your bank fails, we will retry per Stripe\u2019s retry schedule; persistent failure may pause payouts until banking information is corrected.",
@@ -1254,14 +1262,29 @@ export const SECTIONS = [
         ],
       },
       {
-        heading: "19. Privacy & Buyer Data",
+        heading: "19. Privacy Roles & Buyer Data",
         bullets: [
-          "When you receive a Buyer\u2019s information through the Platform (name, shipping address, contact details), you may use that information only to fulfill the Order, provide customer service, and comply with legal obligations.",
+          "Role split. Crafters Market operates the Platform, marketplace services, payment facilitation, and Order administration \u2014 and acts as data controller for those functions. You, the Maker, are an independent seller and act as an independent data controller for Buyer information you receive to fulfill Orders you accept.",
+          "When you receive a Buyer\u2019s information through the Platform (name, shipping address, contact details), you may use that information only to fulfill the Order, provide customer service for that Order, and comply with legal obligations that apply to you.",
           "You must protect Buyer information using reasonable security measures and may not retain it longer than necessary for the purposes above.",
-          "You must comply with applicable privacy laws (including but not limited to CAN-SPAM, GDPR if you reach EU Buyers, and applicable U.S. state privacy laws).",
-          "You may not use Buyer information for unrelated marketing without obtaining appropriate consent (e.g. a Buyer\u2019s explicit opt-in to your own newsletter outside the Platform).",
-          "You may not sell, rent, or share Buyer information with third parties except as needed to fulfill the Order (e.g. providing the address to a shipping carrier).",
-          "See the Crafters Market Privacy Policy for the Platform-side details on how Buyer information is handled.",
+          "You must comply with all applicable privacy laws with respect to Buyer information you receive \u2014 including but not limited to CAN-SPAM, GDPR (if you reach EU Buyers), and applicable U.S. state privacy laws.",
+          "You may not use Buyer information for unrelated marketing without obtaining appropriate consent (for example, a Buyer\u2019s explicit opt-in to your own newsletter outside the Platform).",
+          "You may not sell, rent, or share Buyer information with third parties except as needed to fulfill the Order (for example, providing the address to a shipping carrier).",
+          "The Crafters Market Privacy Policy describes Platform-side handling of Buyer information. Your Shop Policy (or your own privacy notice, where applicable) governs your independent handling of Buyer information after you receive it.",
+        ],
+      },
+      {
+        heading: "19a. Truthful Advertising, Product Claims & Reviews (FTC Compliance)",
+        bullets: [
+          "You are responsible for the accuracy of every claim you make about your Listings \u2014 including materials, dimensions, functionality, safety, sourcing, and any performance or health-related claims.",
+          "Origin & \u201cMade in USA\u201d. You must not represent an item as \u201cMade in USA\u201d (or make any similar country-of-origin claim) unless it is \u201call or virtually all\u201d made in the United States, as that standard is applied by the U.S. Federal Trade Commission (FTC). Qualified origin claims must be truthful and clearly qualified (e.g., \u201cAssembled in USA from imported materials\u201d).",
+          "Truthful advertising. Marketing and promotional statements about your Listings must be truthful, non-deceptive, and substantiated. Do not use manipulated photos, misleading before/after images, or endorsements you did not receive.",
+          "Reviews \u2014 no fake or incentivized-and-undisclosed reviews. You may not post, procure, or coordinate fake reviews of your own or another Maker\u2019s Listings. You may not offer money, discounts, free products, or other incentives in exchange for reviews unless (a) the exchange is disclosed conspicuously in the review itself and (b) the disclosure meets current FTC endorsement-guide standards.",
+          "Family, friends, and employees. Reviews written by people with a material connection to you (family, close friends, employees, contractors) must disclose that relationship in the review.",
+          "AI-generated reviews. Do not post AI-generated reviews or reviews of Listings you have not actually purchased and received.",
+          "Health, safety, and therapeutic claims. Any health, medical, therapeutic, structural, or safety-related claim must comply with applicable law (FTC, FDA, CPSC) and, where required, be substantiated by competent and reliable evidence. Unapproved therapeutic or medical claims are prohibited.",
+          "Regulated claims (e.g., organic, fair-trade, cruelty-free, food-safety). Only use these terms if you meet the applicable certification or regulatory definition, and be prepared to document the basis of your claim if asked.",
+          "Enforcement. Violations of this Section may result in Listing removal, review removal, account suspension, or termination under the Community Guidelines and Section 21 (Marketplace Enforcement).",
         ],
       },
       {
@@ -1378,10 +1401,10 @@ export const SECTIONS = [
           </a>
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.1</b>
+          <span>Version:</span> <b className="text-ink">3.2</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">On production launch (date set at go-live)</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -1389,7 +1412,9 @@ export const SECTIONS = [
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
           <br />
-          <span>v3.1 · 2026-06-30 — Added Section 10a AI Use (Creator-Owned AI Policy). Distinguishes Operational AI (allowed under the Section 10 content license — search, recommendations, ads, SEO, translations, listing optimization) from AI Model Training (opt-in only, never a condition of marketplace access). Cross-referenced with ToS §6a and Privacy Policy "How We Use AI".</span>
+          <span>v3.2 · 2026-06-30 — Legal-review pass: §14 payout holds tied to Stripe lifecycle + limited operational triggers; §19 clarified Platform-vs-Maker data-controller role split; added §19a Truthful Advertising, Product Claims & Reviews (FTC Compliance — Made in USA, no fake or undisclosed-incentivized reviews, health-claim substantiation).</span>
+          <br />
+          <span>v3.1 · 2026-06-30 — Added Section 10a AI Use (Creator-Owned AI Policy). Distinguishes Operational AI (allowed under the Section 10 content license — search, recommendations, ads, SEO, translations, listing optimization) from AI Model Training (opt-in only, never a condition of marketplace access). Cross-referenced with ToS §6a and Privacy Policy &ldquo;How We Use AI&rdquo;.</span>
           <br />
           <span>v3.0 · 2026-06-30 — Expanded from v2.1 per implementation brief: 25 numbered sections + Verification / AI-Assisted Content / Marketplace Growth provisions. Cross-referenced with ToS, Privacy Policy, Returns & Refunds, Community Guidelines, Prohibited Items.</span>
           <br />
@@ -1454,15 +1479,19 @@ export const SECTIONS = [
         ],
       },
       {
-        heading: "5. Reviews",
-        text: "Reviews are how the community builds trust. They should:",
+        heading: "5. Reviews (FTC Compliance)",
+        text: "Reviews are how the community builds trust. They must:",
         bullets: [
           "Reflect a genuine purchasing experience.",
           "Remain respectful \u2014 constructive criticism is welcome; personal attacks are not.",
           "Avoid extortion (\u201cchange my order or I\u2019ll leave a 1-star\u201d is not acceptable).",
           "Avoid discriminatory language.",
           "Avoid misinformation about the Maker, the product, or the Platform.",
-          "Reviews that violate marketplace policies may be removed.",
+          "No fake reviews. Posting, procuring, or coordinating reviews of Listings you have not actually purchased and received is prohibited.",
+          "No undisclosed incentives. Reviews written in exchange for money, discounts, free products, or other incentives must clearly and conspicuously disclose that fact in the review, consistent with current FTC endorsement-guide standards. Undisclosed-incentive reviews are prohibited.",
+          "Disclose material connections. Reviews written by family, close friends, employees, or contractors of the Maker must disclose that relationship.",
+          "No AI-generated reviews or reviews written by anyone other than the actual Buyer of the Order.",
+          "Reviews that violate marketplace policies may be removed, and the responsible account may be subject to enforcement under the Maker Agreement or Terms of Service.",
         ],
       },
       {
@@ -2341,34 +2370,82 @@ export const SECTIONS = [
   {
     id: "ip",
     icon: Copyright,
-    title: "Intellectual Property Policy",
-    intro: "Crafters Market respects the intellectual property rights of others and expects users of our platform to do the same.",
+    title: "Intellectual Property & DMCA Policy",
+    intro: "Crafters Market respects the intellectual property rights of others and expects everyone who uses the Platform to do the same. This Policy explains what Makers must certify about their Listings, how rights-holders can report infringement, how counter-notices work, and what happens to repeat infringers.",
     blocks: [
       {
-        heading: "Sellers represent and warrant that:",
+        heading: "1. Maker Representations & Warranties",
         bullets: [
-          "All listings are their original work or properly licensed",
-          "They have the right to sell, reproduce, or display all images, designs, and content uploaded to their shop",
-          "Custom orders involving third-party logos, characters, or trademarks are made with explicit buyer-supplied licensing or fall under permitted personal use",
+          "You represent and warrant that every Listing you publish is your original work or is properly licensed for the use you make of it.",
+          "You represent and warrant that you have all rights necessary to reproduce, display, and sell all images, descriptions, designs, and other content you upload to your Shop.",
+          "Custom Orders that involve third-party logos, characters, or trademarks may only be produced with the Buyer's explicit written representation that they own or hold a valid license for the underlying rights (and/or that the use is a legitimate personal, non-commercial use under applicable law).",
+          "You agree to indemnify Crafters Market for third-party IP claims arising from your Listings, consistent with the Terms of Service.",
         ],
       },
       {
-        heading: "DMCA takedown",
+        heading: "2. Designated DMCA Agent",
         text: (
           <>
-            If you believe content on Crafters Market infringes your
-            copyright, send a DMCA notice to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand hover:underline">{SUPPORT_EMAIL}</a>{" "}
-            with: (1) your contact info, (2) a description of the work
-            infringed, (3) the URL of the allegedly infringing listing, (4) a
-            good-faith statement, and (5) your physical or electronic
-            signature. Counter-notices follow the same channel.
+            Crafters Market has designated an agent to receive notifications of
+            claimed copyright infringement under the U.S. Digital Millennium
+            Copyright Act (DMCA), 17 U.S.C. § 512. Send DMCA notices and
+            counter-notices to: <b>DMCA Agent, Crafters Market</b>, email{" "}
+            <a
+              href={`mailto:dmca@craftersmarket.org`}
+              className="text-brand hover:underline"
+            >
+              dmca@craftersmarket.org
+            </a>
+            . Postal address will be added on registration of the agent with
+            the U.S. Copyright Office; that registration is being completed
+            before public launch.
           </>
         ),
       },
+      {
+        heading: "3. How to Submit a DMCA Notice (Copyright)",
+        bullets: [
+          "Your DMCA notice must include: (1) your name, physical or electronic signature, and contact information; (2) an identification of the copyrighted work you claim has been infringed; (3) the URL(s) of the allegedly infringing Listing or content on the Platform; (4) a statement that you have a good-faith belief the disputed use is not authorized by the copyright owner, its agent, or the law; (5) a statement, under penalty of perjury, that the information in your notice is accurate and that you are the copyright owner or authorized to act on behalf of the owner; and (6) your physical or electronic signature.",
+          "Incomplete notices may be returned. Knowingly making a material misrepresentation in a DMCA notice may subject you to liability for damages under 17 U.S.C. § 512(f).",
+          "Upon receipt of a compliant notice, we will remove or disable access to the identified material and notify the Maker who posted it.",
+        ],
+      },
+      {
+        heading: "4. Counter-Notice Procedure",
+        bullets: [
+          "If your content was removed and you believe the removal was a mistake or that you have the right to use the material, you may submit a counter-notice to the Designated DMCA Agent.",
+          "Your counter-notice must include: (1) your name, physical or electronic signature, and contact information; (2) identification of the material that was removed and the location where it appeared before removal; (3) a statement, under penalty of perjury, that you have a good-faith belief the material was removed by mistake or misidentification; and (4) your consent to the jurisdiction of the U.S. federal district court for the judicial district in which you reside (or, if outside the United States, the U.S. District Court for the Western District of Washington), and that you will accept service of process from the person who submitted the original notice.",
+          "If the original claimant does not notify us within 10\u201314 business days that they have filed an action seeking a court order to restrain the material, we will restore the material.",
+        ],
+      },
+      {
+        heading: "5. Repeat-Infringer Policy",
+        bullets: [
+          "Crafters Market maintains a repeat-infringer policy under 17 U.S.C. § 512(i). Accounts that receive multiple substantiated DMCA notices are subject to escalating enforcement.",
+          "Threshold. Three substantiated DMCA notices against an account within any 12-month window will result in permanent removal of that account from the Platform.",
+          "A substantiated notice is one that was not successfully contested by a valid counter-notice within the statutory window and that was not later withdrawn.",
+          "The threshold above is a floor \u2014 Crafters Market may terminate a Maker's account sooner for a single egregious or willful infringement, or for a pattern of infringement across accounts.",
+        ],
+      },
+      {
+        heading: "6. Trademark & Other IP Claims",
+        bullets: [
+          "The DMCA covers copyright only. Trademark takedowns, right-of-publicity claims, and other IP claims are handled through a parallel-but-distinct process. Send trademark or other IP takedown requests to " + SUPPORT_EMAIL + " with (a) the mark or right at issue and its registration details (if any), (b) the URL(s) of the allegedly infringing Listing, (c) a description of the alleged infringement, (d) a good-faith statement that the use is unauthorized, and (e) your signature.",
+          "We will evaluate trademark and other IP takedown requests and remove Listings that we determine are more likely than not infringing, applying the same repeat-infringer principles as for copyright.",
+        ],
+      },
+      {
+        heading: "7. Rights-Holder Cooperation",
+        bullets: [
+          "Crafters Market cooperates with rights-holders and their authorized agents to prevent the Platform from being used for infringement.",
+          "We may share information relevant to a takedown with the counter-noticing Maker, and vice versa, to the extent required by law and the DMCA.",
+          "We may cooperate with law-enforcement and lawful legal process from rights-holders, subject to applicable law and our Privacy Policy.",
+        ],
+      },
     ],
     callout: {
-      tone: "info",
-      text: "Repeat infringers will have their accounts permanently terminated. Crafters Market cooperates with law-enforcement and rights-holders' lawful requests.",
+      tone: "warn",
+      text: "Repeat infringers will have their accounts permanently terminated. Making a false DMCA notice or counter-notice can subject you to damages under U.S. federal law.",
     },
   },
 
@@ -2424,6 +2501,85 @@ export const SECTIONS = [
         </>
       ),
     },
+  },
+
+  // iter413ee — Accessibility Statement (2026-06-30). Launch-blocker
+  // addition per counsel review. Plain-language commitment + contact
+  // + ongoing-WCAG-improvement pledge.
+  {
+    id: "accessibility",
+    icon: Users,
+    title: "Accessibility Statement",
+    intro: "Crafters Market is committed to making our marketplace usable by as many people as possible, including people with disabilities. This statement describes our accessibility commitment, the standards we aim for, how to contact us if you run into a barrier, and our approach to ongoing improvement.",
+    blocks: [
+      {
+        heading: "Our Commitment",
+        bullets: [
+          "Crafters Market believes independent Makers and Buyers of every ability deserve equal access to a curated handmade marketplace.",
+          "We treat accessibility as an ongoing engineering and design responsibility \u2014 not a one-time checklist.",
+          "We consider accessibility every time we ship a material feature, and we welcome feedback that helps us do better.",
+        ],
+      },
+      {
+        heading: "Standards We Aim For",
+        bullets: [
+          "We aim to conform to the W3C Web Content Accessibility Guidelines (WCAG) 2.1 Level AA. WCAG 2.2 improvements are adopted as we update surfaces.",
+          "Our goals include: sufficient color contrast; keyboard-navigable interactive components; visible focus indicators; descriptive alt text on decorative and functional images; proper heading order and landmarks; screen-reader-friendly form labels and error messages; and captions or transcripts on video content we control.",
+          "We build on top of shadcn/ui and Radix primitives, which provide accessible defaults for menus, dialogs, tabs, dropdowns, and other interactive components. Where we deviate from those primitives we test for accessibility regressions before shipping.",
+        ],
+      },
+      {
+        heading: "Known Limitations",
+        bullets: [
+          "The Platform is still in Founding Access v1. Some newer surfaces may not yet meet every WCAG 2.1 AA criterion. We are logging and prioritizing gaps as we find them.",
+          "Third-party content \u2014 including Listings uploaded by Makers, embedded videos from external providers, and content on third-party linked sites \u2014 is not under our direct control. We ask Makers to write descriptive titles and provide alt text; we plan to add tooling and coaching around this over time.",
+        ],
+      },
+      {
+        heading: "Report a Barrier",
+        bullets: [
+          "If you encounter a barrier or need an accommodation to use Crafters Market, email us at accessibility@craftersmarket.org.",
+          "Please include (a) a description of the issue, (b) the URL where it occurred, and (c) the assistive technology (screen reader, magnifier, voice control, keyboard-only, etc.) and browser you were using, if known.",
+          "We aim to respond within 5 business days with either a fix, a workaround, or a target timeline.",
+        ],
+      },
+      {
+        heading: "Ongoing Improvements",
+        bullets: [
+          "Accessibility items are tracked alongside other engineering work in our roadmap.",
+          "We include accessibility checks in feature-development reviews \u2014 for example, verifying keyboard navigation and focus behavior on new interactive components.",
+          "We plan to publish an updated Accessibility Statement at least annually reflecting our current state and priorities.",
+        ],
+      },
+      {
+        heading: "Formal Legal Frameworks",
+        bullets: [
+          "This statement is provided in good faith and describes our commitment. It is not a warranty that every part of the Platform meets every WCAG success criterion at every moment.",
+          "Where applicable law (for example, the Americans with Disabilities Act, Section 508, or local equivalents) requires specific accommodations, we take those obligations seriously and address them in coordination with counsel.",
+        ],
+      },
+      {
+        heading: "Contact",
+        bullets: [
+          "Accessibility contact: accessibility@craftersmarket.org.",
+          "General support: " + SUPPORT_EMAIL + ".",
+        ],
+      },
+    ],
+    callout: {
+      tone: "info",
+      text: "Accessibility is a moving target. If you run into a barrier, please tell us \u2014 we\u2019d rather hear about a problem than ship past it.",
+    },
+    outro: (
+      <>
+        <span className="text-ink-muted">Version:</span>{" "}
+        <b className="text-ink">1.0</b>
+        <span className="text-ink-muted"> · Last updated:</span>{" "}
+        <b className="text-ink">2026-06-30</b>
+        <span className="text-ink-muted"> · Effective:</span>{" "}
+        <b className="text-ink">On production launch (date set at go-live)</b>
+      </>
+    ),
   },
 ];
 
