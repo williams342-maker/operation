@@ -2403,3 +2403,64 @@ Applied all 6 refinements from the third-round attorney feedback ("Final Legal H
 
 **Verified in preview:** `/policies/fee-pricing` shows v1.2 badge, Click-Acceptance clause, Stripe non-recoverable clause, and Communication-during-holds language.
 
+
+---
+
+## iter413v4 — Final Legal Consistency Audit + Launch Readiness Pass (2026-06-30, Phase D)
+
+**Context:** User's Final Launch Readiness Pass reconciled all P0/P1 items into a single approved scope. All previously-shipped v1–v3 items already satisfied most requirements; this pass closed the remaining consistency and operational-readiness gaps.
+
+**Changes shipped:**
+
+1. **Policy Hierarchy — canonicalized** (`/app/frontend/src/data/policies/hierarchy.js` v1.1)
+   - Level 1 Applicable Law → Level 2 Terms → Level 3 Maker Agreement (seller-specific only) → Level 4 Marketplace Policies → Level 5 Shop Policies → Level 6 Order-specific
+   - Returns Policy §2 rewritten to match the canonical ordering
+   - Reading rules documented: Maker Agreement is more specific than the topic-level Marketplace Policies for seller issues; Marketplace Policies control for Buyer / general issues
+
+2. **Privacy Policy §4a — Third-Party Service Providers (Vendor Inventory)** (Privacy v3.4)
+   - Enumerates every production vendor: Stripe, Cloudflare, GA4, Google Ads, Google Search Console, Meta Ads/CAPI, Pinterest, TikTok, Sentry, Mailgun, Shippo, AI service providers (OpenAI/Anthropic/Google Gemini), Emergent Universal Key aggregator
+   - Replaces the previous generic "service providers" category with a named list matching production
+   - Verified in Counsel Packet PDF (all 5 tested vendors present)
+
+3. **Arbitration Opt-Out Internal Ledger** (backend)
+   - New router `/app/backend/routers/arbitration_opt_outs.py`
+   - Endpoints: `POST /api/legal/arbitration-opt-outs`, `GET /api/legal/arbitration-opt-outs`, `GET /api/legal/arbitration-opt-outs/lookup?account_email=...`
+   - MongoDB collection: `arbitration_opt_outs` (fields: account_email, legal_name, role, opt_out_received_at, terms_first_accepted_at, within_window, processed_by, processed_at, verification_notes)
+   - Super-admin only (verified — returns 401 without bearer token)
+   - Terms §12 and Maker §27 opt-out language updated: email remains the authoritative legal submission channel; the ledger is the internal source of truth
+   - No frontend UI at V1 (Phase D freeze); Legal/Compliance operates via curl or scripts
+
+4. **AI Disclosure Guidance — concrete examples** (Prohibited Items v3.3)
+   - AI-assisted example list (no disclosure required): grammar correction, SEO keyword suggestions, background removal, image cleanup, translation, title generation
+   - Materially-AI-generated example list (disclosure required): AI-created artwork, AI-generated product images, AI-generated printable designs, AI-generated digital downloads
+   - Examples replace numeric thresholds
+
+5. **Maker Agreement §10 Content License** (Maker v3.6)
+   - Purpose limitation: operational license exists solely for operating and promoting the marketplace
+   - Content ownership always remains with the Maker
+   - License-termination-on-account-closure with limited carve-outs (legal compliance, completed transactions, archived backups, previously published marketing, cached third-party systems)
+
+6. **Stripe Hold — broadened disclosure** (Terms §5 + Maker §14 + Fee-Pricing §9)
+   - Added exact user-supplied sentence: "Certain payout holds may be imposed directly by Stripe, payment networks, financial institutions, or regulatory authorities. Crafters Market cannot override those holds where it does not control fund release."
+
+**Placeholder scrub:**
+- Removed 2 live `[LEGAL REVIEW: ...]` placeholder strings (Shipping §10 international, Cookie §7 consent) — replaced with forward-looking safeguards commitments
+- Effective dates continue to flow through `POLICY_EFFECTIVE_DATE` (REACT_APP_POLICY_EFFECTIVE_DATE at build time)
+
+**Version bumps:**
+- Terms of Service 2.5 → **2.6**
+- Privacy Policy 3.3 → **3.4**
+- Maker Agreement 3.5 → **3.6**
+- Returns & Refunds 3.3 → **3.4**
+- Prohibited Items 3.2 → **3.3**
+- Fee & Pricing 1.2 → **1.3**
+- `hierarchy.js` v1.0 → **v1.1** (canonical)
+
+**Counsel Review Packet regenerated:** **139 pages** (was 133), 599 KB. All 6 audit changes verified via automated PDF text extraction.
+
+**Backend:** `arbitration_opt_outs` router registered in `server.py`; endpoints tested end-to-end (401 without auth ✓).
+
+**Operational verification checklist** appended to `/app/memory/legal-launch-checklist.md` for human confirmation before Version 1.0 Launch lock (policy@ mailbox, DMCA workflow, repeat-infringer policy, arbitration opt-out ledger, privacy request workflow, Stripe URLs, Trust Center smoke test, Google Ads Conversion Labels).
+
+**Legal framework is now feature-complete for U.S.-focused Version 1.0 Launch, subject to final counsel sign-off and completion of the operational-verification checklist.**
+

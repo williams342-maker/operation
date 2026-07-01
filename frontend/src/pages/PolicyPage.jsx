@@ -103,6 +103,7 @@ export const SECTIONS = [
           "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry.",
           "A payout hold under this Section lasts only as long as reasonably necessary to resolve the underlying issue \u2014 including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger will be released on the normal payout cadence.",
           "Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. In those cases, resolution is governed by Stripe's Connected Account Agreement and the applicable card-network rules.",
+          "Certain payout holds may be imposed directly by Stripe, payment networks, financial institutions, or regulatory authorities. Crafters Market cannot override those holds where it does not control fund release.",
           "Communication during holds. Crafters Market will make reasonable efforts to inform the affected Maker of the general reason for a payout hold, unless prohibited by law, card-network rules, an ongoing fraud investigation, or a regulatory requirement. Crafters Market does not commit to any specific evidence, documentation, or notice threshold beyond what is reasonably practical under the circumstances.",
           "Crafters Market may deduct fees, refunds, chargebacks, and any amounts owed under these Terms, the Maker Agreement, or applicable policies from Maker balances or future payouts.",
           "Refunds and reversals are governed by the Returns & Refunds Policy and the Buyer Protection Policy.",
@@ -177,7 +178,7 @@ export const SECTIONS = [
           "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
           "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
           "Governing Law. These Terms are governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules. For any dispute that is not subject to arbitration under this Section (for example, small-claims actions and requests for injunctive relief), the exclusive venue is the state or federal courts located in King County, Washington. Nothing in this Section limits any non-waivable rights or protections provided under applicable law, including any mandatory consumer-protection statutes in the User's home jurisdiction.",
-          "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting these Terms. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Opting out does not affect any other provision of these Terms.",
+          "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting these Terms. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Email to policy@craftersmarket.org is the authoritative legal submission method; accepted opt-out notices are recorded in an internal ledger maintained by Crafters Market Legal / Compliance for future reference. Opting out does not affect any other provision of these Terms.",
         ],
       },
       {
@@ -218,6 +219,7 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
+          "v2.6 \u2014 2026-06-30 \u2014 Final Legal Consistency Audit (v4): §5 broadens payout-hold disclosure to include payment networks, financial institutions, and regulatory authorities; §12 opt-out references the internal ledger while retaining email as the authoritative legal submission method. Cross-document policy hierarchy audit — Maker Agreement now sits between Terms and Marketplace Policies for seller-specific issues (canonical order in hierarchy.js v1.1).",
           "v2.5 \u2014 2026-06-30 \u2014 Final legal-hardening pass (v3): §5 Communication-during-holds (reasonable-efforts obligation subject to law / card-network / fraud / regulatory carve-outs); §12 Governing Law adds explicit non-waivable-rights carve-out; §14 clarifies material-change notice — 30 days for material fees/user-obligation changes; immediate effectiveness for security, legal, fraud-prevention, or urgent technical/operational changes; fee changes deferred to Fee & Pricing Policy §12 (60-day rule).",
           "v2.4 \u2014 2026-06-30 \u2014 Second-round legal-review pass: §4 adds Maker responsibility for origin claims (Made in USA / Handmade / etc.); §5 clarifies that some payout holds are Stripe- or card-network-controlled; §6a clarifies that Operational AI does not authorize the Platform or any third-party ad provider to train commercial foundation models on Maker Content; §12 adds remote-first arbitration (video conference or written submissions by default), King County WA remains the legal seat.",
           "v2.3 \u2014 2026-06-30 \u2014 Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA acknowledgment). Deployed effective-date deployment hook so the effective date is injected at build time from REACT_APP_POLICY_EFFECTIVE_DATE instead of manually placed in each policy.",
@@ -249,7 +251,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">2.5</b>
+        <b className="text-ink">2.6</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -370,7 +372,7 @@ export const SECTIONS = [
           "Customs duties, taxes, import fees, brokerage charges, and other border-related costs are the Buyer\u2019s responsibility unless the Listing or Shop Policy expressly states otherwise.",
           "Delivery times for international shipments may vary significantly because of customs processing.",
           "The Maker is responsible for completing customs documentation accurately.",
-          "[LEGAL REVIEW: jurisdiction-specific consumer-protection language for international shipments to be added by counsel if/when the marketplace expands international operations.]",
+          "If Crafters Market expands services to jurisdictions with mandatory international-shipping consumer-protection regimes (EU Distance Selling, UK Consumer Rights Act, etc.), the applicable safeguards will be implemented before accepting Buyer orders from those jurisdictions. Nothing in this Policy limits any non-waivable consumer right that cannot be waived under applicable law.",
         ],
       },
       {
@@ -493,12 +495,12 @@ export const SECTIONS = [
       },
       {
         heading: "2. Policy Hierarchy",
-        text: "When there is a conflict between rules, the following order of precedence applies:",
+        text: "When there is a conflict between rules, the following order of precedence applies (canonical order — matches the master hierarchy referenced across the Trust & Policy Center):",
         list: [
           ["1. Applicable Law —", "consumer-protection rights that cannot be waived by contract always govern."],
           ["2. Terms of Service —", "the master agreement between you and Crafters Market."],
-          ["3. This Returns & Refunds Policy —", "the marketplace-wide baseline."],
-          ["4. Maker Agreement —", "the agreement between each Maker and Crafters Market."],
+          ["3. Maker Agreement (seller-specific issues only) —", "for issues relating to Maker activity (listings, payouts, seller-side IP, exclusivity, taxes), the Maker Agreement is more specific than this Policy and controls within its subject-matter scope. For non-seller (Buyer or general) issues, this Policy controls."],
+          ["4. This Returns & Refunds Policy —", "the marketplace-wide baseline for returns, refunds, exchanges, and cancellations."],
           ["5. Individual Maker Shop Policy —", "Maker-specific returns, exchanges, cancellations, custom-order, and digital-product rules."],
           ["6. Order-specific written agreement —", "any specific arrangement agreed in writing for a particular Order (e.g. a Custom Order quote)."],
         ],
@@ -672,7 +674,7 @@ export const SECTIONS = [
           can engage Marketplace Assistance per Section 13.
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.3</b>
+          <span>Version:</span> <b className="text-ink">3.4</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -682,6 +684,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.4 · 2026-06-30 — Final Legal Consistency Audit (v4): §2 Policy Hierarchy re-ordered to align with canonical hierarchy in hierarchy.js v1.1 — Maker Agreement (seller-specific issues only) now sits between Terms of Service and this Policy.</span>
           <br />
           <span>v3.3 · 2026-06-30 — Final legal-hardening pass (v3): §16 adds explicit non-waivable-rights carve-out.</span>
           <br />
@@ -1166,6 +1170,7 @@ export const SECTIONS = [
           "The first payout for a new Maker may be delayed by Stripe until identity and bank verification are complete.",
           "Payout holds initiated by Crafters Market are limited to the operational triggers described in Terms of Service §5 and Maker Agreement §14: Stripe risk/compliance, fraud investigation, active chargeback or dispute, identity-verification review, or an active legal/regulatory inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue.",
           "Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. Those holds are governed by Stripe's Connected Account Agreement and the applicable card-network rules.",
+          "Certain payout holds may be imposed directly by Stripe, payment networks, financial institutions, or regulatory authorities. Crafters Market cannot override those holds where it does not control fund release.",
           "Communication during holds. Crafters Market will make reasonable efforts to inform the Maker of the general reason for a payout hold, unless prohibited by law, card-network rules, an ongoing fraud investigation, or a regulatory requirement. We do not commit to any specific evidence, documentation, or notice threshold beyond what is reasonably practical under the circumstances.",
           "Funds not subject to a legitimate hold trigger continue to release on the normal payout cadence.",
         ],
@@ -1217,7 +1222,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">1.2</b>
+        <b className="text-ink">1.3</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -1342,11 +1347,12 @@ export const SECTIONS = [
       {
         heading: "10. User Content License",
         bullets: [
-          "You retain ownership of all User Content you upload (photos, videos, listing text, logos, digital files, custom design uploads).",
-          "You grant Crafters Market a worldwide, non-exclusive, royalty-free, sublicensable license to host, display, reproduce, adapt for display, distribute, and create derivative works of your User Content solely for the purposes of operating, marketing, and promoting the Platform and the visibility of your Shop and Listings.",
+          "You retain ownership of all User Content you upload (photos, videos, listing text, logos, digital files, custom design uploads). Content ownership always remains with the Maker; nothing in this license transfers ownership of underlying intellectual property to Crafters Market.",
+          "Purpose limitation. The license granted in this Section exists solely for the purpose of operating, marketing, and promoting the marketplace and the visibility of your Shop and Listings. It does not authorize Crafters Market to use your User Content for any purpose outside operating and promoting the marketplace, and does not authorize AI Model Training on your User Content (see §10a).",
+          "You grant Crafters Market a worldwide, non-exclusive, royalty-free, sublicensable license to host, display, reproduce, adapt for display, distribute, and create derivative works of your User Content for the purposes stated in the preceding bullet.",
           "Permitted uses include: marketplace display, search and discovery, marketing, advertising, product-catalog syndication (Google Merchant Center, Meta, Pinterest, TikTok, and similar channels), social-media promotion, email newsletters, and other Platform-driven promotional campaigns.",
-          "Ownership remains with you. You may revoke the license for a given piece of User Content by deleting it from the Platform, except for residual copies in our backups and any cached or syndicated copies on third-party services whose retention we do not control.",
-          "Nothing in this license transfers ownership of underlying intellectual property to Crafters Market.",
+          "License termination on account closure. When you close your Maker account or delete a specific piece of User Content, the operational license granted in this Section will end with respect to that content as soon as reasonably possible, subject to the following limited carve-outs where the residual use is outside our practical control or is required for lawful business reasons: (a) legal, tax, accounting, dispute, or regulatory-compliance retention required by law; (b) completed transactions — Order records, receipts, invoices, and related records must be retained for the length of applicable dispute, chargeback, and tax windows; (c) archived backups — routinely-rotated encrypted backups may retain a copy until the next rotation cycle; (d) previously published marketing — email newsletters, blog articles, social posts, ad creative, and other outbound materials already published before account closure may remain in place; and (e) cached copies on third-party systems — cached, syndicated, or indexed copies on services outside our practical control (search engines, ad networks, social platforms) may persist until those systems refresh.",
+          "During the period necessary to wind down the operational license under the preceding bullet, Crafters Market will not use your User Content for any new promotional campaign or new syndication once the account is closed.",
         ],
       },
       {
@@ -1405,6 +1411,7 @@ export const SECTIONS = [
           "Standard payout schedule is set by Stripe\u2019s defaults unless you adjust it in your Stripe Express dashboard.",
           "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue, including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger are released on the normal payout cadence.",
           "Stripe- or card-network-controlled holds. Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. In those cases, resolution is governed by Stripe's Connected Account Agreement and the applicable card-network rules, and we will assist you with information and cooperation where reasonably practical.",
+          "Certain payout holds may be imposed directly by Stripe, payment networks, financial institutions, or regulatory authorities. Crafters Market cannot override those holds where it does not control fund release.",
           "Communication during holds. Crafters Market will make reasonable efforts to inform you of the general reason for a payout hold, unless prohibited by law, card-network rules, an ongoing fraud investigation, or a regulatory requirement. We do not commit to any specific evidence, documentation, or notice threshold beyond what is reasonably practical under the circumstances.",
           "Reserves: we may require a rolling reserve on payouts for accounts with elevated dispute or chargeback risk.",
           "Negative balances: if refunds or chargebacks exceed pending payouts, the resulting negative balance must be settled by you. We may recover negative balances from subsequent payouts or, if necessary, by direct collection.",
@@ -1557,7 +1564,7 @@ export const SECTIONS = [
           "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
           "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
           "Non-Arbitrable Disputes / Venue. For any Maker-Platform dispute not subject to arbitration under this Section (for example, small-claims actions and requests for injunctive relief), the exclusive venue is the state or federal courts located in King County, Washington.",
-          "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting this Agreement. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Opting out does not affect any other provision of this Agreement.",
+          "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting this Agreement. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Email to policy@craftersmarket.org is the authoritative legal submission method; accepted opt-out notices are recorded in an internal ledger maintained by Crafters Market Legal / Compliance for future reference. Opting out does not affect any other provision of this Agreement.",
         ],
       },
       {
@@ -1615,7 +1622,7 @@ export const SECTIONS = [
           </a>
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.5</b>
+          <span>Version:</span> <b className="text-ink">3.6</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -1625,6 +1632,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.6 · 2026-06-30 — Final Legal Consistency Audit (v4): §10 User Content License rewritten with purpose limitation, explicit ownership retention, and license-termination-on-account-closure with limited carve-outs; §14 broadens payout-hold disclosure to payment networks, financial institutions, and regulatory authorities; §27 opt-out references the internal ledger.</span>
           <br />
           <span>v3.5 · 2026-06-30 — Final legal-hardening pass (v3): §14 Communication-during-holds (reasonable-efforts obligation subject to law / card-network / fraud / regulatory carve-outs); §27 Governing Law adds explicit non-waivable-rights carve-out (including any mandatory seller-protection statute in the Maker&rsquo;s home jurisdiction).</span>
           <br />
@@ -1962,6 +1971,29 @@ export const SECTIONS = [
         ],
       },
       {
+        heading: "4a. Third-Party Service Providers (Vendor Inventory)",
+        text: "The following third-party services are currently used to operate the Platform. Each vendor is bound by its own privacy and security terms in addition to our contractual obligations with them. This list reflects production; we update it when we add, remove, or replace a vendor.",
+        list: [
+          ["Stripe (payments, Stripe Connect, subscriptions) \u2014", "processes Buyer payments, Maker payouts, Crafters Plus subscription billing, and dispute/chargeback workflows. Receives Buyer billing information, Maker identity and banking information for KYC, and transaction metadata. Governed by Stripe's Privacy Policy and Connected Account Agreement."],
+          ["Cloudflare (CDN, DDoS protection, edge security) \u2014", "sits in front of Platform traffic. Sees IP addresses, request metadata, and (where TLS is terminated at the edge) request contents in transit. Used for performance and abuse mitigation, not for advertising."],
+          ["Google Analytics 4 / GA4 (product analytics) \u2014", "measures site usage, funnels, retention. Receives pseudonymous identifiers, page-view events, and coarse geolocation. Configured with IP anonymization where supported."],
+          ["Google Ads (advertising, conversion tracking) \u2014", "runs off-site ad campaigns and imports conversion events. Receives hashed identifiers and conversion metadata for ads attribution. Does not receive plaintext personal information."],
+          ["Google Search Console (SEO / indexing telemetry) \u2014", "provides organic-search performance data. Does not receive user personal information beyond aggregated query and click data."],
+          ["Meta (Facebook / Instagram) Ads & Conversions API \u2014", "runs off-site ad campaigns on Meta surfaces. Receives hashed identifiers and conversion metadata for ads attribution."],
+          ["Pinterest (advertising and catalog feed) \u2014", "if enabled, receives catalog metadata for Maker Listings and hashed identifiers for conversion attribution."],
+          ["TikTok (Pixel and Events API) \u2014", "if enabled, receives hashed identifiers and conversion events for ads attribution on TikTok surfaces."],
+          ["Sentry (error monitoring) \u2014", "if enabled, receives client and server error stack traces, request metadata, and pseudonymous user identifiers to help us find and fix bugs."],
+          ["Mailgun / transactional email provider \u2014", "delivers transactional email (Order confirmations, account and security notices, dispute updates, payout notifications). Receives recipient email addresses and message content."],
+          ["Shippo (shipping-label purchase, rate lookup) \u2014", "if the Maker uses on-Platform label purchase, Shippo receives the shipping address, package dimensions, and payment metadata needed to purchase and track the label."],
+          ["AI service providers \u2014", "the specific model providers we rely on for Operational AI (e.g., OpenAI, Anthropic, Google Gemini) may receive prompts and content necessary to perform the specific task (search relevance, listing optimization, translation, moderation, ad-copy generation). Provider identities may change over time; we do not send AI providers your creative Maker Content for training under the Creator-Owned AI Policy (Section 11 and Terms §6a)."],
+          ["Emergent Universal Key (LLM aggregator) \u2014", "used internally to route Operational-AI requests to the appropriate model provider without exposing plaintext API keys to the Platform runtime."],
+        ],
+        bullets: [
+          "Each vendor listed above has its own Privacy Policy that governs its own processing of information it receives from us. Links are available on request.",
+          "When we add, remove, or replace a vendor in a way that materially changes what information is shared, we will update this list and, where required by law, notify affected users.",
+        ],
+      },
+      {
         heading: "5. Data Retention",
         bullets: [
           "We retain information only as long as reasonably necessary to operate the Platform, comply with legal obligations, resolve disputes, enforce our agreements, and maintain security.",
@@ -2170,7 +2202,7 @@ export const SECTIONS = [
     outro: (
       <>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.3</b>
+          <span>Version:</span> <b className="text-ink">3.4</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -2180,6 +2212,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.4 · 2026-06-30 — Final Legal Consistency Audit (v4): §4a adds a concrete Third-Party Service Providers (Vendor Inventory) enumerating every production vendor — Stripe, Cloudflare, GA4, Google Ads, Google Search Console, Meta Ads/CAPI, Pinterest, TikTok, Sentry, Mailgun, Shippo, AI service providers, and the Emergent Universal Key aggregator.</span>
           <br />
           <span>v3.3 · 2026-06-30 — Second-round legal-review pass: §10 International Transfers rewritten from EU/UK placeholder to U.S.-focused language (with forward-looking commitment to SCCs / equivalent safeguards before EEA/UK expansion); §11 clarifies that Operational AI does NOT authorize the Platform or any third-party advertising provider to train commercial foundation models on Maker Content.</span>
           <br />
@@ -2271,7 +2305,7 @@ export const SECTIONS = [
           "Where applicable law requires (e.g. UK/EU/EEA/Brazil/California and other jurisdictions with consent requirements), you should be able to: accept all cookies, reject non-essential cookies, customize preferences by category, and revisit those preferences at any time via a Cookie Preference Center linked from this Policy and the Privacy Policy.",
           "Essential cookies cannot be rejected because the Platform will not function without them.",
           "If a Cookie Preference Center is not yet enabled for your jurisdiction, we will not use non-essential cookies in a way that requires prior consent under that jurisdiction\u2019s law.",
-          "[LEGAL REVIEW: jurisdiction-specific consent-mechanism language (ePrivacy Directive, GDPR, LGPD, CPRA, etc.) to be finalized by counsel.]",
+          "If Crafters Market expands services to jurisdictions with strict cookie-consent regimes (EU / EEA ePrivacy Directive, UK, LGPD, CPRA, and similar), a jurisdiction-appropriate Cookie Preference Center and consent-recording mechanism will be enabled before non-essential cookies are set for users in those jurisdictions.",
         ],
       },
       {
@@ -2500,10 +2534,12 @@ export const SECTIONS = [
         heading: "14. AI-Generated Content",
         text: "How Crafters Market distinguishes AI-assisted creative work from materially AI-generated work, and what must be disclosed:",
         bullets: [
-          "AI-assisted means AI was used only as a tool to assist the Maker's own creative process. Examples: grammar correction, spelling and translation, background removal, minor image cleanup, keyword or tag generation, SEO or listing-copy assistance, or brainstorming. AI-assisted work does not require an AI-disclosure tag on the Listing.",
-          "Materially AI-generated means the primary artistic expression or the final product was substantially created by generative AI rather than by the Maker. Examples: prompt-generated artwork printed onto a product, an AI-generated pattern used as the primary design, or a product whose distinguishing creative element was produced by AI rather than by the Maker.",
-          "Listings that are materially AI-generated must be clearly disclosed as such in the Listing title or description. Non-disclosure of a materially AI-generated Listing is a violation of this Policy and the Maker Agreement.",
-          "Crafters Market intentionally does not use a numeric percentage threshold (e.g., \u201c50% AI\u201d). Percentages create loopholes and are difficult to enforce. The test is whether the primary artistic expression or final product was substantially created by AI or by the Maker.",
+          "AI-assisted means AI was used only as a tool to assist the Maker's own creative process. AI-assisted work does not require an AI-disclosure tag on the Listing.",
+          "Examples of AI-assisted use (no disclosure required): grammar correction, SEO keyword suggestions, background removal, image cleanup, translation, title generation, spelling check, tag suggestions, minor color correction, moderation assistance, and similar tool-level uses.",
+          "Materially AI-generated means the primary artistic expression or the final product was substantially created by generative AI rather than by the Maker. Listings that are materially AI-generated must be clearly disclosed as such in the Listing title or description.",
+          "Examples of materially AI-generated Listings (disclosure required): AI-created artwork sold as prints or on physical products, AI-generated product images used as the primary Listing image, AI-generated printable designs, and AI-generated digital downloads.",
+          "Crafters Market intentionally does not use a numeric percentage threshold (e.g., \u201c50% AI\u201d). Percentages create loopholes and are difficult to enforce. The test is whether the primary artistic expression or final product was substantially created by AI or by the Maker; the examples above are the practical guide.",
+          "Non-disclosure of a materially AI-generated Listing is a violation of this Policy and the Maker Agreement.",
           "AI-assisted work is permitted when: (a) the Maker has the legal right to use the resulting content; (b) no third-party intellectual property is infringed by the AI output; and (c) Listings accurately represent the product being sold and disclose AI-generation where the work is materially AI-generated rather than merely AI-assisted.",
           "AI cannot be used to circumvent the handmade / handcrafted / designed-by-Maker categories defined in the Maker Agreement \u00a77.",
           "Makers remain responsible for all AI-assisted and AI-generated content they publish, including copyright, trademark, publicity, and training-set-license compliance.",
@@ -2595,7 +2631,7 @@ export const SECTIONS = [
           — subject line \u201cPolicy Report\u201d speeds triage.
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.2</b>
+          <span>Version:</span> <b className="text-ink">3.3</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -2605,6 +2641,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.3 · 2026-06-30 — Final Legal Consistency Audit (v4): §14 AI-Generated Content re-scoped to replace subjective wording with concrete example lists (AI-assisted: grammar correction, SEO keywords, background removal, image cleanup, translation, title generation; materially-AI-generated: AI-created artwork, AI-generated product images, AI-generated printable designs, AI-generated digital downloads). Examples replace numeric thresholds.</span>
           <br />
           <span>v3.2 · 2026-06-30 — Final legal-hardening pass (v3): §14 AI-Generated Content rewritten to codify the AI-assisted vs. materially-AI-generated distinction (no numeric percentage threshold — the test is whether the primary artistic expression or final product was substantially created by AI or by the Maker). Adds concrete examples and required-disclosure rule.</span>
           <br />

@@ -221,10 +221,38 @@ Append rows as items are completed and approved.
 | 2026-06-30 | Fee & Pricing Policy v1.0 published | Founder + Emergent | Standalone `/policies/fee-pricing` — extracted from Terms §5 and Maker Agreement §14; added refund/chargeback/adjustments, payout timing, prospective-change clause, marketplace-facilitator tax section |
 | 2026-06-30 | Second-round legal-review pass (iter413fr) | Founder + Emergent | 7 refinements: (1) Privacy §10 rewritten U.S.-focused with forward-looking EEA/UK SCC commitment; (2) Terms §6a + Maker §10a + Privacy §11 clarify Operational AI does NOT authorize Platform or third-party ad providers to train commercial foundation models; (3) Returns §6 separates 7-day transit-damage reporting recommendation from return window / Buyer Protection rights; (4) Terms §5 + Maker §14 + Fee-Pricing §9 add Stripe/card-network-controlled hold language; (5) Terms §12 + Maker §27 add remote-first arbitration (video/written by default), King County WA retained as legal seat; (6) Fee & Pricing §12 → 60-day notice for increases, immediate/shorter for reductions; (7) Terms §4 + Prohibited Items §12 add Maker-responsibility allocation for origin claims (Made in USA / Handmade). Counsel Review Packet regenerated. |
 | 2026-06-30 | Final legal-hardening pass v3 (iter413v3) | Founder + Emergent | 6 refinements: (P1-1) Non-waivable-rights carve-out added to Returns §16, Shipping §15, Buyer Protection §15, Terms §12 Governing Law, and Maker §27 Governing Law; (P1-2) Terms §14 Changes to Terms adds 30-day notice for material fees/user-obligation changes and immediate effectiveness for security/legal/fraud/technical changes; (P1-3) Prohibited Items §14 rewritten to codify AI-assisted vs. materially-AI-generated distinction (no percentage threshold; required disclosure for materially AI-generated); (P1-4) Fee & Pricing §8 clarifies Stripe payment-processing fees are governed by the processor and may not be recoverable; (P2-5) Terms §5 + Maker §14 + Fee-Pricing §9 add Communication-during-holds reasonable-efforts language with law/card-network/fraud/regulatory carve-outs; (P2-6) Fee & Pricing §12 adds Click-Acceptance for material fee increases. Counsel Review Packet regenerated. |
+| 2026-06-30 | Final Legal Consistency Audit v4 + Launch Readiness Pass (iter413v4) | Founder + Emergent | 6 items: (1) Policy hierarchy canonicalized in hierarchy.js v1.1 — Maker Agreement (seller-specific only) now sits between Terms and Marketplace Policies; Returns §2 updated to match; (2) Privacy Policy §4a added a concrete Third-Party Service Providers (Vendor Inventory) enumerating every production vendor — Stripe, Cloudflare, GA4, Google Ads, Google Search Console, Meta Ads/CAPI, Pinterest, TikTok, Sentry, Mailgun, Shippo, AI service providers (OpenAI/Anthropic/Google Gemini), Emergent Universal Key aggregator; (3) Arbitration opt-out internal ledger — new backend endpoints POST/GET /api/legal/arbitration-opt-outs (super-admin only), MongoDB collection `arbitration_opt_outs` with account_email, legal_name, role, opt_out_received_at, terms_first_accepted_at, within_window, processed_by, processed_at, verification_notes; Terms §12 and Maker §27 opt-out language updated to reference the internal ledger while retaining email as the authoritative legal submission method; (4) Prohibited Items §14 AI-Generated Content re-scoped to replace subjective wording with concrete example lists (AI-assisted: grammar/SEO/background removal/image cleanup/translation/title generation; materially-AI-generated: AI-created artwork/AI-generated product images/AI-generated printable designs/AI-generated digital downloads); (5) Maker Agreement §10 User Content License rewritten with purpose limitation, explicit ownership retention, and license-termination-on-account-closure with limited carve-outs (legal compliance, completed transactions, archived backups, previously published marketing, cached third-party systems); (6) Terms §5 + Maker §14 + Fee-Pricing §9 broaden payout-hold disclosure to include payment networks, financial institutions, and regulatory authorities. Placeholder scrub — 2 live [LEGAL REVIEW: ...] fragments removed from Shipping §10 and Cookie §7 and replaced with forward-looking safeguards language. Counsel Review Packet regenerated (139 pages, 599 KB). |
 | _pending_ | Final counsel sign-off (all items) | _(counsel)_ | _blocked on updated packet PDF regen_ |
 | _pending_ | DMCA Agent registration (Item 6a) | Founder | _operational task before launch_ |
 | _pending_ | Effective date substitution (Item 9) | Engineering + Founder | _at deployment_ |
 | _pending_ | Appendix removal (Item 10) | Engineering | _after counsel sign-off_ |
 | _pending_ | Final Consistency Audit (Item 11) | Engineering | _before deployment_ |
 | _pending_ | Production Gate (Item 12) | Founder | _final go/no-go_ |
+
+
+---
+
+## Operational Verification Checklist (non-code — confirm before Version 1.0 Launch)
+
+The following operational items require human confirmation. They are not code changes; they are the operational counterparts to the legal documents now published.
+
+- [ ] **policy@craftersmarket.org** — mailbox is provisioned, active, and monitored (used for DMCA notices, arbitration opt-outs, privacy requests, and general policy correspondence).
+- [ ] **DMCA notice workflow** — an intake path exists (email or ticket queue) for takedown notices to the Designated Agent Micheal Williams; every accepted notice is logged and forwarded to the affected Maker.
+- [ ] **Repeat-infringer policy** — internal enforcement doc exists (three-strike or equivalent). Reference: `/app/memory/governance/enforcement-guide.md`.
+- [ ] **Arbitration opt-out ledger** — Legal / Compliance records every accepted opt-out via `POST /api/legal/arbitration-opt-outs` (super-admin only). Email remains the authoritative legal submission method; the ledger is the internal source of truth.
+- [ ] **Privacy request workflow** — an operational process exists for CCPA/CPRA access, correction, deletion, and opt-out-of-sharing requests within the statutory timelines.
+- [ ] **Stripe integration** — Connected Account Agreement URL, Payments Agreement URL, and payment-processor terms links resolve; test-mode webhook signing secret is rotated to live mode at go-live.
+- [ ] **Trust Center smoke test** — every card on `/trust` resolves to a live policy; every card in `/policies` resolves; deep-links (`#toc-*`) route to the correct section.
+- [ ] **Google Ads Conversion Labels** — real conversion IDs (Signup / Application / Purchase) provided by the marketer and wired into `googleAdsConversions.js`.
+
+Once every item above is confirmed, the legal documents can be locked at **Version 1.0 Launch**.
+
+## Post-Launch Roadmap (resume after Version 1.0 lock)
+
+1. Cookie Preference Center
+2. Maker Agreement DB versioned acceptance (with IP + UA audit trail — design in `maker-agreement-acceptance-design.md`)
+3. INFORM Consumers Act automation
+4. Marketplace Facilitator Tax operational verification with the payment processor
+5. Accessibility enhancements — WCAG 2.1 AA conformance testing, alt-text tooling, keyboard-nav audit, focus-indicator sweep
+6. **Refactor** — decompose `PolicyPage.jsx` (currently ~3.1k lines) into per-policy markdown/component files
 

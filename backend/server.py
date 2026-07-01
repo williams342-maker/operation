@@ -185,6 +185,8 @@ api.include_router(growth_stats_router)
 api.include_router(og_prerender_router)
 api.include_router(admin_backup_router)
 api.include_router(admin_secrets_router)
+from routers.arbitration_opt_outs import router as arbitration_opt_outs_router  # iter413v4 — Legal / Compliance
+api.include_router(arbitration_opt_outs_router)
 from routers.seed_admin import router as seed_admin_router
 api.include_router(seed_admin_router)
 from routers.ai_discovery import router as ai_discovery_router
