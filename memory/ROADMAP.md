@@ -20,29 +20,41 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 
 ## Trust & Policy Center — Post-Phase D backlog
 
-_Queued items from the Trust & Policy Center v1 project (2026-06-30). These
-were carved out because they introduce user-facing functionality or new
-DB collections and therefore violate the Phase D freeze._
+_Queued items from the Trust & Policy Center v1 project (2026-06-30).
+Engineering ship approval received 2026-06-30. **Locked release sequence** below._
 
-- **P1 · Cookie Preference Center** — user-facing opt-in/opt-out UI for
-  non-essential cookies (analytics, advertising). Wire into the Cookie
-  Policy and the GDPR cookie banner. Needs DB (`consent_records`).
-- **P1 · Fee & Pricing Policy** — dedicated `/policies/fee-pricing` page.
-  Currently referenced in Terms + Maker Agreement prose only. Content is
-  ready in `/policy#marketplace` section of the legacy page.
-- **P2 · Seller Verification public page** — expand into
+### Locked Release Sequence (approved 2026-06-30)
+
+1. Counsel review of Appendix A annotations across all 12 policies.
+2. Remove attorney annotations from `manifest.js`.
+3. Publish Trust Center to production (`craftersmarket.org/trust`).
+4. Add Google Ads conversion labels (`GOOGLE_ADS_CONVERSION_LABEL_APPLICATION`,
+   `_SIGNUP`, `_PURCHASE`) once user retrieves them; also update any GTM/gtag
+   event mappings and server-side conversion events.
+5. Verify conversion telemetry end-to-end (test funnel event → Google Ads dashboard).
+6. **P1 — Publish Fee & Pricing Policy** at `/policies/fee-pricing`. Highest
+   post-launch engineering priority. Prevents commission changes from
+   requiring edits across multiple documents.
+7. **P2 — Cookie Preference Center**. Improves privacy compliance and gives
+   users granular consent controls without changing the underlying legal
+   policies.
+8. **P3 — Maker Agreement DB opt-in**. Provides explicit agreement
+   versioning, timestamped acceptance, IP/User-Agent audit trail (where
+   appropriate), and future re-acceptance when agreement versions change.
+   Strongest long-term legal foundation.
+
+### Later backlog (order not locked)
+
+- **P3 · Seller Verification public page** — expand into
   `/policies/seller-verification` once the verification program is
   formalized.
-- **P2 · Maker Agreement checkbox with DB opt-in record** — capture
-  `{maker_id, agreement_version, accepted_at}` at signup. Re-prompt on
-  version bump.
-- **P2 · Maker Shop Policy Builder** — configurable Shop Policy defaults
+- **P3 · Maker Shop Policy Builder** — configurable Shop Policy defaults
   in the seller dashboard (returns, exchanges, cancellations, processing
-  times, shipping, digital downloads, custom orders). Enforces
+  times, shipping, digital downloads, Custom Orders). Enforces
   marketplace floors defined in the manifest.
-- **P2 · Buyer Protection Case Portal** — Buyer/Maker-facing case UI
+- **P3 · Buyer Protection Case Portal** — Buyer/Maker-facing case UI
   replacing the current email-only escalation path.
-- **P2 · Product Review Matrix admin UI** — internal moderation dashboard
+- **P3 · Product Review Matrix admin UI** — internal moderation dashboard
   backed by `product-review-matrix.md`.
 - **P3 · Security Center / Accessibility Statement / Marketplace
   Transparency Report / AI Transparency Center** — Trust Center

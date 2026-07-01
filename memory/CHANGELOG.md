@@ -1,3 +1,50 @@
+## 2026-06-30 — Trust & Policy Center v1 · Engineering approval received (iter413dp)
+
+User granted engineering approval to ship `/trust`, `/policies`, and
+`/policies/:slug`. Legal-sensitive wording holds pending counsel review.
+Google Ads conversion placeholders remain in place until real labels are
+retrieved.
+
+### Locked pre-publication checklist
+
+1. Attorney reviews every Appendix A annotation.
+2. Resolve each legal comment.
+3. Remove all attorney-review appendices from production (`manifest.js`
+   arrays cleared + hostname gate confirms null on `craftersmarket.org`).
+4. Final consistency review of: policy names · effective dates · contact
+   info · cross-links · defined terms · commission percentages · refund
+   terminology · governing-law references.
+5. Publish.
+
+**Rule:** Do not remove the legal review process at any point.
+
+### Locked post-launch release sequence
+
+1. Counsel review
+2. Remove attorney annotations
+3. Publish Trust Center
+4. Add Google Ads conversion labels (also update GTM/gtag mappings +
+   server-side conversion events if applicable)
+5. Verify conversion telemetry
+6. **P1** — Publish `/policies/fee-pricing` (highest post-launch priority)
+7. **P2** — Build Cookie Preference Center
+8. **P3** — Add Maker Agreement acceptance/version tracking (DB opt-in
+   with `agreement_version`, `accepted_at`, IP/User-Agent audit trail,
+   re-acceptance on version bump)
+
+### Google Ads label → marketplace event mapping (confirmed)
+
+| Placeholder | Marketplace event |
+| --- | --- |
+| `GOOGLE_ADS_CONVERSION_LABEL_APPLICATION` | Founding Seller Application (Maker application submitted) |
+| `GOOGLE_ADS_CONVERSION_LABEL_SIGNUP` | Maker Registration Complete |
+| `GOOGLE_ADS_CONVERSION_LABEL_PURCHASE` | Purchase / Marketplace Sale |
+
+Full verification report: `/app/memory/governance/verification-pass-2026-06-30.md`.
+
+---
+
+
 ## 2026-06-30 — Trust & Policy Center v1 (Phase D governance work)
 
 Comprehensive documentation + governance layer built on top of the existing

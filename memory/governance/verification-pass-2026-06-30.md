@@ -7,6 +7,68 @@
 
 ---
 
+## Engineering Approval — 2026-06-30
+
+**STATUS: ✅ APPROVED TO SHIP (engineering)**
+
+The user has granted engineering approval to ship:
+
+- Trust Center (`/trust`)
+- Restructured Policies Center (`/policies`)
+- Individual policy pages (`/policies/:slug`)
+
+Approval conditions:
+
+- Google Ads conversion placeholders remain in place until real labels are retrieved.
+- Legal-sensitive wording is held pending counsel review.
+- The pre-publication checklist below must be completed before public launch.
+- The **legal review process must not be removed** at any step.
+
+---
+
+## Locked Pre-Publication Checklist (must complete before public launch)
+
+1. Attorney reviews every Appendix A annotation in `src/data/policies/manifest.js`.
+2. Resolve each legal comment (track edits in the working branch).
+3. Remove all attorney-review appendices from production:
+   a. Clear `attorney_notes`, `implementation_notes`, `cross_ref_checklist` arrays in `manifest.js`.
+   b. Confirm the hostname gate in `AttorneyReviewAppendices` still returns null on `craftersmarket.org` as a belt-and-braces guard.
+4. Perform one final consistency review of:
+   - Policy names
+   - Effective dates
+   - Contact information (support email, DMCA agent contact once registered)
+   - Cross-links (every `related` slug resolves)
+   - Defined terms (Maker, Buyer, Platform, Listing, Order — consistent across every doc)
+   - Commission percentages (Free tier 5% + 3% processing; Plus 4% + 3% processing)
+   - Refund terminology (Marketplace Assistance, Buyer Protection, Shop Policy floors)
+   - Governing law references (Washington State + King County venue)
+5. Publish.
+
+---
+
+## Locked Post-Phase-D Release Sequence (approved 2026-06-30)
+
+1. ✅ Counsel review
+2. ✅ Remove attorney annotations
+3. ✅ Publish Trust Center
+4. ✅ Add Google Ads conversion labels
+5. ✅ Verify conversion telemetry
+6. ✅ Publish Fee & Pricing policy (`/policies/fee-pricing`) — highest post-launch engineering priority
+7. ✅ Build Cookie Preference Center
+8. ✅ Add Maker Agreement acceptance/version tracking (DB opt-in with agreement_version + accepted_at + IP/User-Agent audit trail)
+
+Google Ads label mapping (confirmed):
+
+| Placeholder | Marketplace event |
+| --- | --- |
+| `GOOGLE_ADS_CONVERSION_LABEL_APPLICATION` | Founding Seller Application (Maker application submitted) |
+| `GOOGLE_ADS_CONVERSION_LABEL_SIGNUP` | Maker Registration Complete |
+| `GOOGLE_ADS_CONVERSION_LABEL_PURCHASE` | Purchase / Marketplace Sale |
+
+Note: Once labels arrive, they must also be applied to any GTM or gtag event mappings and server-side conversion events (if applicable).
+
+---
+
 ## Pages Walked
 
 - `/trust` — Trust Center hub
