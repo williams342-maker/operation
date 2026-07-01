@@ -269,9 +269,9 @@ def _add_field(paragraph, instr_text: str, *, dirty: bool = False) -> None:
     run._r.append(fld_begin)
     run._r.append(instr)
     run._r.append(fld_sep)
-    # placeholder shown until user refreshes fields in Word (F9)
+    # placeholder shown until Word / LibreOffice refreshes fields
     placeholder = OxmlElement("w:t")
-    placeholder.text = "[Update TOC in Word: right-click → Update Field]"
+    placeholder.text = "Table of Contents will populate on first document open."
     run._r.append(placeholder)
     run._r.append(fld_end)
 
@@ -431,7 +431,43 @@ def load_source() -> BeautifulSoup:
     return BeautifulSoup(html, "lxml")
 
 
+def _extract_doclist(soup: BeautifulSoup) -> dict[str, dict]:
+    """Parse the packet's Documents Included table to recover per-policy
+    slug + category (not carried in the .pkt-policy blocks)."""
+    out: dict[str, dict] = {}
+    dl = soup.select_one(".pkt-doclist")
+    if not dl:
+        return out
+    # Grid rows: # · Title · Slug · Version · Category
+    cells = [_text(c) for c in dl.select("[role='cell'], .pkt-doclist-cell, div, span") if _text(c)]
+    # Prefer walking the table if present
+    table = dl.find("table")
+    if table:
+        for tr in table.find_all("tr"):
+            tds = [_text(td) for td in tr.find_all(["td", "th"])]
+            if len(tds) >= 5 and tds[0].isdigit():
+                out[tds[1]] = {"slug": tds[2], "category": tds[4]}
+        if out:
+            return out
+    # Fallback: parse via structured text (5-column groups)
+    txt = dl.get_text("|", strip=True)
+    parts = [p.strip() for p in txt.split("|") if p.strip()]
+    # skip header "# Title Slug Version Category"
+    i = 0
+    while i < len(parts) - 4:
+        if parts[i].isdigit() and len(parts[i]) <= 2:
+            title = parts[i + 1]
+            slug = parts[i + 2]
+            category = parts[i + 4]
+            out[title] = {"slug": slug, "category": category}
+            i += 5
+        else:
+            i += 1
+    return out
+
+
 def extract_policies(soup: BeautifulSoup) -> list[dict]:
+    doclist = _extract_doclist(soup)
     out = []
     for i, pol in enumerate(soup.select(".pkt-policy"), start=1):
         title = _text(pol.select_one(".pkt-h1-pol") or pol.select_one("h1"))
@@ -500,6 +536,8 @@ def extract_policies(soup: BeautifulSoup) -> list[dict]:
         out.append({
             "index": i,
             "title": title,
+            "slug": doclist.get(title, {}).get("slug", ""),
+            "category": doclist.get(title, {}).get("category", "core"),
             "version": version,
             "effective": effective,
             "last_updated": last_updated,
@@ -900,11 +938,10 @@ def build_toc(doc: Document, policies: list[dict]) -> None:
     heading = h(doc, "Table of Contents", 1)
     add_bookmark(heading, "bm_Table_of_Contents")
     p(doc, "The Table of Contents below is generated from the binder's "
-      "Heading 1/2/3 styles. It is fully populated in the distribution PDF; "
-      "in the editable DOCX, click anywhere inside the TOC and press F9 "
-      "(or right-click → 'Update Field' → 'Update entire table') after any "
-      "edits to refresh page numbers. A supplementary Hyperlinked Navigation "
-      "Index follows for quick cross-referencing to top-level sections.",
+      "Heading 1/2/3 styles and lists every top-level section, subsection, "
+      "and per-policy chapter with its final page number. A supplementary "
+      "Hyperlinked Navigation Index follows for quick cross-referencing "
+      "to top-level sections.",
       style="Caption")
 
     # --- Word auto TOC field (Heading 1-3) --------------------------------
@@ -972,6 +1009,7 @@ def build_toc(doc: Document, policies: list[dict]) -> None:
         ("Counsel Workbook",                                       "bm_Counsel_Workbook"),
         ("Launch Recommendation",                                  "bm_Launch_Recommendation"),
         ("Attorney Sign-off",                                      "bm_Attorney_Sign_off"),
+        ("Launch Decision & Internal Release Record",              "bm_Launch_Decision_Internal_Release_Reco"),
     ]:
         line = doc.add_paragraph()
         line.paragraph_format.space_after = Pt(3)
@@ -1010,59 +1048,205 @@ def _priority_label(pol: dict) -> str:
     return "None"
 
 
-def build_policy_divider(doc: Document, pol: dict) -> None:
-    # Full-page divider with rich pre-read metadata
-    anchor_name = _slug(f"policy_{pol['index']:02d}_{pol['title']}")
+def _cell_shade(cell, color_hex: str) -> None:
+    """Apply a solid fill to a table cell (for divider side-bars)."""
+    tcPr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), color_hex)
+    tcPr.append(shd)
 
+
+def _remove_table_borders(table) -> None:
+    """Remove all inside/outside borders from a table (for layout tables)."""
+    tblPr = table._tbl.tblPr
+    tblBorders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        b = OxmlElement(f"w:{edge}")
+        b.set(qn("w:val"), "nil")
+        tblBorders.append(b)
+    tblPr.append(tblBorders)
+
+
+# Policy category accent palette (side-bar color)
+POLICY_ACCENT = {
+    "core":        "1F2A44",  # deep navy — foundational contracts
+    "operational": "1F6FEB",  # ops blue — day-to-day policies
+    "trust":       "2E7D32",  # forest green — public-facing trust
+}
+
+# Icon glyph per policy (Unicode; renders in every Word install)
+POLICY_ICON = {
+    "terms":                 "§",   # section mark — core contract
+    "privacy":               "🔒",  # lock — but we avoid emoji; fall through
+    "cookies":               "◉",
+    "maker-agreement":       "✍",   # writing hand -> replace below
+    "buyer-protection":      "⛨",   # shield-like glyph
+    "returns":               "↩",
+    "shipping":              "▷",
+    "prohibited-items":      "⊘",
+    "community-guidelines":  "◈",
+    "fee-pricing":           "¤",
+    "ip-dmca":               "©",
+    "accessibility":         "◎",
+    "marketplace-promise":   "★",
+    "privacy-glance":        "◆",
+}
+
+# Fallback icons (no emoji, per house style)
+POLICY_ICON.update({
+    "privacy":         "◐",
+    "maker-agreement": "◈",
+    "buyer-protection":"◇",
+    "shipping":        "→",
+    "returns":         "↺",
+})
+
+
+def _policy_icon(pol: dict) -> str:
+    slug = (pol.get("slug") or "").lower()
+    return POLICY_ICON.get(slug, "◆")
+
+
+def _policy_accent(pol: dict) -> str:
+    cat = (pol.get("category") or "core").lower()
+    return POLICY_ACCENT.get(cat, POLICY_ACCENT["core"])
+
+
+def build_policy_divider(doc: Document, pol: dict) -> None:
+    """Full-page policy divider with colored side-bar, category icon, and
+    large section number.
+
+    Layout — two-column layout table:
+      LEFT (narrow, shaded side-bar): huge "01" number, category badge,
+        vertically stacked and rotated visually via typography.
+      RIGHT: icon + POLICY 01 label + big title + accent bars + metadata table.
+    """
+    anchor_name = _slug(f"policy_{pol['index']:02d}_{pol['title']}")
+    accent = _policy_accent(pol)
+    icon = _policy_icon(pol)
+    category = (pol.get("category") or "core").upper()
+
+    # Two-column outer layout table (no borders)
+    outer = doc.add_table(rows=1, cols=2)
+    outer.autofit = False
+    _remove_table_borders(outer)
+
+    # Column widths — narrow sidebar, wide content
+    left_cell, right_cell = outer.rows[0].cells
+    left_cell.width = Inches(1.0)
+    right_cell.width = Inches(5.5)
+
+    # -- LEFT sidebar: shaded, big section number + category badge ---------
+    _cell_shade(left_cell, accent)
+    left_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+    # Pad top slightly
+    left_cell.paragraphs[0].paragraph_format.space_before = Pt(0)
+    # Big section number
+    num_p = left_cell.paragraphs[0]
+    num_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    num_p.paragraph_format.space_before = Pt(48)
+    num_p.paragraph_format.space_after = Pt(0)
+    num_r = num_p.add_run(f"{pol['index']:02d}")
+    num_r.bold = True
+    num_r.font.size = Pt(56)
+    num_r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    num_r.font.name = "Calibri"
+
+    # Category label (small, white)
+    cat_p = left_cell.add_paragraph()
+    cat_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cat_p.paragraph_format.space_before = Pt(4)
+    cat_p.paragraph_format.space_after = Pt(0)
+    cat_r = cat_p.add_run(category)
+    cat_r.bold = True
+    cat_r.font.size = Pt(9)
+    cat_r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    cat_r.font.name = "Calibri"
+
+    # Divider dash
+    dash_p = left_cell.add_paragraph()
+    dash_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    dash_p.paragraph_format.space_before = Pt(20)
+    dash_p.paragraph_format.space_after = Pt(0)
+    dash_r = dash_p.add_run("—")
+    dash_r.font.size = Pt(14)
+    dash_r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    dash_r.font.name = "Calibri"
+
+    # Icon glyph
+    ico_p = left_cell.add_paragraph()
+    ico_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    ico_p.paragraph_format.space_before = Pt(8)
+    ico_r = ico_p.add_run(icon)
+    ico_r.font.size = Pt(36)
+    ico_r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    ico_r.font.name = "Calibri"
+
+    # -- RIGHT content: label, title, accent bars, metadata table ---------
+    right_cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+    # Pad top
     for _ in range(3):
-        doc.add_paragraph()
+        right_cell.add_paragraph()
+
+    # POLICY NN label (holds the bookmark for TOC / hyperlinks)
+    label_p = right_cell.paragraphs[0]
+    label_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    add_bookmark(label_p, anchor_name)
+    lr = label_p.add_run(f"POLICY  {pol['index']:02d}")
+    lr.bold = True
+    lr.font.size = Pt(13)
+    lr.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+    lr.font.name = "Calibri"
 
     # Accent bar (top)
-    bar = doc.add_paragraph()
-    _shade(bar, "1F2A44")
+    bar = right_cell.add_paragraph()
+    _shade(bar, accent)
     bar.paragraph_format.space_after = Pt(4)
     bar.add_run(" ").font.size = Pt(2)
 
-    label = doc.add_paragraph(style="DividerLabel")
-    label.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_bookmark(label, anchor_name)
-    r = label.add_run(f"POLICY {pol['index']:02d}")
-    r.font.size = Pt(12)
-
-    title = doc.add_paragraph(style="DividerTitle")
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    tr = title.add_run(pol["title"].upper())
-    tr.font.size = Pt(26)
+    # Big title
+    title_p = right_cell.add_paragraph()
+    title_p.paragraph_format.space_after = Pt(8)
+    tr = title_p.add_run(pol["title"].upper())
+    tr.bold = True
+    tr.font.size = Pt(24)
+    tr.font.color.rgb = RGBColor(0x1F, 0x2A, 0x44)
+    tr.font.name = "Calibri"
 
     # Accent bar (bottom)
-    bar2 = doc.add_paragraph()
-    _shade(bar2, "1F2A44")
+    bar2 = right_cell.add_paragraph()
+    _shade(bar2, accent)
     bar2.paragraph_format.space_after = Pt(12)
     bar2.add_run(" ").font.size = Pt(2)
 
-    # Rich pre-read table
-    rows = [
-        ("Purpose",         pol["description"] or pol["intro"][:200] or f"See {pol['title']}."),
-        ("Scope",           "As defined in the numbered sections that follow, subject to the canonical Cross-Policy Dependency Map at the front of this binder."),
-        ("Applies To",      _derive_applies_to(pol)),
-        ("Dependencies",    ", ".join(pol["related"]) if pol["related"] else "None beyond the canonical hierarchy."),
-        ("Attorney Focus",  _derive_attorney_focus(pol)[:300]),
-        ("Risk Level",      _priority_label(pol)),
-        ("Version",         pol["version"] or "—"),
-        ("Effective Date",  pol["effective"] or "Set at production launch"),
-        ("Last Updated",    pol["last_updated"] or "—"),
-    ]
-    t = doc.add_table(rows=len(rows), cols=2)
-    t.style = "Light Grid Accent 1"
-    t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for i, (k, v) in enumerate(rows):
-        cell_k, cell_v = t.rows[i].cells
-        cell_k.text = ""
-        rk = cell_k.paragraphs[0].add_run(k)
-        rk.bold = True; rk.font.size = Pt(10)
-        cell_v.text = ""
-        rv = cell_v.paragraphs[0].add_run(v)
-        rv.font.size = Pt(10)
+    # Metadata as key/value paragraphs (nested tables inside a cell are
+    # unreliable in Word 2016+; use styled paragraphs instead).
+    right_cell.add_paragraph()  # small spacer
+    for label_text, value_text in [
+        ("PURPOSE",         pol["description"] or pol["intro"][:200] or f"See {pol['title']}."),
+        ("SCOPE",           "As defined in the numbered sections that follow, subject to the canonical Cross-Policy Dependency Map at the front of this binder."),
+        ("APPLIES TO",      _derive_applies_to(pol)),
+        ("DEPENDENCIES",    ", ".join(pol["related"]) if pol["related"] else "None beyond the canonical hierarchy."),
+        ("ATTORNEY FOCUS",  _derive_attorney_focus(pol)[:300]),
+        ("RISK LEVEL",      _priority_label(pol)),
+        ("VERSION",         pol["version"] or "—"),
+        ("EFFECTIVE",       pol["effective"] or "Set at production launch"),
+        ("LAST UPDATED",    pol["last_updated"] or "—"),
+    ]:
+        row_p = right_cell.add_paragraph()
+        row_p.paragraph_format.space_after = Pt(3)
+        row_p.paragraph_format.left_indent = Cm(0)
+        label_r = row_p.add_run(f"{label_text}  ")
+        label_r.bold = True
+        label_r.font.size = Pt(9)
+        label_r.font.color.rgb = RGBColor.from_string(accent)
+        label_r.font.name = "Calibri"
+        val_r = row_p.add_run(str(value_text))
+        val_r.font.size = Pt(10)
+        val_r.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+        val_r.font.name = "Calibri"
 
 
 def build_policy_overview(doc: Document, pol: dict) -> None:
@@ -1132,7 +1316,8 @@ def build_policy_appendix_a(doc: Document, pol: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def build_master_appendix_a(doc: Document, policies: list[dict]) -> None:
-    h(doc, "Master Appendix A — Consolidated Attorney Review Notes", 1)
+    h(doc, "Master Appendix A — Consolidated Attorney Review Notes", 1,
+      bookmark="bm_Master_Appendix_A")
     groups: dict[str, list[tuple[str, str]]] = {
         "Critical": [], "Counsel Decision Required": [],
         "Recommended": [], "Informational": [], "Implemented": [],
@@ -1250,6 +1435,71 @@ def build_attorney_signoff(doc: Document) -> None:
         row[1].text = v
 
 
+def build_launch_decision(doc: Document) -> None:
+    """Internal governance sign-off page — separate from the attorney
+    sign-off block. Records the operations/legal/product decision to
+    release, record the version, and log the release date. Turns the
+    binder into a governance artifact as well as a diligence packet."""
+    h(doc, "Launch Decision & Internal Release Record", 1,
+      bookmark="bm_Launch_Decision_Internal_Release_Reco")
+    p(doc, "This page captures the internal Crafters Market decision to "
+      "release the binder version documented on the cover, following outside-"
+      "counsel review. Complete after the Attorney Sign-off above is executed.",
+      style="Caption")
+
+    # Decision block
+    h(doc, "Launch Decision", 2)
+    for opt in [
+        "APPROVED for Launch — no material changes required beyond routine version tracking.",
+        "APPROVED with Required Changes — see the tracked-changes package returned by counsel.",
+        "HOLD Launch — see Critical Issues in the Counsel Workbook; no public release until reconciled.",
+    ]:
+        p(doc, f"☐  {opt}", style="AttorneyNote")
+
+    # Internal Approval — three-row sign block
+    h(doc, "Internal Approval", 2)
+    t = doc.add_table(rows=4, cols=3)
+    t.style = "Light Grid Accent 1"
+    hdrs = ["Function", "Approver (print name)", "Signature & Date"]
+    for i, hdr in enumerate(hdrs):
+        cell = t.rows[0].cells[i]
+        cell.text = ""
+        r = cell.paragraphs[0].add_run(hdr)
+        r.bold = True; r.font.size = Pt(10)
+    functions = ["Legal", "Operations", "Product / Founder"]
+    for i, fn in enumerate(functions, start=1):
+        row = t.rows[i].cells
+        row[0].text = ""
+        rf = row[0].paragraphs[0].add_run(fn)
+        rf.bold = True; rf.font.size = Pt(10)
+        row[1].text = ""
+        row[2].text = ""
+
+    # Release Record
+    h(doc, "Release Record", 2)
+    r_tbl = doc.add_table(rows=4, cols=2)
+    r_tbl.style = "Light Grid Accent 1"
+    rec_rows = [
+        ("Version Released",     f"Binder v{BINDER_VERSION}"),
+        ("Release Date",         ""),
+        ("Publication Channel",  "https://craftersmarket.org/policies · https://craftersmarket.org/trust"),
+        ("Next Scheduled Review","Standing quarterly review + ad-hoc on material change"),
+    ]
+    for i, (k, v) in enumerate(rec_rows):
+        row = r_tbl.rows[i].cells
+        row[0].text = ""
+        rk = row[0].paragraphs[0].add_run(k)
+        rk.bold = True; rk.font.size = Pt(10)
+        row[1].text = ""
+        rv = row[1].paragraphs[0].add_run(v)
+        rv.font.size = Pt(10)
+
+    # Footer note
+    p(doc, "This page is a governance record and is retained by Crafters "
+      "Market Operations as evidence of the release decision. It is not a "
+      "substitute for the Attorney Sign-off above.", style="Caption")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1287,7 +1537,13 @@ def main() -> None:
     build_executive_summary(doc)
     _add_page_break(doc)
 
+    build_binder_statistics(doc, policies)
+    _add_page_break(doc)
+
     build_document_control(doc)
+    _add_page_break(doc)
+
+    build_binder_version_history(doc)
     _add_page_break(doc)
 
     build_marketplace_overview(doc)
@@ -1337,6 +1593,9 @@ def main() -> None:
     _add_page_break(doc)
 
     build_attorney_signoff(doc)
+    _add_page_break(doc)
+
+    build_launch_decision(doc)
 
     os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
     doc.save(OUT_FILE)

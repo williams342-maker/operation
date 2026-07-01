@@ -1,3 +1,27 @@
+## 2026-07-01 — Legal Launch Binder v5.1 · Refinement pass complete (attorney-ready)
+
+Addressed the user's 6-item polish list on top of the v5.1 build:
+1. Removed all "Press F9 / Update Field" editing instructions from the attorney-facing TOC caption.
+2. Added Binder Statistics + Binder Version History pages (were referenced in Nav Index but not previously generated).
+3. Consolidated duplicate Stripe payout-hold language across Terms of Service §5, Fee & Pricing Policy §9, and Maker Agreement §14 — each now uses a single "third-party-controlled holds" bullet that preserves the full legal scope (Stripe, card networks, payment networks, financial institutions, regulatory authorities).
+4. Redesigned policy divider pages: colored per-category side-bar (core=navy, operational=blue, trust=green), 56pt policy number, category badge, category-specific glyph icon, accent bars, and clean key/value metadata rows (Purpose · Scope · Applies To · Dependencies · Attorney Focus · Risk Level · Version · Effective · Last Updated).
+5. Added final governance page: "Launch Decision & Internal Release Record" with launch-decision checkboxes, Internal Approval table (Legal · Operations · Product/Founder), and Release Record.
+6. Final consistency pass: 32/32 internal hyperlinks resolve to bookmarks; no editing instructions remain; PDF exports cleanly with populated TOC (162 pages, 19 outline items).
+
+### Deliverables (2026-07-01, refined)
+
+- **DOCX (editable master):** `/app/frontend/public/downloads/legal-launch-binder-v5-2026-07-01.docx` — 129.2 KB.
+- **PDF (distribution copy):** `/app/frontend/public/downloads/legal-launch-binder-v5-2026-07-01.pdf` — 633.5 KB, 162 pages, 19-item PDF outline.
+
+### Files touched
+
+- `/app/scripts/render-legal-launch-binder-v5.py` — polish + new sections.
+- `/app/frontend/src/pages/PolicyPage.jsx` — consolidated payout-hold bullets in three sections; no legal meaning changed.
+- `/app/memory/legal-launch-binder-v5-verification-report.md` — post-refinement verification report.
+
+Awaiting user re-review before P1 (Cookie Preference Center) begins.
+
+
 ## 2026-07-01 — Legal Launch Binder v5.1 · Final DOCX + PDF deliverables complete
 
 Completed the 10 visual/structural enhancements requested for the Legal Launch
