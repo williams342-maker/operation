@@ -1481,6 +1481,39 @@ async def _job_weekly_seo_ping():
         logger.exception("[scheduler] weekly_seo_ping · gsc failed: %s", e)
 
 
+async def _job_weekly_policy_ping():
+    """Re-ping IndexNow + GSC specifically for the Trust & Policy Center
+    URL set every Monday 06:15 UTC — 15 minutes after the general
+    `weekly_seo_ping` so both cleanly land without racing on the same
+    IndexNow key.
+
+    Rationale: search engines lower crawl frequency on URLs that
+    haven't changed in a while. The legal library rarely changes but
+    is critical for buyer trust + Google OAuth verification, so we
+    keep it perpetually "warm" in Bing/Yandex/Naver/Seznam/Yep by
+    re-pinging the same 17 canonical URLs weekly. Google gets the
+    same signal via the GSC sitemap re-submit.
+
+    Best-effort — never raises. Kill-switch:
+    `SCHEDULER_WEEKLY_POLICY_PING=false` (default ON).
+    """
+    if os.environ.get("SCHEDULER_WEEKLY_POLICY_PING", "true").lower() in ("false", "0", "no"):
+        logger.info("[scheduler] weekly_policy_ping disabled via env")
+        return
+    try:
+        from seo_policy_notify import notify_policy_publish
+        r = await notify_policy_publish()
+        logger.info(
+            "[scheduler] weekly_policy_ping · urls=%s indexnow_ok=%s gsc_ok=%s gsc_skipped=%s",
+            r.get("url_count"),
+            r.get("indexnow", {}).get("ok"),
+            r.get("gsc", {}).get("ok"),
+            r.get("gsc", {}).get("skipped"),
+        )
+    except Exception as e:
+        logger.exception("[scheduler] weekly_policy_ping failed: %s", e)
+
+
 
 async def _job_hero_headlines_refresh():
     """Daily refresh of the rotating hero headline pool (iter220). Calls
@@ -1645,6 +1678,13 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # hours, so this is the highest-leverage cron we run.
     sched.add_job(_job_weekly_seo_ping, CronTrigger(day_of_week="mon", hour=6, minute=0),
                   id="weekly_seo_ping", replace_existing=True)
+    # Weekly Trust & Policy Center re-ping — Monday 06:15 UTC. Keeps the
+    # legal library perpetually warm in Bing/Yandex/Naver/Seznam/Yep and
+    # nudges Google via a GSC sitemap re-submit. Kill-switch:
+    # SCHEDULER_WEEKLY_POLICY_PING=false (defaults to true).
+    sched.add_job(_job_weekly_policy_ping,
+                  CronTrigger(day_of_week="mon", hour=6, minute=15),
+                  id="weekly_policy_ping", replace_existing=True)
     # iter220 — Daily hero headline pool refresh (Gemini drafts via universal LLM key).
     sched.add_job(_job_hero_headlines_refresh, CronTrigger(hour=9, minute=15),
                   id="hero_headlines_refresh", replace_existing=True)

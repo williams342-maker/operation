@@ -1,3 +1,22 @@
+## 2026-07-01 — Weekly Trust & Policy Center re-ping cron
+
+Wired a new scheduler job that re-fires the policy publish notification
+every Monday 06:15 UTC so search engines never lower crawl frequency on
+the legal library, even when policy content is stable.
+
+- **New job:** `weekly_policy_ping` (scheduler.py) — reuses
+  `notify_policy_publish()` to hit IndexNow (17 canonical URLs) + GSC
+  `submit_sitemap`. Runs 15 minutes after the existing
+  `weekly_seo_ping` so both cleanly land without racing on the same
+  IndexNow key.
+- **Kill-switch:** `SCHEDULER_WEEKLY_POLICY_PING=false` (default ON).
+- **Live invocation verified:** IndexNow HTTP 200 (17 URLs), GSC
+  OAuth confirmed, sitemap re-submitted.
+- **Regression tests:** `tests/test_weekly_policy_ping.py` — 4 tests
+  covering happy path, kill-switch, exception swallow, and schedule
+  registration. Combined with `test_seo_policy_notify.py` → 8/8 pass.
+
+
 ## 2026-07-01 — Policy publish → IndexNow + GSC re-nudge
 
 Wired IndexNow ping + Google Search Console `submit_sitemap` re-nudge
