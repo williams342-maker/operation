@@ -2499,3 +2499,34 @@ Stripe · Cloudflare · GA4 · Google Ads · Google Search Console · Meta Ads/C
 
 **No policy text changed.** Counsel Review PDF does not need regeneration.
 
+
+---
+
+## iter413v4-split — Internal vs. Attorney packet split (2026-06-30, Phase D)
+
+**Motivation:** The single counsel packet mixed engineering guidance (Appendix B — Implementation Notes, Appendix C — Cross-Reference Checklist, "ENGINEERING DEFAULT" tags, file paths, and the Post-Review Process on Our Side cover-sheet section that references `manifest.js`) with the actual legal review material. Great for internal use — noisy and unprofessional for outside counsel.
+
+**Solution:** Same source component (`PrintBundlePage.jsx`) now renders in two modes based on the URL path:
+
+- **`/counsel-packet`** → INTERNAL mode (default). Full packet with all appendices, implementation notes, cross-reference checklists, and the internal Post-Review Process section. This is what the development team uses.
+- **`/attorney-packet`** → ATTORNEY mode. Hides Appendix B, Appendix C, "ENGINEERING DEFAULT" notes, and the internal Post-Review Process section. Keeps Appendix A (renamed "Attorney Review Questions"), body, revision history, related policies, hierarchy, and glossary.
+
+**Content sanitization for attorney mode:**
+- Revision-history summaries rewritten to remove `hierarchy.js`, `REACT_APP_POLICY_EFFECTIVE_DATE`, and `manifest.js` file-path references — replaced with the equivalent counsel-facing description (e.g., "canonical policy hierarchy" instead of "hierarchy.js v1.1").
+- Emergent dev-inspector attributes (`x-source-file-abs`, `x-file-name`, `x-line-number`, `x-column`, `x-source-line`, `x-source-path`, `x-source-editable`, `x-array-var`, `x-array-index`) stripped from the extracted HTML by the render script before WeasyPrint runs. These attributes were never user-visible but polluted the HTML source with internal file paths.
+- `AttorneyReviewBlock` filters out notes flagged as `ENGINEERING DEFAULT` (see `isEngineeringOnlyNote` helper in `PrintBundlePage.jsx`).
+
+**Render script parametrized:** `render-counsel-packet-pdf.py` now reads env vars:
+- `IN_FILE` (default `/tmp/packet_data.json`)
+- `OUT_FILE` (default `counsel-review-packet-<DATE>.pdf`)
+- `PACKET_TITLE` (default "Counsel Review Packet")
+- `FOOTER_LABEL` (default = title)
+
+**Deliverables:**
+- `/app/frontend/public/downloads/counsel-review-packet-2026-06-30.pdf` — Internal · 139 pages · 599 KB
+- `/app/frontend/public/downloads/attorney-review-packet-2026-06-30.pdf` — Attorney · 134 pages · 577 KB
+
+**Automated verification:** Attorney PDF contains **0 occurrences** of `manifest.js`, `hierarchy.js`, `REACT_APP_POLICY`, `ENGINEERING DEFAULT`, `Appendix B`, `Appendix C`, `Post-Review Process`, and `Clear the Appendix`. Internal PDF retains the intended count of each (Appendix B ×14, Appendix C ×14, Post-Review Process ×1, etc.).
+
+**Handoff:** Send `attorney-review-packet-2026-06-30.pdf` to outside counsel. Keep `counsel-review-packet-2026-06-30.pdf` for internal development use.
+

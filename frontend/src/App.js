@@ -329,6 +329,7 @@ function App() {
                 <Route path="/policies" element={<PoliciesIndexPage />} />
                 <Route path="/policies/:slug" element={<PolicyDetailPage />} />
                 <Route path="/counsel-packet" element={<PrintBundlePage />} />
+                <Route path="/attorney-packet" element={<PrintBundlePage />} />
                 <Route path="/terms" element={<Navigate to="/policies/terms" replace />} />
                 <Route path="/tos" element={<Navigate to="/policies/terms" replace />} />
                 <Route path="/signin" element={<SignInPage />} />

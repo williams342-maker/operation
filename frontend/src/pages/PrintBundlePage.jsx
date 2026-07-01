@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import {
   POLICIES,
 } from "../data/policies/manifest";
@@ -7,15 +8,24 @@ import { GLOSSARY } from "../data/policies/glossary";
 import { SECTIONS } from "./PolicyPage";
 
 // ============================================================
-//  /counsel-packet — print-friendly single-page bundle used to
-//  generate the counsel review PDF. Renders:
-//    - Cover sheet (nine focus areas + document list)
-//    - All 12 policies (metadata + TOC + body + hierarchy +
-//      revision history + related + Attorney Review appendices)
-//    - Shared Glossary appendix
+//  /counsel-packet  — INTERNAL counsel packet (full):
+//    Cover + all policies + hierarchy + revision history +
+//    related policies + Appendix A (attorney notes) +
+//    Appendix B (implementation notes) + Appendix C
+//    (cross-reference checklist) + Glossary.
 //
-//  Not linked from the public nav. Meant for chromium
-//  --print-to-pdf.
+//  /attorney-packet — EXTERNAL attorney review packet:
+//    Same body content, but strips internal engineering
+//    surface area:
+//      - Appendix B (Implementation Notes) — HIDDEN
+//      - Appendix C (Cross-Reference Checklist) — HIDDEN
+//      - Cover-sheet "Post-Review Process on Our Side"
+//        (mentions manifest.js) — HIDDEN
+//      - Appendix A notes that start with "ENGINEERING
+//        DEFAULT" — FILTERED
+//
+//  Both routes render the same PrintBundlePage; the mode is
+//  read from the URL. Not linked from the public nav.
 // ============================================================
 
 const PACKET_META = {
@@ -25,10 +35,25 @@ const PACKET_META = {
   contact: "team@craftersmarket.org",
 };
 
-function CoverSheet() {
+// A note is "engineering only" if it either says
+// ENGINEERING DEFAULT or only reports internal implementation
+// status without an outstanding question for counsel.
+function isEngineeringOnlyNote(note) {
+  const t = (note?.note || "").trim();
+  if (!t) return true;
+  if (t.startsWith("ENGINEERING DEFAULT")) return true;
+  return false;
+}
+
+function CoverSheet({ mode }) {
+  const attorneyMode = mode === "attorney";
   return (
     <section className="pkt-cover">
-      <div className="pkt-eyebrow">Counsel Review Packet · Cover Sheet</div>
+      <div className="pkt-eyebrow">
+        {attorneyMode
+          ? "Attorney Review Packet · Cover Sheet"
+          : "Internal Counsel Packet · Cover Sheet"}
+      </div>
       <h1 className="pkt-h1">Crafters Market — Trust &amp; Policy Center v1</h1>
 
       <table className="pkt-meta">
@@ -181,16 +206,20 @@ function CoverSheet() {
         smaller in scope.
       </p>
 
-      <h2 className="pkt-h2">Post-Review Process on Our Side</h2>
-      <ol className="pkt-ol">
-        <li>Apply your edits in a working branch.</li>
-        <li>
-          Clear the Appendix A / B / C arrays in <code>manifest.js</code> as
-          each item is closed.
-        </li>
-        <li>Re-run our internal Policy Consistency Audit.</li>
-        <li>Publish.</li>
-      </ol>
+      {!attorneyMode && (
+        <>
+          <h2 className="pkt-h2">Post-Review Process on Our Side</h2>
+          <ol className="pkt-ol">
+            <li>Apply your edits in a working branch.</li>
+            <li>
+              Clear the Appendix A / B / C arrays in <code>manifest.js</code> as
+              each item is closed.
+            </li>
+            <li>Re-run our internal Policy Consistency Audit.</li>
+            <li>Publish.</li>
+          </ol>
+        </>
+      )}
 
       <div className="pkt-pagebreak" />
     </section>
@@ -248,26 +277,36 @@ function RelatedPoliciesBlock({ policy }) {
   );
 }
 
-function AttorneyReviewBlock({ policy }) {
+function AttorneyReviewBlock({ policy, mode }) {
   if (!policy) return null;
+  const attorneyMode = mode === "attorney";
+
+  // In attorney mode, drop pure engineering-status notes and hide
+  // Appendix B (Implementation Notes) and Appendix C (Cross-Reference
+  // Checklist) entirely.
+  const attorneyNotes = attorneyMode
+    ? (policy.attorney_notes || []).filter((n) => !isEngineeringOnlyNote(n))
+    : (policy.attorney_notes || []);
+  const implNotes = attorneyMode ? [] : (policy.implementation_notes || []);
+  const crossRef = attorneyMode ? [] : (policy.cross_ref_checklist || []);
+
   const has =
-    (policy.attorney_notes?.length || 0) +
-      (policy.implementation_notes?.length || 0) +
-      (policy.cross_ref_checklist?.length || 0) >
-    0;
+    attorneyNotes.length + implNotes.length + crossRef.length > 0;
   if (!has) return null;
+
   return (
     <section className="pkt-block pkt-attorney">
       <h3 className="pkt-h3">
-        Internal Appendices — Attorney Review Notes / Implementation /
-        Cross-Reference
+        {attorneyMode
+          ? "Appendix A — Attorney Review Questions"
+          : "Internal Appendices — Attorney Review Notes / Implementation / Cross-Reference"}
       </h3>
 
-      {policy.attorney_notes?.length > 0 && (
+      {attorneyNotes.length > 0 && (
         <>
-          <h4 className="pkt-h4">Appendix A — Attorney Review Notes</h4>
+          {!attorneyMode && <h4 className="pkt-h4">Appendix A — Attorney Review Notes</h4>}
           <ul className="pkt-ul">
-            {policy.attorney_notes.map((n, i) => (
+            {attorneyNotes.map((n, i) => (
               <li key={i}>
                 <b>{n.section}</b> — {n.note}
               </li>
@@ -276,22 +315,22 @@ function AttorneyReviewBlock({ policy }) {
         </>
       )}
 
-      {policy.implementation_notes?.length > 0 && (
+      {implNotes.length > 0 && (
         <>
           <h4 className="pkt-h4">Appendix B — Implementation Notes</h4>
           <ul className="pkt-ul">
-            {policy.implementation_notes.map((n, i) => (
+            {implNotes.map((n, i) => (
               <li key={i}>{n}</li>
             ))}
           </ul>
         </>
       )}
 
-      {policy.cross_ref_checklist?.length > 0 && (
+      {crossRef.length > 0 && (
         <>
           <h4 className="pkt-h4">Appendix C — Cross-Reference Checklist</h4>
           <ul className="pkt-ul">
-            {policy.cross_ref_checklist.map((c, i) => (
+            {crossRef.map((c, i) => (
               <li key={i}>✓ {c}</li>
             ))}
           </ul>
@@ -301,7 +340,7 @@ function AttorneyReviewBlock({ policy }) {
   );
 }
 
-function PolicyPacketSection({ policy, index }) {
+function PolicyPacketSection({ policy, index, mode }) {
   const section = SECTIONS.find((s) => s.id === policy.section_id);
   return (
     <article className="pkt-policy">
@@ -381,7 +420,7 @@ function PolicyPacketSection({ policy, index }) {
       <PolicyHierarchyBlock />
       <RevisionHistoryBlock policy={policy} />
       <RelatedPoliciesBlock policy={policy} />
-      <AttorneyReviewBlock policy={policy} />
+      <AttorneyReviewBlock policy={policy} mode={mode} />
 
       <div className="pkt-pagebreak" />
     </article>
@@ -409,6 +448,9 @@ function GlossaryAppendix() {
 }
 
 export default function PrintBundlePage() {
+  const location = useLocation();
+  const mode = location.pathname.startsWith("/attorney-packet") ? "attorney" : "internal";
+
   React.useEffect(() => {
     document.body.classList.add("counsel-packet-mode");
     return () => document.body.classList.remove("counsel-packet-mode");
@@ -417,17 +459,21 @@ export default function PrintBundlePage() {
   return (
     <>
       <style>{PRINT_CSS}</style>
-      <div className="pkt-root" data-testid="counsel-packet-page">
-        <CoverSheet />
+      <div
+        className="pkt-root"
+        data-testid={mode === "attorney" ? "attorney-packet-page" : "counsel-packet-page"}
+        data-packet-mode={mode}
+      >
+        <CoverSheet mode={mode} />
         {POLICIES.map((p, i) => (
-          <PolicyPacketSection key={p.slug} policy={p} index={i} />
+          <PolicyPacketSection key={p.slug} policy={p} index={i} mode={mode} />
         ))}
         <GlossaryAppendix />
         <footer className="pkt-footer">
           <p className="muted mono">
             End of packet · {POLICIES.length} policies · Generated{" "}
             {PACKET_META.prepared_at} · Crafters Market Operations ·{" "}
-            {PACKET_META.contact}
+            {PACKET_META.contact} · Mode: {mode}
           </p>
         </footer>
       </div>

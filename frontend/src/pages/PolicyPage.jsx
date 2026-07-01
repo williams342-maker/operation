@@ -219,10 +219,10 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
-          "v2.6 \u2014 2026-06-30 \u2014 Final Legal Consistency Audit (v4): §5 broadens payout-hold disclosure to include payment networks, financial institutions, and regulatory authorities; §12 opt-out references the internal ledger while retaining email as the authoritative legal submission method. Cross-document policy hierarchy audit — Maker Agreement now sits between Terms and Marketplace Policies for seller-specific issues (canonical order in hierarchy.js v1.1).",
+          "v2.6 \u2014 2026-06-30 \u2014 Final Legal Consistency Audit (v4): §5 broadens payout-hold disclosure to include payment networks, financial institutions, and regulatory authorities; §12 opt-out references the internal ledger while retaining email as the authoritative legal submission method. Cross-document policy hierarchy audit — Maker Agreement now sits between Terms and Marketplace Policies for seller-specific issues.",
           "v2.5 \u2014 2026-06-30 \u2014 Final legal-hardening pass (v3): §5 Communication-during-holds (reasonable-efforts obligation subject to law / card-network / fraud / regulatory carve-outs); §12 Governing Law adds explicit non-waivable-rights carve-out; §14 clarifies material-change notice — 30 days for material fees/user-obligation changes; immediate effectiveness for security, legal, fraud-prevention, or urgent technical/operational changes; fee changes deferred to Fee & Pricing Policy §12 (60-day rule).",
           "v2.4 \u2014 2026-06-30 \u2014 Second-round legal-review pass: §4 adds Maker responsibility for origin claims (Made in USA / Handmade / etc.); §5 clarifies that some payout holds are Stripe- or card-network-controlled; §6a clarifies that Operational AI does not authorize the Platform or any third-party ad provider to train commercial foundation models on Maker Content; §12 adds remote-first arbitration (video conference or written submissions by default), King County WA remains the legal seat.",
-          "v2.3 \u2014 2026-06-30 \u2014 Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA acknowledgment). Deployed effective-date deployment hook so the effective date is injected at build time from REACT_APP_POLICY_EFFECTIVE_DATE instead of manually placed in each policy.",
+          "v2.3 \u2014 2026-06-30 \u2014 Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA acknowledgment). Effective date is now maintained centrally and updated at deployment rather than manually placed in each policy.",
           "v2.2 \u2014 2026-06-30 \u2014 Legal-review pass: §5 payout holds tied to Stripe lifecycle + limited operational triggers; §11 adds gross-negligence + willful-misconduct carve-out; §12 replaced placeholder with two-tier informal-then-arbitration structure, class-action waiver, small-claims carve-out, 30-day opt-out.",
           "v2.1 \u2014 2026-06-30 \u2014 Added Section 6a AI Use (Creator-Owned AI Policy): distinguishes AI-for-operations (allowed under content license) from AI model training (opt-in only, never a condition of marketplace access).",
           "v2.0 \u2014 2026-06-30 \u2014 Marketplace-model rewrite. Adds Maker/Buyer role split, marketplace-facilitator tax section, expanded moderation & appeals references, limitation-of-liability and indemnity clauses, dispute-resolution framework.",
@@ -685,7 +685,7 @@ export const SECTIONS = [
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
           <br />
-          <span>v3.4 · 2026-06-30 — Final Legal Consistency Audit (v4): §2 Policy Hierarchy re-ordered to align with canonical hierarchy in hierarchy.js v1.1 — Maker Agreement (seller-specific issues only) now sits between Terms of Service and this Policy.</span>
+          <span>v3.4 · 2026-06-30 — Final Legal Consistency Audit (v4): §2 Policy Hierarchy re-ordered to align with the canonical policy hierarchy — Maker Agreement (seller-specific issues only) now sits between Terms of Service and this Policy.</span>
           <br />
           <span>v3.3 · 2026-06-30 — Final legal-hardening pass (v3): §16 adds explicit non-waivable-rights carve-out.</span>
           <br />
