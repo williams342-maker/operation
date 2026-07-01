@@ -2530,3 +2530,39 @@ Stripe · Cloudflare · GA4 · Google Ads · Google Search Console · Meta Ads/C
 
 **Handoff:** Send `attorney-review-packet-2026-06-30.pdf` to outside counsel. Keep `counsel-review-packet-2026-06-30.pdf` for internal development use.
 
+
+---
+
+## iter413v4-docx — Attorney Review Packet DOCX (2026-06-30, Phase D)
+
+**Delivered:** Downloadable Word (.docx) version of the Attorney Review Packet at `/downloads/attorney-review-packet-2026-06-30.docx` (108 KB · 1,725 paragraphs) — same sanitized content as the attorney PDF, formatted for redlining in Microsoft Word.
+
+**Architecture:**
+- New script: `/app/scripts/render-attorney-packet-docx.py` (python-docx + BeautifulSoup + lxml)
+- Reads the same `/tmp/attorney_packet.json` extract used by the PDF pipeline
+- Strips Emergent dev-inspector attributes (`x-source-*`, `x-file-*`, `x-line-number`, `x-array-*`) defensively
+- Walks the structured `pkt-*` class hierarchy (`.pkt-cover`, `.pkt-policy`, `.pkt-body-block`, `.pkt-callout`, `.pkt-revision`, `.pkt-related`, `.pkt-attorney`, `.pkt-glossary`) to build a properly-styled document rather than blind HTML→DOCX conversion
+
+**Prepended one-page Attorney Response Sheet:**
+- 15-row × 5-col fill-in table (Document · Version · Sign-off Y/N · Blockers · Est. hours) covering all 14 policy documents at their current versions
+- 6 blank lines for general notes
+- Lets counsel triage their return-email into a structured document for the ops team
+
+**Content features:**
+- Georgia serif at 10 pt (matches PDF)
+- Section headings sized 12 pt bold
+- Policy titles 18 pt bold
+- Table of Contents rendered per-policy in muted color
+- Bullet lists via Word's `List Bullet` style (redline-friendly)
+- Final callouts in blue italic
+- Revision History and Attorney Review Questions preserved
+
+**Automated verification:**
+- 0 occurrences of `manifest.js`, `hierarchy.js`, `REACT_APP_POLICY`, `ENGINEERING DEFAULT`, `Appendix B`, `Appendix C`
+- All spot-checked §-level content present: Terms §5 payout hold, Terms §12 remote arbitration, Privacy §4a vendor inventory (Stripe, Cloudflare), Maker §10 content ownership, Fee-Pricing §12 60-day + Click-Acceptance, Prohibited §14 AI examples
+- MIME served correctly: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+
+**Dependencies added:** `python-docx==1.2.0`, `htmldocx==0.0.6` (unused, kept for future exploration), `beautifulsoup4==4.15.0`, `lxml==6.1.1`.
+
+**Regeneration:** `OUT_FILE=/app/frontend/public/downloads/attorney-review-packet-2026-06-30.docx python3 /app/scripts/render-attorney-packet-docx.py` (requires `/tmp/attorney_packet.json` from the extraction step).
+
