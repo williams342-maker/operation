@@ -42,6 +42,7 @@ import WorkshopAnalyticsDashboard from "./pages/WorkshopAnalyticsDashboard";
 import ContactPage from "./pages/ContactPage";
 import PolicyPage from "./pages/PolicyPage";
 import TrustCenterPage from "./pages/TrustCenterPage";
+import TrustVendorsPage from "./pages/TrustVendorsPage";
 import PoliciesIndexPage from "./pages/PoliciesIndexPage";
 import PolicyDetailPage from "./pages/PolicyDetailPage";
 import PrintBundlePage from "./pages/PrintBundlePage";
@@ -324,6 +325,7 @@ function App() {
                 <Route path="/track/:trackingNumber" element={<TrackBriefPage />} />
                 <Route path="/policy" element={<PolicyPage />} />
                 <Route path="/trust" element={<TrustCenterPage />} />
+                <Route path="/trust/vendors" element={<TrustVendorsPage />} />
                 <Route path="/policies" element={<PoliciesIndexPage />} />
                 <Route path="/policies/:slug" element={<PolicyDetailPage />} />
                 <Route path="/counsel-packet" element={<PrintBundlePage />} />

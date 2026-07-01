@@ -383,6 +383,42 @@ export default function TrustCenterPage() {
                 </div>
               </div>
             </div>
+
+            {/* iter413v4-trust — Vendor Transparency callout. Points to
+                /trust/vendors, backed by the same source as Privacy §4a. */}
+            <div
+              className="border border-line bg-paper p-6 md:p-8"
+              data-testid="pillar-vendor-transparency"
+            >
+              <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
+                <div className="flex-shrink-0">
+                  <div className="w-14 h-14 flex items-center justify-center bg-ink text-paper border border-ink">
+                    <ShieldCheck size={22} />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ink-muted mb-2">
+                    ◆ Vendor Transparency
+                  </div>
+                  <h3 className="font-display text-2xl md:text-3xl tracking-[-0.005em] text-ink mb-3">
+                    Which third parties see your data, and why.
+                  </h3>
+                  <p className="font-body text-base text-ink-muted leading-relaxed max-w-2xl">
+                    Every third-party service that touches Crafters Market data is
+                    listed by name &mdash; what it does, what data it receives, and
+                    why we send it. Backed by the same source as Privacy Policy
+                    §4a, so the two can never drift.
+                  </p>
+                  <Link
+                    to="/trust/vendors"
+                    className="inline-flex items-center gap-1 mt-4 font-mono text-xs uppercase tracking-[0.18em] text-ink hover:text-brand transition-colors"
+                    data-testid="pillar-vendor-transparency-link"
+                  >
+                    Browse the vendor list <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

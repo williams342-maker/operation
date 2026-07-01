@@ -2464,3 +2464,38 @@ Applied all 6 refinements from the third-round attorney feedback ("Final Legal H
 
 **Legal framework is now feature-complete for U.S.-focused Version 1.0 Launch, subject to final counsel sign-off and completion of the operational-verification checklist.**
 
+
+---
+
+## iter413v4-trust — Trust Vendors compare-view (2026-06-30, Phase D)
+
+**Delivered:** New `/trust/vendors` page — a searchable, filterable transparency table for the vendor inventory. Same data as Privacy Policy §4a.
+
+**Architecture:**
+- `/app/frontend/src/data/policies/vendors.js` (v1.0) — structured source of truth for 13 vendors × 8 category tags (payments, hosting, analytics, ads, email, shipping, monitoring, ai)
+- `/app/frontend/src/pages/TrustVendorsPage.jsx` — new page reads from vendors.js
+- Route registered at `/trust/vendors` in `App.js`
+- Trust Center pillar `pillar-vendor-transparency` links from `/trust`
+
+**Features shipped:**
+- Full-text search across name, role, data received, purpose, governing terms, categories
+- Category filter chips with live vendor counts ("All · 13", "Advertising · 4", etc.)
+- Empty state with one-click Reset filters CTA
+- External "View vendor privacy policy" link on each card
+- Breadcrumb back to Trust Center
+- Footer links back to Privacy §4a as the authoritative legal source
+
+**Vendor inventory (13):**
+Stripe · Cloudflare · GA4 · Google Ads · Google Search Console · Meta Ads/CAPI · Pinterest · TikTok · Sentry · Mailgun · Shippo · AI Providers (OpenAI/Anthropic/Gemini) · Emergent Universal Key
+
+**Test IDs added:**
+`trust-vendors-heading`, `trust-vendors-search`, `trust-vendors-filter-{all|payments|hosting|analytics|ads|email|shipping|monitoring|ai}`, `trust-vendors-grid`, `trust-vendors-empty`, `trust-vendors-reset`, `vendor-card-{id}`, `vendor-name-{id}`, `vendor-{id}-chip-{category}`, `vendor-{id}-external-link`, `pillar-vendor-transparency`, `pillar-vendor-transparency-link`, `trust-vendors-breadcrumb-trust`
+
+**Verified in preview:**
+- Default: 13 cards
+- Ads filter: 4 cards (Google Ads, Meta, Pinterest, TikTok)
+- Search "stripe": 1 card
+- Empty state for no-match
+
+**No policy text changed.** Counsel Review PDF does not need regeneration.
+
