@@ -5,6 +5,7 @@ import {
   Users,
 } from "lucide-react";
 import { useStructuredData } from "../lib/seo";
+import { POLICY_EFFECTIVE_DATE } from "../data/policies/effectiveDate";
 
 const SUPPORT_EMAIL = "team@craftersmarket.org";
 
@@ -58,7 +59,7 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date \u2014 to be set on legal sign-off]. Version 2.0. Last updated 2026-06-30.",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}. Version 2.0. Last updated 2026-06-30.`,
           "Purpose: define the rights, responsibilities, and boundaries that apply to everyone who uses Crafters Market.",
           "Marketplace model: Crafters Market is a Platform. Contracts of sale are between Buyers and Makers. We are not a party to those contracts and do not take title to Listings or Orders.",
           "Relationship to other policies: these Terms sit at the top of the marketplace policy hierarchy (below applicable law). Where a topic-specific policy provides more detail, that detail controls within its topic.",
@@ -192,6 +193,14 @@ export const SECTIONS = [
         ],
       },
       {
+        heading: "14a. Electronic Signatures & Acceptance",
+        bullets: [
+          "By creating an account, checking any acceptance box, clicking \u201cI Agree,\u201d listing products, or otherwise using the Platform, you agree that these actions constitute your electronic signature and your acceptance of these Terms of Service and any Platform policies referenced here \u2014 under the U.S. Electronic Signatures in Global and National Commerce Act (E-SIGN), the Uniform Electronic Transactions Act (UETA), and any applicable state law.",
+          "You may withdraw your consent to transact electronically by closing your account and ceasing to use the Platform. Consent may not be withdrawn retroactively \u2014 electronic signatures already made remain valid and enforceable.",
+          "You are responsible for keeping the email address on your account current so you receive electronic notices about these Terms and any updates.",
+        ],
+      },
+      {
         heading: "15. Miscellaneous",
         bullets: [
           "Entire agreement: these Terms, the Maker Agreement (where applicable), and the marketplace policies referenced here are the entire agreement between you and Crafters Market regarding the Platform.",
@@ -204,6 +213,7 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
+          "v2.3 \u2014 2026-06-30 \u2014 Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA acknowledgment). Deployed effective-date deployment hook so the effective date is injected at build time from REACT_APP_POLICY_EFFECTIVE_DATE instead of manually placed in each policy.",
           "v2.2 \u2014 2026-06-30 \u2014 Legal-review pass: §5 payout holds tied to Stripe lifecycle + limited operational triggers; §11 adds gross-negligence + willful-misconduct carve-out; §12 replaced placeholder with two-tier informal-then-arbitration structure, class-action waiver, small-claims carve-out, 30-day opt-out.",
           "v2.1 \u2014 2026-06-30 \u2014 Added Section 6a AI Use (Creator-Owned AI Policy): distinguishes AI-for-operations (allowed under content license) from AI model training (opt-in only, never a condition of marketplace access).",
           "v2.0 \u2014 2026-06-30 \u2014 Marketplace-model rewrite. Adds Maker/Buyer role split, marketplace-facilitator tax section, expanded moderation & appeals references, limitation-of-liability and indemnity clauses, dispute-resolution framework.",
@@ -232,11 +242,11 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">2.2</b>
+        <b className="text-ink">2.3</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
-        <b className="text-ink">On production launch (date set at go-live)</b>
+        <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
       </>
     ),
   },
@@ -254,7 +264,7 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
           "Last updated: 2026-06-30. Version 3.0.",
           "Purpose: explain how shipping responsibilities are divided across the marketplace and what Buyers and Makers can expect.",
           "Relationship to other policies: this Policy supplements the Terms of Service and works alongside the Maker Agreement, Returns & Refunds Policy, Community Guidelines, and Prohibited Items Policy.",
@@ -433,7 +443,7 @@ export const SECTIONS = [
           <span>Version:</span> <b className="text-ink">3.0</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -464,7 +474,7 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
           "Last updated: 2026-06-30. Version 3.0.",
           "This Policy describes how returns, refunds, exchanges, and cancellations work on Crafters Market.",
           "Purchases are made from independent Makers; Crafters Market provides the marketplace, payment-processing facilitation, and dispute-resolution assistance.",
@@ -537,6 +547,7 @@ export const SECTIONS = [
           "Crafters Market: may facilitate communication and review evidence but is generally not responsible for carrier performance.",
           "For tracked shipments marked delivered but not received by the Buyer, the Maker should help investigate with the carrier; resolution (refund, replacement, or carrier claim) follows the Maker\u2019s Shop Policy and applicable law.",
           "For untracked or untraceable shipments, the Maker bears the risk of loss in transit unless the Shop Policy and the Listing made the absence of tracking clear before purchase.",
+          "Marketplace floor \u2014 Shop Policies may not override the Buyer Protection Policy. A Shop Policy cannot disclaim marketplace protections for non-delivery, materially-not-as-described items, or damage in transit that would otherwise be covered under Buyer Protection. Where a Shop Policy conflicts with the Buyer Protection Policy or with applicable consumer-protection law, the Buyer Protection Policy or the applicable law controls.",
         ],
       },
       {
@@ -652,7 +663,7 @@ export const SECTIONS = [
           <span>Version:</span> <b className="text-ink">3.0</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -682,7 +693,7 @@ export const SECTIONS = [
       {
         heading: "1. Purpose",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
           "Last updated: 2026-06-30. Version 1.0.",
           "Explain how Crafters Market assists Buyers and Makers when issues arise with an Order.",
           "Outline responsibilities of each party and the circumstances under which Marketplace Assistance is engaged.",
@@ -883,7 +894,7 @@ export const SECTIONS = [
           <span>Version:</span> <b className="text-ink">1.0</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -1055,7 +1066,7 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
           "Last updated: 2026-06-30. Version 3.0.",
           "By applying to become a Maker, listing items, or using seller tools, you accept this Agreement and the Terms of Service.",
           "This Agreement applies to all approved Makers on the Platform, including Founding Sellers.",
@@ -1340,18 +1351,40 @@ export const SECTIONS = [
       },
       {
         heading: "25. Standard Contract Provisions",
-        // LEGAL_REVIEW_REQUIRED — owner-uploaded brief flags these clauses
-        // for attorney finalization. Replace placeholder text once counsel
-        // returns finalized severability / waiver / assignment / survival
-        // / governing-law / dispute-resolution / entire-agreement text.
         bullets: [
-          "Severability \u2014 if any provision of this Agreement is found unenforceable, the remaining provisions remain in full effect [LEGAL REVIEW: confirm jurisdiction-specific severability language].",
-          "Waiver \u2014 no failure or delay in enforcing any right under this Agreement constitutes a waiver of that right.",
-          "Assignment \u2014 you may not assign this Agreement without our written consent; we may assign or transfer this Agreement in connection with a merger, acquisition, sale of assets, or by operation of law.",
-          "Survival \u2014 the Intellectual Property License residuals (Section 10), Payments & Stripe Connect chargeback liability (Section 14), Taxes & Regulatory Compliance (Section 18), Privacy & Buyer Data (Section 19), Dispute Cooperation (Section 20), Marketplace Enforcement (Section 21), Indemnification (in the Terms of Service), and Standard Contract Provisions (this Section 25) survive termination of this Agreement.",
-          "Governing law \u2014 [LEGAL REVIEW: jurisdiction and venue to be finalized by counsel].",
-          "Dispute resolution \u2014 [LEGAL REVIEW: informal-resolution clause, arbitration / mediation, class-action waiver, small-claims carve-out to be finalized by counsel].",
-          "Entire agreement \u2014 this Agreement, together with the Terms of Service, Privacy Policy, Returns & Refunds Policy, Community Guidelines, and Prohibited Items Policy, constitutes the entire agreement between you and Crafters Market regarding Maker activity on the Platform.",
+          "Severability \u2014 if any provision of this Agreement is found unenforceable in any jurisdiction, the remaining provisions remain in full effect, and the unenforceable provision will be construed to reflect the parties' original intent as closely as possible while remaining enforceable.",
+          "Waiver \u2014 no failure or delay in enforcing any right under this Agreement constitutes a waiver of that right. A waiver of any provision on one occasion is not a waiver on any other occasion.",
+          "Assignment \u2014 you may not assign this Agreement without our prior written consent; any purported assignment without consent is void. We may assign or transfer this Agreement (including by operation of law) in connection with a merger, acquisition, reorganization, or sale of assets, or to an affiliate.",
+          "Notices \u2014 We may send notices to the email address on your account. You may send notices to Crafters Market at policy@craftersmarket.org (or dmca@craftersmarket.org for IP-specific notices). Notices are deemed received on the business day after they are sent.",
+          "Entire agreement \u2014 this Agreement, together with the Terms of Service, Privacy Policy, Returns & Refunds Policy, Community Guidelines, and Prohibited Items Policy, constitutes the entire agreement between you and Crafters Market regarding Maker activity on the Platform, and supersedes any prior agreements on that subject.",
+        ],
+      },
+      {
+        heading: "26. Survival",
+        bullets: [
+          "The provisions of this Agreement that by their nature should survive termination will survive termination \u2014 including, without limitation: payment and payout obligations (§14); the License you grant to Crafters Market for User Content (§10) and the AI Use provisions (§10a); intellectual-property representations and warranties; confidentiality; the Truthful Advertising, Product Claims & Reviews provisions (§19a) to the extent they cover past conduct; disclaimers and limitation of liability; indemnification (as incorporated from the Terms of Service); the Governing Law and Dispute Resolution provisions (§27); and the Standard Contract Provisions (§25).",
+        ],
+      },
+      {
+        heading: "27. Governing Law & Dispute Resolution (Maker-Specific)",
+        bullets: [
+          "This Section mirrors the dispute-resolution framework in the Terms of Service §12 so that this Agreement is enforceable on its own without cross-reference. In the event of a conflict between this Section and Terms of Service §12, this Section controls with respect to Maker-Platform disputes; the Terms control with respect to Buyer-Platform disputes.",
+          "Governing Law. This Agreement is governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules.",
+          "Step 1 \u2014 Informal Resolution (30 days). Before initiating any formal proceeding against Crafters Market under this Agreement, you agree to first send a written description of your dispute to policy@craftersmarket.org and give Crafters Market 30 days to attempt an informal resolution.",
+          "Step 2 \u2014 Mandatory, Individual Arbitration. If a Maker-Platform dispute is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules (or Consumer Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Judgment on the award may be entered in any court of competent jurisdiction.",
+          "Class-Action Waiver. You and Crafters Market each agree to bring Maker-Platform claims only in an individual capacity, and not as a plaintiff or class member in any purported class, collective, consolidated, mass, or representative proceeding. The arbitrator has no authority to conduct any class, collective, or representative proceeding.",
+          "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
+          "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
+          "Non-Arbitrable Disputes / Venue. For any Maker-Platform dispute not subject to arbitration under this Section (for example, small-claims actions and requests for injunctive relief), the exclusive venue is the state or federal courts located in King County, Washington.",
+          "Opt-Out of Arbitration. You may opt out of the arbitration agreement in this Section by sending a written notice to policy@craftersmarket.org within 30 days of first accepting this Agreement. A valid opt-out notice must include your legal name, the account email address, and a clear statement that you decline to arbitrate. Opting out does not affect any other provision of this Agreement.",
+        ],
+      },
+      {
+        heading: "28. Electronic Signatures & Acceptance",
+        bullets: [
+          "By creating a Maker account, checking any acceptance box, clicking \u201cI Agree,\u201d publishing a Listing, accepting an Order, or otherwise using the Platform as a Maker, you agree that these actions constitute your electronic signature and your acceptance of this Maker Agreement \u2014 under the U.S. Electronic Signatures in Global and National Commerce Act (E-SIGN), the Uniform Electronic Transactions Act (UETA), and any applicable state law.",
+          "You may withdraw your consent to transact electronically by closing your account and ceasing to use the Platform. Electronic signatures already made remain valid and enforceable.",
+          "You are responsible for keeping the email address on your account current so you receive electronic notices about this Agreement and any updates.",
         ],
       },
       // ─── Crafters Market–specific provisions (additive, not numbered) ───
@@ -1401,16 +1434,18 @@ export const SECTIONS = [
           </a>
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.2</b>
+          <span>Version:</span> <b className="text-ink">3.3</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">On production launch (date set at go-live)</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.3 · 2026-06-30 — Legal-hardening pass: fully populated §25 Standard Contract Provisions (severability, waiver, assignment, notices, entire agreement); added §26 Survival; added §27 Maker-specific Governing Law & Dispute Resolution (mirrors ToS §12: 30-day informal → AAA arbitration + class-action waiver + small-claims carve-out + injunctive-relief carve-out + 30-day opt-out); added §28 Electronic Signatures & Acceptance (E-SIGN / UETA).</span>
           <br />
           <span>v3.2 · 2026-06-30 — Legal-review pass: §14 payout holds tied to Stripe lifecycle + limited operational triggers; §19 clarified Platform-vs-Maker data-controller role split; added §19a Truthful Advertising, Product Claims & Reviews (FTC Compliance — Made in USA, no fake or undisclosed-incentivized reviews, health-claim substantiation).</span>
           <br />
@@ -1598,7 +1633,7 @@ export const SECTIONS = [
           <span>Version:</span> <b className="text-ink">3.0</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -1689,8 +1724,8 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
-          "Last updated: 2026-06-30. Version 3.1.",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
+          "Last updated: 2026-06-30. Version 3.2.",
           "Purpose: this Policy is intended to provide transparent, plain-language disclosure of how Crafters Market collects, uses, and shares information.",
           "Relationship to the Terms of Service: this Policy supplements the Terms of Service and is incorporated by reference. Where it conflicts with the Terms of Service on a privacy-specific issue, this Policy controls.",
           "Scope: this Policy applies to Buyers, Makers, applicants for the Maker program, and visitors to the Platform. It does not apply to information collected by third parties on their own services even when linked from the Platform.",
@@ -1761,6 +1796,22 @@ export const SECTIONS = [
           "Marketing preferences \u2014 opt out of marketing communications at any time (transactional communications cannot be opted out of while you have an active account).",
           "Cookie preferences \u2014 manage cookie categories as described in Section 7 and the Cookie Policy.",
           "To exercise any of these rights, contact " + SUPPORT_EMAIL + ". We respond within 30 days. Some information may need to be retained for legal, tax, fraud-prevention, or contractual reasons.",
+        ],
+      },
+      {
+        heading: "6a. California Privacy Rights (CCPA / CPRA)",
+        text: "If you are a California resident, the California Consumer Privacy Act (as amended by the California Privacy Rights Act) grants you the following rights in addition to those in Section 6:",
+        bullets: [
+          "Right to know. You may request the categories and specific pieces of personal information we have collected about you, the sources of that information, the business or commercial purpose for collection, and the categories of third parties with whom we share it.",
+          "Right to delete. You may request deletion of personal information we have collected about you, subject to statutory exceptions (for example, information we need to complete a transaction, detect security incidents, or comply with a legal obligation).",
+          "Right to correct. You may request correction of inaccurate personal information we hold about you.",
+          "Right to limit use of sensitive personal information. You may request that we limit our use of sensitive personal information (SPI) to purposes necessary to provide the requested service.",
+          "Right to opt out of \u201csale\u201d or \u201csharing.\u201d The CCPA/CPRA defines \u201csale\u201d and \u201csharing\u201d broadly. Crafters Market does not sell personal information for money. Where our use of advertising cookies (Meta, Google, Pinterest, TikTok, Reddit) constitutes \u201csharing\u201d for cross-context behavioral advertising under the CCPA/CPRA, you may opt out via the Cookie Preference Center (post-launch) or by sending a request to " + SUPPORT_EMAIL + ".",
+          "Right to non-discrimination. We will not deny goods or services, charge different prices, or provide a different level of quality because you exercised any of these rights.",
+          "How to submit a request. Email " + SUPPORT_EMAIL + " with the subject line \u201cCalifornia Privacy Rights Request.\u201d We will verify your identity using account information and respond within 45 days (extendable by 45 additional days where necessary and with notice to you).",
+          "Authorized agents. You may authorize an agent to submit a request on your behalf. Authorized-agent requests must be accompanied by written authorization signed by you.",
+          "Appeals. If we deny your request, you may appeal by replying to our written response; we will respond to appeals within 45 days.",
+          "Metrics. To the extent we are required to publish annual metrics under the CCPA/CPRA, we will do so on our Privacy Policy page or a linked disclosure.",
         ],
       },
       {
@@ -1933,16 +1984,18 @@ export const SECTIONS = [
     outro: (
       <>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.1</b>
+          <span>Version:</span> <b className="text-ink">3.2</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.2 · 2026-06-30 — Legal-hardening pass: added §6a California Privacy Rights (CCPA/CPRA) — right to know/delete/correct/limit SPI/opt-out of sharing/non-discrimination/agent-authorization/appeals. Wired Effective date through the effective-date deployment hook.</span>
           <br />
           <span>v3.1 · 2026-06-30 — Rewrote §11 as the Creator-Owned AI Policy. Distinguishes Operational AI (allowed under the license) from AI Model Training (opt-in only, never a condition of marketplace access). Cross-referenced with ToS §6a and Maker Agreement §10a.</span>
           <br />
@@ -1968,7 +2021,7 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
           "Last updated: 2026-06-30. Version 3.0.",
           "Purpose: describe how cookies and similar technologies are used across the Platform, what categories exist, and how you can control them.",
           "Relationship to the Privacy Policy: this Policy is incorporated into and supplements the Privacy Policy. See the Privacy Policy for the broader description of how we handle personal information.",
@@ -2099,7 +2152,7 @@ export const SECTIONS = [
           <span>Version:</span> <b className="text-ink">3.0</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -2124,7 +2177,7 @@ export const SECTIONS = [
       {
         heading: "1. Introduction",
         bullets: [
-          "Effective date: [Insert Date — to be set on legal sign-off].",
+          `Effective date: ${POLICY_EFFECTIVE_DATE}.`,
           "Last updated: 2026-06-30. Version 3.0.",
           "Purpose: define what may not be listed on Crafters Market.",
           "This Policy supplements the Terms of Service and works alongside the Maker Agreement, Community Guidelines, Returns & Refunds Policy, and Privacy Policy.",
@@ -2351,7 +2404,7 @@ export const SECTIONS = [
           <span>Version:</span> <b className="text-ink">3.0</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
-          <b className="text-ink">[Insert Date — to be set on legal sign-off]</b>
+          <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
           <span className="mx-2">·</span>
           <span>Last updated:</span>{" "}
           <b className="text-ink">June 30, 2026</b>
@@ -2577,7 +2630,7 @@ export const SECTIONS = [
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
-        <b className="text-ink">On production launch (date set at go-live)</b>
+        <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
       </>
     ),
   },

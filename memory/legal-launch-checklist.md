@@ -3,8 +3,9 @@
 **Purpose:** Single source of truth for launch-blocking legal items. Every row is either counsel-approved, engineering-default-pending-reconfirmation, or an operational task. Update this file before publication and at each quarterly review.
 
 **Owner:** Founder + Legal Lead
-**Last updated:** 2026-06-30
+**Last updated:** 2026-06-30 (iter413ef · Final Legal Hardening Pass)
 **First legal review:** Rocket Lawyer, 2026-06-30 (first-pass complete)
+**Final hardening:** 2026-06-30 (Rocket Lawyer Priority 1 + Priority 3 complete)
 
 ---
 
@@ -131,11 +132,22 @@
 | Field | Value |
 | --- | --- |
 | Rocket Lawyer recommendation | Replace every "Pending Legal Sign-off" / "Insert Date" placeholder with one consistent effective date |
-| Implementation decision | 🟡 **All policies use the label "On production launch (date set at go-live)"**. Do NOT hardcode a pre-baked calendar date. At deployment, replace this label with the actual production go-live date across the manifest + revision blocks. |
-| Where | All 13 policies (Terms, Privacy, Cookies, Maker Agreement, Buyer Protection, Returns, Shipping, Prohibited, Community, IP-DMCA, Marketplace Promise, Privacy-at-a-Glance, Accessibility) |
-| Status | 🟡 Deferred to launch day — do not use a calendar placeholder |
-| Owner | Engineering (final substitution) + Founder (sign-off) |
+| Implementation decision | ✅ **Effective-date deployment hook implemented (iter413ef).** All 13 policies read from a single constant `POLICY_EFFECTIVE_DATE` in `src/data/policies/effectiveDate.js`, which is sourced from `REACT_APP_POLICY_EFFECTIVE_DATE` at build time. When the env variable is set to `YYYY-MM-DD`, every policy displays the injected date. When unset, all policies display the parked label "On production launch (date set at go-live)" as a defense-in-depth guard. |
+| Where | `src/data/policies/effectiveDate.js` (new) + `manifest.js` + `PolicyPage.jsx` (all inline placeholders removed) |
+| Deployment step | Before deploying to production, set `REACT_APP_POLICY_EFFECTIVE_DATE=YYYY-MM-DD` in the build environment. Verify on the preview build that the date renders correctly before pushing to production. |
+| Status | ✅ Deployment hook implemented; date substitution pending go-live |
+| Owner | Engineering (env var set at deploy) + Founder (date sign-off) |
 | Completion date | — |
+
+### 9a. Additional Legal-Hardening Items (Rocket Lawyer Priority 1, iter413ef)
+
+| # | Item | Where | Status |
+| --- | --- | --- | --- |
+| 9a.1 | Maker Agreement mirror of ToS §12 dispute resolution — Governing Law, King County venue, 30-day informal, AAA arbitration, class-action waiver, small-claims carve-out, injunctive relief carve-out, 30-day arbitration opt-out | Maker Agreement §27 (new); manifest v3.3 | ✅ Implemented |
+| 9a.2 | Electronic Signatures clause (E-SIGN / UETA) added to both ToS and Maker Agreement | ToS §14a; Maker Agreement §28; manifest ToS v2.3 + Maker Agreement v3.3 | ✅ Implemented |
+| 9a.3 | Survival clause added to Maker Agreement — payment/license/IP/confidentiality/liability/indemnification/dispute-resolution/other by-nature-surviving obligations survive termination | Maker Agreement §26 (new); manifest v3.3 | ✅ Implemented |
+| 9a.4 | Shipping / Risk-of-Loss review — Shop Policies may not override the Buyer Protection Policy | Returns Policy §7 (marketplace-floor bullet); manifest returns v3.1 | ✅ Implemented |
+| 9a.5 | Priority 3 — California Privacy Rights (CCPA/CPRA) — right to know/delete/correct/limit SPI/opt-out of sharing/non-discrimination/agent-authorization/appeals | Privacy Policy §6a (new); manifest privacy v3.2 | ✅ Implemented |
 
 ### 10. Remove Internal Material (Appendix A/B/C)
 

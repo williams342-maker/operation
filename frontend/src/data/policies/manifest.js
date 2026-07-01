@@ -19,6 +19,8 @@
 //  Version 1.0 · 2026-06-30
 // ============================================================
 
+import { POLICY_EFFECTIVE_DATE } from "./effectiveDate";
+
 export const POLICY_CATEGORIES = {
   core: "Core Marketplace Policies",
   trust: "Marketplace Trust Pages",
@@ -33,13 +35,14 @@ export const POLICIES = [
     title: "Terms of Service",
     short_title: "Terms",
     category: "core",
-    version: "2.2",
-    effective_date: "On production launch (date set at go-live)",
+    version: "2.3",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
-      "The foundational contract between every User and Crafters Market. Governs eligibility, accounts, fees, prohibited uses, moderation, disclaimers, liability, disputes, AI use, and dispute resolution.",
+      "The foundational contract between every User and Crafters Market. Governs eligibility, accounts, fees, prohibited uses, moderation, disclaimers, liability, disputes, AI use, dispute resolution, and electronic signatures.",
     related: ["maker-agreement", "buyer-protection", "privacy", "prohibited-items", "fee-pricing", "ip-dmca"],
     revision_history: [
+      { version: "2.3", date: "2026-06-30", summary: "Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA). Deployed effective-date deployment hook — the effective date is now sourced from REACT_APP_POLICY_EFFECTIVE_DATE at build time rather than hardcoded per policy." },
       { version: "2.2", date: "2026-06-30", summary: "Legal-review pass (Rocket Lawyer): §5 payout holds tied to Stripe lifecycle + limited operational triggers; §11 adds gross-negligence + willful-misconduct carve-out; §12 replaced placeholder with two-tier informal-then-arbitration structure (30-day informal + AAA arbitration + class-action waiver + small-claims carve-out + 30-day opt-out)." },
       { version: "2.1", date: "2026-06-30", summary: "Added §6a AI Use (Creator-Owned AI Policy): Operational AI (search, recommendations, ads, SEO, translations, listing optimization) is allowed under the content license; AI Model Training on Maker Content is opt-in only, never a condition of marketplace access." },
       { version: "2.0", date: "2026-06-30", summary: "Marketplace-model rewrite. Adds Maker/Buyer split, marketplace-facilitator tax section, expanded moderation & appeals references, limitation of liability, indemnity, dispute-resolution framework." },
@@ -84,13 +87,14 @@ export const POLICIES = [
     title: "Privacy Policy",
     short_title: "Privacy",
     category: "core",
-    version: "3.1",
-    effective_date: "2026-06-30",
+    version: "3.2",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
-      "How Crafters Market collects, uses, shares, and protects personal information across Buyer, Maker, and visitor interactions — including our Creator-Owned AI Policy.",
+      "How Crafters Market collects, uses, shares, and protects personal information across Buyer, Maker, and visitor interactions — including our Creator-Owned AI Policy and California Privacy Rights (CCPA / CPRA).",
     related: ["cookies", "terms", "maker-agreement", "buyer-protection"],
     revision_history: [
+      { version: "3.2", date: "2026-06-30", summary: "Legal-hardening pass: added §6a California Privacy Rights (CCPA/CPRA) — right to know/delete/correct/limit SPI/opt-out of sharing/non-discrimination/agent-authorization/appeals. Wired effective_date through the effective-date deployment hook." },
       { version: "3.1", date: "2026-06-30", summary: "Rewrote §11 as the Creator-Owned AI Policy. Distinguishes Operational AI (allowed under license) from AI Model Training (opt-in only, never a condition of marketplace access). Cross-references ToS §6a and Maker Agreement §10a." },
       { version: "3.0", date: "2026-06-30", summary: "Marketplace rewrite. Adds data-role split (Platform vs. Maker as controller), cross-border transfers, rights request workflow, retention schedule, vendor list appendix." },
       { version: "2.0", date: "2026-02-15", summary: "GA4 + GSC vendor additions." },
@@ -125,7 +129,7 @@ export const POLICIES = [
     short_title: "Cookies",
     category: "core",
     version: "3.0",
-    effective_date: "2026-06-30",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "What cookies and similar technologies Crafters Market uses, why, and how you can control them.",
@@ -156,13 +160,14 @@ export const POLICIES = [
     title: "Maker Agreement",
     short_title: "Maker Agreement",
     category: "core",
-    version: "3.2",
-    effective_date: "On production launch (date set at go-live)",
+    version: "3.3",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
-      "The seller contract between each Maker and Crafters Market. Covers eligibility, listings, IP, AI, fees, Stripe payouts (with limited payout-hold triggers), privacy roles, FTC compliance for reviews and product claims, exclusivity, moderation, appeals, and termination.",
+      "The seller contract between each Maker and Crafters Market. Covers eligibility, listings, IP, AI, fees, Stripe payouts (with limited payout-hold triggers), privacy roles, FTC compliance for reviews and product claims, exclusivity, moderation, appeals, termination, dispute resolution (mirrors Terms §12), survival, and electronic signatures.",
     related: ["terms", "prohibited-items", "buyer-protection", "shipping", "returns", "ip-dmca", "fee-pricing", "community-guidelines"],
     revision_history: [
+      { version: "3.3", date: "2026-06-30", summary: "Legal-hardening pass: fully populated §25 Standard Contract Provisions (severability, waiver, assignment, notices, entire agreement); added §26 Survival; added §27 Maker-specific Governing Law & Dispute Resolution mirroring ToS §12 (30-day informal → AAA arbitration + class-action waiver + small-claims carve-out + injunctive-relief carve-out + 30-day opt-out); added §28 Electronic Signatures & Acceptance (E-SIGN / UETA). Maker Agreement now stands on its own without requiring incorporation-by-reference of ToS §12." },
       { version: "3.2", date: "2026-06-30", summary: "Legal-review pass (Rocket Lawyer): §14 payout holds tied to Stripe lifecycle + limited operational triggers; §19 clarified Platform-vs-Maker data-controller role split; added §19a Truthful Advertising, Product Claims & Reviews (FTC Compliance — Made in USA, no fake or undisclosed-incentivized reviews, health-claim substantiation)." },
       { version: "3.1", date: "2026-06-30", summary: "Added §10a AI Use (Creator-Owned AI Policy). Distinguishes Operational AI (allowed under §10 content license) from AI Model Training (opt-in only, never a condition of marketplace access)." },
       { version: "3.0", date: "2026-06-30", summary: "Comprehensive expansion. Adds Stripe Connected Account terms, exclusivity clarifications, IP licensing, appeals process reference, marketplace-facilitator tax reference." },
@@ -204,7 +209,7 @@ export const POLICIES = [
     short_title: "Buyer Protection",
     category: "core",
     version: "1.0",
-    effective_date: "2026-06-30",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "When and how Crafters Market steps in to protect Buyers if an Order does not arrive, arrives significantly not as described, or a Maker becomes unresponsive.",
@@ -238,13 +243,14 @@ export const POLICIES = [
     title: "Returns & Refunds Policy",
     short_title: "Returns & Refunds",
     category: "core",
-    version: "3.0",
-    effective_date: "2026-06-30",
+    version: "3.1",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
-      "How returns, exchanges, and refunds work on Crafters Market. Sets marketplace floors and defines when Marketplace Assistance applies.",
+      "How returns, exchanges, and refunds work on Crafters Market. Sets marketplace floors (Shop Policies cannot override the Buyer Protection Policy) and defines when Marketplace Assistance applies.",
     related: ["buyer-protection", "shipping", "maker-agreement", "terms"],
     revision_history: [
+      { version: "3.1", date: "2026-06-30", summary: "Legal-hardening pass: §7 Lost Shipments — added marketplace floor clarifying Shop Policies may not override the Buyer Protection Policy for non-delivery, materially-not-as-described, or damage in transit." },
       { version: "3.0", date: "2026-06-30", summary: "Marketplace-perspective rewrite. Removes retail assumptions; adds Maker Shop Policy floors, digital-product exceptions, custom-order exceptions." },
       { version: "2.0", date: "2026-02-01", summary: "Added digital download handling." },
       { version: "1.0", date: "2025-12-01", summary: "Initial Beta Returns Policy." },
@@ -274,7 +280,7 @@ export const POLICIES = [
     short_title: "Shipping",
     category: "core",
     version: "3.0",
-    effective_date: "2026-06-30",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "How shipping works on Crafters Market. Makers ship their own Orders; the Platform is not a carrier, warehouse, or fulfillment company.",
@@ -308,7 +314,7 @@ export const POLICIES = [
     short_title: "Prohibited Items",
     category: "core",
     version: "3.0",
-    effective_date: "2026-06-30",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "What may not be sold on Crafters Market. Categories are original to Crafters Market and reflect our curated-marketplace values.",
@@ -341,7 +347,7 @@ export const POLICIES = [
     short_title: "Community",
     category: "core",
     version: "3.1",
-    effective_date: "On production launch (date set at go-live)",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "Conduct standards for messaging, reviews, journals, and community spaces on Crafters Market. Includes FTC-aligned rules for review authenticity and endorsement disclosure.",
@@ -376,7 +382,7 @@ export const POLICIES = [
     short_title: "IP & DMCA",
     category: "operational",
     version: "2.0",
-    effective_date: "On production launch (date set at go-live)",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "How to report copyright infringement (DMCA), how counter-notices work, how trademark and other IP claims are handled, and how repeat-infringer accounts are handled on Crafters Market.",
@@ -414,7 +420,7 @@ export const POLICIES = [
     category: "trust",
     policy_type: "commitment",
     version: "1.0",
-    effective_date: "On production launch (date set at go-live)",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "Crafters Market's commitment to accessibility, the WCAG 2.1 Level AA standards we aim for, known limitations, how to report a barrier, and our approach to ongoing improvement.",
@@ -445,7 +451,7 @@ export const POLICIES = [
     category: "trust",
     policy_type: "values",
     version: "1.0",
-    effective_date: "2026-06-30",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "Plain-language values statement describing what Buyers and Makers can expect from Crafters Market.",
@@ -475,7 +481,7 @@ export const POLICIES = [
     category: "trust",
     policy_type: "summary",
     version: "1.0",
-    effective_date: "2026-06-30",
+    effective_date: POLICY_EFFECTIVE_DATE,
     last_updated: "2026-06-30",
     description:
       "A plain-English summary of the Privacy Policy. The full Privacy Policy controls if there is any conflict.",
