@@ -1,3 +1,40 @@
+## 2026-07-01 — Legacy /policy redirect (Google OAuth verification fix)
+
+Google's OAuth verifier flagged a mismatch between the Cloud Console
+Privacy Policy URL (`https://craftersmarket.org/policy#privacy`, the
+legacy single-page anchor form) and the current homepage-linked URL
+(`https://craftersmarket.org/policies/privacy`). Added a client-side
+redirect layer so any inbound traffic to the legacy URLs still lands on
+the correct policy page.
+
+- **New file:** `/app/frontend/src/pages/LegacyPolicyRedirect.jsx` — reads
+  `window.location.hash` at first render and issues a declarative
+  `<Navigate>` to `/policies/<slug>`. Hash captured with `useRef` to
+  survive React 18 StrictMode double-invocation.
+- **Route change:** `/policy` now renders `LegacyPolicyRedirect`
+  (previously rendered the deprecated combined `PolicyPage`).
+- **Hash → slug map:** `privacy → privacy`, `marketplace → fee-pricing`,
+  `seller-misconduct → community-guidelines`, plus 15 additional
+  anchors covering every legacy section. Unknown hashes / bare `/policy`
+  fall through to the `/policies` index.
+- **Internal link updates:** CookieBanner, MakerFeeTable, ViolationsTab,
+  PolicyConsent, CommunityAuth, and PoliciesIndexPage now link directly
+  to `/policies/<slug>` instead of `/policy#<hash>`.
+
+Verified via Playwright: `/policy#privacy` → `/policies/privacy`,
+`/policy#marketplace` → `/policies/fee-pricing`,
+`/policy#seller-misconduct` → `/policies/community-guidelines`,
+`/policy#cookies` → `/policies/cookies`,
+`/policy#terms` → `/policies/terms`,
+`/policy#unknown` → `/policies`,
+`/policy` → `/policies`.
+
+The user must still update the Cloud Console URL to
+`https://craftersmarket.org/policies/privacy` (recommended) so it
+exactly matches the homepage link; the redirect is a graceful fallback,
+not a substitute for the Cloud Console update.
+
+
 ## 2026-07-01 — Legal Launch Binder v5.1 · Refinement pass complete (attorney-ready)
 
 Addressed the user's 6-item polish list on top of the v5.1 build:

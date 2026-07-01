@@ -28,7 +28,7 @@ export default function ViolationsTab() {
         <h2 className="font-display text-3xl md:text-4xl uppercase">Violations.</h2>
         <p className="font-mono text-xs text-ink-muted mt-2 max-w-xl">
           Anything our auto-moderator or admins flagged on your account. Repeated
-          violations can trigger a freeze — see <a href="/policy#seller-misconduct" target="_blank" rel="noreferrer" className="text-brand hover:underline">site policy</a> for the full list.
+          violations can trigger a freeze — see <a href="/policies/community-guidelines" target="_blank" rel="noreferrer" className="text-brand hover:underline">site policy</a> for the full list.
         </p>
       </header>
 

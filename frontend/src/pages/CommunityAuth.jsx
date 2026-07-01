@@ -98,7 +98,7 @@ export function CommunityLogin() {
             />
             <div className="font-mono text-xs text-ink leading-relaxed">
               I agree to the{" "}
-              <Link to={eua.links?.policy || "/policy"} target="_blank" className="text-brand underline">
+              <Link to={eua.links?.policy || "/policies"} target="_blank" className="text-brand underline">
                 {eua.title}
               </Link>{" "}
               <span className="text-ink-muted">(v{eua.version})</span>.

@@ -102,7 +102,7 @@ export default function MakerFeeTable({ variant = "full", title }) {
             ↓ PDF
           </a>
           <a
-            href="/policy#marketplace"
+            href="/policies/fee-pricing"
             target="_blank"
             rel="noreferrer"
             className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition"

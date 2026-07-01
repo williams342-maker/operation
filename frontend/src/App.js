@@ -41,6 +41,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import WorkshopAnalyticsDashboard from "./pages/WorkshopAnalyticsDashboard";
 import ContactPage from "./pages/ContactPage";
 import PolicyPage from "./pages/PolicyPage";
+import LegacyPolicyRedirect from "./pages/LegacyPolicyRedirect";
 import TrustCenterPage from "./pages/TrustCenterPage";
 import TrustVendorsPage from "./pages/TrustVendorsPage";
 import PoliciesIndexPage from "./pages/PoliciesIndexPage";
@@ -323,7 +324,7 @@ function App() {
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/track" element={<TrackBriefPage />} />
                 <Route path="/track/:trackingNumber" element={<TrackBriefPage />} />
-                <Route path="/policy" element={<PolicyPage />} />
+                <Route path="/policy" element={<LegacyPolicyRedirect />} />
                 <Route path="/trust" element={<TrustCenterPage />} />
                 <Route path="/trust/vendors" element={<TrustVendorsPage />} />
                 <Route path="/policies" element={<PoliciesIndexPage />} />

@@ -69,7 +69,7 @@ export default function CookieBanner() {
         <p className="font-mono text-[11px] text-ink leading-snug flex-1 min-w-0">
           <span aria-hidden="true" className="mr-1">🍪</span>
           We use cookies to analyze traffic and ads. Read our{" "}
-          <Link to="/policy#privacy" className="text-brand hover:underline" data-testid="cookie-banner-policy-link">
+          <Link to="/policies/privacy" className="text-brand hover:underline" data-testid="cookie-banner-policy-link">
             Privacy Policy
           </Link>
           .

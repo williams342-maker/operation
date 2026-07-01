@@ -47,7 +47,7 @@ export default function PolicyConsent({
       <span className="font-mono text-xs text-ink leading-relaxed">
         I agree to the Crafters Market{" "}
         <Link
-          to="/policy"
+          to="/policies"
           target="_blank"
           rel="noreferrer"
           className="text-brand hover:underline"

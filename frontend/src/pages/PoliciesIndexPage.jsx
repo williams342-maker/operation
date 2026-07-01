@@ -183,15 +183,6 @@ export default function PoliciesIndexPage() {
             ))}
           </ul>
         </section>
-
-        {/* Legacy link */}
-        <div className="mt-8 font-mono text-xs text-ink-muted">
-          Looking for the single-page anchor version? See{" "}
-          <Link to="/policy" className="text-brand hover:underline">
-            /policy
-          </Link>{" "}
-          (kept for backwards compatibility).
-        </div>
       </div>
     </div>
   );
