@@ -35,4 +35,34 @@ DOCX="$DOCX" python3 /app/scripts/update-toc-and-export-pdf.py
 echo ""
 echo "==> Deliverables:"
 ls -la "$DOCX" "$PDF"
+
+# ------------------------------------------------------------------------
+# Optional step: nudge search engines that the Trust & Policy Center
+# content just changed. Idempotent — safe to skip. Requires ADMIN_TOKEN
+# in the environment (mint one via issue_session_jwt or from the admin
+# dashboard). Prints a hint if the token is missing.
+# ------------------------------------------------------------------------
+if [ -n "${ADMIN_TOKEN:-}" ]; then
+  API_URL=${API_URL:-$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d '=' -f2)}
+  echo ""
+  echo "==> Notifying search engines (IndexNow + GSC sitemap re-submit)…"
+  curl -sf --max-time 60 -X POST "${API_URL}/api/admin/seo/policies-published" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    | python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+ix = r["indexnow"]
+gsc = r["gsc"]
+print("    IndexNow: ok=%s status=%s  urls=%s" % (ix["ok"], ix["status"], r["url_count"]))
+print("    GSC:      ok=%s status=%s skipped=%s" % (gsc["ok"], gsc.get("status", "-"), gsc.get("skipped", False)))
+' \
+    || echo "    (notification failed — non-fatal; retry from admin dashboard)"
+else
+  echo ""
+  echo "==> Skipping search-engine notification (ADMIN_TOKEN not set)."
+  echo "    To notify manually:  Admin dashboard → SEO → 'Policies published'"
+  echo "    Or in a shell:       curl -X POST \$API_URL/api/admin/seo/policies-published -H \"Authorization: Bearer \$ADMIN_TOKEN\""
+fi
+
 echo "==> Done."

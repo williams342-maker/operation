@@ -1,3 +1,53 @@
+## 2026-07-01 — Policy publish → IndexNow + GSC re-nudge
+
+Wired IndexNow ping + Google Search Console `submit_sitemap` re-nudge
+into the policy publish flow so search engines re-crawl the Trust &
+Policy Center pages within minutes of a version bump instead of waiting
+for the normal crawl cycle.
+
+### New backend surfaces
+
+- `/app/backend/seo_policy_notify.py` — helper that assembles the 17
+  canonical Trust & Policy URLs from the shared `TRUST_POLICY_PATHS`
+  constant, fires `seo_indexnow.ping(urls=[...])`, then
+  `gsc_client.submit_sitemap()`. Best-effort — never raises. Returns
+  per-leg diagnostic dict.
+- `POST /api/admin/seo/policies-published` (admin-authenticated) — thin
+  endpoint that calls the helper and returns the full diagnostic.
+- Shared source of truth: `TRUST_POLICY_PATHS` in `routers/seo.py`
+  (used by both the sitemap generator and the notifier so they can
+  never drift).
+
+### CLI hook
+
+`/app/scripts/regenerate-legal-launch-binder.sh` now fires the
+notification automatically as the final step of the DOCX + PDF rebuild
+whenever `ADMIN_TOKEN` is set in the environment. If unset, prints a
+manual-trigger hint without failing.
+
+### Verified end-to-end (live)
+
+- IndexNow: **HTTP 200** for all 17 URLs
+- GSC `submit_sitemap`: **HTTP 200** (sitemap re-submitted to Google)
+- Legacy `/policy` remains excluded from the sitemap; the redirect
+  layer handles any lingering external referrers.
+
+### Regression tests
+
+- `test_seo_policy_notify.py` — 4 tests (URL set composition, happy
+  path, GSC-disabled skip, GSC-error resilience) — all pass.
+- Full canonical/sitemap suite still green (16/16).
+
+### Files touched
+
+- `/app/backend/routers/seo.py` — added `TRUST_POLICY_PATHS` constant +
+  `POST /admin/seo/policies-published` endpoint.
+- `/app/backend/seo_policy_notify.py` — new helper module.
+- `/app/backend/tests/test_seo_policy_notify.py` — new regression suite.
+- `/app/scripts/regenerate-legal-launch-binder.sh` — final notification
+  step.
+
+
 ## 2026-07-01 — Sitemap + canonical coverage for Trust & Policy Center
 
 Extended the SEO / canonical layer so search engines and OAuth verifiers

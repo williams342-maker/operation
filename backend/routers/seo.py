@@ -46,6 +46,25 @@ SEO_LANDING_SLUGS: tuple[str, ...] = (
 SEO_LANDING_PATHS: tuple[str, ...] = tuple(f"/{s}" for s in SEO_LANDING_SLUGS)
 
 
+# Trust & Policy Center — the canonical URL set surfaced to search
+# engines + OAuth verifiers. Single source of truth reused by both the
+# sitemap and the policy-publish IndexNow / GSC notifier
+# (backend/seo_policy_notify.py). Keep in sync with
+# frontend/src/data/policies/manifest.js.
+POLICY_SLUGS: tuple[str, ...] = (
+    "terms", "privacy", "cookies", "maker-agreement", "buyer-protection",
+    "returns", "shipping", "prohibited-items", "community-guidelines",
+    "fee-pricing", "ip-dmca", "accessibility", "marketplace-promise",
+    "privacy-at-a-glance",
+)
+TRUST_POLICY_PATHS: tuple[str, ...] = (
+    "/trust",
+    "/trust/vendors",
+    "/policies",
+    *(f"/policies/{s}" for s in POLICY_SLUGS),
+)
+
+
 # Any slug matching one of these patterns is considered a test/seed
 # artifact and stripped from the sitemap. Google won't crawl it and
 # we won't get dinged for low-quality content in Search Console.
@@ -460,3 +479,20 @@ async def admin_seo_gsc_submit_sitemap_status(_: dict = Depends(current_admin)):
     """Latest GSC sitemap-submit audit row."""
     from gsc_client import sitemap_status
     return await sitemap_status()
+
+
+
+@router.post("/admin/seo/policies-published")
+async def admin_seo_policies_published(_: dict = Depends(current_admin)):
+    """Fire IndexNow + GSC sitemap re-submit for the Trust & Policy Center
+    URL set. Call this whenever a policy version bumps (manifest.js change,
+    render-legal-launch-binder re-run, or explicit legal republish) so
+    Bing / Yandex / Naver / Seznam / Yep re-crawl the /policies/<slug>
+    pages within minutes and GSC re-scans the sitemap for the new
+    <lastmod> values.
+
+    Best-effort — never raises. Response includes per-leg status so the
+    admin dashboard can render diagnostics cleanly.
+    """
+    from seo_policy_notify import notify_policy_publish
+    return await notify_policy_publish()
