@@ -17,6 +17,45 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 - **Buyer SMS on DELIVERED** · alongside email; delivery is peak referral moment. **BLOCKED on A2P 10DLC** carrier registration (Twilio creds are wired + verified end-to-end via a test send 2026-04-30; carrier returned error 30034 — Unregistered Number). Will auto-light up the moment A2P brand+campaign approves at https://console.twilio.com/us1/develop/sms/regulatory-compliance/a2p-10dlc (1-3 business days, ~$4/mo + $15 vetting for Sole Proprietor tier).
 - ~~**"Notify when restocked" CTA on 0-stock items**~~ → SHIPPED in iter81 (waitlist + auto-fire on stock raise + maker demand banner).
 
+
+## Trust & Policy Center — Post-Phase D backlog
+
+_Queued items from the Trust & Policy Center v1 project (2026-06-30). These
+were carved out because they introduce user-facing functionality or new
+DB collections and therefore violate the Phase D freeze._
+
+- **P1 · Cookie Preference Center** — user-facing opt-in/opt-out UI for
+  non-essential cookies (analytics, advertising). Wire into the Cookie
+  Policy and the GDPR cookie banner. Needs DB (`consent_records`).
+- **P1 · Fee & Pricing Policy** — dedicated `/policies/fee-pricing` page.
+  Currently referenced in Terms + Maker Agreement prose only. Content is
+  ready in `/policy#marketplace` section of the legacy page.
+- **P2 · Seller Verification public page** — expand into
+  `/policies/seller-verification` once the verification program is
+  formalized.
+- **P2 · Maker Agreement checkbox with DB opt-in record** — capture
+  `{maker_id, agreement_version, accepted_at}` at signup. Re-prompt on
+  version bump.
+- **P2 · Maker Shop Policy Builder** — configurable Shop Policy defaults
+  in the seller dashboard (returns, exchanges, cancellations, processing
+  times, shipping, digital downloads, custom orders). Enforces
+  marketplace floors defined in the manifest.
+- **P2 · Buyer Protection Case Portal** — Buyer/Maker-facing case UI
+  replacing the current email-only escalation path.
+- **P2 · Product Review Matrix admin UI** — internal moderation dashboard
+  backed by `product-review-matrix.md`.
+- **P3 · Security Center / Accessibility Statement / Marketplace
+  Transparency Report / AI Transparency Center** — Trust Center
+  expansion pages.
+- **P3 · Trust badges on Listings** — Verified Maker, Founding Seller,
+  Buyer Protection, Ships From, Digital Download, Custom Orders
+  Available.
+- **P3 · Persist OAuth state to database** — shift GSC/GA4 OAuth state
+  from in-memory to Mongo so token exchange survives pod redeploys.
+- **P3 · Performance audit fixes** — only if funnel metrics show slowness
+  is affecting activation (see `phase-d-audits/2026-06-28-perf-baseline.md`).
+
+
 ## P2
 
 - **Google Ads Developer Token** · 22-char token needed for real off-site ad-spend telemetry.

@@ -1,3 +1,84 @@
+## 2026-06-30 — Trust & Policy Center v1 (Phase D governance work)
+
+Comprehensive documentation + governance layer built on top of the existing
+policy content. **Phase D freeze respected**: no new marketplace features,
+no backend endpoints, no DB collections, no admin surfaces. Pure content /
+routing / component work.
+
+### Delivered
+
+- **New pages**
+  - `/trust` — public Trust Center hub. Cross-policy search (client-side
+    index of titles, headings, keywords), Buy/Sell with Confidence pillars,
+    Marketplace Standards, contact CTA. `TrustCenterPage.jsx`.
+  - `/policies` — Legal Library index. Grouped by Core / Operational /
+    Trust categories. Renders Policy Hierarchy block + Shared Glossary.
+    `PoliciesIndexPage.jsx`.
+  - `/policies/:slug` — Individual policy page. Metadata header, TOC with
+    numbered anchors (`#toc-N`), body, Hierarchy block, Revision History,
+    Related Policies, Attorney Review Appendices (A/B/C). Unknown slugs
+    soft-404 to `/policies` via `<Navigate>`. `PolicyDetailPage.jsx`.
+
+- **Data model** at `/app/frontend/src/data/policies/`
+  - `manifest.js` — POLICIES array (12 documents). Single source of truth
+    for slug, version, effective date, last updated, revision history,
+    related policies, keywords, and internal appendices.
+  - `glossary.js` — Shared Terminology Glossary.
+  - `hierarchy.js` — Policy Hierarchy (order of precedence).
+
+- **Reusable components** at `src/components/policy/PolicyDocument.jsx`:
+  `PolicyBody`, `PolicyTOC`, `PolicyMetaHeader`, `RelatedPolicies`,
+  `PolicyHierarchyBlock`, `RevisionHistory`, `AttorneyReviewAppendices`.
+
+- **Terms of Service comprehensively rewritten to v2.0** (15 sections)
+  in `PolicyPage.jsx`. Marketplace-model framing, marketplace-facilitator
+  tax section, expanded moderation & appeals, limitation of liability,
+  indemnity, dispute-resolution framework.
+
+- **Routing**: `/terms` and `/tos` now redirect to `/policies/terms`
+  (previously `/policy#terms`). Legacy `/policy` retained for backward
+  compatibility so all existing `/policy#anchor` links keep working.
+
+- **Footer** updated with `/trust` link and per-doc `/policies/:slug` links.
+
+- **Internal governance docs** at `/app/memory/governance/`:
+  - `governance-framework.md` — policy hierarchy, ownership, versioning,
+    change management, cross-reference discipline.
+  - `content-moderation-policy.md` — triage categories, evidence
+    standards, protected-speech handling.
+  - `product-review-matrix.md` — Allowed / Allowed with Conditions /
+    Manual Review / Prohibited dispositions with category defaults.
+  - `enforcement-guide.md` — Coaching → Warning → Listing Removal →
+    Suspension → Permanent Removal ladder with SLAs and appeals.
+  - `policy-consistency-audit-2026-06-30.md` — Full audit of the 12
+    published policies. Two broken references to future `fee-pricing`
+    slug flagged (prose-only, no user-facing dead links).
+
+### Testing (iter103)
+
+- Testing agent: 16/16 frontend flows PASS.
+- One MEDIUM console warning (validateDOMNesting `<p>` in `<p>` on
+  `/policies/:slug`) fixed by swapping outer wrapper to `<div>`.
+- Post-fix screenshot verified: 0 nesting warnings on
+  `/policies/buyer-protection`.
+- Preview screenshot: `/trust` and `/policies/buyer-protection` render
+  cleanly with all six pillars, TOC, metadata header, appendices box.
+
+### Deferred to post-Phase D (backlog)
+
+- Fee & Pricing Policy dedicated page (referenced in Terms + Maker
+  Agreement prose but not yet standalone).
+- Cookie Preference Center (P1).
+- Seller Verification, Security Center, Accessibility Statement,
+  Marketplace Transparency Report, AI Transparency Center pages.
+- Maker Shop Policy Builder (P2, dashboard UI).
+- Public Product Review Matrix visibility.
+- Buyer Protection Case Portal, Shipping Profile Manager.
+- Trust badges on Listings, Seller Transparency Score, Trust Timeline.
+
+---
+
+
 ## 2026-06-10 — Admin login email input readability fix (iter362)
 
 User screenshot: typed email + placeholder both faint/invisible on the admin login `/admin/login`.

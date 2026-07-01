@@ -22,13 +22,25 @@ const AW_ID = "AW-18195416932";
 // Format: 'AbCd_-EfGh1234' (the part after the slash in
 // "AW-18195416932/AbCd_-EfGh1234"). Leave empty string to keep the
 // event a no-op until you have the label.
+//
+// iter413dp — BLOCKED on user retrieving labels from Google Ads.
+// The three explicit placeholders below map to the funnel events
+// the marketing team asked for:
+//   - GOOGLE_ADS_CONVERSION_LABEL_SIGNUP      → "signup_buyer"
+//   - GOOGLE_ADS_CONVERSION_LABEL_APPLICATION → "signup_maker"
+//   - GOOGLE_ADS_CONVERSION_LABEL_PURCHASE    → "purchase"
+// When labels arrive, paste each string into the matching slot.
+const GOOGLE_ADS_CONVERSION_LABEL_SIGNUP      = "";  // pending
+const GOOGLE_ADS_CONVERSION_LABEL_APPLICATION = "";  // pending
+const GOOGLE_ADS_CONVERSION_LABEL_PURCHASE    = "";  // pending
+
 const CONVERSION_LABELS = {
-  purchase:           "",   // CheckoutSuccess (on paid)
-  signup_buyer:       "",   // Community/buyer registration completion
-  signup_maker:       "",   // Maker application submitted
-  add_to_cart:        "",   // PDP add-to-cart click
-  lead_custom_order:  "",   // Custom-order request submitted
-  lead_contact:       "",   // Public contact-form submission
+  purchase:           GOOGLE_ADS_CONVERSION_LABEL_PURCHASE,       // CheckoutSuccess (on paid)
+  signup_buyer:       GOOGLE_ADS_CONVERSION_LABEL_SIGNUP,         // Community/buyer registration completion
+  signup_maker:       GOOGLE_ADS_CONVERSION_LABEL_APPLICATION,    // Maker application submitted
+  add_to_cart:        "",   // PDP add-to-cart click (secondary)
+  lead_custom_order:  "",   // Custom-order request submitted (secondary)
+  lead_contact:       "",   // Public contact-form submission (secondary)
 };
 
 export function trackConversion(action, params = {}) {

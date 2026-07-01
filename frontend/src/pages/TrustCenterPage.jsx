@@ -260,7 +260,7 @@ export default function TrustCenterPage() {
             <PillarCard
               icon={Users}
               title="Verified Makers"
-              blurb="Every Maker completes identity verification and Stripe onboarding before payouts. You're buying from real independent creators, not resellers."
+              blurb="Every Maker completes identity verification and Stripe onboarding before payouts. You're buying from real independent Makers, not resellers."
               link="/policies/maker-agreement"
               linkLabel="How Makers are verified"
               testId="pillar-verified-makers"

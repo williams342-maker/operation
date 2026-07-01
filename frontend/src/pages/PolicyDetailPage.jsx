@@ -121,14 +121,40 @@ export default function PolicyDetailPage() {
         </header>
 
         <PolicyMetaHeader policy={policy} />
+
+        {/* iter413dp — public "not legal advice" notice. Rendered on
+            every /policies/:slug page until the policy suite has been
+            reviewed by counsel and the appendix arrays in manifest.js
+            are cleared. See governance-framework.md for the
+            publication workflow. */}
+        <div
+          className="border border-amber-700/40 bg-amber-500/5 p-4 mb-6 flex gap-3 items-start"
+          data-testid="policy-legal-review-notice"
+        >
+          <span className="text-brand font-mono text-xs mt-0.5">◆</span>
+          <div className="font-mono text-xs leading-relaxed text-ink">
+            <b>Founding Access v1 · Pending legal review.</b> This document is
+            provided for transparency during Crafters Market&rsquo;s Version 1
+            marketplace validation phase. It is not legal advice and has not
+            been finalized by counsel. If a term is unclear, email{" "}
+            <a
+              href="mailto:team@craftersmarket.org"
+              className="text-brand hover:underline"
+            >
+              team@craftersmarket.org
+            </a>
+            .
+          </div>
+        </div>
+
         <PolicyTOC section={section} policy={policy} />
 
         {/* Body with TOC anchor injection */}
         <article className="prose-none" data-testid="policy-detail-body">
           {section?.intro && (
-            <p className="font-mono text-sm text-ink leading-relaxed mb-6">
+            <div className="font-mono text-sm text-ink leading-relaxed mb-6">
               {section.intro}
-            </p>
+            </div>
           )}
 
           <div className="space-y-8">
@@ -188,9 +214,9 @@ export default function PolicyDetailPage() {
           )}
 
           {section?.outro && (
-            <p className="mt-6 font-mono text-sm text-ink leading-relaxed">
+            <div className="mt-6 font-mono text-sm text-ink leading-relaxed">
               {section.outro}
-            </p>
+            </div>
           )}
         </article>
 

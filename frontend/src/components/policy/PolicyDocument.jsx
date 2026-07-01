@@ -247,9 +247,22 @@ export function RevisionHistory({ policy }) {
 
 // ============================================================
 //  Attorney Review appendices (internal — remove before publication)
+//
+//  Defense-in-depth: appendices render ONLY on preview/dev domains,
+//  never on production. Publication remains manifest-driven (clear
+//  the appendix arrays), but this guard prevents accidental leaks
+//  if the manifest is not yet cleared at go-live.
 // ============================================================
+function isPreviewOrDev() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname || "";
+  if (host === "craftersmarket.org" || host === "www.craftersmarket.org") return false;
+  return true;
+}
+
 export function AttorneyReviewAppendices({ policy }) {
   if (!policy) return null;
+  if (!isPreviewOrDev()) return null;
   const has =
     (policy.attorney_notes?.length || 0) +
       (policy.implementation_notes?.length || 0) +

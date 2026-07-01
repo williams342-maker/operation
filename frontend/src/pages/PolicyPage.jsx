@@ -195,7 +195,7 @@ export const SECTIONS = [
       {
         heading: "Related Policies",
         bullets: [
-          "Maker Agreement \u2014 the full seller contract, including exclusivity, taxes, and payout terms.",
+          "Maker Agreement \u2014 the full Maker contract, including exclusivity, taxes, and payout terms.",
           "Buyer Protection Policy \u2014 how disputes are handled and when the Platform intervenes.",
           "Returns & Refunds Policy \u2014 return windows, refund methods, damaged/lost items.",
           "Shipping & Logistics Policy \u2014 processing times, carriers, risk of loss, international shipping.",
@@ -896,7 +896,7 @@ export const SECTIONS = [
       },
       {
         heading: "Shop-specific policies",
-        text: "Some shops opt out of the proof-approval step for very simple personalizations (e.g. name engraving on a stock SKU). Each shop's individual custom-order policy is shown on their profile and on every product detail page. Always review the seller's policy before placing a custom order.",
+        text: "Some Makers opt out of the proof-approval step for very simple personalizations (e.g. name engraving on a stock SKU). Each Maker's individual Custom Order policy is shown on their Shop page and on every Listing detail page. Always review the Maker's Shop Policy before placing a Custom Order.",
       },
     ],
     callout: {
@@ -977,44 +977,44 @@ export const SECTIONS = [
     // "maker-agreement"  → its own section below (v3.0)
     aliasIds: [],
     icon: ShieldCheck,
-    title: "Makers Market — Seller & Commission Policy",
-    intro: "Crafters Market's Makers Market allows approved Artists to list and sell their work directly to buyers on our platform.",
+    title: "Makers Market — Fee & Commission Policy",
+    intro: "Crafters Market's Makers Market allows approved Makers to list and sell their work directly to Buyers on our Platform.",
     blocks: [
       {
-        heading: "For Sellers — Fees & Tiers",
+        heading: "For Makers — Fees & Tiers",
         list: [
-          ["Listing fee (Free tier):", "First 10 listings are free for the lifetime of the account; each additional listing or renewal is $0.20"],
-          ["Listing fee (Crafters Plus):", "First 15 listings each calendar month are free; each additional listing/renewal is $0.20"],
+          ["Listing fee (Free tier):", "First 10 Listings are free for the lifetime of the account; each additional Listing or renewal is $0.20"],
+          ["Listing fee (Crafters Plus):", "First 15 Listings each calendar month are free; each additional Listing/renewal is $0.20"],
           ["Monthly fee:", "$0 on the Free tier — no subscription required. Crafters Plus is optional at $12/month"],
           ["Commission (Free tier):", "5% of the final item subtotal, retained on completed transactions"],
           ["Commission (Crafters Plus):", "4% of the final item subtotal — a 1% discount vs. Free tier"],
           ["Payment processing:", "3% of the final item subtotal, retained to cover Stripe processing costs (applies to all tiers)"],
           ["Total deducted per sale:", "Free tier: 8% (5% commission + 3% processing) · Plus: 7% (4% + 3%)"],
           ["Off-site ad fee:", "12% of the item subtotal on sales attributed to Crafters Market off-site ad campaigns (Google / Meta). Only charged when an off-site ad directly drives the sale"],
-          ["Promoted Listing fee:", "$5 / week per promoted listing (optional, opt-in only)"],
+          ["Promoted Listing fee:", "$5 / week per promoted Listing (optional, opt-in only)"],
         ],
         bullets: [
-          "All sellers must apply and be approved before listing",
-          "Sellers set their own prices and ship directly to buyers",
-          "Sellers are independent contractors, not employees of Crafters Market",
-          "Payouts are issued via Stripe Connect to the seller's verified bank account",
+          "All Makers must apply and be approved before listing",
+          "Makers set their own prices and ship directly to Buyers",
+          "Makers are independent contractors, not employees of Crafters Market",
+          "Payouts are issued via Stripe Connect to the Maker's verified bank account",
           "All fees are calculated on the item subtotal (excluding shipping and sales tax) and deducted automatically before payout",
           "Listing-fee charges accrue to a balance and are settled against your next payout — no upfront card billing for listing fees",
-          "Crafters Plus subscription auto-renews monthly; you may cancel at any time from the maker dashboard. Cancellation takes effect at the end of the current billing period",
+          "Crafters Plus subscription auto-renews monthly; you may cancel at any time from the Maker Dashboard. Cancellation takes effect at the end of the current billing period",
         ],
       },
       {
         heading: "For Buyers purchasing through Makers Market",
         bullets: [
-          "Transactions are facilitated by Crafters Market via Stripe; the maker fulfills the order",
-          "Each seller's individual shipping, return, and custom-order policies apply",
-          "Crafters Market is not responsible for the workmanship, condition, or shipping of any individual seller's pieces beyond the protections offered by Stripe",
+          "Transactions are facilitated by Crafters Market via Stripe; the Maker fulfills the Order",
+          "Each Maker's individual shipping, returns, and Custom Order Shop Policies apply",
+          "Crafters Market is not responsible for the workmanship, condition, or shipping of any individual Maker's Listings beyond the Buyer Protection Policy and any protections offered by Stripe",
         ],
       },
     ],
     callout: {
       tone: "info",
-      text: "All Makers Market sellers are vetted and approved by Crafters Market. Seller profiles include their individual shop policies. We encourage buyers to review a seller's policy before purchasing.",
+      text: "All Makers Market participants are vetted and approved by Crafters Market. Maker Shop pages include their individual Shop Policies. We encourage Buyers to review a Maker's Shop Policy before purchasing.",
     },
   },
 

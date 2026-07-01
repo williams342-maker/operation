@@ -1,3 +1,78 @@
+## Phase D — Trust & Policy Center v1 (2026-06-30)
+
+**Status: SHIPPED (Phase D-compliant documentation/governance layer)**
+
+Comprehensive Trust & Policy Center built without violating the Phase D
+feature freeze. All work was content, routing, reusable components, and
+internal governance documentation. **No new marketplace features, no
+backend endpoints, no DB collections, no admin surfaces.**
+
+### Public URLs
+
+- `/trust` — Trust Center hub (buyer/maker confidence, cross-policy search)
+- `/policies` — Legal Library index (12 documents, hierarchy, glossary)
+- `/policies/:slug` — Individual policy detail pages (12 slugs)
+- `/policy` — Legacy monolith (preserved for backward compatibility)
+- `/terms`, `/tos` — Redirect to `/policies/terms`
+
+### Documents in v1
+
+| Slug | Title | Version | Category |
+| --- | --- | --- | --- |
+| terms | Terms of Service | 2.0 (rewritten) | Core |
+| privacy | Privacy Policy | 3.0 | Core |
+| cookies | Cookie Policy | 3.0 | Core |
+| maker-agreement | Maker Agreement | 3.0 | Core |
+| buyer-protection | Buyer Protection Policy | 1.0 | Core |
+| returns | Returns & Refunds Policy | 3.0 | Core |
+| shipping | Shipping & Logistics Policy | 3.0 | Core |
+| prohibited-items | Prohibited Items Policy | 3.0 | Core |
+| community-guidelines | Community Guidelines | 3.0 | Core |
+| ip-dmca | Intellectual Property & DMCA Policy | 1.0 | Operational |
+| marketplace-promise | Our Marketplace Promise | 1.0 | Trust |
+| privacy-at-a-glance | Privacy at a Glance | 1.0 | Trust |
+
+Every policy carries: version + effective date + last updated + revision
+history + related-policies index + Appendix A (Attorney Review Notes) +
+Appendix B (Implementation Notes) + Appendix C (Cross-Reference
+Checklist).
+
+### Architecture
+
+- Metadata: `/app/frontend/src/data/policies/manifest.js`
+- Glossary: `/app/frontend/src/data/policies/glossary.js`
+- Hierarchy: `/app/frontend/src/data/policies/hierarchy.js`
+- Reusable components: `/app/frontend/src/components/policy/PolicyDocument.jsx`
+- Body content: `SECTIONS` (now exported) in `PolicyPage.jsx`
+- Pages: `TrustCenterPage.jsx`, `PoliciesIndexPage.jsx`, `PolicyDetailPage.jsx`
+
+### Internal governance (not published)
+
+- `/app/memory/governance/governance-framework.md`
+- `/app/memory/governance/content-moderation-policy.md`
+- `/app/memory/governance/product-review-matrix.md`
+- `/app/memory/governance/enforcement-guide.md`
+- `/app/memory/governance/policy-consistency-audit-2026-06-30.md`
+
+### Testing (iter103)
+
+- Testing agent: **16/16 frontend flows PASS**
+- validateDOMNesting warning surfaced during E2E run → fixed by swapping
+  outer wrappers to `<div>` in PolicyDetailPage. Post-fix screenshot
+  confirmed 0 warnings.
+- Backend untouched (Phase D freeze).
+
+### Deferred to post-Phase D
+
+See ROADMAP.md → "Trust & Policy Center — Post-Phase D backlog" for full
+list. Highlights: Cookie Preference Center (P1), Fee & Pricing Policy
+dedicated page (P1), Maker Agreement DB opt-in record (P2), Maker Shop
+Policy Builder (P2), Buyer Protection Case Portal (P2), Product Review
+Matrix admin UI (P2).
+
+---
+
+
 ## Phase D — Week 4 Candidate: Founder Activation Reminder
 
 **Status: DEFERRED to Week 4 evidence review.** Captured per user direction on 2026-02-27 — held to the Phase D rule rather than built ad-hoc. May be promoted earlier if the early-promotion trigger fires (see below).
