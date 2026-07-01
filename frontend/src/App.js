@@ -44,6 +44,7 @@ import PolicyPage from "./pages/PolicyPage";
 import TrustCenterPage from "./pages/TrustCenterPage";
 import PoliciesIndexPage from "./pages/PoliciesIndexPage";
 import PolicyDetailPage from "./pages/PolicyDetailPage";
+import PrintBundlePage from "./pages/PrintBundlePage";
 import CommunityPage from "./pages/CommunityPage";
 import CommunityEmblemPage from "./pages/CommunityEmblemPage"; // iter413bs
 import CompassPreviewPage from "./pages/CompassPreviewPage"; // iter413ct+ — temporary brand-pick preview
@@ -325,6 +326,7 @@ function App() {
                 <Route path="/trust" element={<TrustCenterPage />} />
                 <Route path="/policies" element={<PoliciesIndexPage />} />
                 <Route path="/policies/:slug" element={<PolicyDetailPage />} />
+                <Route path="/counsel-packet" element={<PrintBundlePage />} />
                 <Route path="/terms" element={<Navigate to="/policies/terms" replace />} />
                 <Route path="/tos" element={<Navigate to="/policies/terms" replace />} />
                 <Route path="/signin" element={<SignInPage />} />
