@@ -87,6 +87,71 @@ async def test_notify_policy_publish_skips_gsc_when_disabled():
 
 
 @pytest.mark.asyncio
+async def test_notify_policy_publish_persists_audit_row():
+    """Every notify_policy_publish call appends an audit row to
+    system_state; the audit history is capped at AUDIT_HISTORY_LIMIT."""
+    from seo_policy_notify import (
+        notify_policy_publish,
+        notify_policy_publish_status,
+        AUDIT_KEY,
+        AUDIT_HISTORY_LIMIT,
+    )
+    from core import db
+
+    # Ensure a clean slate for this test collection state
+    await db.system_state.delete_one({"_id": AUDIT_KEY})
+
+    indexnow_stub = AsyncMock(return_value={"ok": True, "status": 200, "count": 17})
+    submit_sitemap_stub = AsyncMock(return_value={"ok": True, "status": 200,
+                                                   "throttled": False})
+
+    with patch("seo_indexnow.ping", indexnow_stub), \
+         patch("gsc_client.is_gsc_enabled", return_value=True), \
+         patch("gsc_client.submit_sitemap", submit_sitemap_stub):
+        # Fire more than the cap to prove the $slice trimming works
+        for _ in range(AUDIT_HISTORY_LIMIT + 2):
+            await notify_policy_publish(override_root="https://craftersmarket.org")
+
+    status = await notify_policy_publish_status()
+    assert status["ok"] is True
+    assert status["count"] == AUDIT_HISTORY_LIMIT, (
+        f"Audit history should be capped at {AUDIT_HISTORY_LIMIT}, "
+        f"got {status['count']}"
+    )
+    # Each row has the fields the admin card renders
+    for row in status["history"]:
+        assert "at" in row
+        assert "url_count" in row
+        assert "indexnow_ok" in row
+        assert "gsc_ok" in row
+        assert "gsc_throttled" in row
+        assert "gsc_skipped" in row
+    # Newest-first ordering
+    ts = [r["at"] for r in status["history"]]
+    assert ts == sorted(ts, reverse=True), (
+        f"Audit history should be newest-first, got {ts}"
+    )
+
+    # Clean up so we don't pollute other tests
+    await db.system_state.delete_one({"_id": AUDIT_KEY})
+
+
+@pytest.mark.asyncio
+async def test_notify_policy_publish_status_empty_when_no_pings():
+    """The status endpoint returns an empty history (ok=True, count=0)
+    when no policy pings have been recorded yet."""
+    from seo_policy_notify import notify_policy_publish_status, AUDIT_KEY
+    from core import db
+
+    await db.system_state.delete_one({"_id": AUDIT_KEY})
+    status = await notify_policy_publish_status()
+    assert status["ok"] is True
+    assert status["count"] == 0
+    assert status["history"] == []
+    assert status["last_at"] is None
+
+
+@pytest.mark.asyncio
 async def test_notify_policy_publish_never_raises_on_gsc_error():
     """If submit_sitemap raises, the notifier still returns an ok=True
     response (from the IndexNow leg) and reports the GSC error inline."""

@@ -496,3 +496,15 @@ async def admin_seo_policies_published(_: dict = Depends(current_admin)):
     """
     from seo_policy_notify import notify_policy_publish
     return await notify_policy_publish()
+
+
+@router.get("/admin/seo/policies-published/status")
+async def admin_seo_policies_published_status(_: dict = Depends(current_admin)):
+    """Return the last few policy-ping audit rows (timestamp, URL count,
+    IndexNow status, GSC status). Lets the admin see at a glance whether
+    the weekly cron + manual triggers are still landing cleanly.
+
+    Backed by the `system_state/{_id: 'policy_notify_audit'}` doc,
+    capped at 5 entries (newest first) so the collection never grows."""
+    from seo_policy_notify import notify_policy_publish_status
+    return await notify_policy_publish_status()

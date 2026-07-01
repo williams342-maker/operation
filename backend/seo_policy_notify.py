@@ -24,8 +24,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from core import logger, _CANONICAL_SITE_ROOT
+from core import logger, _CANONICAL_SITE_ROOT, db, now_iso
 from routers.seo import TRUST_POLICY_PATHS
+
+# system_state doc id + audit-trail cap
+AUDIT_KEY = "policy_notify_audit"
+AUDIT_HISTORY_LIMIT = 5
 
 
 def _absolute_policy_urls(root: str) -> list[str]:
@@ -96,7 +100,7 @@ async def notify_policy_publish(
                 "error": f"{type(e).__name__}: {e}",
             }
 
-    return {
+    result = {
         "ok": bool(indexnow_result.get("ok")) or bool(gsc_result.get("ok")),
         "url_count": len(urls),
         "urls": urls,
@@ -108,4 +112,61 @@ async def notify_policy_publish(
             "entry to nudge Google specifically. (Skipped automatically here "
             "unless GSC OAuth is configured.)"
         ),
+    }
+
+    # ---- Persist audit row (best-effort) ---------------------------------
+    try:
+        audit_row = {
+            "at":              now_iso(),
+            "url_count":       result["url_count"],
+            "ok":              result["ok"],
+            "indexnow_ok":     bool(indexnow_result.get("ok")),
+            "indexnow_status": indexnow_result.get("status"),
+            "indexnow_error":  indexnow_result.get("error"),
+            "gsc_ok":          bool(gsc_result.get("ok")),
+            "gsc_status":      gsc_result.get("status"),
+            "gsc_throttled":   bool(gsc_result.get("throttled")),
+            "gsc_skipped":     bool(gsc_result.get("skipped")),
+            "gsc_error":       gsc_result.get("error") or gsc_result.get("reason"),
+        }
+        # Keep only the last AUDIT_HISTORY_LIMIT entries (newest first)
+        await db.system_state.update_one(
+            {"_id": AUDIT_KEY},
+            {
+                "$push": {
+                    "history": {
+                        "$each": [audit_row],
+                        "$position": 0,
+                        "$slice": AUDIT_HISTORY_LIMIT,
+                    }
+                },
+                "$set": {"last_at": audit_row["at"]},
+            },
+            upsert=True,
+        )
+    except Exception:
+        logger.exception("[policy_notify] audit-row persistence failed")
+
+    return result
+
+
+async def notify_policy_publish_status() -> dict:
+    """Return the last N policy-ping audit rows for the admin dashboard.
+    Never raises."""
+    try:
+        doc = await db.system_state.find_one(
+            {"_id": AUDIT_KEY},
+            {"_id": 0, "history": 1, "last_at": 1},
+        ) or {}
+    except Exception as e:
+        logger.exception("[policy_notify] status fetch failed")
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "history": []}
+
+    history = doc.get("history") or []
+    return {
+        "ok": True,
+        "last_at": doc.get("last_at"),
+        "count": len(history),
+        "limit": AUDIT_HISTORY_LIMIT,
+        "history": history,
     }

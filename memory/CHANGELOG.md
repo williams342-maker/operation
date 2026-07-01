@@ -1,3 +1,31 @@
+## 2026-07-01 — Policy-publish audit trail + status endpoint
+
+Added a lightweight audit trail so operators can see at a glance whether
+the policy notification pipeline (admin trigger · CLI hook · weekly
+cron) is still landing cleanly.
+
+- **Persistence:** every `notify_policy_publish()` call now appends an
+  audit row to `system_state/{_id: 'policy_notify_audit'}` (capped at 5
+  entries via `$slice`, newest first). Row schema: `at`, `url_count`,
+  `ok`, `indexnow_ok/status/error`, `gsc_ok/status/throttled/skipped/error`.
+- **New endpoint:** `GET /api/admin/seo/policies-published/status`
+  returns `{ok, last_at, count, limit, history}` — dashboard-ready.
+- **Regression tests:** `test_seo_policy_notify.py` now covers
+  audit-row persistence, $slice cap, newest-first ordering, and the
+  empty-history default. **10/10 pass** (combined with
+  `test_weekly_policy_ping.py`).
+- **Live verified:** two consecutive `POST /policies-published`
+  calls produced two audit rows; the second GSC leg came back
+  `gsc_throttled: true` (rate-limit working as designed), which the
+  audit row surfaces distinctly from a real error.
+
+### Files touched
+
+- `/app/backend/seo_policy_notify.py` — audit persistence + status helper.
+- `/app/backend/routers/seo.py` — new `GET /admin/seo/policies-published/status` endpoint.
+- `/app/backend/tests/test_seo_policy_notify.py` — 2 new tests, 6 total.
+
+
 ## 2026-07-01 — Weekly Trust & Policy Center re-ping cron
 
 Wired a new scheduler job that re-fires the policy publish notification
