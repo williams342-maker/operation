@@ -2566,3 +2566,53 @@ Stripe · Cloudflare · GA4 · Google Ads · Google Search Console · Meta Ads/C
 
 **Regeneration:** `OUT_FILE=/app/frontend/public/downloads/attorney-review-packet-2026-06-30.docx python3 /app/scripts/render-attorney-packet-docx.py` (requires `/tmp/attorney_packet.json` from the extraction step).
 
+
+---
+
+## iter413v5 — Legal Launch Binder v5.0 (2026-06-30, Phase D)
+
+**Delivered:** Professional legal diligence binder at `/downloads/legal-launch-binder-v5-2026-06-30.docx` (119 KB · 2,165 paragraphs · 7 tables · 14 policies) suitable for outside counsel, Rocket Lawyer, investors, and due-diligence review.
+
+**Architecture (front-to-back):**
+1. Cover Page (Version 5, Prepared for Rocket Lawyer, Confidential)
+2. Confidentiality Notice
+3. Executive Summary (Marketplace Overview · Business Model · Marketplace Facilitator · Stripe Connect · Governing Law · Creator-Owned AI · Review Objectives · Requested Deliverables)
+4. Document Control (Version · Owner · Classification · Review Cycle · Effective Date · Revision · Approval Status · Source of Truth)
+5. Marketplace Overview
+6. Legal Review Scope
+7. Launch Readiness Dashboard (14-row table: # · Policy · Version · Attorney Focus · Readiness)
+8. Risk Matrix (14-row table: Policy · Status · Attorney Review · Priority · Comments)
+9. Counsel Deliverables
+10. Open Legal Questions (grouped by policy with categorized callouts)
+11. Cross-Policy Dependency Map (6-row hierarchy: Applicable Law → Terms → Maker Agreement → Marketplace Policies → Shop Policies → Order-specific)
+12. Automatic Table of Contents (Word TOC field — auto-populates on F9 refresh)
+13. **Fourteen policies**, each with: Divider page · Policy Overview (Purpose · Scope · Applies To · Dependencies · Attorney Focus) · Policy body · Revision History · Appendix A
+14. Master Appendix A (consolidated attorney notes grouped by Critical / Counsel Decision Required / Recommended / Informational / Implemented)
+15. Master Revision Log (14-row table)
+16. Counsel Workbook (Overall Recommendation · Critical Issues · Required Changes · Suggested Improvements · Per-Policy Sign-off table)
+17. Launch Recommendation
+18. Attorney Sign-off (Attorney · Firm · Bar ID · Signature · Date)
+
+**Word publishing quality:**
+- 13 custom Word styles registered (Body, Quote, AttorneyNote, Warning, Appendix, Caption, Code, CoverTitle, CoverSubtitle, CoverMeta, DividerLabel, DividerTitle, DividerMeta) plus built-in Heading 1/2/3 sized for Nav Pane
+- Running header: "CRAFTERS MARKET · Trust & Policy Center · Legal Launch Binder" with muted bottom border
+- Footer with "Confidential · Prepared for Rocket Lawyer  Page X of Y" (automatic PAGE / NUMPAGES fields)
+- Cover has different first-page header/footer suppression
+- Automatic Table of Contents via `TOC \o "1-3" \h \z \u` field
+- Attorney callouts render as colored left-border blocks (Critical red · Counsel Decision Required purple · Recommended blue · Informational grey · Implemented green) with shaded fill
+- Consistent typography (Calibri 11pt body, navy-blue Heading 1/2/3)
+- Zero manual formatting — everything uses Word Styles
+
+**Content preservation:**
+- Policy language extracted from `/tmp/attorney_packet.json` (same source as the attorney PDF and DOCX v1). Zero policy text modified.
+- Automated verification: Terms §12 remote arbitration ✓, Privacy §4a vendor inventory ✓, Maker §10 content ownership ✓, Fee-Pricing §12 60-day + Click-Acceptance ✓, Prohibited §14 AI examples ✓, Founding Seller detail ✓.
+- Sanitization intact: 0 occurrences of `manifest.js`, `hierarchy.js`, `REACT_APP_POLICY`, `ENGINEERING DEFAULT`.
+
+**Script:** `/app/scripts/render-legal-launch-binder-v5.py` (env vars: `IN_FILE`, `OUT_FILE`)
+
+**Downloads directory:**
+- `/downloads/legal-launch-binder-v5-2026-06-30.docx` — 119 KB — **NEW · flagship attorney-facing binder**
+- `/downloads/attorney-review-packet-2026-06-30.docx` — 108 KB (previous v4 packet)
+- `/downloads/attorney-review-packet-2026-06-30.pdf` — 577 KB
+- `/downloads/counsel-review-packet-2026-06-30.pdf` — 599 KB (internal dev use)
+
