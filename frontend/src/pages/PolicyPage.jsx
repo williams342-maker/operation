@@ -91,6 +91,7 @@ export const SECTIONS = [
           "You are responsible for shipping Orders within your stated processing time and for reasonable customer service.",
           "You agree to the Maker Agreement, the Prohibited Items Policy, and every marketplace policy referenced in this document.",
           "You are responsible for your own taxes, business licensing, and legal compliance in your jurisdiction. Crafters Market may collect and remit marketplace-facilitator sales tax where required by law.",
+          "Origin claims (\u201cMade in USA,\u201d \u201cHandmade,\u201d and similar representations). Makers are solely responsible for the accuracy of any origin claim (including \u201cMade in USA,\u201d \u201cHandmade,\u201d \u201cHandcrafted,\u201d \u201cSmall-batch,\u201d or any similar representation) appearing on their Listings, Shop pages, packaging, or marketing. Crafters Market may review or remove Listings that appear misleading, apply enforcement under the Prohibited Items Policy, and cooperate with regulators, but does not independently verify every claim before it is published. See the Maker Agreement §19a for the substantive standards (including FTC \u201call or virtually all\u201d).",
         ],
       },
       {
@@ -101,6 +102,7 @@ export const SECTIONS = [
           "Makers must complete Stripe onboarding (identity verification, payout account) before withdrawing funds. Stripe may hold, reserve, or freeze funds as required by its risk and compliance programs.",
           "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry.",
           "A payout hold under this Section lasts only as long as reasonably necessary to resolve the underlying issue \u2014 including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger will be released on the normal payout cadence.",
+          "Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. In those cases, resolution is governed by Stripe's Connected Account Agreement and the applicable card-network rules.",
           "Crafters Market may deduct fees, refunds, chargebacks, and any amounts owed under these Terms, the Maker Agreement, or applicable policies from Maker balances or future payouts.",
           "Refunds and reversals are governed by the Returns & Refunds Policy and the Buyer Protection Policy.",
         ],
@@ -117,8 +119,8 @@ export const SECTIONS = [
       {
         heading: "6a. AI Use \u2014 Creator-Owned AI Policy",
         bullets: [
-          "Operational AI (allowed under the license in Section 6): Crafters Market may use AI-powered tools to operate and market the marketplace \u2014 including search, recommendations, fraud and spam detection, translations, accessibility, customer support, Listing optimization, SEO metadata, ad generation across Google/Meta/Pinterest/TikTok/Reddit, email campaigns, blog articles, product-description assistance, video scripts, and social captions. Operational AI is considered part of running and promoting the Platform.",
-          "AI model training (NOT covered by the license in Section 6): Crafters Market will not use Maker Content to train image-generation models, large language models, recommendation foundation models, or other commercial AI systems, and will not license Maker Content to third parties for AI training, unless the Maker has provided explicit, affirmative, opt-in consent.",
+          "Operational AI (allowed under the license in Section 6): Crafters Market may use AI-powered tools to operate and market the marketplace \u2014 including search, recommendations, fraud and spam detection, translations, accessibility, customer support, Listing optimization, SEO metadata, and the use of third-party advertising platforms (Google, Meta, Pinterest, TikTok, Reddit, and similar surfaces) solely to generate, optimize, target, and deliver advertisements that promote Maker Listings. Operational AI also includes email campaigns, blog articles, product-description assistance, video scripts, and social captions used to promote the Platform. Operational AI is considered part of running and promoting the Platform.",
+          "AI model training (NOT covered by the license in Section 6): Crafters Market will not use Maker Content to train image-generation models, large language models, recommendation foundation models, or other commercial AI systems, and will not license or otherwise permit Maker Content to be used by any third-party (including any third-party advertising provider) to train commercial foundation models, unless the Maker has provided explicit, affirmative, opt-in consent through a separate AI Training Program. The Operational AI license above does not authorize the Platform or any third-party advertising provider to train commercial foundation models on Maker Content.",
           "If we ever launch an AI Training Program it will be opt-in only, with a separate consent step, a clear explanation of intended use, the ability to opt out later (subject to reasonable technical limitations for previously-trained models), and no reduction in visibility, ranking, payouts, or marketplace access for Makers who decline.",
           "Full details are in the Maker Agreement (AI Use \u2014 Creator-Owned AI Policy) and the Privacy Policy (How We Use AI).",
         ],
@@ -169,7 +171,7 @@ export const SECTIONS = [
         heading: "12. Dispute Resolution & Governing Law",
         bullets: [
           "Step 1 \u2014 Informal Resolution (30 days). Before initiating any formal proceeding against Crafters Market, you agree to first send a written description of your dispute to policy@craftersmarket.org and give Crafters Market 30 days to attempt an informal resolution. Buyers and Makers should first attempt to resolve Order-related disputes with each other via on-platform messaging and, if that fails, through the Buyer Protection Policy escalation flow.",
-          "Step 2 \u2014 Mandatory, Individual Arbitration. If a dispute against Crafters Market is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules (or its Commercial Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Judgment on the award may be entered in any court of competent jurisdiction.",
+          "Step 2 \u2014 Mandatory, Individual Arbitration. If a dispute against Crafters Market is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules (or its Commercial Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Arbitration will be administered remotely by default (video conference or written submissions) unless the arbitrator determines that an in-person hearing is necessary. Judgment on the award may be entered in any court of competent jurisdiction.",
           "Class-Action Waiver. You and Crafters Market each agree to bring claims only in an individual capacity, and not as a plaintiff or class member in any purported class, collective, consolidated, mass, or representative proceeding. The arbitrator has no authority to conduct any class, collective, or representative proceeding.",
           "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
           "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
@@ -213,6 +215,7 @@ export const SECTIONS = [
       {
         heading: "Revision History",
         bullets: [
+          "v2.4 \u2014 2026-06-30 \u2014 Second-round legal-review pass: §4 adds Maker responsibility for origin claims (Made in USA / Handmade / etc.); §5 clarifies that some payout holds are Stripe- or card-network-controlled; §6a clarifies that Operational AI does not authorize the Platform or any third-party ad provider to train commercial foundation models on Maker Content; §12 adds remote-first arbitration (video conference or written submissions by default), King County WA remains the legal seat.",
           "v2.3 \u2014 2026-06-30 \u2014 Legal-hardening pass: added §14a Electronic Signatures & Acceptance (E-SIGN / UETA acknowledgment). Deployed effective-date deployment hook so the effective date is injected at build time from REACT_APP_POLICY_EFFECTIVE_DATE instead of manually placed in each policy.",
           "v2.2 \u2014 2026-06-30 \u2014 Legal-review pass: §5 payout holds tied to Stripe lifecycle + limited operational triggers; §11 adds gross-negligence + willful-misconduct carve-out; §12 replaced placeholder with two-tier informal-then-arbitration structure, class-action waiver, small-claims carve-out, 30-day opt-out.",
           "v2.1 \u2014 2026-06-30 \u2014 Added Section 6a AI Use (Creator-Owned AI Policy): distinguishes AI-for-operations (allowed under content license) from AI model training (opt-in only, never a condition of marketplace access).",
@@ -242,7 +245,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">2.3</b>
+        <b className="text-ink">2.4</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -531,7 +534,8 @@ export const SECTIONS = [
         heading: "6. Damaged, Defective, or Incorrect Items",
         text: "When an item arrives damaged, defective, or is not what was ordered:",
         bullets: [
-          "Buyer should notify the Maker within a reasonable period \u2014 generally within 7 days of delivery for transit damage and within 30 days for latent defects.",
+          "Buyer is encouraged to notify the Maker as soon as reasonably possible. For transit damage, a report within seven (7) days of delivery is recommended whenever reasonably possible to assist any investigation with the carrier. For latent defects (issues discovered later), a report within thirty (30) days of delivery is recommended.",
+          "These are reporting recommendations, not a shortening of any applicable return window under Section 3, the Maker's Shop Policy, the Buyer Protection Policy, or applicable consumer-protection law. A late report may make a carrier claim harder to pursue but does not by itself extinguish Buyer Protection rights or return rights that are otherwise available.",
           "Buyer should provide clear photographs of the item, the packaging (for transit damage), and the shipping label.",
           "Buyer should cooperate with the Maker on resolution (replacement, repair, refund, or return).",
           "Maker should respond promptly and make reasonable efforts to resolve verified issues consistent with this Policy, the Maker Agreement, and the Maker\u2019s Shop Policy.",
@@ -1144,6 +1148,7 @@ export const SECTIONS = [
           "Payouts are issued via Stripe Connect to the Maker's verified bank account on the payout schedule configured in the Maker's Stripe account (default: daily rolling with a standard delay for new sellers; see Stripe's documentation).",
           "The first payout for a new Maker may be delayed by Stripe until identity and bank verification are complete.",
           "Payout holds initiated by Crafters Market are limited to the operational triggers described in Terms of Service §5 and Maker Agreement §14: Stripe risk/compliance, fraud investigation, active chargeback or dispute, identity-verification review, or an active legal/regulatory inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue.",
+          "Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. Those holds are governed by Stripe's Connected Account Agreement and the applicable card-network rules.",
           "Funds not subject to a legitimate hold trigger continue to release on the normal payout cadence.",
         ],
       },
@@ -1168,8 +1173,10 @@ export const SECTIONS = [
         heading: "12. Changes to This Policy",
         bullets: [
           "Crafters Market may update this Fee & Pricing Policy from time to time to reflect changes in commissions, listing fees, subscription pricing, advertising fees, or any other commercial term.",
-          "Changes will apply prospectively — never retroactively to a completed sale. We will provide at least 30 days' advance notice of any change that increases fees or introduces a new fee, via email to the address on file for the Maker account and via an in-Dashboard notice.",
-          "Continued use of the Platform after the notice period constitutes acceptance of the updated Policy. If you do not agree to the change, you may cancel Crafters Plus, pause your Shop, or close your Maker account before the change takes effect. Any Founding Seller fee protections continue to be governed by the Maker Agreement §4.",
+          "Changes will apply prospectively — never retroactively to a completed sale.",
+          "Fee increases and new fees. We will provide at least sixty (60) days' advance notice of any change that increases an existing fee or introduces a new fee, via email to the address on file for the Maker account and via an in-Dashboard notice.",
+          "Fee reductions and promotional pricing. Fee reductions, promotional discounts, waived fees, temporary rate cuts, and other Maker-favorable changes may take effect immediately or on a shorter notice window, at Crafters Market's discretion. We will still record the change in this Policy's revision history.",
+          "Continued use of the Platform after the applicable notice period constitutes acceptance of the updated Policy. If you do not agree to a fee increase or new fee, you may cancel Crafters Plus, pause your Shop, or close your Maker account before the change takes effect. Any Founding Seller fee protections continue to be governed by the Maker Agreement §4.",
           "The current version of this Policy always lives at /policies/fee-pricing. Prior versions are summarized in the Revision History section of this document.",
         ],
       },
@@ -1191,7 +1198,7 @@ export const SECTIONS = [
     outro: (
       <>
         <span className="text-ink-muted">Version:</span>{" "}
-        <b className="text-ink">1.0</b>
+        <b className="text-ink">1.1</b>
         <span className="text-ink-muted"> · Last updated:</span>{" "}
         <b className="text-ink">2026-06-30</b>
         <span className="text-ink-muted"> · Effective:</span>{" "}
@@ -1327,9 +1334,9 @@ export const SECTIONS = [
         heading: "10a. AI Use — Creator-Owned AI Policy",
         bullets: [
           "Your creativity belongs to you. This section clarifies what Crafters Market may and may not do with your User Content when AI tools are involved. It sits alongside — and is expressly narrower than — the general license in Section 10.",
-          "Allowed under the Section 10 license (\u201cOperational AI\u201d): Crafters Market may use AI-powered tools to operate and market the Platform. Examples include search relevance, personalized recommendations, fraud and spam detection, on-platform translations, accessibility enhancements, customer-support assistance, Listing optimization suggestions, SEO metadata generation, and AI-assisted marketing across Google Ads, Meta (Facebook/Instagram), Pinterest, TikTok, Reddit, email campaigns, blog articles, product-description drafts, promotional graphics, video scripts, and social captions.",
+          "Allowed under the Section 10 license (\u201cOperational AI\u201d): Crafters Market may use AI-powered tools to operate and market the Platform. Examples include search relevance, personalized recommendations, fraud and spam detection, on-platform translations, accessibility enhancements, customer-support assistance, Listing optimization suggestions, SEO metadata generation, and the use of third-party advertising platforms (Google Ads, Meta / Facebook / Instagram, Pinterest, TikTok, Reddit, and similar surfaces) solely to generate, optimize, target, and deliver advertisements that promote Maker Listings. Operational AI also includes email campaigns, blog articles, product-description drafts, promotional graphics, video scripts, and social captions used to promote the marketplace.",
           "Operational AI is considered part of running and promoting the marketplace, and does not require a separate consent from you.",
-          "NOT allowed under the Section 10 license (\u201cAI Model Training\u201d): Crafters Market will not use your User Content to train image-generation models, large language models, recommendation foundation models, or other commercial AI/machine-learning systems, and will not license your User Content to third parties for AI training, unless you have provided explicit, affirmative, opt-in consent for that specific purpose.",
+          "NOT allowed under the Section 10 license (\u201cAI Model Training\u201d): Crafters Market will not use your User Content to train image-generation models, large language models, recommendation foundation models, or other commercial AI/machine-learning systems, and will not license or otherwise permit your User Content to be used by any third party (including any third-party advertising provider) to train commercial foundation models, unless you have provided explicit, affirmative, opt-in consent for that specific purpose. For the avoidance of doubt, the Operational AI license does not authorize the Platform or any third-party advertising provider to train commercial foundation models using your User Content.",
           "Silence, inaction, or continued marketplace participation are not consent to AI Model Training. Consent must be affirmative.",
           "If we launch an AI Training Program in the future, participation will require: (a) a separate consent step distinct from acceptance of this Maker Agreement; (b) a clear description of the intended training use, data scope, and any counterparties; (c) the ability to withdraw consent at any time, subject to reasonable technical limitations for models already trained; and (d) no reduction in your visibility, ranking, payouts, marketplace access, or other Maker benefits for declining to participate.",
           "This section survives termination of the Maker Agreement with respect to any consent you may have granted before termination.",
@@ -1378,6 +1385,7 @@ export const SECTIONS = [
           "You must complete Stripe\u2019s identity verification (KYC) and provide accurate banking information. Payouts cannot be released to unverified accounts.",
           "Standard payout schedule is set by Stripe\u2019s defaults unless you adjust it in your Stripe Express dashboard.",
           "Payout holds initiated by Crafters Market are limited to legitimate operational triggers: (a) Stripe risk, compliance, or reserve requirements; (b) fraud investigations opened by Crafters Market or a card network; (c) active chargeback or dispute proceedings; (d) Maker identity-verification review; (e) an active legal, tax, or regulatory-compliance inquiry. A hold lasts only as long as reasonably necessary to resolve the underlying issue, including any applicable Stripe timelines, the card network's dispute lifecycle, or the timeline of a legal/regulatory inquiry. Funds not subject to a legitimate hold trigger are released on the normal payout cadence.",
+          "Stripe- or card-network-controlled holds. Some payout holds are imposed directly by Stripe or by the card networks pursuant to their own compliance, risk, or reserve obligations. Crafters Market cannot override or accelerate those holds where Stripe or the card network controls fund release. In those cases, resolution is governed by Stripe's Connected Account Agreement and the applicable card-network rules, and we will assist you with information and cooperation where reasonably practical.",
           "Reserves: we may require a rolling reserve on payouts for accounts with elevated dispute or chargeback risk.",
           "Negative balances: if refunds or chargebacks exceed pending payouts, the resulting negative balance must be settled by you. We may recover negative balances from subsequent payouts or, if necessary, by direct collection.",
           "Failed transfers: if a payout to your bank fails, we will retry per Stripe\u2019s retry schedule; persistent failure may pause payouts until banking information is corrected.",
@@ -1524,7 +1532,7 @@ export const SECTIONS = [
           "This Section mirrors the dispute-resolution framework in the Terms of Service §12 so that this Agreement is enforceable on its own without cross-reference. In the event of a conflict between this Section and Terms of Service §12, this Section controls with respect to Maker-Platform disputes; the Terms control with respect to Buyer-Platform disputes.",
           "Governing Law. This Agreement is governed by the laws of the State of Washington, USA, without regard to conflict-of-law rules.",
           "Step 1 \u2014 Informal Resolution (30 days). Before initiating any formal proceeding against Crafters Market under this Agreement, you agree to first send a written description of your dispute to policy@craftersmarket.org and give Crafters Market 30 days to attempt an informal resolution.",
-          "Step 2 \u2014 Mandatory, Individual Arbitration. If a Maker-Platform dispute is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules (or Consumer Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Judgment on the award may be entered in any court of competent jurisdiction.",
+          "Step 2 \u2014 Mandatory, Individual Arbitration. If a Maker-Platform dispute is not resolved within the 30-day informal period, it will be resolved by binding, individual arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules (or Consumer Arbitration Rules where those apply). The arbitration will be seated in King County, Washington, and conducted in English. Arbitration will be administered remotely by default (video conference or written submissions) unless the arbitrator determines that an in-person hearing is necessary. Judgment on the award may be entered in any court of competent jurisdiction.",
           "Class-Action Waiver. You and Crafters Market each agree to bring Maker-Platform claims only in an individual capacity, and not as a plaintiff or class member in any purported class, collective, consolidated, mass, or representative proceeding. The arbitrator has no authority to conduct any class, collective, or representative proceeding.",
           "Small-Claims Carve-Out. Either party may bring an individual claim that qualifies for the small-claims court of the party's home jurisdiction in that court instead of in arbitration. Filing a small-claims action does not waive the mandatory-arbitration or class-waiver provisions above with respect to any other dispute.",
           "Injunctive Relief. Nothing in this Section prevents either party from seeking injunctive or equitable relief in a court of competent jurisdiction to protect intellectual property, confidential information, or Platform integrity.",
@@ -1587,7 +1595,7 @@ export const SECTIONS = [
           </a>
         </p>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.3</b>
+          <span>Version:</span> <b className="text-ink">3.4</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -1597,6 +1605,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.4 · 2026-06-30 — Second-round legal-review pass: §10a clarifies that Operational AI does NOT authorize the Platform or any third-party ad provider to train commercial foundation models on Maker Content; §14 clarifies that some payout holds are Stripe- or card-network-controlled; §27 adds remote-first arbitration (video/written by default), King County WA remains the legal seat.</span>
           <br />
           <span>v3.3 · 2026-06-30 — Legal-hardening pass: fully populated §25 Standard Contract Provisions (severability, waiver, assignment, notices, entire agreement); added §26 Survival; added §27 Maker-specific Governing Law & Dispute Resolution (mirrors ToS §12: 30-day informal → AAA arbitration + class-action waiver + small-claims carve-out + injunctive-relief carve-out + 30-day opt-out); added §28 Electronic Signatures & Acceptance (E-SIGN / UETA).</span>
           <br />
@@ -2000,17 +2010,18 @@ export const SECTIONS = [
       {
         heading: "10. International Transfers",
         bullets: [
-          "Crafters Market is operated from the United States. If you access the Platform from outside the U.S., your information may be transferred to and processed in the U.S.",
-          "Where international transfers occur and applicable law requires, we will rely on appropriate transfer mechanisms (e.g. Standard Contractual Clauses) [LEGAL REVIEW: confirm jurisdiction-specific mechanisms once the marketplace expands internationally].",
+          "Crafters Market currently operates primarily within the United States, and the Platform is intended for U.S.-based Buyers and Makers. Personal information you provide is stored and processed in the United States.",
+          "If we expand services to residents of the European Economic Area (EEA), the United Kingdom, or other jurisdictions requiring additional transfer safeguards, we will implement the legally required mechanisms (including Standard Contractual Clauses or equivalent safeguards where applicable) before accepting registrations from those jurisdictions.",
+          "If you access the Platform from outside the United States, you understand and agree that your information will be transferred to and processed in the United States, and that the data-protection laws of the U.S. may differ from those of your home jurisdiction.",
         ],
       },
       {
         heading: "11. AI & Automated Services — Creator-Owned AI Policy",
         bullets: [
           "Your creativity belongs to you. This section explains, in plain English, how Crafters Market uses AI in relation to your personal information and User Content, and — importantly — what we do NOT do.",
-          "Operational AI (allowed): We use AI-powered tools to operate and market the Platform. This includes search relevance and personalization, recommendations, fraud and spam detection, on-platform translations, accessibility enhancements, customer-support assistance, Listing optimization, SEO metadata generation, and AI-assisted marketing across Google, Meta (Facebook/Instagram), Pinterest, TikTok, Reddit, email campaigns, blog articles, product-description drafts, promotional graphics, video scripts, and social captions.",
+          "Operational AI (allowed): We use AI-powered tools to operate and market the Platform. This includes search relevance and personalization, recommendations, fraud and spam detection, on-platform translations, accessibility enhancements, customer-support assistance, Listing optimization, SEO metadata generation, and the use of third-party advertising platforms (Google, Meta / Facebook / Instagram, Pinterest, TikTok, Reddit, and similar surfaces) solely to generate, optimize, target, and deliver advertisements that promote Maker Listings. Operational AI also includes email campaigns, blog articles, product-description drafts, promotional graphics, video scripts, and social captions used to promote the marketplace.",
           "Operational AI is part of running and promoting the marketplace. It does not require a separate consent step beyond your acceptance of the Terms of Service, the Maker Agreement (if you sell), and this Privacy Policy.",
-          "AI Model Training (NOT allowed without your explicit consent): We do not use your User Content — your photos, Listings, descriptions, journals, or other creative work — to train image-generation models, large language models, recommendation foundation models, or other commercial AI/machine-learning systems, and we do not license your User Content to third parties for AI training.",
+          "AI Model Training (NOT allowed without your explicit consent): We do not use your User Content — your photos, Listings, descriptions, journals, or other creative work — to train image-generation models, large language models, recommendation foundation models, or other commercial AI/machine-learning systems, and we do not license or otherwise permit your User Content to be used by any third party (including any third-party advertising provider) to train commercial foundation models. The Operational AI license above does not authorize the Platform or any third-party advertising provider to train commercial foundation models using your User Content.",
           "Silence, inaction, or continued marketplace participation are not consent to AI Model Training. Consent must be affirmative and specific to a defined training program.",
           "Personal information (as opposed to creative User Content) is never used to train external commercial AI models.",
           "If we launch an AI Training Program in the future, it will be opt-in only, with a separate consent step, a clear description of intended use, the ability to withdraw consent later (subject to reasonable technical limitations for previously-trained models), and no reduction in your visibility, ranking, payouts, or marketplace access if you decline.",
@@ -2137,7 +2148,7 @@ export const SECTIONS = [
     outro: (
       <>
         <p className="text-ink-muted text-sm">
-          <span>Version:</span> <b className="text-ink">3.2</b>
+          <span>Version:</span> <b className="text-ink">3.3</b>
           <span className="mx-2">·</span>
           <span>Effective date:</span>{" "}
           <b className="text-ink">{POLICY_EFFECTIVE_DATE}</b>
@@ -2147,6 +2158,8 @@ export const SECTIONS = [
         </p>
         <p className="text-ink-muted text-xs mt-2 leading-relaxed">
           <span className="font-mono uppercase tracking-[0.18em] text-ink-muted">Revision history</span>
+          <br />
+          <span>v3.3 · 2026-06-30 — Second-round legal-review pass: §10 International Transfers rewritten from EU/UK placeholder to U.S.-focused language (with forward-looking commitment to SCCs / equivalent safeguards before EEA/UK expansion); §11 clarifies that Operational AI does NOT authorize the Platform or any third-party advertising provider to train commercial foundation models on Maker Content.</span>
           <br />
           <span>v3.2 · 2026-06-30 — Legal-hardening pass: added §6a California Privacy Rights (CCPA/CPRA) — right to know/delete/correct/limit SPI/opt-out of sharing/non-discrimination/agent-authorization/appeals. Wired Effective date through the effective-date deployment hook.</span>
           <br />
@@ -2449,6 +2462,7 @@ export const SECTIONS = [
           "False origin claims (\u201cmade in USA\u201d when not, \u201chandmade in [region]\u201d when mass-produced elsewhere).",
           "Counterfeit branding of your own listings using another maker\u2019s or brand\u2019s identity.",
           "Deceptive pricing (fake original prices, phantom discounts, hidden fees).",
+          "Responsibility for origin claims. Makers are solely responsible for the accuracy of any origin claim (including \u201cMade in USA,\u201d \u201cHandmade,\u201d \u201cHandcrafted,\u201d \u201cSmall-batch,\u201d or any similar representation) appearing on their Listings, Shop pages, packaging, or marketing. Crafters Market may review, restrict, or remove Listings that appear misleading, but does not independently verify every claim before it is published. Enforcement is discretionary; the absence of enforcement is not an endorsement of any specific claim.",
         ],
       },
       {

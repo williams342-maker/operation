@@ -2324,3 +2324,41 @@ products · makers · reviews · blog_posts · custom_orders · maker_applicatio
 **Verified in preview:** `/policies/fee-pricing`, `/policies`, `/trust` (pillar + search hits on `commission`, `payout`).
 
 **Blocked:** Google Ads Conversion Labels — still awaiting real IDs from user.
+
+
+---
+
+## iter413fr — Second-round legal-review pass (2026-06-30, Phase D)
+
+Applied 7 refinements from the second-round attorney feedback (user-supplied verbatim wording):
+
+1. **Privacy §10 International Transfers** — Rewrote the EU/UK placeholder into U.S.-focused language with a forward-looking commitment to Standard Contractual Clauses or equivalent safeguards before accepting EEA/UK registrations. Removes unfinished placeholder text without claiming compliance not yet implemented.
+
+2. **AI Operational License (Terms §6a + Maker Agreement §10a + Privacy §11)** — Clarified that Operational AI includes using third-party advertising platforms (Google, Meta, Pinterest, TikTok, Reddit, and similar surfaces) solely to generate, target, and deliver ads promoting Maker Listings. Added explicit closing sentence: Operational AI does NOT authorize the Platform or any third-party advertising provider to train commercial foundation models on Maker Content unless the Maker separately opts into an AI Training Program.
+
+3. **Returns §6 Transit Damage vs. Return Window** — Reworded the 7-day/30-day language as reporting recommendations that aid carrier investigation. Explicit statement that these recommendations do NOT shorten any applicable return window, Maker Shop Policy, Buyer Protection Policy, or consumer-protection right.
+
+4. **Stripe/Card-Network Payout Holds (Terms §5 + Maker Agreement §14 + Fee & Pricing §9)** — Added explicit disclosure that some payout holds are imposed by Stripe or by the card networks pursuant to their own compliance obligations and Crafters Market cannot override or accelerate those holds. Reduces support burden by setting Maker expectations up front.
+
+5. **Remote-First Arbitration (Terms §12 + Maker Agreement §27)** — "Arbitration will be administered remotely by default (video conference or written submissions) unless the arbitrator determines that an in-person hearing is necessary." King County, WA remains the legal seat.
+
+6. **Fee & Pricing §12 Fee Changes** — Extended fee-increase / new-fee notice from 30 → 60 days. Fee reductions and promotional pricing may take effect immediately or on a shorter window at Crafters Market's discretion.
+
+7. **Origin Claim Responsibility (Terms §4 + Prohibited Items §12)** — Added explicit responsibility-allocation clause: Makers are solely responsible for the accuracy of any origin claim (Made in USA, Handmade, Handcrafted, Small-batch, etc.); Crafters Market reserves moderation authority but does not independently verify every claim before publication. Non-enforcement is not an endorsement of any specific claim.
+
+**Explicit non-changes** (per user's second-round instructions):
+- Liability cap ($100 / 12-mo commission floor) left unchanged
+- Non-solicitation not added (inappropriate for a marketplace agreement)
+- Publicity rights not added (optional, not required for launch)
+
+**Version bumps:**
+- Terms of Service 2.3 → **2.4**
+- Privacy Policy 3.2 → **3.3**
+- Maker Agreement 3.3 → **3.4**
+- Returns & Refunds 3.1 → **3.2**
+- Prohibited Items 3.0 → **3.1**
+- Fee & Pricing 1.0 → **1.1**
+
+**Counsel Review Packet regenerated:** 130 pages (was 127), 556.8 KB. All 7 refinements verified in the PDF text.
+
+**Verified in preview:** `/policies/fee-pricing` shows 60-day notice + Stripe/card-network hold language + v1.1 badge.
