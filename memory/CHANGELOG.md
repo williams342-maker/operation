@@ -1,3 +1,44 @@
+## 2026-07-01 — Legal Launch Binder v5.1 · Final DOCX + PDF deliverables complete
+
+Completed the 10 visual/structural enhancements requested for the Legal Launch
+Binder v5 (branding, divider pages, real Word auto-TOC, visual dashboard,
+statistics, hyperlinks, signature page) and produced both editable master and
+distribution deliverables. Full verification report saved to
+`/app/memory/legal-launch-binder-v5-verification-report.md`.
+
+### Deliverables (2026-07-01)
+
+- **DOCX (editable master):** `/app/frontend/public/downloads/legal-launch-binder-v5-2026-07-01.docx` — 125.6 KB, 14 policies rendered.
+- **PDF (distribution copy):** `/app/frontend/public/downloads/legal-launch-binder-v5-2026-07-01.pdf` — 617.3 KB, 158 pages, 21 outline items.
+
+### Verification checklist (all PASS)
+
+- Word opens cleanly (no repair prompts) · Real `TOC \o "1-3" \h \z \u`
+  field with `w:dirty="true"` and `w:updateFields="true"` in settings.xml
+  · Navigation Pane populated (16 H1 · 60 H2 · 289 H3) · Running header +
+  Page X of Y footer with `PAGE`/`NUMPAGES` fields · 14 policy divider
+  pages with accent bars, metadata table, per-policy bookmarks · 14 named
+  Word styles (no manual overrides) · 31 bookmarks / 31 internal
+  hyperlinks · Clean PDF export via LibreOffice UNO with pre-populated
+  TOC · 21 tables · 327 AttorneyNote paragraphs.
+
+### Scripts added
+
+- `/app/scripts/render-legal-launch-binder-v5.py` — python-docx renderer
+  (finalized `build_toc(doc, policies)` signature; added `_enable_auto_update_fields`
+  helper and `dirty=True` on TOC field; renamed Executive Summary "Marketplace
+  Overview" H2 → "Marketplace Snapshot" to avoid TOC duplicate with H1).
+- `/app/scripts/update-toc-and-export-pdf.py` — LibreOffice UNO field-refresh
+  + PDF export pipeline (uses `/usr/bin/python3` for system-level `uno` module).
+- `/app/scripts/regenerate-legal-launch-binder.sh` — end-to-end wrapper.
+
+### Awaiting user review
+
+Per user directive, Phase D remains under feature-freeze and no P1 work
+(Cookie Preference Center) will begin until the binder is reviewed and
+approved.
+
+
 ## 2026-06-30 — Trust & Policy Center v1 · Engineering approval received (iter413dp)
 
 User granted engineering approval to ship `/trust`, `/policies`, and

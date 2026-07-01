@@ -47,9 +47,98 @@ INSPECTOR_ATTR = re.compile(
     r'\s(?:x-source-[a-z-]+|x-file-[a-z-]+|x-line-number|x-column|x-array-var|x-array-index)="[^"]*"'
 )
 
-BINDER_VERSION = "5.0"
+BINDER_VERSION = "5.1"
 BINDER_DATE = "June 30, 2026"
 CONFIDENTIAL = "CONFIDENTIAL — Attorney Work Product"
+
+# Icons for attorney note categories (Unicode, render in every Word install)
+CATEGORY_ICON = {
+    "Critical":                 "●",  # red filled circle
+    "Counsel Decision Required":"◆",  # purple diamond
+    "Recommended":              "▶",  # blue right-triangle
+    "Informational":            "○",  # grey open circle
+    "Implemented":              "✓",  # green check
+}
+
+# Status badges for Launch Readiness Dashboard
+STATUS_BADGE = {
+    "Critical":         "● Critical",
+    "Counsel Required": "◆ Counsel Review",
+    "Pending Review":   "◐ Pending",
+    "Ready":            "✓ Ready",
+}
+
+# Binder version history
+BINDER_HISTORY = [
+    ("1.0", "Initial draft",      "Initial policy set"),
+    ("2.0", "Rocket Lawyer R1",   "Added arbitration, class-action waiver, small-claims carve-out"),
+    ("3.0", "AI Policy",          "Added Creator-Owned AI Policy (Ops AI vs. Model Training)"),
+    ("4.0", "Counsel review",     "Added Appendix A per policy, non-waivable rights carve-outs"),
+    ("5.0", "Binder rebuild",     "New architecture, dashboard, risk matrix, standardized structure"),
+    ("5.1", "Polish pass",        "Rich dividers, pre-populated TOC, statistics, formal sign-off"),
+]
+
+# ---------------------------------------------------------------------------
+# Bookmark + hyperlink helpers
+# ---------------------------------------------------------------------------
+
+_BM_ID_COUNTER = [1000]
+
+
+def _next_bm_id() -> int:
+    _BM_ID_COUNTER[0] += 1
+    return _BM_ID_COUNTER[0]
+
+
+def _slug(text: str) -> str:
+    s = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_")
+    return "bm_" + s[:40]
+
+
+def add_bookmark(paragraph, name: str) -> str:
+    """Wrap the paragraph's start position with a Word bookmark."""
+    bm_id = str(_next_bm_id())
+    start = OxmlElement("w:bookmarkStart")
+    start.set(qn("w:id"), bm_id)
+    start.set(qn("w:name"), name)
+    end = OxmlElement("w:bookmarkEnd")
+    end.set(qn("w:id"), bm_id)
+    p_elem = paragraph._p
+    p_elem.insert(0, start)
+    p_elem.append(end)
+    return name
+
+
+def add_internal_hyperlink(paragraph, anchor: str, text: str,
+                           *, size: int = 11, bold: bool = False,
+                           color_hex: str = "1F6FEB") -> None:
+    """Add a clickable in-document hyperlink to a bookmark."""
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("w:anchor"), anchor)
+    hyperlink.set(qn("w:history"), "1")
+
+    r = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), color_hex)
+    rPr.append(color)
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), str(size * 2))
+    rPr.append(sz)
+    rFonts = OxmlElement("w:rFonts")
+    rFonts.set(qn("w:ascii"), "Calibri")
+    rFonts.set(qn("w:hAnsi"), "Calibri")
+    rPr.append(rFonts)
+    if bold:
+        b = OxmlElement("w:b")
+        rPr.append(b)
+    r.append(rPr)
+    t = OxmlElement("w:t")
+    t.set(qn("xml:space"), "preserve")
+    t.text = text
+    r.append(t)
+    hyperlink.append(r)
+    paragraph._p.append(hyperlink)
 
 # ---------------------------------------------------------------------------
 # Styles
@@ -159,11 +248,17 @@ def build_styles(doc: Document) -> None:
 # Field / TOC helpers
 # ---------------------------------------------------------------------------
 
-def _add_field(paragraph, instr_text: str) -> None:
-    """Insert a raw Word field (for TOC, PAGE, NUMPAGES, etc.)."""
+def _add_field(paragraph, instr_text: str, *, dirty: bool = False) -> None:
+    """Insert a raw Word field (for TOC, PAGE, NUMPAGES, etc.).
+
+    If ``dirty=True``, marks the field as needing recalculation so Word
+    prompts to update it on open.
+    """
     run = paragraph.add_run()
     fld_begin = OxmlElement("w:fldChar")
     fld_begin.set(qn("w:fldCharType"), "begin")
+    if dirty:
+        fld_begin.set(qn("w:dirty"), "true")
     instr = OxmlElement("w:instrText")
     instr.set(qn("xml:space"), "preserve")
     instr.text = instr_text
@@ -179,6 +274,20 @@ def _add_field(paragraph, instr_text: str) -> None:
     placeholder.text = "[Update TOC in Word: right-click → Update Field]"
     run._r.append(placeholder)
     run._r.append(fld_end)
+
+
+def _enable_auto_update_fields(doc: Document) -> None:
+    """Add ``<w:updateFields w:val="true"/>`` to settings.xml so Word
+    prompts to refresh TOC / PAGE / NUMPAGES on document open."""
+    settings = doc.settings.element
+    tag = qn("w:updateFields")
+    existing = settings.find(tag)
+    if existing is not None:
+        existing.set(qn("w:val"), "true")
+        return
+    el = OxmlElement("w:updateFields")
+    el.set(qn("w:val"), "true")
+    settings.append(el)
 
 
 def _add_page_break(doc: Document) -> None:
@@ -256,8 +365,11 @@ def p(doc, text: str, style: str = "Body") -> object:
     return para
 
 
-def h(doc, text: str, level: int) -> object:
-    return doc.add_heading(text, level=level)
+def h(doc, text: str, level: int, *, bookmark: Optional[str] = None) -> object:
+    para = doc.add_heading(text, level=level)
+    if bookmark or level == 1:
+        add_bookmark(para, bookmark or _slug(text))
+    return para
 
 
 def bullet(doc, text: str) -> object:
@@ -269,7 +381,7 @@ def numbered(doc, text: str) -> object:
 
 
 def callout(doc, text: str, category: str = "Recommended") -> None:
-    """Attorney callout box — colored left border + shaded background."""
+    """Attorney callout box — colored left border + shaded background + icon."""
     palette = {
         "Critical":                 ("B41D1D", "FDECEC", "CRITICAL"),
         "Counsel Decision Required":("8A2BE2", "F3EAFB", "COUNSEL DECISION REQUIRED"),
@@ -278,10 +390,10 @@ def callout(doc, text: str, category: str = "Recommended") -> None:
         "Implemented":              ("1E8E3E", "E7F5EC", "IMPLEMENTED"),
     }
     accent, fill, label = palette.get(category, palette["Recommended"])
+    icon = CATEGORY_ICON.get(category, "○")
 
-    # Category label
     label_p = doc.add_paragraph(style="AttorneyNote")
-    label_run = label_p.add_run(label)
+    label_run = label_p.add_run(f"{icon}  {label}")
     label_run.bold = True
     label_run.font.size = Pt(9)
     label_run.font.color.rgb = RGBColor.from_string(accent)
@@ -421,17 +533,24 @@ def categorize_note(note: str) -> str:
 # ---------------------------------------------------------------------------
 
 def build_cover(doc: Document) -> None:
-    # 5 empty paragraphs for vertical centering feel
-    for _ in range(4):
+    for _ in range(3):
         doc.add_paragraph()
 
-    p1 = doc.add_paragraph(style="CoverMeta")
-    p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p1.add_run("CRAFTERS MARKET")
+    # Top accent band
+    band_top = doc.add_paragraph()
+    _shade(band_top, "1F2A44")
+    band_top.paragraph_format.space_after = Pt(2)
+    band_top.add_run(" ").font.size = Pt(2)
+
+    # Brand name
+    brand = doc.add_paragraph(style="CoverMeta")
+    brand.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = brand.add_run("CRAFTERS  MARKET")
     r.bold = True
-    r.font.size = Pt(11)
+    r.font.size = Pt(13)
     r.font.color.rgb = RGBColor(0x1F, 0x2A, 0x44)
 
+    # Big title
     title = doc.add_paragraph(style="CoverTitle")
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title.add_run("Trust & Policy Center")
@@ -440,28 +559,98 @@ def build_cover(doc: Document) -> None:
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     sub.add_run("Legal Launch Binder")
 
-    for _ in range(2):
-        doc.add_paragraph()
+    # Version badge
+    for _ in range(2): doc.add_paragraph()
+    ver = doc.add_paragraph()
+    ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _shade(ver, "E8F0FE")
+    ver.paragraph_format.space_after = Pt(0)
+    r = ver.add_run(f"  VERSION  {BINDER_VERSION}  ")
+    r.bold = True; r.font.size = Pt(12)
+    r.font.color.rgb = RGBColor(0x1F, 0x6F, 0xEB)
 
-    for line, style_name in [
-        (f"Version {BINDER_VERSION}", "CoverMeta"),
-        ("Prepared for Rocket Lawyer", "CoverMeta"),
-        ("Prepared by Crafters Market Operations", "CoverMeta"),
-        (BINDER_DATE, "CoverMeta"),
+    # Body meta lines
+    doc.add_paragraph()
+    for line in [
+        "Prepared for Rocket Lawyer",
+        "Prepared by Crafters Market Operations",
+        BINDER_DATE,
     ]:
-        para = doc.add_paragraph(style=style_name)
+        para = doc.add_paragraph(style="CoverMeta")
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         para.add_run(line)
 
-    for _ in range(6):
-        doc.add_paragraph()
+    for _ in range(6): doc.add_paragraph()
 
-    conf = doc.add_paragraph(style="CoverMeta")
+    # Bottom accent band
+    band_bot = doc.add_paragraph()
+    _shade(band_bot, "1F2A44")
+    band_bot.paragraph_format.space_after = Pt(2)
+    band_bot.add_run(" ").font.size = Pt(2)
+
+    # Classification badge
+    conf = doc.add_paragraph()
     conf.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = conf.add_run(CONFIDENTIAL)
+    _shade(conf, "FDECEC")
+    r = conf.add_run(f"  {CONFIDENTIAL}  ")
     r.bold = True
     r.font.size = Pt(10)
     r.font.color.rgb = RGBColor(0xB4, 0x1D, 0x1D)
+
+
+def build_binder_statistics(doc: Document, policies: list[dict]) -> None:
+    h(doc, "Binder Statistics", 1, bookmark="bm_Binder_Statistics")
+    p(doc, "Executive snapshot of the diligence surface area covered by this binder.", style="Caption")
+
+    total_notes = sum(len(p["attorney_notes"]) for p in policies)
+    by_cat = {"Critical": 0, "Counsel Decision Required": 0,
+              "Recommended": 0, "Informational": 0, "Implemented": 0}
+    for p_ in policies:
+        for n in p_["attorney_notes"]:
+            by_cat[categorize_note(n)] += 1
+
+    rows = [
+        ("Policies",                             str(len(policies))),
+        ("Attorney Review Notes (total)",        str(total_notes)),
+        ("Critical Items",                       f"{CATEGORY_ICON['Critical']}  {by_cat['Critical']}"),
+        ("Counsel Decisions Required",           f"{CATEGORY_ICON['Counsel Decision Required']}  {by_cat['Counsel Decision Required']}"),
+        ("Recommended Reviews",                  f"{CATEGORY_ICON['Recommended']}  {by_cat['Recommended']}"),
+        ("Informational Notes",                  f"{CATEGORY_ICON['Informational']}  {by_cat['Informational']}"),
+        ("Implemented Recommendations",          f"{CATEGORY_ICON['Implemented']}  {by_cat['Implemented']}"),
+    ]
+    t = doc.add_table(rows=len(rows), cols=2)
+    t.style = "Light Grid Accent 1"
+    for i, (k, v) in enumerate(rows):
+        row = t.rows[i].cells
+        row[0].text = ""
+        r = row[0].paragraphs[0].add_run(k)
+        r.bold = True; r.font.size = Pt(11)
+        row[1].text = ""
+        r = row[1].paragraphs[0].add_run(v)
+        r.font.size = Pt(11)
+
+
+def build_binder_version_history(doc: Document) -> None:
+    h(doc, "Binder Version History", 1, bookmark="bm_Binder_Version_History")
+    p(doc, "Evolution of the Trust & Policy Center from initial draft to the current diligence-grade binder.", style="Caption")
+    t = doc.add_table(rows=1 + len(BINDER_HISTORY), cols=3)
+    t.style = "Light Grid Accent 1"
+    for i, hdr in enumerate(["Version", "Milestone", "Summary"]):
+        cell = t.rows[0].cells[i]
+        cell.text = ""
+        r = cell.paragraphs[0].add_run(hdr)
+        r.bold = True; r.font.size = Pt(10)
+    for i, (ver, milestone, summary) in enumerate(BINDER_HISTORY, start=1):
+        row = t.rows[i].cells
+        row[0].text = ""
+        r = row[0].paragraphs[0].add_run(f"v{ver}")
+        r.bold = True; r.font.size = Pt(10)
+        row[1].text = milestone
+        row[2].text = summary
+        for c in row[1:]:
+            for para in c.paragraphs:
+                for r in para.runs:
+                    r.font.size = Pt(10)
 
 
 def build_confidentiality(doc: Document) -> None:
@@ -480,7 +669,7 @@ def build_confidentiality(doc: Document) -> None:
 def build_executive_summary(doc: Document) -> None:
     h(doc, "Executive Summary", 1)
 
-    h(doc, "Marketplace Overview", 2)
+    h(doc, "Marketplace Snapshot", 2)
     p(doc, "Crafters Market is a U.S.-based, curated online marketplace "
         "connecting independent Makers with Buyers of handmade, handcrafted, "
         "and designer goods. Makers list, price, describe, and fulfill their "
@@ -615,10 +804,10 @@ def build_launch_readiness_dashboard(doc: Document, policies: list[dict]) -> Non
         row[3].text = (first_note[:120] + "…") if len(first_note) > 120 else (first_note or "—")
         # Readiness: if any Critical -> Critical, if any note remaining -> Pending, else Ready
         cats = [categorize_note(n) for n in pol["attorney_notes"]]
-        if "Critical" in cats: row[4].text = "Critical"
-        elif "Counsel Decision Required" in cats: row[4].text = "Counsel Required"
-        elif cats: row[4].text = "Pending Review"
-        else: row[4].text = "Ready"
+        if "Critical" in cats: row[4].text = STATUS_BADGE["Critical"]
+        elif "Counsel Decision Required" in cats: row[4].text = STATUS_BADGE["Counsel Required"]
+        elif cats: row[4].text = STATUS_BADGE["Pending Review"]
+        else: row[4].text = STATUS_BADGE["Ready"]
         for c in row:
             for para in c.paragraphs:
                 for r in para.runs:
@@ -707,12 +896,86 @@ def build_cross_policy_dependency_map(doc: Document) -> None:
         r3.font.size = Pt(9)
 
 
-def build_toc(doc: Document) -> None:
-    h(doc, "Table of Contents", 1)
-    p(doc, "Right-click the placeholder below in Word and choose Update Field "
-      "(F9) to populate the table of contents.", style="Caption")
-    toc_p = doc.add_paragraph()
-    _add_field(toc_p, ' TOC \\o "1-3" \\h \\z \\u ')
+def build_toc(doc: Document, policies: list[dict]) -> None:
+    heading = h(doc, "Table of Contents", 1)
+    add_bookmark(heading, "bm_Table_of_Contents")
+    p(doc, "The Table of Contents below is generated from the binder's "
+      "Heading 1/2/3 styles. It is fully populated in the distribution PDF; "
+      "in the editable DOCX, click anywhere inside the TOC and press F9 "
+      "(or right-click → 'Update Field' → 'Update entire table') after any "
+      "edits to refresh page numbers. A supplementary Hyperlinked Navigation "
+      "Index follows for quick cross-referencing to top-level sections.",
+      style="Caption")
+
+    # --- Word auto TOC field (Heading 1-3) --------------------------------
+    toc_para = doc.add_paragraph()
+    toc_para.paragraph_format.space_after = Pt(6)
+    _add_field(
+        toc_para,
+        ' TOC \\o "1-3" \\h \\z \\u ',
+        dirty=True,
+    )
+
+    _add_page_break(doc)
+
+    # --- Hyperlinked navigation index (pre-populated fallback) ------------
+    subhead = doc.add_paragraph(style="Heading 2")
+    subhead.add_run("Hyperlinked Navigation Index").bold = True
+
+    p(doc, "Every entry below is a clickable internal hyperlink to the "
+      "corresponding bookmark. Use these if the auto-TOC has not yet been "
+      "refreshed in Word.", style="Caption")
+
+    entries = [
+        ("Confidentiality Notice",         "bm_Confidentiality_Notice"),
+        ("Executive Summary",              "bm_Executive_Summary"),
+        ("Binder Statistics",              "bm_Binder_Statistics"),
+        ("Document Control",               "bm_Document_Control"),
+        ("Binder Version History",         "bm_Binder_Version_History"),
+        ("Marketplace Overview",           "bm_Marketplace_Overview"),
+        ("Legal Review Scope",             "bm_Legal_Review_Scope"),
+        ("Launch Readiness Dashboard",     "bm_Launch_Readiness_Dashboard"),
+        ("Risk Matrix",                    "bm_Risk_Matrix"),
+        ("Counsel Deliverables",           "bm_Counsel_Deliverables"),
+        ("Open Legal Questions",           "bm_Open_Legal_Questions"),
+        ("Cross-Policy Dependency Map",    "bm_Cross_Policy_Dependency_Map"),
+    ]
+    for label, anchor in entries:
+        line = doc.add_paragraph()
+        line.paragraph_format.space_after = Pt(3)
+        add_internal_hyperlink(line, anchor, label, size=11, bold=True)
+
+    # Blank line then policies header
+    doc.add_paragraph()
+    ph = doc.add_paragraph()
+    ph.add_run("Policies").bold = True
+
+    for pol in policies:
+        anchor = _slug(f"policy_{pol['index']:02d}_{pol['title']}")
+        label = f"Policy {pol['index']:02d} — {pol['title']}"
+        line = doc.add_paragraph()
+        line.paragraph_format.left_indent = Cm(0.4)
+        line.paragraph_format.space_after = Pt(2)
+        add_internal_hyperlink(line, anchor, label, size=11)
+        version = pol["version"] or "—"
+        r = line.add_run(f"    ·  v{version}")
+        r.font.size = Pt(9)
+        r.font.color.rgb = RGBColor(0x77, 0x77, 0x77)
+
+    # Trailing
+    doc.add_paragraph()
+    ph2 = doc.add_paragraph()
+    ph2.add_run("Appendices & Workbook").bold = True
+    for label, anchor in [
+        ("Master Appendix A — Consolidated Attorney Review Notes", "bm_Master_Appendix_A"),
+        ("Master Revision Log",                                    "bm_Master_Revision_Log"),
+        ("Counsel Workbook",                                       "bm_Counsel_Workbook"),
+        ("Launch Recommendation",                                  "bm_Launch_Recommendation"),
+        ("Attorney Sign-off",                                      "bm_Attorney_Sign_off"),
+    ]:
+        line = doc.add_paragraph()
+        line.paragraph_format.space_after = Pt(3)
+        add_internal_hyperlink(line, anchor, label, size=11, bold=True)
 
 
 # ---------------------------------------------------------------------------
@@ -738,25 +1001,68 @@ def _derive_attorney_focus(pol: dict) -> str:
     return pol["attorney_notes"][0]
 
 
+def _priority_label(pol: dict) -> str:
+    cats = [categorize_note(n) for n in pol["attorney_notes"]]
+    if "Critical" in cats: return "Critical"
+    if "Counsel Decision Required" in cats: return "High"
+    if "Recommended" in cats: return "Medium"
+    if pol["attorney_notes"]: return "Low"
+    return "None"
+
+
 def build_policy_divider(doc: Document, pol: dict) -> None:
-    for _ in range(6):
+    # Full-page divider with rich pre-read metadata
+    anchor_name = _slug(f"policy_{pol['index']:02d}_{pol['title']}")
+
+    for _ in range(3):
         doc.add_paragraph()
+
+    # Accent bar (top)
+    bar = doc.add_paragraph()
+    _shade(bar, "1F2A44")
+    bar.paragraph_format.space_after = Pt(4)
+    bar.add_run(" ").font.size = Pt(2)
+
     label = doc.add_paragraph(style="DividerLabel")
     label.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    label.add_run(f"POLICY {pol['index']:02d}")
+    add_bookmark(label, anchor_name)
+    r = label.add_run(f"POLICY {pol['index']:02d}")
+    r.font.size = Pt(12)
 
     title = doc.add_paragraph(style="DividerTitle")
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title.add_run(pol["title"])
+    tr = title.add_run(pol["title"].upper())
+    tr.font.size = Pt(26)
 
-    for kv in [
-        f"Version: {pol['version'] or '—'}",
-        f"Effective: {pol['effective'] or '—'}",
-        f"Last Updated: {pol['last_updated'] or '—'}",
-    ]:
-        para = doc.add_paragraph(style="DividerMeta")
-        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        para.add_run(kv)
+    # Accent bar (bottom)
+    bar2 = doc.add_paragraph()
+    _shade(bar2, "1F2A44")
+    bar2.paragraph_format.space_after = Pt(12)
+    bar2.add_run(" ").font.size = Pt(2)
+
+    # Rich pre-read table
+    rows = [
+        ("Purpose",         pol["description"] or pol["intro"][:200] or f"See {pol['title']}."),
+        ("Scope",           "As defined in the numbered sections that follow, subject to the canonical Cross-Policy Dependency Map at the front of this binder."),
+        ("Applies To",      _derive_applies_to(pol)),
+        ("Dependencies",    ", ".join(pol["related"]) if pol["related"] else "None beyond the canonical hierarchy."),
+        ("Attorney Focus",  _derive_attorney_focus(pol)[:300]),
+        ("Risk Level",      _priority_label(pol)),
+        ("Version",         pol["version"] or "—"),
+        ("Effective Date",  pol["effective"] or "Set at production launch"),
+        ("Last Updated",    pol["last_updated"] or "—"),
+    ]
+    t = doc.add_table(rows=len(rows), cols=2)
+    t.style = "Light Grid Accent 1"
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, (k, v) in enumerate(rows):
+        cell_k, cell_v = t.rows[i].cells
+        cell_k.text = ""
+        rk = cell_k.paragraphs[0].add_run(k)
+        rk.bold = True; rk.font.size = Pt(10)
+        cell_v.text = ""
+        rv = cell_v.paragraphs[0].add_run(v)
+        rv.font.size = Pt(10)
 
 
 def build_policy_overview(doc: Document, pol: dict) -> None:
@@ -954,6 +1260,7 @@ def main() -> None:
 
     doc = Document()
     build_styles(doc)
+    _enable_auto_update_fields(doc)
 
     # Section 1 — cover (no header/footer)
     section = doc.sections[0]
@@ -1004,7 +1311,7 @@ def main() -> None:
     build_cross_policy_dependency_map(doc)
     _add_page_break(doc)
 
-    build_toc(doc)
+    build_toc(doc, policies)
     _add_page_break(doc)
 
     # Policy sections
