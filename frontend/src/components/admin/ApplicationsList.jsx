@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta, promoteToFounder, resendApplicationVerification } from "../../lib/api";
+import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta, promoteToFounder, resendApplicationVerification, getApplicationVerificationFunnel } from "../../lib/api";
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
 import WelcomePacketPreviewModal from "./WelcomePacketPreviewModal";
@@ -24,6 +24,103 @@ function matchesFilter(app, filterId) {
   return true;
 }
 
+// Small stat cell used inside VerificationFunnelTile. Defined at
+// module scope so React doesn't re-create the component type on every
+// render (react/no-unstable-nested-components).
+function FunnelStat({ label, value, testId, tone = "" }) {
+  return (
+    <div className="flex-1 min-w-[92px]" data-testid={testId}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">
+        {label}
+      </div>
+      <div className={`font-display text-3xl leading-none ${tone}`}>{value}</div>
+    </div>
+  );
+}
+
+
+// iter327b — 7-day verification funnel tile. Shown above the queue so
+// admins can see at a glance how many applications actually confirm
+// their email (i.e. how much of the queue is typo/dead-inbox noise).
+// Refetches on mount + on window focus so it stays in sync with the
+// queue below. `stale_pending` — apps older than 7d and STILL
+// unverified — is the interesting operational number: those are the
+// rows most likely to be safely deletable.
+function VerificationFunnelTile() {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      getApplicationVerificationFunnel()
+        .then((d) => { if (alive) setData(d); })
+        .catch((e) => alive && setErr(e?.response?.data?.detail || e.message || "Failed"));
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { alive = false; window.removeEventListener("focus", onFocus); };
+  }, []);
+
+  if (err) return (
+    <div className="border border-red-500/40 p-3 font-mono text-xs text-red-400"
+         data-testid="app-funnel-error">
+      Verification funnel unavailable: {err}
+    </div>
+  );
+  if (!data) return null;
+
+  const w = data.last_7d;
+  const rate = w.verification_rate_pct;
+  const rateCls =
+    rate >= 80 ? "text-emerald-500 border-emerald-500/60"
+    : rate >= 50 ? "text-amber-500 border-amber-500/60"
+    : rate > 0   ? "text-red-400 border-red-500/60"
+    : "text-ink-muted border-line";
+
+  return (
+    <section
+      className="border border-line p-4"
+      data-testid="app-verification-funnel-tile"
+    >
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            Applications · last 7 days
+          </div>
+          <h3 className="font-display text-lg mt-1 text-ink">Email verification funnel</h3>
+        </div>
+        <div
+          className={`shrink-0 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.22em] font-bold ${rateCls}`}
+          data-testid="app-funnel-rate"
+          title="Verified ÷ submitted for applications received in the last 7 days"
+        >
+          {rate.toFixed(1)}% verified
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-6" data-testid="app-funnel-stats">
+        <FunnelStat label="Submitted" value={w.submitted} testId="app-funnel-submitted" tone="text-ink" />
+        <FunnelStat label="Verified"  value={w.verified}  testId="app-funnel-verified"  tone="text-emerald-500" />
+        <FunnelStat label="Pending"   value={w.pending}   testId="app-funnel-pending"   tone="text-amber-500" />
+        <FunnelStat label="Stale >7d" value={data.last_7d.stale_pending} testId="app-funnel-stale" tone={data.last_7d.stale_pending > 0 ? "text-red-400" : "text-ink-muted"} />
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-line font-mono text-[11px] text-ink-muted flex flex-wrap gap-x-4 gap-y-1"
+           data-testid="app-funnel-alltime">
+        <span>all time:</span>
+        <span>submitted <b className="text-ink">{data.all_time.submitted}</b></span>
+        <span>verified <b className="text-emerald-500">{data.all_time.verified}</b></span>
+        <span>rate <b className="text-ink">{data.all_time.verification_rate_pct.toFixed(1)}%</b></span>
+        {data.all_time.stale_pending > 0 && (
+          <span>stale <b className="text-red-400">{data.all_time.stale_pending}</b></span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+
 export default function ApplicationsList({ items, onChange }) {
   const [filter, setFilter] = useState("pending");
   // Counts per filter so the admin sees the queue depth at a glance.
@@ -40,6 +137,7 @@ export default function ApplicationsList({ items, onChange }) {
 
   return (
     <div className="space-y-4" data-testid="apps-list">
+      <VerificationFunnelTile />
       {/* Filter pills bar */}
       <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-line" data-testid="apps-filters">
         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mr-1">Filter:</span>

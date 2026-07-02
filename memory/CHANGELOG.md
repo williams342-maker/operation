@@ -1,3 +1,44 @@
+## 2026-07-02 — iter327b: Verification funnel tile in admin queue
+
+Small operational read-out that turns the amber/emerald verification
+badges from a per-row detail into a queue-wide dashboard signal.
+
+### New surfaces
+
+- **Backend:** `GET /api/admin/applications/verification-funnel`
+  (admin-authenticated). Returns `{window_days, generated_at, last_7d,
+  all_time}` where each bucket is `{submitted, verified, pending,
+  stale_pending, verification_rate_pct}`. `stale_pending` always means
+  "older than 7d and still unverified" — the interesting operational
+  number for admins deciding what to delete.
+- **Frontend:** new `VerificationFunnelTile` component in
+  `ApplicationsList.jsx`, rendered above the filter pills. Header +
+  rate badge (colored by verification rate — emerald ≥80%, amber ≥50%,
+  red >0, muted at 0%) + 4-stat row + all-time reference footer.
+- **Frontend fetch:** on mount and on `window` focus.
+
+### Live smoke test
+
+3 fresh submits + 1 verify → tile refreshed showing Submitted 3,
+Verified 1, Pending 2, Stale 0, rate 33.3% (red), all-time 10 / 1 / 10%.
+Row-level badges + "Resend verify" buttons all present in parallel.
+
+### Regression test
+
+`test_verification_funnel_returns_expected_shape` added to
+`test_iter327_application_email_verify.py` → **7/7 pass**.
+
+### Files touched
+
+- `/app/backend/routers/applications_verify.py` — new endpoint +
+  Pydantic response models.
+- `/app/backend/tests/test_iter327_application_email_verify.py` — new
+  test case.
+- `/app/frontend/src/lib/api.js` — `getApplicationVerificationFunnel()` helper.
+- `/app/frontend/src/components/admin/ApplicationsList.jsx` — tile
+  component + top-of-queue render.
+
+
 ## 2026-07-02 — iter327: Application email verification
 
 Reduces typo-email submissions on `/apply` and `/beta` (Founding Seller)

@@ -1199,6 +1199,11 @@ export const deleteMakerApplication = (id) =>
 export const resendApplicationVerification = (id) =>
   http.post(`/admin/maker-applications/${id}/resend-verification`, null,
     { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter327b — 7-day verification funnel for the applications tab tile
+// (submitted / verified / pending / stale + rate, in a single call).
+export const getApplicationVerificationFunnel = () =>
+  http.get(`/admin/applications/verification-funnel`,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
 export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
 // iter413bv — Promote a Founding Access maker to permanent Founding

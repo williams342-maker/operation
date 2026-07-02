@@ -100,6 +100,75 @@ class ResendResponse(BaseModel):
     verify_sent_at: Optional[str] = None
 
 
+class FunnelBucket(BaseModel):
+    submitted: int
+    verified: int
+    pending: int
+    stale_pending: int
+    verification_rate_pct: float
+
+
+class FunnelResponse(BaseModel):
+    window_days: int
+    generated_at: str
+    last_7d: FunnelBucket
+    all_time: FunnelBucket
+
+
+@router.get(
+    "/admin/applications/verification-funnel",
+    response_model=FunnelResponse,
+)
+async def admin_applications_verification_funnel(
+    _: dict = Depends(current_admin),
+):
+    """iter327b — Verification funnel tile for the applications tab.
+    Answers: "of the applications we received in the last 7 days, how
+    many confirmed their email? How many are ghosting?"
+
+    Two windows returned in one call so the tile can show a compact
+    7-day headline with an all-time reference underneath. `stale_pending`
+    counts applications older than 7 days that still haven't verified
+    — those are the ones most likely to be dead/typo emails an admin
+    can prune."""
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    async def _bucket(cutoff_iso: Optional[str]) -> FunnelBucket:
+        submitted_q = {}
+        verified_q = {"email_verified": True}
+        pending_q = {"email_verified": False}
+        stale_q = {"email_verified": False, "created_at": {"$lt": seven_days_ago}}
+        if cutoff_iso is not None:
+            submitted_q["created_at"] = {"$gte": cutoff_iso}
+            verified_q["created_at"] = {"$gte": cutoff_iso}
+            pending_q["created_at"] = {"$gte": cutoff_iso}
+            # stale_q intentionally NOT window-scoped — "stale" always
+            # means "older than 7d and still unverified".
+
+        submitted = await db.maker_applications.count_documents(submitted_q)
+        verified = await db.maker_applications.count_documents(verified_q)
+        pending = await db.maker_applications.count_documents(pending_q)
+        stale = await db.maker_applications.count_documents(stale_q)
+        rate = round((verified / submitted * 100.0), 1) if submitted else 0.0
+        return FunnelBucket(
+            submitted=submitted,
+            verified=verified,
+            pending=pending,
+            stale_pending=stale,
+            verification_rate_pct=rate,
+        )
+
+    return FunnelResponse(
+        window_days=7,
+        generated_at=now.isoformat(),
+        last_7d=await _bucket(seven_days_ago),
+        all_time=await _bucket(None),
+    )
+
+
 @router.post(
     "/admin/maker-applications/{app_id}/resend-verification",
     response_model=ResendResponse,

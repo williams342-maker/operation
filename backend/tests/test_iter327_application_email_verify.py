@@ -194,6 +194,56 @@ async def test_admin_resend_reissues_token_and_bumps_timestamp():
     assert sent_after >= sent_before, "resend must bump email_verification_sent_at forward"
 
 
+async def test_verification_funnel_returns_expected_shape():
+    """Funnel tile endpoint returns per-window counts + rate. Submits
+    three apps, verifies one, and confirms the returned numbers make
+    the ratio math check out."""
+    from httpx import ASGITransport, AsyncClient
+    from server import app as fastapi_app
+    from maker_auth import issue_session_jwt, issue_application_verify_token
+
+    e1 = "iter327-funnel-a@example.com"
+    e2 = "iter327-funnel-b@example.com"
+    e3 = "iter327-funnel-c@example.com"
+    r1 = await _submit(_base_payload(email=e1, studio_name="Funnel A"))
+    await _submit(_base_payload(email=e2, studio_name="Funnel B"))
+    await _submit(_base_payload(email=e3, studio_name="Funnel C"))
+
+    # Verify one — should show up in the "verified" count.
+    async with AsyncClient(
+        transport=ASGITransport(app=fastapi_app),
+        base_url="http://test",
+    ) as c:
+        tok = issue_application_verify_token(r1["id"], e1)
+        v = await c.get(f"/api/applications/verify-email?token={tok}")
+        assert v.status_code == 200
+
+    admin_jwt = issue_session_jwt("admin", "team@craftersmarket.org", role="admin")
+    async with AsyncClient(
+        transport=ASGITransport(app=fastapi_app),
+        base_url="http://test",
+    ) as c:
+        f = await c.get(
+            "/api/admin/applications/verification-funnel",
+            headers={"Authorization": f"Bearer {admin_jwt}"},
+        )
+    assert f.status_code == 200
+    body = f.json()
+    assert body["window_days"] == 7
+    for k in ("submitted", "verified", "pending", "stale_pending", "verification_rate_pct"):
+        assert k in body["last_7d"], f"missing {k} in last_7d"
+        assert k in body["all_time"], f"missing {k} in all_time"
+
+    # The 3 iter327-funnel-* apps we just submitted are inside the
+    # 7-day window; 1 of them is verified.
+    last = body["last_7d"]
+    assert last["submitted"] >= 3
+    assert last["verified"] >= 1
+    assert last["pending"] >= 2
+    assert 0 <= last["verification_rate_pct"] <= 100
+
+
+
 async def test_admin_resend_noop_when_already_verified():
     from core import db
     from httpx import ASGITransport, AsyncClient
