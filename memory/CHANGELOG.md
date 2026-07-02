@@ -1,3 +1,71 @@
+## 2026-07-02 — iter327: Application email verification
+
+Reduces typo-email submissions on `/apply` and `/beta` (Founding Seller)
+without adding friction before submit.
+
+### Flow
+
+1. Applicant submits normally → row lands with `email_verified=False`
+   and `email_verification_sent_at` stamped.
+2. Server emails a one-time confirm link (7-day TTL, signed with a
+   dedicated salt — a leaked magic-link token can't be replayed here
+   and vice versa).
+3. Applicant clicks link → `/apply/verify?token=…` runs `GET
+   /api/applications/verify-email` on mount → row flips to
+   `email_verified=True` + `email_verified_at`.
+4. Full-page confirmation screen renders with the standard "check
+   spam / contact us / 3-5 business days" copy on both submit and
+   verify.
+
+### Admin UX
+
+- `ApplicationsList` row now shows a **Pending Email Verification**
+  (amber) or **Email Verified** (emerald) badge next to the existing
+  Founding Access / Founding Seller pill.
+- New **⧗ Resend verify** button on any pending row → fresh 7-day
+  token + bumped `email_verification_sent_at`. Idempotent: if the
+  applicant is already verified, backend returns
+  `already_verified=true` without sending a new email.
+
+### Server surfaces
+
+- `POST /api/maker-applications` — now enforces 409 on duplicate
+  pending submissions ("You already applied — please check your
+  email to verify. If you can't find it, check spam or contact us.").
+- `GET  /api/applications/verify-email?token=…` — public, one-time
+  click target. Idempotent.
+- `POST /api/admin/maker-applications/{id}/resend-verification` — admin.
+- `maker_auth.issue_application_verify_token` /
+  `verify_application_verify_token` — stateless URL-safe timed
+  serializer with a `maker-application-verify` salt.
+
+### Files
+
+- Backend: `models.py`, `maker_auth.py`, `email_service.py`,
+  `routers/catalog.py`, `routers/applications_verify.py` (new),
+  `server.py`.
+- Frontend: `pages/ApplyPage.jsx`, `pages/BetaPage.jsx`,
+  `pages/ApplicationVerifyPage.jsx` (new), `components/admin/ApplicationsList.jsx`,
+  `lib/api.js`, `App.js`.
+
+### Regression tests
+
+`tests/test_iter327_application_email_verify.py` — 6 tests:
+- submit persists `email_verified=False` + sent_at stamped
+- verify link flips row + returns studio metadata
+- second click of same link returns `already_verified=true`
+- token/email mismatch returns 401
+- duplicate submit while pending returns 409 with the exact copy
+- admin resend re-issues a fresh token + bumps sent_at, and is a
+  no-op on already-verified rows.
+
+**6/6 pass.**
+
+### Deploy note
+
+Preview live. Production redeploy needed to push to `craftersmarket.org`.
+
+
 ## 2026-07-02 — Founder counter no longer burns slots on re-promote
 
 ### Bug

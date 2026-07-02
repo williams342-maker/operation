@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta, promoteToFounder } from "../../lib/api";
+import { decideMakerApplication, deleteMakerApplication, toggleMakerBeta, promoteToFounder, resendApplicationVerification } from "../../lib/api";
 import { formatDate } from "./_shared";
 import AdminEmailModal from "./AdminEmailModal";
 import WelcomePacketPreviewModal from "./WelcomePacketPreviewModal";
@@ -340,6 +340,26 @@ function ApplicationRow({ app, onChange }) {
       setDeleting(false);
     }
   };
+  // iter327 — Resend the confirm-email link. Idempotent server-side:
+  // an already-verified applicant returns `already_verified=true`
+  // without generating a new email.
+  const [resending, setResending] = useState(false);
+  const resendVerification = async () => {
+    setResending(true);
+    try {
+      const r = await resendApplicationVerification(app.id);
+      if (r?.already_verified) {
+        toast.info(`${app.email} is already verified — no email sent.`);
+      } else {
+        toast.success(`Verification email re-sent to ${app.email}.`);
+        await onChange();
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Resend failed.");
+    } finally {
+      setResending(false);
+    }
+  };
   // iter413bu — A maker is "permanent Founder" when the enrichment
   // payload from `/admin/maker-applications` reports them on the
   // founder tier with inaugural status (lifetime). When this is true
@@ -388,6 +408,28 @@ function ApplicationRow({ app, onChange }) {
                 FOUNDING ACCESS
               </span>
             ) : null}
+            {/* iter327 — Email verification badge. Shown regardless of
+                Founding Access status so an admin can spot typo-email
+                pending rows at a glance. Emerald when verified, amber
+                when still pending — same colour vocabulary as the
+                Policy Crawl Health card. */}
+            {app.email_verified ? (
+              <span
+                className="px-1.5 py-0.5 border border-emerald-500/60 text-emerald-500 font-bold"
+                data-testid={`app-email-verified-badge-${app.id}`}
+                title={app.email_verified_at ? `Verified ${formatDate(app.email_verified_at)}` : undefined}
+              >
+                ✓ EMAIL VERIFIED
+              </span>
+            ) : (
+              <span
+                className="px-1.5 py-0.5 border border-amber-500/60 text-amber-500 font-bold"
+                data-testid={`app-email-pending-badge-${app.id}`}
+                title={app.email_verification_sent_at ? `Sent ${formatDate(app.email_verification_sent_at)}` : undefined}
+              >
+                ⧗ PENDING EMAIL VERIFICATION
+              </span>
+            )}
           </div>
           <div className="font-display text-2xl mt-1 break-words">{app.studio_name}</div>
           <div className="font-mono text-xs text-ink-muted mt-1 break-words">
@@ -429,6 +471,19 @@ function ApplicationRow({ app, onChange }) {
           >
             ✉ Email
           </button>
+          {!app.email_verified && (
+            <button
+              type="button"
+              onClick={resendVerification}
+              disabled={resending}
+              aria-label="Resend verification email"
+              title="Send the applicant a fresh confirm-email link (7-day expiry)"
+              data-testid={`app-resend-verify-${app.id}`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-amber-500/60 text-amber-500 hover:border-amber-400 hover:text-amber-400 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50"
+            >
+              {resending ? "…" : "⧗ Resend verify"}
+            </button>
+          )}
           <button
             type="button"
             onClick={remove}

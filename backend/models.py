@@ -739,6 +739,13 @@ class MakerApplication(BaseModel):
     # so the trial-extension hook can credit the referrer when this
     # maker subscribes to Plus.
     referred_by_code: Optional[str] = None
+    # iter327 — Application email verification. Applications land with
+    # `email_verified=False` and a 7-day one-time link is emailed. Admin
+    # queue still sees them (tagged "Pending Email Verification") but
+    # they can also be manually verified via the resend/verify UI.
+    email_verified: bool = False
+    email_verified_at: Optional[str] = None
+    email_verification_sent_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 

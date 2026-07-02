@@ -141,14 +141,19 @@ export default function BetaPage() {
     return (
       <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="beta-applied">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
-          ◆ Founding Access Application Received
+          ◆ Founding Access · Confirm your email
         </div>
         <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">
-          You're On The <span className="text-outline-orange">Shortlist.</span>
+          Check Your <span className="text-outline-orange">Inbox.</span>
         </h1>
-        <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed">
-          We review every founding-seller application personally. Expect a reply within 3–5 business days.
+        <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed mb-6">
+          We&rsquo;ve sent a confirmation link to <b className="text-ink break-all">{f.email}</b>. Click it to finalize your Founding Access application &mdash; the link is good for 7 days.
         </p>
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted max-w-md mx-auto space-y-2">
+          <p>&bull; Not seeing it? Check your spam or promotions folder.</p>
+          <p>&bull; Wrong email? Contact us at <a className="text-brand hover:underline" href="mailto:team@craftersmarket.org">team@craftersmarket.org</a>.</p>
+          <p>&bull; Confirmed applications are reviewed within 3&ndash;5 business days.</p>
+        </div>
       </div>
     );
   }

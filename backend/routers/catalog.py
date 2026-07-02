@@ -1,5 +1,6 @@
 """Public catalog: products, makers, reviews, blog, activity, custom-orders, maker-applications."""
 import math as _math
+import os
 import random as _random
 import re as _re
 import time as _time
@@ -967,6 +968,30 @@ async def create_maker_application(
         )
         raise HTTPException(403, msg)
 
+    # iter327 — Duplicate-email guard. If this email already has a
+    # pending-email-verification application in the queue, tell them to
+    # go check their inbox instead of stacking a second row. This runs
+    # BEFORE the 24h dedupe below because the intent is different:
+    # dedupe is "you already submitted this today, we hear you";
+    # verify-block is "you already submitted — please confirm the email
+    # we sent you before starting over".
+    pending = await db.maker_applications.find_one(
+        {"email": payload.email, "email_verified": False},
+        {"_id": 0, "id": 1, "created_at": 1},
+    )
+    if pending:
+        logger.info(
+            "[maker-app] dedupe-verify hit for email=%s app_id=%s",
+            payload.email, pending.get("id"),
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "You already applied — please check your email to verify. "
+                "If you can't find it, check spam or contact us."
+            ),
+        )
+
     # iter324 — 24h soft dedupe. If the SAME email submitted in the last
     # 24h, surface the existing row instead of inserting a duplicate.
     # Honest re-submitters get an idempotent response (no error toast,
@@ -997,6 +1022,13 @@ async def create_maker_application(
                 "Please apply at /apply instead.",
             )
         app_obj.is_beta = True
+    # iter327 — Mark verification email as being sent now so the admin
+    # queue's "Verification email sent at" tooltip stays accurate. We
+    # persist BEFORE the background dispatch so a failed send still
+    # leaves a legitimate resend timestamp the admin can act on.
+    from datetime import datetime, timezone
+    now_iso_str = datetime.now(timezone.utc).isoformat()
+    app_obj.email_verification_sent_at = now_iso_str
     await db.maker_applications.insert_one(app_obj.model_dump())
     await db.activity_events.insert_one(
         ActivityEvent(kind="applied",
@@ -1010,6 +1042,19 @@ async def create_maker_application(
     bg.add_task(send_applicant_received,
                 payload.email, payload.name, payload.studio_name,
                 app_obj.is_beta)
+    # iter327 — One-time verification link. Sits alongside the receipt
+    # email so the applicant gets both: a warm thank-you AND an explicit
+    # confirm-your-email CTA. 7-day TTL. Admin queue view shows a badge
+    # (Pending Email Verification / Email Verified) and can resend.
+    from maker_auth import issue_application_verify_token
+    from email_service import send_application_verify_email
+    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    verify_token = issue_application_verify_token(app_obj.id, payload.email)
+    verify_url = f"{site}/apply/verify?token={verify_token}"
+    bg.add_task(
+        send_application_verify_email,
+        payload.email, payload.name, payload.studio_name, verify_url, app_obj.is_beta,
+    )
 
     # iter413bt — Server-side Meta CAPI fire. Uses the SAME event_id the
     # browser pixel already fired (passed in by ApplyPage/BetaPage just

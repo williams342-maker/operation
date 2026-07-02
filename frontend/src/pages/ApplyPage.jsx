@@ -154,16 +154,24 @@ export default function ApplyPage() {
   }
 
   if (state === "done") return (
-    <div className="pt-40 pb-24 min-h-screen text-center grain px-4">
+    <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="apply-done">
       <div className="inline-flex items-center gap-3 mb-4">
         <span className="h-px w-8 bg-brand" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Application Received</span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">Confirm your email</span>
         <span className="h-px w-8 bg-brand" />
       </div>
       <h1 className="font-heading uppercase text-5xl sm:text-7xl lg:text-8xl leading-[0.92] tracking-tight text-ink mb-6">
-        Welcome to the <span className="text-brand">roster</span><span className="text-ink">.</span>
+        Check your <span className="text-brand">inbox</span><span className="text-ink">.</span>
       </h1>
-      <p className="font-body text-base sm:text-lg text-ink-muted max-w-md mx-auto">We review every application personally. Expect a reply in 3&ndash;5 business days.</p>
+      <p className="font-body text-base sm:text-lg text-ink-muted max-w-md mx-auto leading-relaxed mb-6">
+        We&rsquo;ve sent a confirmation link to{" "}
+        <b className="text-ink break-all">{f.email}</b>. Click it to finalize your application &mdash; the link is good for 7 days.
+      </p>
+      <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted max-w-md mx-auto space-y-2 mb-8">
+        <p>&bull; If you don&rsquo;t see the email, check your spam or promotions folder.</p>
+        <p>&bull; If you entered the wrong email, contact us at <a className="text-brand hover:underline" href="mailto:team@craftersmarket.org">team@craftersmarket.org</a>.</p>
+        <p>&bull; Once confirmed, expect a reply in 3&ndash;5 business days.</p>
+      </div>
     </div>
   );
 

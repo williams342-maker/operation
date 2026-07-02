@@ -1041,6 +1041,72 @@ async def send_applicant_received(applicant_email: str, name: str, studio: str,
     )
 
 
+async def send_application_verify_email(
+    applicant_email: str,
+    name: str,
+    studio: str,
+    verify_url: str,
+    is_beta: bool = False,
+):
+    """iter327 — Send the one-time confirmation link to the address on
+    the application. Reduces typo submissions before anything hits the
+    admin queue in earnest.
+
+    Deliberately separate from ``send_applicant_received`` so the
+    verify email has a single obvious CTA (the link) and doesn't get
+    lost in the timeline copy.
+    """
+    if not applicant_email or not verify_url:
+        return None
+    program_label = "Founding Seller" if is_beta else "Maker"
+    flair = (
+        "<div style='display:inline-block;padding:4px 10px;border:1px solid #ff4500;"
+        "border-radius:999px;font-family:JetBrains Mono,monospace;font-size:10px;"
+        "letter-spacing:0.22em;text-transform:uppercase;color:#ff4500;margin:0 0 14px'>"
+        "◆ Founding Access</div>"
+        if is_beta else ""
+    )
+    button = (
+        f"<div style='margin:24px 0'>"
+        f"<a href='{verify_url}' "
+        f"style='display:inline-block;padding:14px 28px;background:#ff4500;color:#0a0a0a;"
+        f"text-decoration:none;font-family:JetBrains Mono,monospace;font-size:11px;"
+        f"letter-spacing:0.22em;text-transform:uppercase;font-weight:700'>"
+        f"◆ Confirm my application</a></div>"
+    )
+    body = (
+        f"{flair}"
+        "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
+        f"Hi {name}, we just received your <b style='color:#ff4500'>{studio}</b> "
+        f"application. One quick step to make sure we can reach you: confirm your email."
+        "</p>"
+        f"{button}"
+        "<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin:0 0 12px'>"
+        "This link expires in 7 days. If the button doesn't work, copy and paste this URL "
+        "into your browser:"
+        "</p>"
+        f"<p style='font-size:11px;color:#525252;line-height:1.5;margin:0 0 24px;word-break:break-all'>"
+        f"{verify_url}</p>"
+        "<div style='border-top:1px solid #262626;padding-top:18px;margin:18px 0 0'>"
+        "<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin:0'>"
+        "Didn't apply to Crafters Market? You can safely ignore this email — no account "
+        "will be created without a confirmation click."
+        "</p>"
+        "</div>"
+    )
+    html = _shell(
+        "Confirm Your Email.",
+        "One click to make sure we can reach you about your application.",
+        body,
+        f"{program_label} application · confirm email",
+    )
+    subject = (
+        f"Confirm your Crafters Market {program_label} application · {studio}"
+    )
+    return await _send(applicant_email, subject, html)
+
+
+
 async def send_ops_new_custom_order(name: str, email: str, project_type: str, material: str, description: str, budget: str | None):
     if not OPS_EMAIL: return
     body = f"""

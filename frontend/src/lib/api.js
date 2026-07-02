@@ -1193,6 +1193,12 @@ export const decideMakerApplication = (id, payload) =>
   http.patch(`/admin/maker-applications/${id}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const deleteMakerApplication = (id) =>
   http.delete(`/admin/maker-applications/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+// iter327 — Resend the applicant's confirm-email link. Idempotent: if
+// the applicant is already verified, backend returns
+// `{ok: true, already_verified: true}` without emailing anything.
+export const resendApplicationVerification = (id) =>
+  http.post(`/admin/maker-applications/${id}/resend-verification`, null,
+    { headers: adminAuthHeaders() }).then((r) => r.data);
 export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
 // iter413bv — Promote a Founding Access maker to permanent Founding

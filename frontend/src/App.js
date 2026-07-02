@@ -27,6 +27,7 @@ import MakerDetail from "./pages/MakerDetail";
 import ClipFeedPage from "./pages/ClipFeedPage";
 import CustomOrderPage from "./pages/CustomOrderPage";
 import ApplyPage from "./pages/ApplyPage";
+import ApplicationVerifyPage from "./pages/ApplicationVerifyPage";
 import { JournalPage, JournalDetail } from "./pages/JournalPage";
 import CartPage from "./pages/CartPage";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
@@ -263,6 +264,8 @@ function App() {
                 <Route path="/m/:slug" element={<MakerDetail />} />
                 <Route path="/custom-order" element={<CustomOrderPage />} />
                 <Route path="/apply" element={<ApplyPage />} />
+                <Route path="/apply/verify" element={<ApplicationVerifyPage />} />
+                <Route path="/founders/verify" element={<ApplicationVerifyPage />} />
                 <Route path="/beta" element={<BetaPage />} />
                 <Route path="/founders" element={<BetaPage />} />
                 <Route path="/founder" element={<Navigate to="/founders" replace />} />

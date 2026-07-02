@@ -16,10 +16,39 @@ MAGIC_TTL_SECONDS = 60 * 15           # 15 minutes
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days (buyers + makers)
 ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24  # 24 hours (admins — tighter)
 PASSWORD_RESET_TTL_SECONDS = 60 * 30   # 30 minutes for reset links
+APP_VERIFY_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days for /founders application verification
 
 _serializer = URLSafeTimedSerializer(SECRET, salt="maker-magic-link")
 _admin_serializer = URLSafeTimedSerializer(SECRET, salt="admin-magic-link")
 _password_reset_serializer = URLSafeTimedSerializer(SECRET, salt="password-reset")
+# iter327 — dedicated salt so a leaked magic-link token can't be reused
+# as an application-verify token and vice versa.
+_app_verify_serializer = URLSafeTimedSerializer(SECRET, salt="maker-application-verify")
+
+
+def issue_application_verify_token(app_id: str, email: str) -> str:
+    """Sign a one-time link that marks the /founders application row
+    with the given ``app_id`` as email-verified. The applicant's email
+    is embedded (and re-checked on verify) so a leaked token can't be
+    replayed on a different application id."""
+    return _app_verify_serializer.dumps(
+        {"app_id": app_id, "email": (email or "").lower().strip()}
+    )
+
+
+def verify_application_verify_token(token: str) -> dict:
+    """Decode + validate a token minted by ``issue_application_verify_token``.
+    Returns ``{app_id, email}`` on success, raises 401 otherwise."""
+    try:
+        data = _app_verify_serializer.loads(token, max_age=APP_VERIFY_TTL_SECONDS)
+    except SignatureExpired:
+        raise HTTPException(
+            status_code=401,
+            detail="This verification link has expired. Ask an admin to resend, or reapply.",
+        )
+    except BadSignature:
+        raise HTTPException(status_code=401, detail="Invalid verification link.")
+    return {"app_id": data.get("app_id"), "email": data.get("email")}
 
 
 def issue_magic_token(email: str) -> str:

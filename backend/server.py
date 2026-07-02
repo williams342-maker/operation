@@ -11,6 +11,7 @@ from routers.ai import router as ai_router
 from routers.ai_marketing import router as ai_marketing_router
 from routers.auth_password import router as auth_password_router
 from routers.catalog import router as catalog_router
+from routers.applications_verify import router as applications_verify_router
 from routers.csv_import import router as csv_import_router
 from routers.discount_codes import router as discount_codes_router
 from routers.checkout import router as checkout_router
@@ -107,6 +108,7 @@ api = APIRouter(prefix="/api")
 
 # Mount each domain router under /api
 api.include_router(catalog_router)
+api.include_router(applications_verify_router)
 api.include_router(seo_router)
 api.include_router(ci_badge_router)  # iter413at — live CI pass-rate badge
 api.include_router(state_pages_router)
