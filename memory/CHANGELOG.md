@@ -1,3 +1,57 @@
+## 2026-07-02 — iter329: Approved-Makers promote-to-Founder fix
+
+### Bug
+
+User couldn't promote maker `magnoliaztree` (MagnoliazTree) to
+Founder from the **Approved Makers** admin tab. First 29 founders
+were promoted from the Applications queue (correct path); this was
+the first attempt from the Approved-Makers directory, which had a
+JavaScript variable-shadowing bug.
+
+### Root cause
+
+`ApprovedMakersTab.jsx` imported `promoteToFounder` from
+`../../lib/api` (line 7) AND declared a same-named local
+`const promoteToFounder = async …` (line 107). Inside the handler,
+`await promoteToFounder(slug, {inaugural:true})` resolved to the
+local function via lexical scope → **infinite self-recursion**. The
+recursion showed a second `confirm()` dialog stringified as
+`[object Object]`; if the admin cancelled it (natural instinct),
+the outer handler threw when reading `res.founder_number` on
+`undefined` → "Failed to promote maker." toast. The
+`/admin/founders/promote` endpoint was never hit.
+
+### Fix
+
+Renamed the local handler to `handlePromoteToFounder` and updated
+the button's `onClick`. The imported API helper is now the only
+`promoteToFounder` in scope. `ApplicationsList.jsx` was unaffected
+(no shadowing there), which is why the first 29 founders promoted
+cleanly.
+
+### Verification
+
+- Backend: E2E promote against Preview → returned `founder_number: 17`,
+  activity ticker fired (visible in the sitewide banner).
+- Frontend: `testing_agent_v3_fork` iter105 — 100% pass on both
+  backend + frontend, exactly 1 confirm + 1 POST + success toast +
+  table refresh.
+- Pytest: `test_iter329_promote_founder.py` — 4/4 tests green.
+
+### Files touched
+
+- `/app/frontend/src/components/admin/ApprovedMakersTab.jsx`
+  — renamed handler + updated onClick + inline comment documenting
+  the trap.
+- `/app/backend/tests/test_iter329_promote_founder.py` (new · by
+  testing agent).
+
+### Production redeploy
+
+**Required.** The fix is in Preview only; user must redeploy to push
+`craftersmarket.org`.
+
+
 ## 2026-07-02 — iter328: Founder × Product-Feed audit (diagnostic)
 
 Read-only admin endpoint that explains why the Founders Wall count
