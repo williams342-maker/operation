@@ -1,0 +1,30 @@
+{
+  "summary": "iter330 — Maker Profile cover-photo upload UI + backend endpoint verified end-to-end. Backend: 5/5 pytest cases passed (happy path PNG upload, non-image rejection, empty-file rejection, >10MB rejection, auth required). Frontend: full flow through the Profile drawer succeeded — file-picker upload switched button label to 'Uploading…' → back to '↻ Drop or click to replace cover photo', URL field populated with cdn.craftersmarket.org/covers/iron-and-oak/<hash>.png, <img data-testid='profile-cover-preview'> rendered. URL-fallback path (paste URL + Save) persisted to backend (verified via GET /api/maker/me). Plus-only banner uploader regression check confirmed it still shows 'Upgrade to Crafters Plus to unlock' for non-Plus makers. Prior cover value restored on completion.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_maker_cover_upload.py",
+    "/app/test_reports/pytest/iter330_cover.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProfileForm.jsx onCoverFile handler correctly updates local form.cover state AND calls onSaved with maker.cover so a subsequent Save Changes click doesn't overwrite the freshly-uploaded R2 URL. Handler also resets coverRef.current.value so the same file can be re-selected — good.",
+    "Backend _upload_profile_image validates content-type against ALLOWED_CONTENT_TYPES (png/jpg/webp/gif), rejects empty body, enforces 10MB cap, returns 503 when R2 unconfigured — all branches exercised by tests.",
+    "profile-cover-preview <img> has onError=hide fallback which is defensive but silently hides bad URLs — could add a small 'image failed to load' hint for the maker so they know their pasted URL wasn't reachable. Minor UX polish, not a bug.",
+    "profile-saved-msg auto-clears after 2400ms via setTimeout — makes automated verification racey. Not a bug for real users; consider making the success indicator sticky until next edit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_maker_cover_upload.py"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all assertions passed)"},
+  "test_credentials": "iron-and-oak@craftersmarket.org (maker JWT via issue_magic_token → /api/maker/auth/verify). Subscription status = 'free' (non-Plus) — good for confirming banner Plus-gate.",
+  "seed_data_creation": "None. The maker's prior cover URL was captured and restored on completion of both backend + frontend flows (verified via PATCH /api/maker/profile response 200).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "R2 is configured in Preview (uploads land on cdn.craftersmarket.org). The Profile form lives inside a ProfileDrawer (data-testid='profile-drawer') opened via window event 'cm:open-profile-drawer' — direct navigation with ?tab=profile does NOT open the drawer. To exercise the drawer via Playwright, dispatch that event or click the on-screen 'Edit shop' gear/link. The `profile-saved-msg` toast auto-clears after 2.4s — sample it immediately after click, not after a 2.5s+ wait.",
+  "rca of the issue": "N/A — feature verification only. No bugs found."
+}

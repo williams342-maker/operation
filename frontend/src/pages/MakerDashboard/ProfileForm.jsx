@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { uploadMakerBanner, updateMakerProfile } from "../../lib/api";
+import { uploadMakerBanner, uploadMakerCover, updateMakerProfile } from "../../lib/api";
 import { Field } from "./_shared";
 
 export default function ProfileForm({ maker, onSaved }) {
@@ -20,6 +20,18 @@ export default function ProfileForm({ maker, onSaved }) {
   const [bannerErr, setBannerErr] = useState("");
   const [bannerDrag, setBannerDrag] = useState(false);
   const bannerRef = useRef(null);
+  // iter330 — Free-tier cover-photo upload. The backend endpoint
+  // `/maker/uploads/cover` already exists (no Plus gate) and writes to
+  // `makers.cover`; this state + handler wires the same drop-or-click
+  // pattern used for the Plus banner. Motivation: multiple founders
+  // (Rayanne @ Fly Flowers and Finery, 2026-07-02) pasted URLs into
+  // the Cover URL field that weren't hostable-image URLs (Google Drive
+  // share links, Instagram post URLs) — file upload avoids the
+  // shareable-URL footgun entirely.
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverErr, setCoverErr] = useState("");
+  const [coverDrag, setCoverDrag] = useState(false);
+  const coverRef = useRef(null);
   const isPlus = maker.subscription_status === "active";
 
   const change = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -41,6 +53,31 @@ export default function ProfileForm({ maker, onSaved }) {
     } finally {
       setBannerBusy(false);
       if (bannerRef.current) bannerRef.current.value = "";
+    }
+  };
+
+  // iter330 — Free-tier cover-photo upload handler. Mirrors onBannerFile
+  // but writes to the `cover` field (which the shop page reads via
+  // `banner_image_url || cover`). Also updates `form.cover` so a Save
+  // Changes click doesn't overwrite the freshly-uploaded URL with stale
+  // form state.
+  const onCoverFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      setCoverErr("Cover must be an image."); return;
+    }
+    setCoverErr("");
+    setCoverBusy(true);
+    try {
+      const { url } = await uploadMakerCover(f);
+      setForm((prev) => ({ ...prev, cover: url }));
+      onSaved({ ...maker, cover: url });
+    } catch (e2) {
+      setCoverErr(e2?.response?.data?.detail || "Upload failed.");
+    } finally {
+      setCoverBusy(false);
+      if (coverRef.current) coverRef.current.value = "";
     }
   };
 
@@ -120,13 +157,83 @@ export default function ProfileForm({ maker, onSaved }) {
         testId="profile-portrait"
         wide
       />
-      <Field
-        label="Cover image URL"
-        value={form.cover}
-        onChange={change("cover")}
-        testId="profile-cover"
-        wide
-      />
+      {/* iter330 — Cover photo: file upload + URL fallback. The upload
+          button writes an R2 URL into form.cover (also persisted server-
+          side immediately). Power users can still paste a direct image
+          URL into the text field — the two paths converge on the same
+          `cover` field. */}
+      <div className="md:col-span-2" data-testid="profile-cover-section">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+          Cover photo
+        </div>
+        {form.cover && (
+          <div className="aspect-[4/1] overflow-hidden border border-line mb-2 bg-surface">
+            <img
+              src={form.cover}
+              alt="Shop cover"
+              className="w-full h-full object-cover"
+              data-testid="profile-cover-preview"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+          </div>
+        )}
+        <input
+          ref={coverRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={onCoverFile}
+          disabled={coverBusy}
+          className="hidden"
+          data-testid="profile-cover-file"
+        />
+        <div
+          onDragOver={(e) => { if (!coverBusy) { e.preventDefault(); setCoverDrag(true); } }}
+          onDragLeave={() => setCoverDrag(false)}
+          onDrop={(e) => {
+            if (coverBusy) return;
+            e.preventDefault();
+            setCoverDrag(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) onCoverFile({ target: { files: [f] } });
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => coverRef.current?.click()}
+            disabled={coverBusy}
+            className={`w-full border border-dashed px-4 py-3 text-left font-mono text-[11px] transition ${
+              coverDrag
+                ? "border-brand text-brand bg-brand/5"
+                : "border-line hover:border-brand text-ink-muted hover:text-brand"
+            }`}
+            data-testid="profile-cover-upload"
+          >
+            {coverBusy
+              ? "Uploading…"
+              : coverDrag
+              ? "↓ Release to upload"
+              : form.cover
+              ? "↻ Drop or click to replace cover photo"
+              : "+ Drop or click to upload cover photo (recommended 1600×400, JPG/PNG/WebP, ≤10 MB)"}
+          </button>
+        </div>
+        {coverErr && (
+          <p className="font-mono text-[10px] text-red-400 mt-1" data-testid="profile-cover-err">{coverErr}</p>
+        )}
+        <label className="block mt-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            or paste a direct image URL
+          </span>
+          <input
+            type="text"
+            value={form.cover}
+            onChange={change("cover")}
+            placeholder="https://…"
+            className="mt-1 w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink transition"
+            data-testid="profile-cover"
+          />
+        </label>
+      </div>
 
       {/* Plus-only: custom shop banner upload */}
       <div className="md:col-span-2" data-testid="profile-banner-section">
