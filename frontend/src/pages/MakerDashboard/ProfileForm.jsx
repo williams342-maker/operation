@@ -31,10 +31,22 @@ export default function ProfileForm({ maker, onSaved }) {
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverErr, setCoverErr] = useState("");
   const [coverDrag, setCoverDrag] = useState(false);
+  // iter330b — Track img load failure separately from upload errors so a
+  // maker who pastes a non-image URL (Google Drive share link, Instagram
+  // post URL, HTML page, dead link) sees a plain-English hint instead of
+  // the preview silently disappearing. Resets on every URL change so the
+  // hint clears the moment they type/upload something new.
+  const [coverLoadError, setCoverLoadError] = useState(false);
   const coverRef = useRef(null);
   const isPlus = maker.subscription_status === "active";
 
-  const change = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const change = (k) => (e) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+    // iter330b — Any edit to the cover field means the load-error hint
+    // no longer applies to the current value; clear it so the maker
+    // isn't shown a stale warning against a URL they just changed.
+    if (k === "cover") setCoverLoadError(false);
+  };
 
   const onBannerFile = async (e) => {
     const f = e.target.files?.[0];
@@ -68,6 +80,7 @@ export default function ProfileForm({ maker, onSaved }) {
       setCoverErr("Cover must be an image."); return;
     }
     setCoverErr("");
+    setCoverLoadError(false);
     setCoverBusy(true);
     try {
       const { url } = await uploadMakerCover(f);
@@ -166,15 +179,28 @@ export default function ProfileForm({ maker, onSaved }) {
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-2">
           Cover photo
         </div>
-        {form.cover && (
+        {form.cover && !coverLoadError && (
           <div className="aspect-[4/1] overflow-hidden border border-line mb-2 bg-surface">
             <img
               src={form.cover}
               alt="Shop cover"
               className="w-full h-full object-cover"
               data-testid="profile-cover-preview"
-              onError={(e) => { e.currentTarget.style.display = "none"; }}
+              onLoad={() => setCoverLoadError(false)}
+              onError={() => setCoverLoadError(true)}
             />
+          </div>
+        )}
+        {form.cover && coverLoadError && (
+          <div
+            className="border border-dashed border-red-400/60 bg-red-400/5 px-3 py-2 mb-2 font-mono text-[10px] text-red-400"
+            data-testid="profile-cover-load-error"
+          >
+            <strong className="uppercase tracking-[0.16em]">Image couldn&apos;t load.</strong>{" "}
+            Google Drive / Dropbox / Instagram share links don&apos;t work here — they
+            return an HTML page, not the image. Upload the file directly using the
+            button below, or paste a URL that ends in <code>.jpg</code>, <code>.png</code>,
+            or <code>.webp</code>.
           </div>
         )}
         <input

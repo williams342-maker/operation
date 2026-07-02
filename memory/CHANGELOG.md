@@ -1,3 +1,25 @@
+## 2026-07-02 — iter330b: Cover-photo bad-URL hint
+
+Polish on iter330: when a maker pastes a cover URL that fails to
+load (Google Drive / Dropbox / Instagram share links → HTML, not
+image), instead of the preview silently disappearing we now show
+an inline dashed-red hint explaining the class of URLs that don't
+work + suggesting either the upload button above or a direct
+`.jpg`/`.png`/`.webp` link. Auto-clears on next edit or successful
+upload.
+
+### Files touched
+
+- `/app/frontend/src/pages/MakerDashboard/ProfileForm.jsx` —
+  `coverLoadError` state, `onLoad`/`onError` handlers on the
+  preview img, `change('cover')` resets the flag, `onCoverFile`
+  resets the flag before upload, new hint block
+  `data-testid='profile-cover-load-error'`.
+
+### Production redeploy
+
+Same batch as iter330 — user redeploys once for both.
+
 ## 2026-07-02 — iter330: Free-tier shop cover-photo upload
 
 ### Motivation
