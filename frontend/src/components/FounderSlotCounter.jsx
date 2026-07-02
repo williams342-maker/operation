@@ -25,12 +25,23 @@ export default function FounderSlotCounter({
 
   useEffect(() => {
     let alive = true;
-    fetch(`${API}/api/founders/slots`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => alive && setData(d))
-      .catch(() => {});
+    const load = () =>
+      fetch(`${API}/api/founders/slots`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => alive && d && setData(d))
+        .catch(() => {});
+    // Fetch on mount, then keep in sync with server: poll every 60s
+    // (approvals are sporadic but should never lag more than a minute
+    // behind the admin dashboard) + revalidate whenever the tab regains
+    // focus so people returning from another tab see fresh numbers.
+    load();
+    const interval = setInterval(load, 60_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
 

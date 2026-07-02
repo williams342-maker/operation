@@ -27,7 +27,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from maker_auth import current_admin
@@ -65,8 +65,14 @@ class SlotResponse(BaseModel):
     enabled: bool
 
 
+# Cache-Control that keeps this endpoint fresh at every layer (browser,
+# CDN, service worker). Approvals need to be visible to visitors within
+# seconds — never cache the counter/wall responses.
+_NO_STORE = "no-store, no-cache, must-revalidate, max-age=0"
+
+
 @router.get("/founders/slots", response_model=SlotResponse)
-async def slots():
+async def slots(response: Response):
     """Powers the public 'X / 100 slots remaining' counter on /founders.
 
     A small `FOUNDER_INAUGURAL_BASELINE_TAKEN` offset (default 5) is
@@ -74,6 +80,7 @@ async def slots():
     handful of slots are already claimed — even on a fresh prod stack
     with zero approved makers. Removes the "100/100 means we have no
     momentum" optics problem without lying about specific identities."""
+    response.headers["Cache-Control"] = _NO_STORE
     taken = await _count_inaugural()
     baseline = int(os.environ.get("FOUNDER_INAUGURAL_BASELINE_TAKEN", "5"))
     display_taken = min(FOUNDER_INAUGURAL_CAP, taken + max(0, baseline))
@@ -89,10 +96,11 @@ async def slots():
 
 
 @router.get("/founders/list")
-async def founders_list(limit: int = 60):
+async def founders_list(response: Response, limit: int = 60):
     """Public Founder wall — the bragging surface. Only returns active
     founders with at least one published product (so we don't show ghost
     shops that grabbed a slot and never shipped)."""
+    response.headers["Cache-Control"] = _NO_STORE
     cap = max(1, min(int(limit or 60), 200))
     cursor = db.makers.find(
         {"tier": "founder"},

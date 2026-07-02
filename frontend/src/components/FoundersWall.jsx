@@ -23,15 +23,25 @@ export default function FoundersWall({ testId = "founders-wall" }) {
 
   useEffect(() => {
     let alive = true;
-    fetch(`${API}/api/founders/list?limit=100`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (alive && d?.founders) setFounders(d.founders);
-      })
-      .catch(() => {})
-      .finally(() => alive && setLoading(false));
+    const load = () =>
+      fetch(`${API}/api/founders/list?limit=100`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (alive && d?.founders) setFounders(d.founders);
+        })
+        .catch(() => {})
+        .finally(() => alive && setLoading(false));
+    // Fetch on mount + poll every 60s + revalidate on tab focus so newly-
+    // approved Founders show up on the wall without a hard refresh. Same
+    // cadence as FounderSlotCounter so the two surfaces stay in sync.
+    load();
+    const interval = setInterval(load, 60_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
 
