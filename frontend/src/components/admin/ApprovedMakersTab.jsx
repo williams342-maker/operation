@@ -103,8 +103,16 @@ export default function ApprovedMakersTab() {
   // iter413da — One-click founder promotion. Confirms (founder_number is
   // monotonic + lifetime for inaugural), POSTs to /admin/founders/promote,
   // refreshes the table. Idempotent on the backend so a re-click is safe.
+  //
+  // iter328b — Renamed from `promoteToFounder` to `handlePromoteToFounder`
+  // to stop shadowing the imported `promoteToFounder` API helper. Under
+  // the old name the inner call `await promoteToFounder(slug, {inaugural:true})`
+  // was resolving to this local function (self-recursion), never hitting
+  // /admin/founders/promote. Symptom: promote button on the Approved
+  // Makers tab silently failed with a "[object Object]" second confirm
+  // and a "Failed to promote maker." toast.
   const [promotingSlug, setPromotingSlug] = useState("");
-  const promoteToFounder = async (slug, name) => {
+  const handlePromoteToFounder = async (slug, name) => {
     const ok = window.confirm(
       `Promote "${name || slug}" to Inaugural Founder?\n\n` +
       `• Sets tier=founder, founder_status=inaugural, lifetime expiry.\n` +
@@ -453,7 +461,7 @@ export default function ApprovedMakersTab() {
                     </button>
                     {r.tier !== "founder" && (
                       <button
-                        onClick={() => promoteToFounder(r.slug, r.name)}
+                        onClick={() => handlePromoteToFounder(r.slug, r.name)}
                         disabled={promotingSlug === r.slug}
                         data-testid={`approved-promote-founder-${r.slug}`}
                         title="Promote this maker to Inaugural Founder (lifetime · 3% commission · 50 listings/mo · unlocks vanity URL)"
