@@ -1,3 +1,45 @@
+## 2026-07-02 — iter328: Founder × Product-Feed audit (diagnostic)
+
+Read-only admin endpoint that explains why the Founders Wall count
+can exceed the Enrichlabs product-feed maker count.
+
+### Context
+
+User reported: "Founders Wall shows 30 approved, but /feed.csv is
+stuck at 51 products / 7 makers." Root cause: **expected schema
+behavior**, not a bug. The Wall counts every `tier: "founder"` maker;
+the feed only includes those with at least one product that is
+(status="published" AND non-deleted AND in-stock AND has an image AND
+maker has not toggled `external_ads_opt_out` AND maker is not
+soft-deleted). Newly promoted founders live in a 14-day grace window
+during which they're onboarding (Stripe, photos, listings) — they
+count toward the Wall but not the feed until they publish.
+
+### New surface
+
+- **Backend:** `GET /api/admin/integrations/enrichlabs/founder-feed-audit`
+  (admin-JWT gated, read-only). Returns per-founder rows with product
+  counts, `in_feed: bool`, and a plain-English `reason_excluded` when
+  in_feed is False. Also returns a `summary.reason_histogram` for
+  quick triage.
+
+### Verification
+
+Preview seeding across all 4 classifier branches (opt-out / no
+products / draft-only / valid) confirmed correct reason strings.
+`testing_agent_v3_fork` iteration 104 → **7/7 backend tests pass, 100%
+success, no action items**.
+
+### Files touched
+
+- `/app/backend/routers/enrichlabs.py` — appended `admin_router.get(
+  "/founder-feed-audit")` endpoint. `_fetch_feed_products` was NOT
+  modified.
+- `/app/backend/tests/test_iter328_founder_feed_audit.py` (new)
+- `/app/backend/tests/test_iter328_founder_feed_audit_extra.py`
+  (new · added by testing agent)
+
+
 ## 2026-07-02 — iter327b: Verification funnel tile in admin queue
 
 Small operational read-out that turns the amber/emerald verification

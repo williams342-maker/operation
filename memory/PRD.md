@@ -1,3 +1,17 @@
+## iter328 — Founder Feed Audit Diagnostic (2026-07-02)
+
+**Status: SHIPPED** — read-only admin endpoint. Phase D freeze respected (diagnostic-only, no feature).
+
+- `GET /api/admin/integrations/enrichlabs/founder-feed-audit` returns
+  every `tier: "founder"` maker with `in_feed: bool` and a plain-English
+  `reason_excluded` string.
+- Resolves the "30 founders on Wall vs 7 makers in feed" P0 report as
+  expected schema behavior (Wall counts promoted founders; feed requires
+  a published+in-stock+imaged+non-opt-out product). Endpoint gives admins
+  a per-maker histogram to prove it in production.
+- Regression: `test_iter328_founder_feed_audit*.py` — 7/7 pass.
+
+
 ## Phase D — Trust & Policy Center v1 (2026-06-30)
 
 **Status: SHIPPED (Phase D-compliant documentation/governance layer)**
