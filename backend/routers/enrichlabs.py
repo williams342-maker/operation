@@ -959,3 +959,172 @@ async def admin_enrich_design_files_feed_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="crafters_design_files_feed_{today}.csv"'},
     )
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# iter328 — Founder × Product-Feed audit (diagnostic)
+#
+# Explains why the Founders Wall count (`tier: "founder"`) can be
+# larger than the number of makers that appear in the EnrichLabs
+# product feed. The wall counts every promoted founder; the feed only
+# includes founders who have at least one published, in-stock,
+# non-deleted product AND haven't opted out of external ads.
+#
+# Read-only. Admin JWT gated. Same prefix as the rest of the admin
+# EnrichLabs proxy so it lives with the tool that produces the feed.
+# ─────────────────────────────────────────────────────────────────────
+@admin_router.get("/founder-feed-audit")
+async def admin_founder_feed_audit(_admin: str = Depends(current_admin)):
+    """Per-founder feed-inclusion audit.
+
+    For every maker with `tier="founder"`, returns:
+      - founder_number, slug, name, founder_status
+      - external_ads_opt_out
+      - product counts: total / published / published_in_stock / published_in_stock_with_image
+      - in_feed: bool — would this maker's slug appear in /feed.csv?
+      - reason: plain-English explanation when in_feed=False
+
+    Also returns aggregate counters that mirror what Enrichlabs sees.
+    """
+    # Load every founder, sorted by number so output is stable.
+    founders = await db.makers.find(
+        {"tier": "founder"},
+        {
+            "_id": 0, "slug": 1, "name": 1, "shop_title": 1,
+            "founder_number": 1, "founder_status": 1,
+            "external_ads_opt_out": 1, "deleted_at": 1,
+            "founder_grace_until": 1, "founder_started_at": 1,
+        },
+    ).sort("founder_number", 1).to_list(500)
+
+    # One aggregation to bucket product counts per founder slug.
+    founder_slugs = [f["slug"] for f in founders if f.get("slug")]
+    pipeline = [
+        {"$match": {"maker_slug": {"$in": founder_slugs}}},
+        {"$group": {
+            "_id": "$maker_slug",
+            "total": {"$sum": 1},
+            "published": {"$sum": {"$cond": [
+                {"$and": [
+                    {"$eq": ["$status", "published"]},
+                    {"$in": [{"$ifNull": ["$deleted_at", None]}, [None, ""]]},
+                ]},
+                1, 0,
+            ]}},
+            "published_in_stock": {"$sum": {"$cond": [
+                {"$and": [
+                    {"$eq": ["$status", "published"]},
+                    {"$in": [{"$ifNull": ["$deleted_at", None]}, [None, ""]]},
+                    {"$or": [
+                        {"$eq": [{"$type": "$in_stock"}, "missing"]},
+                        {"$eq": ["$in_stock", True]},
+                        {"$gt": [{"$ifNull": ["$in_stock", 0]}, 0]},
+                    ]},
+                ]},
+                1, 0,
+            ]}},
+            "published_in_stock_with_image": {"$sum": {"$cond": [
+                {"$and": [
+                    {"$eq": ["$status", "published"]},
+                    {"$in": [{"$ifNull": ["$deleted_at", None]}, [None, ""]]},
+                    {"$or": [
+                        {"$eq": [{"$type": "$in_stock"}, "missing"]},
+                        {"$eq": ["$in_stock", True]},
+                        {"$gt": [{"$ifNull": ["$in_stock", 0]}, 0]},
+                    ]},
+                    {"$or": [
+                        # Non-empty legacy image_url ...
+                        {"$and": [
+                            {"$ne": [{"$ifNull": ["$image_url", ""]}, ""]},
+                        ]},
+                        # ... or a non-empty first entry in images[].
+                        {"$and": [
+                            {"$eq": [{"$type": "$images"}, "array"]},
+                            {"$gt": [{"$size": {"$ifNull": ["$images", []]}}, 0]},
+                        ]},
+                    ]},
+                ]},
+                1, 0,
+            ]}},
+        }},
+    ]
+    by_slug: dict[str, dict] = {}
+    async for row in db.products.aggregate(pipeline):
+        by_slug[row["_id"]] = {
+            "total": int(row.get("total") or 0),
+            "published": int(row.get("published") or 0),
+            "published_in_stock": int(row.get("published_in_stock") or 0),
+            "published_in_stock_with_image": int(
+                row.get("published_in_stock_with_image") or 0
+            ),
+        }
+
+    out: list[dict] = []
+    for f in founders:
+        slug = f.get("slug")
+        counts = by_slug.get(slug, {
+            "total": 0, "published": 0,
+            "published_in_stock": 0, "published_in_stock_with_image": 0,
+        })
+        opt_out = bool(f.get("external_ads_opt_out"))
+        deleted = (f.get("deleted_at") or "") not in ("", None)
+
+        # Mirror the exact rules from `_fetch_feed_products` +
+        # `_build_feed_rows` so `in_feed` is definitive.
+        if deleted:
+            in_feed = False
+            reason = "Maker doc is soft-deleted (deleted_at is set)."
+        elif opt_out:
+            in_feed = False
+            reason = "Maker toggled external_ads_opt_out — feed is respecting their choice."
+        elif counts["total"] == 0:
+            in_feed = False
+            reason = "No products at all yet — maker hasn't listed anything."
+        elif counts["published"] == 0:
+            in_feed = False
+            reason = f"{counts['total']} product(s) exist but none are status='published'."
+        elif counts["published_in_stock"] == 0:
+            in_feed = False
+            reason = f"{counts['published']} published product(s), but all are out of stock (in_stock=0/False)."
+        elif counts["published_in_stock_with_image"] == 0:
+            in_feed = False
+            reason = f"{counts['published_in_stock']} published+in-stock product(s), but none have a usable image (feed skips imageless rows)."
+        else:
+            in_feed = True
+            reason = None
+
+        out.append({
+            "founder_number": f.get("founder_number"),
+            "slug": slug,
+            "name": f.get("name") or f.get("shop_title") or slug,
+            "founder_status": f.get("founder_status"),
+            "founder_started_at": f.get("founder_started_at"),
+            "founder_grace_until": f.get("founder_grace_until"),
+            "external_ads_opt_out": opt_out,
+            "products": counts,
+            "in_feed": in_feed,
+            "reason_excluded": reason,
+        })
+
+    # Aggregate summary
+    total_founders = len(out)
+    in_feed_count = sum(1 for r in out if r["in_feed"])
+    excluded = total_founders - in_feed_count
+    reason_buckets: dict[str, int] = defaultdict(int)
+    for r in out:
+        if not r["in_feed"] and r["reason_excluded"]:
+            # Bucket by first-sentence prefix so the histogram is compact.
+            key = r["reason_excluded"].split(" — ")[0].split(".")[0]
+            reason_buckets[key] += 1
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "summary": {
+            "founders_total": total_founders,
+            "founders_in_feed": in_feed_count,
+            "founders_excluded": excluded,
+            "reason_histogram": dict(reason_buckets),
+        },
+        "founders": out,
+    }
