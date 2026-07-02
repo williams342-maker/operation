@@ -1,3 +1,34 @@
+## 2026-07-02 — iter330c: Symmetric portrait upload
+
+Applied the iter330/330b pattern to the Portrait field (square
+headshot). Same drag-drop + click uploader, same URL fallback,
+same bad-URL hint. Backend endpoint `/maker/uploads/portrait` and
+helper `uploadMakerPortrait` already existed; wired them into the
+Profile form.
+
+### UI shape
+
+- 24×24 square live preview (left) next to the drop zone (right)
+- New testids: `profile-portrait-section`, `profile-portrait-upload`,
+  `profile-portrait-file`, `profile-portrait-preview`,
+  `profile-portrait-err`, `profile-portrait-load-error`. The
+  URL text-field keeps the existing `profile-portrait` testid.
+- Backend E2E verified: `iron-and-oak` portrait upload returned a
+  fresh cdn.craftersmarket.org/portraits/… URL and Mongo write
+  confirmed.
+
+### Files touched
+
+- `/app/frontend/src/pages/MakerDashboard/ProfileForm.jsx` — added
+  portrait state (`portraitBusy`, `portraitErr`, `portraitDrag`,
+  `portraitLoadError`, `portraitRef`), `onPortraitFile` handler,
+  `change('portrait')` load-error reset, and replaced the plain
+  Portrait `<Field>` with the same uploader block used for Cover.
+
+### Production redeploy
+
+Batches with iter330 + 330b — one redeploy pushes all three.
+
 ## 2026-07-02 — iter330b: Cover-photo bad-URL hint
 
 Polish on iter330: when a maker pastes a cover URL that fails to

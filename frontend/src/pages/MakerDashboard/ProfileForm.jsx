@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { uploadMakerBanner, uploadMakerCover, updateMakerProfile } from "../../lib/api";
+import { uploadMakerBanner, uploadMakerCover, uploadMakerPortrait, updateMakerProfile } from "../../lib/api";
 import { Field } from "./_shared";
 
 export default function ProfileForm({ maker, onSaved }) {
@@ -38,14 +38,26 @@ export default function ProfileForm({ maker, onSaved }) {
   // hint clears the moment they type/upload something new.
   const [coverLoadError, setCoverLoadError] = useState(false);
   const coverRef = useRef(null);
+  // iter330c — Same treatment for the maker portrait (square headshot).
+  // Backend endpoint `/maker/uploads/portrait` and helper
+  // `uploadMakerPortrait` already exist and are free-tier. Portraits are
+  // shown on the shop profile + product cards, so a bad URL here is even
+  // more visible than a bad cover.
+  const [portraitBusy, setPortraitBusy] = useState(false);
+  const [portraitErr, setPortraitErr] = useState("");
+  const [portraitDrag, setPortraitDrag] = useState(false);
+  const [portraitLoadError, setPortraitLoadError] = useState(false);
+  const portraitRef = useRef(null);
   const isPlus = maker.subscription_status === "active";
 
   const change = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
-    // iter330b — Any edit to the cover field means the load-error hint
-    // no longer applies to the current value; clear it so the maker
-    // isn't shown a stale warning against a URL they just changed.
+    // iter330b/c — Any edit to the cover/portrait fields means the
+    // load-error hint no longer applies to the current value; clear it
+    // so the maker isn't shown a stale warning against a URL they just
+    // changed.
     if (k === "cover") setCoverLoadError(false);
+    if (k === "portrait") setPortraitLoadError(false);
   };
 
   const onBannerFile = async (e) => {
@@ -91,6 +103,30 @@ export default function ProfileForm({ maker, onSaved }) {
     } finally {
       setCoverBusy(false);
       if (coverRef.current) coverRef.current.value = "";
+    }
+  };
+
+  // iter330c — Portrait upload handler. Mirrors onCoverFile but writes
+  // to the `portrait` field (square headshot). Backend enforces the
+  // same 10 MB / png|jpg|webp constraints as cover.
+  const onPortraitFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      setPortraitErr("Portrait must be an image."); return;
+    }
+    setPortraitErr("");
+    setPortraitLoadError(false);
+    setPortraitBusy(true);
+    try {
+      const { url } = await uploadMakerPortrait(f);
+      setForm((prev) => ({ ...prev, portrait: url }));
+      onSaved({ ...maker, portrait: url });
+    } catch (e2) {
+      setPortraitErr(e2?.response?.data?.detail || "Upload failed.");
+    } finally {
+      setPortraitBusy(false);
+      if (portraitRef.current) portraitRef.current.value = "";
     }
   };
 
@@ -163,13 +199,99 @@ export default function ProfileForm({ maker, onSaved }) {
         testId="profile-machinery"
         wide
       />
-      <Field
-        label="Portrait image URL"
-        value={form.portrait}
-        onChange={change("portrait")}
-        testId="profile-portrait"
-        wide
-      />
+      {/* iter330c — Portrait photo: same upload + URL fallback pattern
+          as Cover. Portrait is a square headshot shown in the maker
+          directory + product cards, so we render a small square preview
+          instead of the 4:1 hero. */}
+      <div className="md:col-span-2" data-testid="profile-portrait-section">
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+          Portrait photo
+        </div>
+        <div className="flex items-start gap-4">
+          {form.portrait && !portraitLoadError && (
+            <div className="w-24 h-24 shrink-0 overflow-hidden border border-line bg-surface">
+              <img
+                src={form.portrait}
+                alt="Maker portrait"
+                className="w-full h-full object-cover"
+                data-testid="profile-portrait-preview"
+                onLoad={() => setPortraitLoadError(false)}
+                onError={() => setPortraitLoadError(true)}
+              />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <input
+              ref={portraitRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={onPortraitFile}
+              disabled={portraitBusy}
+              className="hidden"
+              data-testid="profile-portrait-file"
+            />
+            <div
+              onDragOver={(e) => { if (!portraitBusy) { e.preventDefault(); setPortraitDrag(true); } }}
+              onDragLeave={() => setPortraitDrag(false)}
+              onDrop={(e) => {
+                if (portraitBusy) return;
+                e.preventDefault();
+                setPortraitDrag(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) onPortraitFile({ target: { files: [f] } });
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => portraitRef.current?.click()}
+                disabled={portraitBusy}
+                className={`w-full border border-dashed px-4 py-3 text-left font-mono text-[11px] transition ${
+                  portraitDrag
+                    ? "border-brand text-brand bg-brand/5"
+                    : "border-line hover:border-brand text-ink-muted hover:text-brand"
+                }`}
+                data-testid="profile-portrait-upload"
+              >
+                {portraitBusy
+                  ? "Uploading…"
+                  : portraitDrag
+                  ? "↓ Release to upload"
+                  : form.portrait
+                  ? "↻ Drop or click to replace portrait"
+                  : "+ Drop or click to upload portrait (square headshot, JPG/PNG/WebP, ≤10 MB)"}
+              </button>
+            </div>
+            {portraitErr && (
+              <p className="font-mono text-[10px] text-red-400 mt-1" data-testid="profile-portrait-err">{portraitErr}</p>
+            )}
+          </div>
+        </div>
+        {form.portrait && portraitLoadError && (
+          <div
+            className="border border-dashed border-red-400/60 bg-red-400/5 px-3 py-2 mt-2 font-mono text-[10px] text-red-400"
+            data-testid="profile-portrait-load-error"
+          >
+            <strong className="uppercase tracking-[0.16em]">Image couldn&apos;t load.</strong>{" "}
+            Google Drive / Dropbox / Instagram share links don&apos;t work here — they
+            return an HTML page, not the image. Upload the file directly using the
+            button above, or paste a URL that ends in <code>.jpg</code>, <code>.png</code>,
+            or <code>.webp</code>.
+          </div>
+        )}
+        <label className="block mt-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+            or paste a direct image URL
+          </span>
+          <input
+            type="text"
+            value={form.portrait}
+            onChange={change("portrait")}
+            placeholder="https://…"
+            className="mt-1 w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs text-ink transition"
+            data-testid="profile-portrait"
+          />
+        </label>
+      </div>
       {/* iter330 — Cover photo: file upload + URL fallback. The upload
           button writes an R2 URL into form.cover (also persisted server-
           side immediately). Power users can still paste a direct image
