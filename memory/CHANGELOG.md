@@ -1,3 +1,47 @@
+## 2026-07-02 — iter330: Free-tier shop cover-photo upload
+
+### Motivation
+
+Live founder Rayanne (Fly Flowers and Finery) pasted a cover-photo
+URL that wasn't a directly-hostable image (Google Drive share link
+or similar) and asked "can I upload from my computer like I did for
+the listing?" Same friction likely to hit every non-technical maker.
+
+### Fix
+
+Backend endpoint `POST /api/maker/uploads/cover` and frontend helper
+`uploadMakerCover(file)` already existed but were never wired into
+the Profile form UI. Added a drag-drop + click upload block to
+`ProfileForm.jsx` that mirrors the Plus-only banner uploader
+(unchanged) but writes to the free-tier `makers.cover` field via
+the pre-existing endpoint. Kept the URL text field as a power-user
+fallback below the uploader.
+
+### Test coverage
+
+- **Backend** (5/5 pytest): happy PNG upload, non-image rejection,
+  empty-file rejection, >10 MB rejection, auth required.
+- **Frontend** (100% assertions): file-picker upload switches
+  button label to 'Uploading…' → success; URL field populated with
+  the R2 cdn URL; preview `<img>` renders; URL-fallback save
+  persists via PATCH /api/maker/profile.
+- **Regression:** Plus-only banner uploader still gates on
+  `subscription_status='active'` for non-Plus makers.
+
+### Files touched
+
+- `/app/frontend/src/pages/MakerDashboard/ProfileForm.jsx`
+  — new import, state (coverBusy/coverErr/coverDrag/coverRef),
+  `onCoverFile` handler, and drag-drop/click upload UI block.
+- `/app/backend/tests/test_maker_cover_upload.py` (new · by
+  testing agent).
+
+### Production redeploy
+
+**Required.** Fix lives in Preview only — user must redeploy
+craftersmarket.org for Rayanne and other founders to see it.
+
+
 ## 2026-07-02 — iter329: Approved-Makers promote-to-Founder fix
 
 ### Bug
