@@ -1,3 +1,49 @@
+## 2026-07-02 — Founder counter no longer burns slots on re-promote
+
+### Bug
+
+`founders.py:admin_promote` and `admin.py:approve` both incremented
+`platform_meta.founder_counter` unconditionally, THEN reused the
+maker's existing `founder_number` if present. Effect: every re-promote
+(demote/re-promote QA loops, duplicate approvals, deleted test
+accounts, tier-change round-trips) burned a counter slot.
+
+Live production evidence: activity ticker announced founders #20, #21,
+#23–27, #29, #31, #33 but none of those numbers appeared in
+`/api/founders/list`. Real founder count 25 but `founder_counter` had
+crept to 36 → 11 orphaned slots and a skippy public ticker sequence.
+
+### Fix (`iter326b`)
+
+Reordered the read-then-write:
+
+1. First: `existing_number = maker.get("founder_number")`
+2. Only if unset: `find_one_and_update({key: 'founder_counter'}, {$inc: 1})`
+3. Re-promotes reuse their existing number without touching the counter.
+
+Two files:
+- `/app/backend/routers/founders.py` — `admin_promote` handler.
+- `/app/backend/routers/admin.py` — the auto-promote-on-approval block
+  inside the application approval flow.
+
+### Regression tests
+
+`/app/backend/tests/test_iter326b_founder_counter_no_burn.py` (3 tests):
+
+- First-time promote bumps counter exactly once.
+- Three consecutive re-promotes leave the counter untouched (the bug).
+- Sequential fresh promotes are gap-free (501, 502, 503).
+
+Broader suite: `test_iter325_founders_hardening`, `test_iter326_founder_number_repair`, and `test_iter326b_founder_counter_no_burn` → **9/9 pass**.
+
+### Also in this pass
+
+Fixed the "live counter is stale" bug reported alongside — see the
+prior CHANGELOG entry re: `FounderSlotCounter` / `FoundersWall` now
+polling every 60s + revalidating on tab focus + `Cache-Control:
+no-store` on `/api/founders/slots` and `/api/founders/list`.
+
+
 ## 2026-07-01 — Admin dashboard: "Policy crawl health" card
 
 Surfaced the policy-publish notification pipeline in the existing admin

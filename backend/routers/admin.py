@@ -1642,27 +1642,27 @@ async def admin_decide_application(
                     else (now_dt + timedelta(days=FOUNDER_WINDOW_DAYS)).isoformat()
                 )
                 grace = (now_dt + timedelta(days=FOUNDER_GRACE_DAYS)).isoformat()
-                counter = await db.platform_meta.find_one_and_update(
-                    {"key": "founder_counter"},
-                    {"$inc": {"value": 1}},
-                    upsert=True,
-                    return_document=True,
-                )
-                number = int((counter or {}).get("value") or 1)
-                # iter325 — Reuse any pre-existing founder_number on this
-                # maker so re-running approval (or a future demote/re-
-                # promote) doesn't burn through the monotonic counter and
-                # inflate the apparent applicant count. Mirrors the same
-                # guard in founders.py:174. Currently this code path only
-                # runs for freshly-inserted makers (existing is None just
-                # above), so the guard is defensive — protects against
-                # future refactoring that might call this block on an
-                # already-promoted maker.
+                # iter326 — Only bump `founder_counter` when the maker
+                # actually needs a new number. Mirrors the same guard in
+                # `founders.py:promote_founder`. This code path currently
+                # only runs for freshly-inserted makers (see the
+                # `if not existing:` check above), but the guard also
+                # protects against future refactoring that might reach
+                # here on an already-promoted maker — reusing the number
+                # then would otherwise burn a counter slot silently.
                 fresh_maker = await db.makers.find_one(
                     {"slug": slug}, {"_id": 0, "founder_number": 1}
                 )
                 if fresh_maker and fresh_maker.get("founder_number"):
                     number = int(fresh_maker["founder_number"])
+                else:
+                    counter = await db.platform_meta.find_one_and_update(
+                        {"key": "founder_counter"},
+                        {"$inc": {"value": 1}},
+                        upsert=True,
+                        return_document=True,
+                    )
+                    number = int((counter or {}).get("value") or 1)
                 await db.makers.update_one(
                     {"slug": slug},
                     {"$set": {

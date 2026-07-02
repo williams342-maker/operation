@@ -168,18 +168,29 @@ async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
 
     # Assign a stable Founder number — monotonically increasing, never
     # reused even after expiry, so each Founder owns their digit forever.
-    counter_doc = await db.platform_meta.find_one_and_update(
-        {"key": "founder_counter"},
-        {"$inc": {"value": 1}},
-        upsert=True,
-        return_document=True,
-    )
-    founder_number = int((counter_doc or {}).get("value") or 1)
-
-    # Re-use any pre-existing founder_number on this maker so re-promoting
-    # someone (e.g. demote/re-promote during admin testing) doesn't burn
-    # through the monotonic counter and inflate the apparent applicant count.
-    final_number = maker.get("founder_number") or founder_number
+    #
+    # iter326 — Only bump `founder_counter` when the maker actually needs
+    # a new number. Previously we always bumped and then reused the
+    # existing number, which burned counter values on every re-promote
+    # (demote/re-promote loops during admin QA, deleted test accounts,
+    # duplicate approvals). The result was gaps in the announced sequence
+    # (#20, #21, #23–27, #29, #31, #33 all announced but never rendered
+    # on the wall). Read-then-write ordering is safe because the
+    # promote-founder handler is admin-only and low-frequency (dozens
+    # of calls per week, not per second) — the tiny race window between
+    # read and the atomic $inc cannot produce a duplicate number since
+    # the $inc is still atomic on the winning writer.
+    existing_number = maker.get("founder_number")
+    if existing_number:
+        final_number = int(existing_number)
+    else:
+        counter_doc = await db.platform_meta.find_one_and_update(
+            {"key": "founder_counter"},
+            {"$inc": {"value": 1}},
+            upsert=True,
+            return_document=True,
+        )
+        final_number = int((counter_doc or {}).get("value") or 1)
     update = {
         "tier": "founder",
         "founder_status": status,
