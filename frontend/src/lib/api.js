@@ -1529,6 +1529,12 @@ export const fetchHomepageRotationPreview = () =>
   http.get("/admin/homepage-rotation/preview", {
     headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
   }).then((r) => r.data);
+// iter331c — Rotation audit trail: last N period selections + refill events.
+export const fetchHomepageRotationLedger = (limit = 24) =>
+  http.get("/admin/homepage-rotation/ledger", {
+    params: { limit },
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
 
 
 // Marketplace velocity stats — powers the homepage "is this place alive?"

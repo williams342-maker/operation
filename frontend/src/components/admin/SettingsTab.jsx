@@ -41,6 +41,7 @@ import {
   fetchHomepageRotationConfig,
   updateHomepageRotationConfig,
   fetchHomepageRotationPreview,
+  fetchHomepageRotationLedger,
   // iter220 — Rotating hero headlines pool
   adminListHeroHeadlines,
   adminRefreshHeroHeadlines,
@@ -5921,6 +5922,7 @@ function CaptionEditorPanel({ row }) {
 function HomepageRotationCard() {
   const [cfg, setCfg] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [ledger, setLedger] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [excludeInput, setExcludeInput] = useState("");
@@ -5929,12 +5931,14 @@ function HomepageRotationCard() {
     setBusy(true);
     setErr("");
     try {
-      const [c, p] = await Promise.all([
+      const [c, p, l] = await Promise.all([
         fetchHomepageRotationConfig(),
         fetchHomepageRotationPreview(),
+        fetchHomepageRotationLedger(12).catch(() => ({ items: [] })),
       ]);
       setCfg(c);
       setPreview(p);
+      setLedger(l?.items || []);
       setExcludeInput((c.excluded_slugs || []).join(", "));
     } catch (e) {
       setErr(e?.response?.data?.detail || "Failed to load rotation config.");
@@ -6125,6 +6129,54 @@ function HomepageRotationCard() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* iter331c — Eligibility criteria (documentation surface). If a
+          maker asks "why aren't I featured?", this is the answer. */}
+      <div className="border-t border-line pt-4" data-testid="homepage-rotation-eligibility-docs">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
+          Eligibility criteria
+        </div>
+        <ul className="font-mono text-[11px] text-ink-muted space-y-1 leading-relaxed">
+          <li>✓ Present in makers table (approved)</li>
+          <li>✓ Not soft-deleted, shop not closed, not on vacation, not pending deletion</li>
+          <li>✓ Public slug (test / beta prefixes excluded)</li>
+          <li>✓ Bio filled in</li>
+          <li>✓ Portrait image set</li>
+          <li>✓ At least one published, non-deleted product</li>
+          <li>✓ Not in admin exclusion list above</li>
+        </ul>
+      </div>
+
+      {/* iter331c — Rotation audit trail. Persistent per-period record. */}
+      {ledger.length > 0 && (
+        <div className="border-t border-line pt-4" data-testid="homepage-rotation-ledger">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
+            Rotation ledger ({ledger.length} events)
+          </div>
+          <div className="max-h-80 overflow-y-auto space-y-1.5">
+            {ledger.map((row, i) => (
+              <div
+                key={`${row.period_key}-${i}`}
+                className="border border-line px-3 py-2 font-mono text-[10px]"
+                data-testid={`homepage-rotation-ledger-row-${i}`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-ink">{row.period_key}</span>
+                  <span className="text-ink-muted">
+                    {new Date(row.generated_at).toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-ink-muted mb-1">
+                  {(row.featured_slugs || []).join(" · ") || "—"}
+                </div>
+                <div className="text-ink-muted italic">
+                  {row.reason} · eligible={row.eligible_count}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

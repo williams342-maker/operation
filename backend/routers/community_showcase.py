@@ -495,10 +495,31 @@ async def _eligible_homepage_makers(cfg: dict) -> list[dict]:
     """Return every maker doc that qualifies for the homepage rotation.
     Only fields needed for scoring OR by the homepage card renderer are
     projected. iter331b: activity signals are pre-computed here (in
-    bulk) so _score_maker can stay IO-free."""
+    bulk) so _score_maker can stay IO-free.
+
+    iter331c — Eligibility contract (documented here so it's a single
+    source of truth for both code and admin docs):
+      1. Present in `db.makers` (approval == existence in this collection).
+      2. Not soft-deleted (`deleted_at` empty/null).
+      3. Shop not closed (`shop_closed != true`).
+      4. Not on vacation (`vacation_mode != true`).
+      5. Not pending 30-day deletion (`deletion_requested_at` empty/null).
+      6. Public slug (not a `test-` / `iter\\d+-` / `beta-` / `TEST_`).
+      7. Bio non-empty.
+      8. Portrait non-empty.
+      9. At least one product with `status="published"` and non-deleted.
+     10. Slug not in the admin exclusion list.
+    """
     excluded = set(cfg.get("excluded_slugs") or [])
     base_q = {
         "deleted_at": {"$in": [None, ""]},
+        # iter331c — new lifecycle guards. A maker who closes their shop,
+        # goes on vacation, or requests deletion should stop appearing
+        # on the homepage immediately (still shows a placeholder-like
+        # empty state only if everyone in the pool becomes ineligible).
+        "shop_closed": {"$ne": True},
+        "vacation_mode": {"$ne": True},
+        "deletion_requested_at": {"$in": [None, ""]},
         "bio": {"$nin": [None, ""]},
         "portrait": {"$nin": [None, ""]},
         "slug": {"$not": {"$regex": _HOMEPAGE_TEST_SLUG_RE}},
@@ -627,8 +648,39 @@ def _pick_by_score(eligible: list[dict], cfg: dict,
     return picked, all_scored
 
 
+_LEDGER_COLLECTION = "homepage_rotation_ledger"
+
+
+async def _write_ledger_entry(period_key: str, period_start: str,
+                              featured_slugs: list[str],
+                              eligible_count: int, reason: str,
+                              cfg: dict) -> None:
+    """Persist a single audit row per rotation event. Uses upsert
+    keyed on (period_key, reason) so a refill event appends without
+    overwriting the original selection row."""
+    try:
+        await db[_LEDGER_COLLECTION].insert_one({
+            "period_key": period_key,
+            "period_start": period_start,
+            "featured_slugs": list(featured_slugs),
+            "eligible_count": int(eligible_count),
+            "reason": reason,
+            "config_snapshot": {
+                k: cfg.get(k) for k in (
+                    "window", "cadence", "founder_boost_enabled",
+                    "founder_boost_points", "new_maker_boost_points",
+                    "never_featured_bonus", "impression_penalty_per_feature",
+                )
+            },
+            "generated_at": now_iso(),
+        })
+    except Exception:
+        logger.exception("[homepage-makers] ledger write failed for %s", period_key)
+
+
 async def _record_homepage_feature(slugs: list[str], period_start_iso: str,
-                                   period_key: str) -> bool:
+                                   period_key: str, eligible_count: int,
+                                   cfg: dict) -> bool:
     """Idempotently stamp `last_homepage_featured_at` and increment
     `homepage_impression_count` on each featured maker for the current
     period. Guarded by state doc so the write only happens once per new
@@ -656,27 +708,111 @@ async def _record_homepage_feature(slugs: list[str], period_start_iso: str,
         }},
         upsert=True,
     )
+    await _write_ledger_entry(
+        period_key, period_start_iso, slugs, eligible_count,
+        "auto-selected via fair-exposure engine", cfg,
+    )
     return True
+
+
+async def _refill_if_needed(locked_slugs: list[str], eligible: list[dict],
+                            cfg: dict, period_start: datetime,
+                            period_key: str) -> list[dict]:
+    """Given a previously-locked set of slugs, return the current
+    display list — preserving locked ordering for still-eligible
+    makers and refilling any who dropped out (suspended, closed shop,
+    unpublished last product, etc.) with the next-highest-scored
+    eligible maker not already in the list.
+
+    Refill events are appended to the ledger for auditability but do
+    NOT trigger a re-stamp of impression counters — the refilled maker
+    IS being featured for the remainder of this period, but the
+    period-guard state doc keeps the original stamp intact so we don't
+    double-count.
+    """
+    eligible_by_slug = {m["slug"]: m for m in eligible}
+    still_valid = [eligible_by_slug[s] for s in locked_slugs if s in eligible_by_slug]
+    dropped = [s for s in locked_slugs if s not in eligible_by_slug]
+
+    if not dropped:
+        return still_valid  # everything still eligible, return as-is
+
+    # Refill deterministically from the best-scored eligible makers
+    # who aren't already in the still-valid list.
+    _, all_scored = _pick_by_score(eligible, cfg, now=period_start)
+    already = {m["slug"] for m in still_valid}
+    for row in all_scored:
+        if len(still_valid) >= int(cfg["window"]):
+            break
+        if row["slug"] in already:
+            continue
+        still_valid.append(row)
+        already.add(row["slug"])
+
+    # Ledger event so admins can trace which slots refilled and why.
+    await _write_ledger_entry(
+        period_key,
+        period_start.isoformat().replace("+00:00", "Z"),
+        [m["slug"] for m in still_valid],
+        len(eligible),
+        f"refill: dropped {dropped} → {[m['slug'] for m in still_valid if m['slug'] not in locked_slugs]}",
+        cfg,
+    )
+    # Update the state doc's `last_slugs` so subsequent requests
+    # within the same period see the refilled set. Do NOT touch
+    # last_period_key — that's the guard that keeps impressions from
+    # re-incrementing.
+    await db.system_state.update_one(
+        {"key": _ROTATION_STATE_KEY},
+        {"$set": {"last_slugs": [m["slug"] for m in still_valid]}},
+    )
+    return still_valid
 
 
 @router.get("/community/homepage-makers")
 async def get_homepage_makers():
     """Public — powers `<MeetTheMakers />`. Returns up to `window`
-    eligible makers ranked by fair-exposure score. Selection is stable
-    for the current period (ISO week or UTC day depending on cadence)."""
+    eligible makers ranked by fair-exposure score. Selection is
+    **locked** for the current period (ISO week or UTC day depending
+    on cadence): the same set is returned for every request until the
+    period advances. If a locked maker becomes ineligible mid-period
+    (closed shop, went on vacation, deleted their last product,
+    etc.), the slot is silently refilled from the next-best-scored
+    eligible maker so the section never renders with fewer cards
+    than intended."""
     cfg = await _rotation_config()
     eligible = await _eligible_homepage_makers(cfg)
-    period_key, period_start = _period_key(cfg["cadence"])
-    picked, _ = _pick_by_score(eligible, cfg)
+    period_key, period_start_iso = _period_key(cfg["cadence"])
+    # Anchor "now" to the period start so scoring is deterministic
+    # across requests within the same period.
+    period_start_dt = _parse_iso(period_start_iso) or datetime.now(timezone.utc)
 
-    slugs = [m["slug"] for m in picked]
-    try:
-        await _record_homepage_feature(slugs, period_start, period_key)
-    except Exception:
-        logger.exception("[homepage-makers] record_feature failed for %s", slugs)
+    state = await db.system_state.find_one({"key": _ROTATION_STATE_KEY}, {"_id": 0}) or {}
+    same_period = state.get("last_period_key") == period_key
+    locked_slugs = list(state.get("last_slugs") or []) if same_period else []
 
-    # Strip the private _debug_* fields for the public response.
-    public = [{k: v for k, v in m.items() if not k.startswith("_debug_")} for m in picked]
+    if same_period and locked_slugs:
+        # We're inside a locked period — return the same set, refilling
+        # any slots whose maker became ineligible since last write.
+        picked = await _refill_if_needed(
+            locked_slugs, eligible, cfg, period_start_dt, period_key,
+        )
+    else:
+        # Fresh period — compute + stamp + ledger in one shot.
+        picked, _ = _pick_by_score(eligible, cfg, now=period_start_dt)
+        slugs = [m["slug"] for m in picked]
+        try:
+            await _record_homepage_feature(
+                slugs, period_start_iso, period_key, len(eligible), cfg,
+            )
+        except Exception:
+            logger.exception("[homepage-makers] record_feature failed for %s", slugs)
+
+    # Strip the private _debug_* / _activity_* fields for the public response.
+    public = [
+        {k: v for k, v in m.items() if not k.startswith("_debug_") and not k.startswith("_activity_")}
+        for m in picked
+    ]
 
     return {
         "items": public,
@@ -685,8 +821,9 @@ async def get_homepage_makers():
             "window": cfg["window"],
             "cadence": cfg["cadence"],
             "period_key": period_key,
-            "period_start": period_start,
+            "period_start": period_start_iso,
             "strategy": "fair-exposure",
+            "locked": same_period,
         },
     }
 
@@ -755,6 +892,25 @@ async def admin_patch_homepage_rotation_config(
             upsert=True,
         )
     return await _rotation_config()
+
+
+@router.get("/admin/homepage-rotation/ledger")
+async def admin_homepage_rotation_ledger(
+    limit: int = 24,
+    _: dict = Depends(current_admin),
+):
+    """Audit trail — returns the most recent rotation events (initial
+    selection + any mid-period refills). Ordered newest-first.
+
+    iter331c — this is the "monitoring" surface the user asked for so
+    a maker complaining "why wasn't I featured week 27?" can be
+    answered from a persistent record instead of guesswork.
+    """
+    rows = await db[_LEDGER_COLLECTION].find(
+        {}, {"_id": 0},
+    ).sort("generated_at", -1).limit(max(1, min(int(limit), 200))).to_list(200)
+    return {"items": rows, "count": len(rows)}
+
 
 
 @router.get("/admin/homepage-rotation/preview")

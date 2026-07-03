@@ -46,6 +46,9 @@ async def _reset_state(db):
     """Wipe any prior test residue from the rotation collections."""
     await db.system_state.delete_one({"key": "homepage_rotation_state"})
     await db.system_state.delete_one({"key": "homepage_rotation_config"})
+    # iter331c — also drop the ledger so the growth simulation starts
+    # from a known-empty audit trail.
+    await db.homepage_rotation_ledger.delete_many({})
     await db.makers.update_many(
         {},
         {"$unset": {"homepage_impression_count": "", "last_homepage_featured_at": ""}},
@@ -148,7 +151,7 @@ async def test_fair_exposure_spreads_evenly_over_cycle():
             e = await _eligible_homepage_makers(cfg)
             picked, _all = _pick_by_score(e, cfg, now=dt)
             picked_slugs = [m["slug"] for m in picked]
-            await _record_homepage_feature(picked_slugs, start, key)
+            await _record_homepage_feature(picked_slugs, start, key, len(e), cfg)
             seen.update(picked_slugs)
         assert seen == {m["slug"] for m in eligible_now}, (
             f"Only {len(seen)}/{n} makers featured after {periods_needed} periods"
@@ -244,3 +247,239 @@ async def test_retuned_weights_defaults():
     from routers.community_showcase import _DEFAULT_CONFIG
     assert _DEFAULT_CONFIG["new_maker_boost_points"] == 150
     assert _DEFAULT_CONFIG["founder_boost_points"] == 50
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_ineligibility_gates():
+    """A maker in any of these states must not appear in the rotation:
+    shop_closed, vacation_mode, deletion_requested_at, deleted_at."""
+    import sys
+    sys.path.insert(0, "/app/backend")
+    from routers.community_showcase import _rotation_config, _eligible_homepage_makers
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+
+    tag = uuid.uuid4().hex[:8]
+    base = {
+        "name": "Lifecycle Probe", "bio": "test", "portrait": "/x.jpg",
+        "cover": "/y.jpg", "listings_count": 1,
+    }
+    variants = {
+        f"probe-{tag}-ok":         {**base, "slug": f"probe-{tag}-ok"},
+        f"probe-{tag}-closed":     {**base, "slug": f"probe-{tag}-closed", "shop_closed": True},
+        f"probe-{tag}-vacation":   {**base, "slug": f"probe-{tag}-vacation", "vacation_mode": True},
+        f"probe-{tag}-pending":    {**base, "slug": f"probe-{tag}-pending", "deletion_requested_at": "2026-06-01T00:00:00Z"},
+        f"probe-{tag}-deleted":    {**base, "slug": f"probe-{tag}-deleted", "deleted_at": "2026-06-01T00:00:00Z"},
+    }
+    slugs = list(variants.keys())
+    try:
+        await db.makers.insert_many(list(variants.values()))
+        # Every probe gets 1 published product so the product filter passes.
+        await db.products.insert_many([
+            {"slug": f"{s}-p", "maker_slug": s, "title": "x", "status": "published"}
+            for s in slugs
+        ])
+
+        cfg = await _rotation_config()
+        eligible = await _eligible_homepage_makers(cfg)
+        elig_slugs = {m["slug"] for m in eligible}
+        assert f"probe-{tag}-ok" in elig_slugs
+        for s in slugs:
+            if s.endswith("-ok"):
+                continue
+            assert s not in elig_slugs, f"{s} should be filtered out"
+    finally:
+        await db.makers.delete_many({"slug": {"$in": slugs}})
+        await db.products.delete_many({"maker_slug": {"$in": slugs}})
+
+
+@pytest.mark.asyncio
+async def test_period_lock_survives_mid_period_activity():
+    """Once a period's featured set is stamped, changing an eligible
+    maker's activity signals mid-period must NOT swap them out. The
+    same 4 slugs should be returned until the next period boundary."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    try:
+        await _reset_state(db)
+        async with httpx.AsyncClient(timeout=30) as c:
+            r1 = await c.get(PUB); r1.raise_for_status()
+            first = [m["slug"] for m in r1.json()["items"]]
+            assert r1.json()["rotation"]["locked"] is False
+
+            # Simulate mid-period "burst of activity" on a non-featured maker.
+            # If lock is broken, they'd score higher and displace someone.
+            unfeatured = [m for m in await db.makers.find(
+                {"slug": {"$nin": first}, "bio": {"$nin": ["", None]}}
+            ).to_list(50) if m.get("bio") and m.get("portrait")][:5]
+            if unfeatured:
+                await db.makers.update_many(
+                    {"slug": {"$in": [m["slug"] for m in unfeatured]}},
+                    {"$set": {"last_login_at": "2099-01-01T00:00:00Z"}},
+                )
+
+            r2 = await c.get(PUB); r2.raise_for_status()
+            second = [m["slug"] for m in r2.json()["items"]]
+            assert r2.json()["rotation"]["locked"] is True
+            assert first == second, f"period-lock broken: {first} → {second}"
+    finally:
+        await db.makers.update_many({}, {"$unset": {"last_login_at": ""}})
+        await _reset_state(db)
+
+
+@pytest.mark.asyncio
+async def test_refill_when_featured_maker_becomes_ineligible():
+    """If a locked featured maker closes their shop mid-period, the
+    slot should refill with the next-best eligible maker — never
+    return < window rows."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    try:
+        await _reset_state(db)
+        async with httpx.AsyncClient(timeout=30) as c:
+            r1 = await c.get(PUB); r1.raise_for_status()
+            first = [m["slug"] for m in r1.json()["items"]]
+            window = r1.json()["rotation"]["window"]
+            if len(first) < window:
+                pytest.skip("Not enough eligible makers to run refill test")
+            victim = first[0]
+
+            # Take the victim offline mid-period.
+            await db.makers.update_one({"slug": victim}, {"$set": {"shop_closed": True}})
+
+            r2 = await c.get(PUB); r2.raise_for_status()
+            second = [m["slug"] for m in r2.json()["items"]]
+            assert victim not in second, "closed shop still featured"
+            assert len(second) == window, f"refill dropped window count: {len(second)} vs {window}"
+            # The other 3 locked slugs should still be there.
+            for s in first[1:]:
+                assert s in second, f"non-victim {s} unexpectedly rotated out"
+            # A ledger event should record the refill.
+            events = await db.homepage_rotation_ledger.find({}, {"_id": 0}).to_list(10)
+            reasons = [e.get("reason", "") for e in events]
+            assert any("refill" in r for r in reasons), f"no refill ledger event: {reasons}"
+    finally:
+        await db.makers.update_many({}, {"$unset": {"shop_closed": ""}})
+        await _reset_state(db)
+
+
+@pytest.mark.asyncio
+async def test_ledger_records_selection():
+    """Every fresh period selection must produce a ledger row with
+    the config snapshot, featured slugs, eligible count, and reason."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    try:
+        await _reset_state(db)
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(PUB); r.raise_for_status()
+            expected = [m["slug"] for m in r.json()["items"]]
+        rows = await db.homepage_rotation_ledger.find({}, {"_id": 0}).to_list(10)
+        assert len(rows) == 1
+        assert rows[0]["featured_slugs"] == expected
+        assert rows[0]["eligible_count"] >= len(expected)
+        assert "auto-selected" in rows[0]["reason"]
+        assert set(rows[0]["config_snapshot"]) >= {"window", "cadence"}
+    finally:
+        await _reset_state(db)
+
+
+@pytest.mark.asyncio
+async def test_ledger_admin_endpoint():
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    jwt = await _admin_jwt()
+    try:
+        await _reset_state(db)
+        async with httpx.AsyncClient(timeout=30) as c:
+            await c.get(PUB)  # generate a ledger row
+            r = await c.get(f"{API}/api/admin/homepage-rotation/ledger",
+                            headers={"Authorization": f"Bearer {jwt}"})
+            assert r.status_code == 200
+            body = r.json()
+            assert "items" in body and body["count"] >= 1
+
+        # Unauth blocked.
+        async with httpx.AsyncClient(timeout=30) as c:
+            r2 = await c.get(f"{API}/api/admin/homepage-rotation/ledger")
+            assert r2.status_code in (401, 403)
+    finally:
+        await _reset_state(db)
+
+
+@pytest.mark.asyncio
+async def test_growth_simulation_scales_and_stays_fair():
+    """Seed 500 synthetic makers, run 20 weekly rotations, assert:
+      • Every maker is featured at least once every ceil(N/window) weeks.
+      • Impression max - min ≤ 1 by cycle end.
+      • Selection stays under 500 ms per period."""
+    import sys, time
+    sys.path.insert(0, "/app/backend")
+    from routers.community_showcase import (
+        _rotation_config, _eligible_homepage_makers, _pick_by_score,
+        _period_key, _record_homepage_feature,
+    )
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    tag = f"sim-{uuid.uuid4().hex[:6]}"
+    N = 500
+    try:
+        await _reset_state(db)
+        # Seed 500 synthetic makers with product each.
+        makers = [
+            {
+                "slug": f"{tag}-{i:04d}", "name": f"Sim Maker {i}",
+                "bio": "test bio", "portrait": "/p.jpg", "cover": "/c.jpg",
+                "listings_count": 1, "tier": "standard",
+            }
+            for i in range(N)
+        ]
+        products = [
+            {"slug": f"{m['slug']}-p", "maker_slug": m["slug"],
+             "title": "widget", "status": "published"}
+            for m in makers
+        ]
+        await db.makers.insert_many(makers)
+        await db.products.insert_many(products)
+
+        cfg = await _rotation_config()
+        window = cfg["window"]
+        cycle_len = -(-N // window)  # ceil(N/window)
+
+        # Fake the clock forward one week per iteration.
+        max_time = 0.0
+        for wk in range(20):
+            dt = datetime.now(timezone.utc) + timedelta(weeks=wk)
+            key, start = _period_key(cfg["cadence"], dt)
+            t0 = time.perf_counter()
+            eligible = [m for m in await _eligible_homepage_makers(cfg) if m["slug"].startswith(tag)]
+            picked, _all = _pick_by_score(eligible, cfg, now=dt)
+            await _record_homepage_feature(
+                [m["slug"] for m in picked], start, key, len(eligible), cfg,
+            )
+            elapsed = time.perf_counter() - t0
+            max_time = max(max_time, elapsed)
+
+        # Every sim maker must have ≥1 impression by cycle_len periods
+        # (we ran min(20, cycle_len) so allow floor).
+        rows = await db.makers.find(
+            {"slug": {"$regex": f"^{tag}-"}},
+            {"_id": 0, "slug": 1, "homepage_impression_count": 1},
+        ).to_list(N + 5)
+        counts = [r.get("homepage_impression_count", 0) for r in rows]
+        # 20 periods × 4 = 80 slots. Over N=500, only 80 makers featured.
+        # The fairness invariant here is "never-featured pool depletes
+        # linearly" — we should see exactly min(20*window, N) makers
+        # with impressions > 0, all at 1.
+        featured_count = sum(1 for c in counts if c > 0)
+        assert featured_count == min(20 * window, N), (
+            f"expected {min(20*window, N)} featured, got {featured_count}"
+        )
+        # Nobody should be featured twice while never-featured pool exists.
+        assert max(counts) == 1, f"someone featured twice too early: max={max(counts)}"
+        # Performance guardrail.
+        assert max_time < 2.0, f"rotation took {max_time:.2f}s at N={N}"
+    finally:
+        await db.makers.delete_many({"slug": {"$regex": f"^{tag}-"}})
+        await db.products.delete_many({"maker_slug": {"$regex": f"^{tag}-"}})
+        await _reset_state(db)

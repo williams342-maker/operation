@@ -1,0 +1,40 @@
+{
+  "summary": "iter331c — Homepage rotation foundation lockdown tested end-to-end (backend + frontend). Backend: full 14/14 pytest suite (test_iter331_homepage_rotation.py) passes including growth simulation (500 makers · 20 rotations · <2s per rotation guardrail). Wrote 3 additional review-level tests in test_iter331c_review.py (ledger limit query param, byte-deterministic locked GET, unauth ledger endpoint) — 3/3 pass. Frontend: /admin/dashboard?tab=settings renders homepage-rotation-card with the two NEW required blocks — homepage-rotation-eligibility-docs visible with exactly 7 <li> bullets (matches spec) and homepage-rotation-ledger visible with row 0 showing period_key=week:2026-W27, featured slugs (kiln-and-clay · loom-and-thread · iron-and-oak · anvil-row-forge), reason='auto-selected via fair-exposure engine · eligible=19'. Homepage regression: home-meet-makers renders with 4 outer maker cards whose slugs exactly match the ledger's featured_slugs. Public locked=true on repeat GETs; lock+refill+ledger persistence all verified via httpx.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter331_homepage_rotation.py",
+    "/app/backend/tests/test_iter331c_review.py",
+    "/app/test_reports/pytest/iter331c.xml",
+    "/app/test_reports/pytest/iter331c_review.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Ledger schema is well-designed: period_key + period_start + featured_slugs + eligible_count + reason + config_snapshot + created_at gives full auditability. Config snapshot ensures the ledger stays interpretable even if the operator changes window/cadence later.",
+    "The 'refill:' reason prefix convention on refill ledger rows is a small but nice hint for later filtering/monitoring. Consider adding a second reason type ('auto-selected-refill') for cleaner querying if the volume grows.",
+    "Determinism verified: two back-to-back GETs to /api/community/homepage-makers on a locked period return identical items[] and identical period_start ISO string — meets the deterministic-rotation requirement.",
+    "Eligibility gates (shop_closed, vacation_mode, deletion_requested_at, deleted_at) all correctly implemented in _eligible_homepage_makers — probe makers with each flag are filtered out; the -ok control is included.",
+    "Growth simulation at N=500: max_time observed <0.5s per rotation locally (well under the 2s guardrail). At N=1000 in main agent's manual test: 13.8ms. This scales fine to expected growth.",
+    "Frontend eligibility docs bullet list matches the actual backend filter logic 1:1 (7 criteria: makers table presence, not soft-deleted/closed/vacation/pending-deletion, public slug, bio, portrait, ≥1 published product, not in exclusion list). No drift risk."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter331c_review.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 main suite + 3/3 review-level additions)",
+    "frontend": "100% — admin card renders eligibility-docs (7 bullets) + ledger (row-0 populated with period_key + slugs + reason); homepage renders 4 outer MeetTheMakers cards matching ledger's featured_slugs"
+  },
+  "test_credentials": "Admin JWT minted via `issue_admin_magic_token(os.environ['OPS_EMAIL'])` → POST /api/admin/auth/verify. Route: /admin/dashboard?tab=settings.",
+  "seed_data_creation": "test_ledger_limit_query_param injects 6 rows with period_key='TEST-{i}' then deletes them in teardown. Growth simulation seeds/deletes 500 synthetic makers with 'sim-<hex>-' slug prefix; teardown verified. No real maker docs mutated permanently.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter331c foundation is solid. When testing the next phase (social automation / promotion engine), assume: (1) rotation ledger is the source of truth for what was featured when — read from db.homepage_rotation_ledger, not from makers.last_homepage_featured_at (which only holds the LATEST); (2) period_key format is 'week:YYYY-Www' (weekly) or 'day:YYYY-MM-DD' (daily); (3) refill ledger rows have reason starting with 'refill:' so they can be filtered separately from initial selections; (4) admin route is /admin/dashboard?tab=settings (NOT /admin?tab=settings — that 404s).",
+  "rca of the issue": "N/A — no bugs found. All acceptance criteria met on first run."
+}
