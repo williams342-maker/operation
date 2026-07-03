@@ -1,3 +1,68 @@
+## 2026-07-03 — iter331d: 9-slot Meet Our Makers (1 hero + 2 featured + 6 grid)
+
+Expanded the fair-exposure homepage rotation from a flat 4-slot list
+to a tiered 9-slot layout: **1 Hero** (cinematic top card) + **2
+Featured** (right column) + **6 Grid** (compact row).
+
+### Backend
+
+- `_DEFAULT_CONFIG`: single `window` knob split into
+  `hero_count` (1) + `featured_count` (2) + `grid_count` (6).
+  `window` auto-derived from their sum, kept as a legacy alias.
+- `_pick_by_score` tags each returned row with `position ∈ {hero, featured, grid}` based on ordinal position in the scored list.
+- `_record_homepage_feature` buckets picks by position and increments
+  a new per-tier counter `makers.homepage_position_counts.<hero|featured|grid>`
+  in addition to the aggregate `homepage_impression_count`. Enables
+  audit questions like "was maker X ever a Hero, or only Grid?"
+- Ledger rows now include `positions: {hero: [...], featured: [...], grid: [...]}` alongside the flat `featured_slugs` list.
+- `_refill_if_needed` preserves tier: a Hero going offline mid-period
+  is replaced with a new Hero (not cascaded to Grid).
+- PATCH validator accepts the 3 new count keys, rejects negatives
+  (spec-compliant), clamps per-tier upper bounds. Legacy `window` in
+  payload spreads across tiers with the 1/2/N ratio for backward compat.
+
+### Frontend
+
+- `MeetTheMakers.jsx` fully rewritten with 3 sub-components:
+  `HeroCard` (cover-image background + gradient scrim + name + location
+  + craft + short bio + View Maker CTA), `FeaturedCard` (mid-size,
+  cover on top + meta + bio blurb + CTA), `GridCard` (compact).
+- New testids for every slot: `home-meet-makers-hero-<slug>`,
+  `-featured-<slug>`, `-grid-<slug>`, each with a matching `-cta`.
+- Self-hides at 0 eligible items.
+
+### Admin UI
+
+- SettingsTab `HomepageRotationCard` replaces the single "Featured
+  slots" number with 3 knobs: `homepage-rotation-hero-count`,
+  `-featured-count`, `-grid-count`.
+
+### Verification
+
+- **Backend pytest**: 22/22 pass (16 existing + 6 new iter331d).
+- **Frontend Playwright** (testing agent iter109): 100% pass. Layout
+  renders exactly 1 hero + 2 featured + 6 grid on the correct preview
+  host with all expected content.
+- **One minor spec deviation caught + fixed**: negative tier counts
+  now correctly return 400 instead of silent-clamping to 0.
+
+### Files touched
+
+- `/app/backend/routers/community_showcase.py` — tier counts, position
+  tagging, per-tier impression counters, refill-preserves-tier, PATCH
+  validation hardening.
+- `/app/frontend/src/components/MeetTheMakers.jsx` — full rewrite.
+- `/app/frontend/src/components/admin/SettingsTab.jsx` — split knobs.
+- `/app/backend/tests/test_iter331_homepage_rotation.py` — 2 new
+  cases (position tagging, per-tier counters).
+- `/app/backend/tests/test_iter331d_positions.py` (new · by testing
+  agent · 6 more cases).
+
+### Production redeploy
+
+**Same batch as iter331/331b/331c.** One redeploy pushes all four
+iterations at once.
+
 ## 2026-07-03 — iter331c: Foundation lockdown (period lock + refill + ledger)
 
 Priorities-first hardening pass before any social/promotion features

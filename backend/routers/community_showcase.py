@@ -935,9 +935,12 @@ async def admin_patch_homepage_rotation_config(
     for k in ("hero_count", "featured_count", "grid_count"):
         if k in payload:
             try:
-                update[k] = max(0, min(int(payload[k]), 24))
+                n = int(payload[k])
             except (TypeError, ValueError):
                 raise HTTPException(400, f"{k} must be a non-negative integer")
+            if n < 0:
+                raise HTTPException(400, f"{k} must be non-negative")
+            update[k] = min(n, 24)
     if "cadence" in payload:
         val = str(payload["cadence"] or "").lower()
         if val not in ("weekly", "daily"):
