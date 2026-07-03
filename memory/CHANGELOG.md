@@ -16,6 +16,52 @@ Measured: card width at 1920px viewport dropped from ~926px to 549px
 Everything inside the card is unchanged: cover image + founding-maker
 badge + name/location overlay + description + technique pills.
 
+## 2026-07-03 — iter331e: Restore original 4-card layout + `/makers` grid
+
+**Course-correct on iter331d.** User confirmed the goal is a *rotation
+inside the existing 4-card visual* — NOT a 9-slot hero+featured+grid
+redesign. The over-designed layout was reverted while every backend
+capability (fair-exposure scoring, position tracking, ledger, refill,
+admin knobs) was preserved.
+
+### Homepage — reverted layout
+
+- `MeetTheMakers.jsx` restored to the iter331 4-card design
+  (stacked workshop cover + portrait inset + techniques + short bio +
+  Visit Shop link). Zero visual change vs current production.
+- Backend `_DEFAULT_CONFIG` retuned: `hero_count: 0`, `featured_count: 0`,
+  `grid_count: 4` (was 1/2/6). Total window = 4. Every returned item
+  is tagged `position="grid"` so the frontend renders them uniformly.
+- Admin can still bump `hero_count > 0` from Settings later if they
+  want the 9-slot tiered layout — nothing was removed, only defaulted
+  to the flat mode.
+
+### `/makers` roster — kept 3-column reduction
+
+Separate visual reduction on `/makers` (previous 2-column → 3-column
+grid at `lg+`) is retained — that was a distinct roster-page issue.
+
+### Test updates
+
+Two existing tests assumed 1/2/6 defaults and were updated to assert
+0/0/4 + `position == "grid"`. `test_refill_preserves_hero_tier` now
+explicitly PATCHes 1/2/6 before its refill assertions since the
+default no longer includes a hero slot.
+
+### Verification
+
+- **Backend pytest**: 22/22 pass with new defaults.
+- **Preview screenshot**: 4 cards render identically to production
+  (Kiln & Clay Studio · Loom & Thread Co. · Iron & Oak Studio ·
+  Anvil Row Forge), each showing badges + techniques + short bio +
+  Visit Shop CTA. Section header reads "MEET THE MAKERS · THE PEOPLE
+  BEHIND THE WORK." (unchanged copy).
+
+### Production redeploy
+
+**Same batch as iter331–331d.** When you deploy, the current 4-card
+static section becomes rotation-driven with zero visual change.
+
 ## 2026-07-03 — iter331d: 9-slot Meet Our Makers (1 hero + 2 featured + 6 grid)
 
 Expanded the fair-exposure homepage rotation from a flat 4-slot list

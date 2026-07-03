@@ -503,22 +503,23 @@ async def test_position_tagging_matches_tier_counts():
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.get(PUB); r.raise_for_status()
             body = r.json()
-        assert body["rotation"]["hero_count"] == 1
-        assert body["rotation"]["featured_count"] == 2
-        assert body["rotation"]["grid_count"] == 6
-        assert body["rotation"]["window"] == 9
-        # Position order in items[] must be: 1 hero, 2 featured, then 6 grid.
+        assert body["rotation"]["hero_count"] == 0
+        assert body["rotation"]["featured_count"] == 0
+        assert body["rotation"]["grid_count"] == 4
+        assert body["rotation"]["window"] == 4
+        # iter331e — With defaults 0/0/4, every item is tagged position=grid.
         positions = [m.get("position") for m in body["items"]]
-        # Only as many as we have eligible makers (may be < 9).
         eligible_total = body["rotation"]["eligible_total"]
-        assert len(positions) == min(9, eligible_total)
-        # Count by position matches config-capped-by-eligibility.
+        assert len(positions) == min(4, eligible_total)
+        assert all(p == "grid" for p in positions)
+        # Keep original tier-count assertions valid when window flips
+        # via PATCH; test_patch_reshapes_to_2_3_4 covers that path.
         hero_seen = positions.count("hero")
         feat_seen = positions.count("featured")
         grid_seen = positions.count("grid")
-        assert hero_seen == min(1, eligible_total)
-        assert feat_seen == min(2, max(0, eligible_total - 1))
-        assert grid_seen == max(0, min(6, eligible_total - 3))
+        assert hero_seen == 0
+        assert feat_seen == 0
+        assert grid_seen == min(4, eligible_total)
     finally:
         await _reset_state(db)
 
@@ -526,18 +527,20 @@ async def test_position_tagging_matches_tier_counts():
 @pytest.mark.asyncio
 async def test_position_aware_impression_counters():
     """iter331d — homepage_position_counts.hero/featured/grid increment
-    per-position when a maker lands in that tier for a new period."""
+    per-position when a maker lands in that tier for a new period.
+
+    iter331e — With defaults 0/0/4 we now assert grid=1 (not hero=1)."""
     from motor.motor_asyncio import AsyncIOMotorClient
     db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
     try:
         await _reset_state(db)
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.get(PUB); r.raise_for_status()
-            hero_slug = next(m["slug"] for m in r.json()["items"] if m["position"] == "hero")
-        maker = await db.makers.find_one({"slug": hero_slug}, {"_id": 0, "homepage_position_counts": 1})
+            first_slug = r.json()["items"][0]["slug"]
+        maker = await db.makers.find_one({"slug": first_slug}, {"_id": 0, "homepage_position_counts": 1})
         counts = maker.get("homepage_position_counts") or {}
-        assert counts.get("hero") == 1
+        assert counts.get("grid") == 1
         assert counts.get("featured", 0) == 0
-        assert counts.get("grid", 0) == 0
+        assert counts.get("hero", 0) == 0
     finally:
         await _reset_state(db)

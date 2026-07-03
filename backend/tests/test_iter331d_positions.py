@@ -67,18 +67,13 @@ async def test_default_1_2_6_layout():
             r = await c.get(PUB); r.raise_for_status()
             body = r.json()
         rot = body["rotation"]
-        assert rot["hero_count"] == 1
-        assert rot["featured_count"] == 2
-        assert rot["grid_count"] == 6
-        assert rot["window"] == 9
+        # iter331e — defaults now 0/0/4 (flat 4-card layout matching production).
+        assert rot["hero_count"] == 0
+        assert rot["featured_count"] == 0
+        assert rot["grid_count"] == 4
+        assert rot["window"] == 4
         positions = [m.get("position") for m in body["items"]]
-        # Ordering must be hero(s) first, then featured, then grid.
-        expected_order = (
-            ["hero"] * positions.count("hero")
-            + ["featured"] * positions.count("featured")
-            + ["grid"] * positions.count("grid")
-        )
-        assert positions == expected_order, f"positions out of tier order: {positions}"
+        assert all(p == "grid" for p in positions)
     finally:
         await _reset_state(db)
 
@@ -189,8 +184,17 @@ async def test_refill_preserves_hero_tier():
     Featured + grid slots keep their original occupants."""
     from motor.motor_asyncio import AsyncIOMotorClient
     db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    jwt = await _admin_jwt()
+    h = {"Authorization": f"Bearer {jwt}"}
     try:
         await _reset_state(db)
+        # iter331e — Defaults are 0/0/4 (flat grid). Enable tiered
+        # layout for this test so a hero slot exists to invalidate.
+        async with httpx.AsyncClient(timeout=30) as c:
+            await c.patch(CFG, headers=h, json={
+                "hero_count": 1, "featured_count": 2, "grid_count": 6,
+            })
+        await db.system_state.delete_one({"key": "homepage_rotation_state"})
         async with httpx.AsyncClient(timeout=30) as c:
             r1 = await c.get(PUB); r1.raise_for_status()
             first = r1.json()["items"]

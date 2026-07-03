@@ -350,13 +350,16 @@ _ROTATION_CONFIG_KEY = "homepage_rotation_config"
 # shops instead of just "present" shops — a maker who published a
 # product this week or made a sale outranks a peer who's been quiet.
 _DEFAULT_CONFIG = {
-    # iter331d — Tiered slot counts (1 hero + 2 featured + 6 grid).
-    # `window` is derived as sum(hero+featured+grid). Kept as an alias
-    # in the config dict so external code that reads it still works.
-    "hero_count": 1,
-    "featured_count": 2,
-    "grid_count": 6,
-    "window": 9,  # legacy alias; auto-recomputed in _rotation_config
+    # iter331e — User pinned the visual back to the pre-iter331d
+    # production layout (single row of 4 equal-size cards). Defaults
+    # set to 0 hero + 0 featured + 4 grid so the endpoint returns 4
+    # items all tagged position="grid" and the frontend renders the
+    # original stacked layout. Admin can still bump hero/featured>0
+    # from Settings if they want the 9-slot tiered display later.
+    "hero_count": 0,
+    "featured_count": 0,
+    "grid_count": 4,
+    "window": 4,  # legacy alias; auto-recomputed in _rotation_config
     "cadence": "weekly",              # "weekly" | "daily"
     "founder_boost_enabled": False,
     "founder_boost_points": 50,
