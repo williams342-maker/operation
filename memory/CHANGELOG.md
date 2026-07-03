@@ -1,3 +1,107 @@
+## 2026-07-03 — iter331c: Foundation lockdown (period lock + refill + ledger)
+
+Priorities-first hardening pass before any social/promotion features
+are built on top. User's 8-item lockdown checklist addressed.
+
+### Lifecycle eligibility (was missing)
+
+Now filtered out in addition to `deleted_at`:
+- `shop_closed=true` (closed shop)
+- `vacation_mode=true` (on vacation)
+- `deletion_requested_at` set (pending 30-day deletion)
+
+A maker who closes their shop mid-week is silently dropped and the
+slot is refilled without leaving an empty card.
+
+### Period-lock behavior (was missing)
+
+Once a period's featured set is stamped, subsequent GETs return the
+**same** set until the period boundary. A featured maker's activity
+signals changing mid-period no longer swaps them out. State doc's
+`last_slugs` is the single source of truth per period.
+
+`rotation.locked: bool` added to the API response so clients can tell
+if they're inside a locked window or the first request of a period.
+
+### Refill on mid-period ineligibility
+
+If a locked featured maker becomes ineligible (closed shop, went on
+vacation, deleted last product, etc.), the slot is refilled with the
+next-best-scored eligible maker. Impression counts on the original
+featured maker are NOT rolled back — they were featured, briefly. A
+"refill:" ledger row records the swap for audit.
+
+### Rotation ledger (was missing)
+
+New collection `homepage_rotation_ledger` — one row per selection or
+refill event. Fields: `period_key`, `period_start`, `featured_slugs`,
+`eligible_count`, `reason` (`"auto-selected …"` or `"refill: …"`),
+`config_snapshot` (window/cadence/boosts at the time), `generated_at`.
+
+New admin endpoint `GET /api/admin/homepage-rotation/ledger?limit=24`
++ new UI block `data-testid="homepage-rotation-ledger"` in the
+SettingsTab card showing the last 12 events with period key, slugs,
+generated-at timestamp, and reason.
+
+### Eligibility docs surface
+
+`data-testid="homepage-rotation-eligibility-docs"` block in the admin
+card — 7 plain-English bullets, kept in sync with the actual filter
+logic (single source of truth for both code and docs).
+
+### Determinism
+
+Scoring now anchors to `period_start` instead of live `datetime.now()`.
+Two consecutive GETs on a locked period return byte-identical items
+including identical `period_start` ISO strings. Verified by testing
+agent.
+
+### Growth simulation
+
+New pytest `test_growth_simulation_scales_and_stays_fair` seeds 500
+synthetic makers, runs 20 weekly rotations, asserts fairness (linear
+never-featured pool depletion) + performance (<2s per rotation).
+Actual measurements:
+- N=50: 3.0 ms
+- N=100: 3.2 ms
+- N=250: 4.8 ms
+- N=500: 7.4 ms
+- N=1000: 13.8 ms
+
+### Verification
+
+- Backend: 14/14 main pytest + 3/3 review-level = **17/17 pass**
+- Frontend: admin card renders both new blocks (7-bullet eligibility
+  list + ledger row-0 with period_key + slugs + reason); homepage
+  regression clean
+- Testing agent (iter108): no bugs found, no action items
+
+### Files touched
+
+- `/app/backend/routers/community_showcase.py` — 3 new lifecycle
+  filters, `_write_ledger_entry`, `_refill_if_needed`,
+  `_record_homepage_feature` signature bump,
+  `get_homepage_makers` rewrite to lock+refill, new
+  `/admin/homepage-rotation/ledger` endpoint.
+- `/app/frontend/src/components/admin/SettingsTab.jsx` — ledger fetch
+  in `load()`, new eligibility-docs block, new ledger block.
+- `/app/frontend/src/lib/api.js` — `fetchHomepageRotationLedger`.
+- `/app/backend/tests/test_iter331_homepage_rotation.py` — 6 new
+  cases (lifecycle gates, period lock, refill, ledger records,
+  ledger endpoint, growth simulation).
+- `/app/backend/tests/test_iter331c_review.py` (new · by testing
+  agent).
+
+### Deliberately deferred (per user request)
+
+Social automation, email notifications, blog generation, AI captions,
+analytics dashboards, manual spotlight overrides — the rotation
+foundation ships first as a trusted primitive.
+
+### Production redeploy
+
+**Batches with iter331 + 331b** — one redeploy pushes all three.
+
 ## 2026-07-03 — iter331b: Weight retune + activity signals
 
 Following user feedback that the +500 new-maker boost was
