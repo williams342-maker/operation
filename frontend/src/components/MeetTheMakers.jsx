@@ -1,35 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 import { fetchHomepageMakers } from "../lib/api";
 
 /**
- * "Meet the Makers" homepage section.
+ * "Meet Our Makers" — 9-slot fair-exposure showcase (iter331d).
  *
- * iter331 — Powered by the fair-exposure rotation engine at
- * `/api/community/homepage-makers`. The backend scores every eligible
- * maker (never-featured bonus, days-since-last-feature, impression
- * penalty, new-maker boost, optional founder boost) and returns the
- * top `window` (default 4) for the current period (ISO week or UTC day).
+ * Layout: 1 Hero (big cinematic card, top-left) + 2 Featured (right column)
+ * + 6 Grid (compact row underneath). Powered by
+ * /api/community/homepage-makers which returns each maker tagged with
+ * `position ∈ {hero, featured, grid}`. Selection is period-locked and
+ * deterministic — see the admin panel's "Homepage rotation" card for
+ * eligibility rules + the audit ledger.
  *
- * Eligibility, rotation cadence, boost weights, and an exclusion list
- * are all configurable via the admin panel — see
- * SettingsTab > "Homepage rotation".
- *
- * Self-hides if the endpoint returns zero eligible makers so a lonely
- * card row never appears.
+ * Section auto-hides when zero eligible makers exist so we never
+ * render a lonely header with no cards.
  */
 
-// Friendly labels for the technique codes we store. Falls through to the
-// raw code if a new technique is added before this map is updated.
-const TECHNIQUE_LABEL = {
+// Friendly craft labels — mirrors what MakerDetail shows.
+const CRAFT_LABEL = {
   PLASMA: "Plasma",
   LASER: "Laser",
   ROUTER: "Router",
   FORGE: "Forge",
   CUSTOM: "Custom",
   "3D": "3D Print",
+};
+const primaryCraft = (m) => {
+  const t = (m.techniques || [])[0];
+  return CRAFT_LABEL[t] || t || m.featured_example || "Handcrafted";
 };
 
 export default function MeetTheMakers({ testId = "home-meet-makers" }) {
@@ -42,6 +42,11 @@ export default function MeetTheMakers({ testId = "home-meet-makers" }) {
   }, []);
 
   if (items.length === 0) return null;
+
+  const hero = items.filter((m) => m.position === "hero")[0] || null;
+  const featured = items.filter((m) => m.position === "featured");
+  const grid = items.filter((m) => m.position === "grid");
+
   return (
     <section
       className="relative w-full py-16 md:py-20 overflow-hidden bg-paper border-b border-line"
@@ -54,187 +59,246 @@ export default function MeetTheMakers({ testId = "home-meet-makers" }) {
       <div className="absolute inset-0 blueprint-grid opacity-30 pointer-events-none" aria-hidden="true" />
 
       <div className="relative z-10 w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12">
-        <div className="flex items-end justify-between mb-12 gap-4 flex-wrap">
-          <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand font-semibold mb-3 inline-flex items-center gap-2">
-              <span className="inline-block w-6 h-px bg-brand" />
-              Meet the Makers
-            </div>
-            <h2 className="font-display text-4xl md:text-5xl lg:text-6xl tracking-tighter leading-[0.95]">
-              The people behind<br />
-              <span className="text-outline-orange">the work.</span>
-            </h2>
-            <p className="font-mono text-[12px] text-ink-muted mt-5 max-w-2xl leading-relaxed">
-              Real workshops. Real hands. Every maker on Crafters Market is application-vetted,
-              location-verified, and reachable directly — no resellers, no dropshipping, no
-              factory storefronts pretending to be artisans.
-            </p>
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-brand font-semibold mb-3">
+            <span className="inline-block w-6 h-px bg-brand align-middle mr-2" />
+            Meet Our Makers
+            <span className="inline-block w-6 h-px bg-brand align-middle ml-2" />
           </div>
-          <Link
-            to="/makers"
-            className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-brand hover:text-brand-hover whitespace-nowrap"
-            data-testid={`${testId}-view-all`}
-          >
-            See all makers →
-          </Link>
+          <h2 className="font-display text-4xl md:text-5xl lg:text-6xl tracking-tighter leading-[0.95]">
+            Real people.<br className="md:hidden" />{" "}
+            <span className="text-outline-orange">Real craftsmanship.</span>
+          </h2>
+          <p className="font-mono text-[12px] text-ink-muted mt-5 max-w-2xl mx-auto leading-relaxed">
+            Every maker on Crafters Market is application-vetted, location-verified,
+            and reachable directly — no resellers, no dropshipping.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 md:gap-6">
-          {items.map((m, i) => (
-            <MakerCard key={m.id || m.slug} m={m} i={i} testId={`${testId}-card-${m.slug}`} />
-          ))}
+        {/* Top row: Hero (2/3) + Featured column (1/3, stacked) */}
+        {hero && (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 md:gap-6 mb-6 md:mb-8">
+            <div className="xl:col-span-2">
+              <HeroCard m={hero} testId={`${testId}-hero-${hero.slug}`} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-5 md:gap-6">
+              {featured.map((m) => (
+                <FeaturedCard
+                  key={m.id || m.slug}
+                  m={m}
+                  testId={`${testId}-featured-${m.slug}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom grid: 6 compact cards */}
+        {grid.length > 0 && (
+          <>
+            <div className="flex items-center gap-3 mb-5 md:mb-6">
+              <span className="h-px flex-1 bg-line" />
+              <div className="font-display text-lg md:text-xl tracking-tight text-ink-muted">
+                More Amazing Makers
+              </div>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-5">
+              {grid.map((m) => (
+                <GridCard
+                  key={m.id || m.slug}
+                  m={m}
+                  testId={`${testId}-grid-${m.slug}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Browse-all footer button */}
+        <div className="mt-10 md:mt-12 flex justify-center">
+          <Link
+            to="/makers"
+            className="inline-flex items-center gap-2 px-6 py-3 border border-line bg-surface hover:bg-brand hover:text-white hover:border-brand transition-colors font-mono text-[11px] uppercase tracking-[0.22em]"
+            data-testid={`${testId}-view-all`}
+          >
+            Browse All Makers <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </div>
     </section>
   );
 }
 
-/**
- * Single maker card. Stacked layout: workshop cover up top (sets the
- * scene), then a portrait + name row that breaks out of the cover via
- * negative margin so the photo feels embedded in the workshop, then
- * location, specialty pills, and the bio. Hovering the whole card
- * subtly lifts the orange accent border so it reads as clickable.
- */
-function MakerCard({ m, i, testId }) {
-  // Pull the first 220 chars of the bio so cards stay uniform — anything
-  // longer than that the visitor can read on the maker's full profile.
+// ── Hero card ────────────────────────────────────────────────────────
+// Large, cinematic. Cover fills the frame with a dark gradient scrim
+// so the copy (location + name + craft + bio + CTA) reads over it.
+function HeroCard({ m, testId }) {
+  const bg = m.cover || m.portrait || "";
   const bioBlurb = (m.bio || m.story || "").slice(0, 220).trimEnd();
   const bioTrail = (m.bio || m.story || "").length > 220 ? "…" : "";
-
-  // Use cover when present, fall back to portrait so cards never have
-  // a blank top frame.
-  const workshopImg = m.cover || m.portrait || "/placeholder-shop.png";
-  // The portrait can be empty or a stale CDN URL — fall back to cover on
-  // load failure, then to a generated initials avatar if even the cover
-  // is unavailable. Keeps the row clean for makers like Iron & Oak whose
-  // portrait points to a now-404 CDN file.
-  const [portraitSrc, setPortraitSrc] = useState(
-    m.portrait || m.cover || "",
-  );
-  const [portraitFailed, setPortraitFailed] = useState(false);
-  const handlePortraitErr = () => {
-    if (portraitSrc !== m.cover && m.cover) {
-      setPortraitSrc(m.cover);
-      return;
-    }
-    setPortraitFailed(true);
-  };
-  // Some legacy portraits load with status 200 but render as a tiny stub
-  // image — e.g. Iron & Oak's stale CDN path returns a 67-byte 1×1 PNG.
-  // Any portrait under 60px on either side is almost certainly a broken
-  // placeholder; swap it through the same fallback as a network error.
-  const handlePortraitLoad = (e) => {
-    const w = e.currentTarget.naturalWidth || 0;
-    const h = e.currentTarget.naturalHeight || 0;
-    if (w < 60 || h < 60) handlePortraitErr();
-  };
-
   return (
     <motion.article
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 10 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{ delay: (i % 4) * 0.08, duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-      className="cinematic-frame group flex flex-col"
+      viewport={{ once: true }}
+      transition={{ duration: 0.45 }}
+      className="relative overflow-hidden border border-line bg-ink group h-full min-h-[420px] md:min-h-[560px]"
       data-testid={testId}
     >
-      <Link to={`/makers/${m.slug}`} className="block group">
-        {/* Workshop cover — the "where" of the maker. */}
-        <div className="relative aspect-[5/3] overflow-hidden">
+      {bg && (
+        <img
+          src={bg}
+          alt={m.name || m.slug}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          loading="lazy"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+      <div className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand text-white font-mono text-[9px] uppercase tracking-[0.28em]">
+        ★ Featured Maker
+      </div>
+      <div className="relative z-10 p-6 md:p-8 flex flex-col justify-end h-full text-white">
+        {m.location && (
+          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-white/80 mb-3">
+            <MapPin className="w-3.5 h-3.5" />
+            {m.location}
+          </div>
+        )}
+        <h3 className="font-display text-3xl md:text-5xl tracking-tight leading-[1.02] mb-2">
+          {m.name || m.slug}
+        </h3>
+        <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-white/80 mb-4">
+          {primaryCraft(m)}
+        </div>
+        {bioBlurb && (
+          <p className="text-sm md:text-base text-white/85 max-w-lg leading-relaxed mb-5">
+            {bioBlurb}{bioTrail}
+          </p>
+        )}
+        <Link
+          to={`/makers/${m.slug}`}
+          className="inline-flex items-center gap-2 self-start px-5 py-2.5 bg-brand hover:bg-brand-hover text-white font-mono text-[11px] uppercase tracking-[0.22em] transition-colors"
+          data-testid={`${testId}-cta`}
+        >
+          View Maker <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+    </motion.article>
+  );
+}
+
+// ── Featured card ────────────────────────────────────────────────────
+// Mid-size. Cover on top, meta + short blurb + CTA below.
+function FeaturedCard({ m, testId }) {
+  const cover = m.cover || m.portrait || "";
+  const bioBlurb = (m.bio || m.story || "").slice(0, 120).trimEnd();
+  const bioTrail = (m.bio || m.story || "").length > 120 ? "…" : "";
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.45 }}
+      className="border border-line bg-surface overflow-hidden flex flex-col h-full group"
+      data-testid={testId}
+    >
+      <div className="relative aspect-[4/3] overflow-hidden bg-paper">
+        {cover ? (
           <img
-            src={workshopImg}
-            alt={`${m.name} workshop`}
-            className="absolute inset-0 w-full h-full object-cover workshop-tone group-hover:scale-[1.06] group-hover:filter-none transition-all duration-[1100ms] ease-out"
+            src={cover}
+            alt={m.name || m.slug}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
-          <div className="absolute inset-0 cinematic-vignette pointer-events-none opacity-50" />
-          {m.is_veteran_owned && (
-            <span
-              className="absolute top-3 right-3 px-2 py-1 bg-black/80 backdrop-blur-sm border border-emerald-400/70 text-emerald-300 font-mono text-[9px] uppercase tracking-[0.28em]"
-              data-testid={`${testId}-veteran-pill`}
-            >
-              ◆ VETERAN
-            </span>
-          )}
-          {m.featured_example && (
-            <span
-              className="absolute top-3 left-3 px-2 py-1 bg-amber-500 text-black font-mono text-[9px] uppercase tracking-[0.28em] font-bold"
-              data-testid={`${testId}-founding-pill`}
-              title="Founding Maker · curated by Crafters Market to showcase the platform"
-            >
-              ✦ FOUNDING MAKER
-            </span>
-          )}
-        </div>
-
-        <div className="px-5 pt-0 pb-5 -mt-10 relative z-10">
-          {/* Portrait + name row. */}
-          <div className="flex items-end gap-3 mb-4">
-            <div className="w-20 h-20 flex-shrink-0 border-2 border-[#0a0a0a] bg-paper overflow-hidden shadow-[0_4px_24px_-6px_rgba(0,0,0,0.9)] ring-1 ring-amber-500/20 group-hover:ring-amber-400/60 transition-shadow">
-              {portraitFailed || !portraitSrc ? (
-                <div
-                  className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#ff4500] to-[#8a2400] text-white font-display text-2xl"
-                  data-testid={`${testId}-portrait-initials`}
-                >
-                  {m.initials || m.name?.slice(0, 2).toUpperCase() || "CM"}
-                </div>
-              ) : (
-                <img
-                  src={portraitSrc}
-                  alt={`${m.name} portrait`}
-                  className="w-full h-full object-cover portrait-duotone"
-                  onError={handlePortraitErr}
-                  onLoad={handlePortraitLoad}
-                />
-              )}
-            </div>
-            <div className="min-w-0 pb-1">
-              <div className="font-display text-xl leading-tight line-clamp-1 tracking-tight">{m.name}</div>
-              {m.location && (
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-400 mt-1 inline-flex items-center gap-1">
-                  <MapPin size={10} className="text-amber-400" />
-                  {m.location}
-                </div>
-              )}
-            </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center font-display text-4xl text-ink-muted">
+            {m.initials || (m.name || m.slug || "?")[0].toUpperCase()}
           </div>
-
-          {/* Specialty pills */}
-          {Array.isArray(m.techniques) && m.techniques.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {m.techniques.slice(0, 3).map((t) => (
-                <span
-                  key={t}
-                  className="px-2 py-0.5 border border-zinc-700 text-zinc-300 font-mono text-[9px] uppercase tracking-[0.22em]"
-                >
-                  {TECHNIQUE_LABEL[t] || t}
-                </span>
-              ))}
-              {typeof m.years_crafting === "number" && m.years_crafting > 0 && (
-                <span className="px-2 py-0.5 border border-amber-500/40 text-amber-300 font-mono text-[9px] uppercase tracking-[0.22em]">
-                  {m.years_crafting}+ yrs
-                </span>
-              )}
-            </div>
-          )}
-
-          {bioBlurb && (
-            <p className="text-[12px] text-zinc-400 leading-relaxed mb-4 line-clamp-4">
-              {bioBlurb}{bioTrail}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-600">
-              {m.listings_count || 0} listing{m.listings_count === 1 ? "" : "s"}
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-amber-300 group-hover:text-amber-100 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-              Visit shop <ArrowUpRight size={12} />
-            </span>
-          </div>
+        )}
+        <div className="absolute top-3 left-3 inline-flex items-center gap-1 px-2 py-1 bg-brand text-white font-mono text-[8px] uppercase tracking-[0.24em]">
+          ★ Featured
         </div>
-      </Link>
+      </div>
+      <div className="p-4 md:p-5 flex flex-col flex-1">
+        {m.location && (
+          <div className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.24em] text-ink-muted mb-2">
+            <MapPin className="w-3 h-3" />
+            {m.location}
+          </div>
+        )}
+        <h3 className="font-display text-xl md:text-2xl tracking-tight leading-tight mb-1">
+          {m.name || m.slug}
+        </h3>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-3">
+          {primaryCraft(m)}
+        </div>
+        {bioBlurb && (
+          <p className="text-sm text-ink-muted leading-relaxed mb-4 flex-1">
+            {bioBlurb}{bioTrail}
+          </p>
+        )}
+        <Link
+          to={`/makers/${m.slug}`}
+          className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-brand hover:text-brand-hover self-start"
+          data-testid={`${testId}-cta`}
+        >
+          View Maker <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+    </motion.article>
+  );
+}
+
+// ── Grid card ────────────────────────────────────────────────────────
+// Compact. Cover + name + location + craft + View Maker.
+function GridCard({ m, testId }) {
+  const cover = m.cover || m.portrait || "";
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.4 }}
+      className="border border-line bg-surface overflow-hidden flex flex-col group"
+      data-testid={testId}
+    >
+      <div className="relative aspect-[4/3] overflow-hidden bg-paper">
+        {cover ? (
+          <img
+            src={cover}
+            alt={m.name || m.slug}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center font-display text-3xl text-ink-muted">
+            {m.initials || (m.name || m.slug || "?")[0].toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="p-3 md:p-4 flex flex-col flex-1">
+        {m.location && (
+          <div className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.24em] text-ink-muted mb-1.5">
+            <MapPin className="w-3 h-3" />
+            <span className="truncate">{m.location}</span>
+          </div>
+        )}
+        <h3 className="font-display text-base md:text-lg tracking-tight leading-tight mb-0.5 truncate">
+          {m.name || m.slug}
+        </h3>
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ink-muted mb-3 truncate">
+          {primaryCraft(m)}
+        </div>
+        <Link
+          to={`/makers/${m.slug}`}
+          className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.22em] text-brand hover:text-brand-hover self-start mt-auto"
+          data-testid={`${testId}-cta`}
+        >
+          View Maker <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
     </motion.article>
   );
 }

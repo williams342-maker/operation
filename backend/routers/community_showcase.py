@@ -350,7 +350,13 @@ _ROTATION_CONFIG_KEY = "homepage_rotation_config"
 # shops instead of just "present" shops — a maker who published a
 # product this week or made a sale outranks a peer who's been quiet.
 _DEFAULT_CONFIG = {
-    "window": 4,
+    # iter331d — Tiered slot counts (1 hero + 2 featured + 6 grid).
+    # `window` is derived as sum(hero+featured+grid). Kept as an alias
+    # in the config dict so external code that reads it still works.
+    "hero_count": 1,
+    "featured_count": 2,
+    "grid_count": 6,
+    "window": 9,  # legacy alias; auto-recomputed in _rotation_config
     "cadence": "weekly",              # "weekly" | "daily"
     "founder_boost_enabled": False,
     "founder_boost_points": 50,
@@ -370,6 +376,9 @@ _DEFAULT_CONFIG = {
     "activity_recent_sale_points": 10,         # completed order within last 30 days
 }
 
+# iter331d — Tiered position labels in the order the picker fills.
+_POSITIONS = ("hero", "featured", "grid")
+
 # Score-model constants (not admin-editable — safe operational limits).
 _MAX_DAYS_SINCE_LAST = 365  # cap recency contribution
 
@@ -385,7 +394,13 @@ async def _rotation_config() -> dict:
         if k in row and row[k] is not None:
             cfg[k] = row[k]
     # Normalise once so downstream code doesn't second-guess types.
-    cfg["window"] = max(1, min(int(cfg["window"] or 4), 12))
+    # iter331d — clamp tier counts to sane bounds, then derive window
+    # as their sum so any legacy caller reading `cfg["window"]` gets
+    # the accurate total slot count.
+    cfg["hero_count"] = max(0, min(int(cfg["hero_count"] or 0), 3))
+    cfg["featured_count"] = max(0, min(int(cfg["featured_count"] or 0), 6))
+    cfg["grid_count"] = max(0, min(int(cfg["grid_count"] or 0), 24))
+    cfg["window"] = cfg["hero_count"] + cfg["featured_count"] + cfg["grid_count"]
     cfg["cadence"] = "daily" if str(cfg["cadence"]).lower() == "daily" else "weekly"
     cfg["excluded_slugs"] = [s for s in (cfg.get("excluded_slugs") or []) if isinstance(s, str) and s]
     return cfg
@@ -624,8 +639,13 @@ def _pick_by_score(eligible: list[dict], cfg: dict,
                    now: Optional[datetime] = None) -> tuple[list[dict], list[dict]]:
     """Rank `eligible` by fair-exposure score. Returns
     `(picked, all_scored)` where `picked` has up to `cfg["window"]`
-    rows and `all_scored` is the full sorted list annotated with
-    debug fields — useful for the admin preview.
+    rows tagged with `position ∈ {hero, featured, grid}` and
+    `all_scored` is the full sorted list annotated with debug fields.
+
+    iter331d — Position tagging: the top `hero_count` slugs get
+    `position="hero"`, the next `featured_count` get `"featured"`,
+    the next `grid_count` get `"grid"`. Frontend + analytics rely on
+    this field.
     """
     now = now or datetime.now(timezone.utc)
     window = int(cfg["window"])
@@ -644,7 +664,19 @@ def _pick_by_score(eligible: list[dict], cfg: dict,
         row["_debug_last_featured_at"] = m.get("last_homepage_featured_at")
         all_scored.append(row)
 
-    picked = [row for row in all_scored[:window]]
+    # Tier boundaries computed from the cfg (already sum-normalised).
+    hero_n = int(cfg["hero_count"])
+    feat_n = int(cfg["featured_count"])
+    picked = []
+    for i, row in enumerate(all_scored[:window]):
+        row = dict(row)
+        if i < hero_n:
+            row["position"] = "hero"
+        elif i < hero_n + feat_n:
+            row["position"] = "featured"
+        else:
+            row["position"] = "grid"
+        picked.append(row)
     return picked, all_scored
 
 
@@ -652,21 +684,32 @@ _LEDGER_COLLECTION = "homepage_rotation_ledger"
 
 
 async def _write_ledger_entry(period_key: str, period_start: str,
-                              featured_slugs: list[str],
+                              picked: list[dict],
                               eligible_count: int, reason: str,
                               cfg: dict) -> None:
-    """Persist a single audit row per rotation event. Uses upsert
-    keyed on (period_key, reason) so a refill event appends without
-    overwriting the original selection row."""
+    """Persist a single audit row per rotation event. `picked` is the
+    list of maker docs already tagged with `position`.
+
+    iter331d — Ledger now stores both a flat `featured_slugs` list
+    (for backward compat) AND a `positions` dict mapping tier → list
+    of slugs, so audit questions like "which weeks did maker X land
+    in Hero?" become trivial to answer.
+    """
     try:
+        positions: dict[str, list[str]] = {p: [] for p in _POSITIONS}
+        for m in picked:
+            pos = m.get("position") or "grid"
+            positions.setdefault(pos, []).append(m["slug"])
         await db[_LEDGER_COLLECTION].insert_one({
             "period_key": period_key,
             "period_start": period_start,
-            "featured_slugs": list(featured_slugs),
+            "featured_slugs": [m["slug"] for m in picked],
+            "positions": positions,
             "eligible_count": int(eligible_count),
             "reason": reason,
             "config_snapshot": {
                 k: cfg.get(k) for k in (
+                    "hero_count", "featured_count", "grid_count",
                     "window", "cadence", "founder_boost_enabled",
                     "founder_boost_points", "new_maker_boost_points",
                     "never_featured_bonus", "impression_penalty_per_feature",
@@ -678,38 +721,58 @@ async def _write_ledger_entry(period_key: str, period_start: str,
         logger.exception("[homepage-makers] ledger write failed for %s", period_key)
 
 
-async def _record_homepage_feature(slugs: list[str], period_start_iso: str,
+async def _record_homepage_feature(picked: list[dict], period_start_iso: str,
                                    period_key: str, eligible_count: int,
                                    cfg: dict) -> bool:
     """Idempotently stamp `last_homepage_featured_at` and increment
-    `homepage_impression_count` on each featured maker for the current
-    period. Guarded by state doc so the write only happens once per new
-    period, not per visitor. Returns True if a write occurred."""
-    if not slugs:
+    position-aware impression counters. `picked` must be the list of
+    maker docs already tagged with `position`.
+
+    iter331d — Increments both `homepage_impression_count` (aggregate,
+    read by the scoring engine) and per-position counters
+    `homepage_position_counts.<hero|featured|grid>` so admins can
+    answer "was maker X ever placed as Hero, or only in Grid?"
+    Guarded by state doc so this only fires once per new period.
+    """
+    if not picked:
         return False
     state = await db.system_state.find_one({"key": _ROTATION_STATE_KEY}, {"_id": 0}) or {}
     if state.get("last_period_key") == period_key:
         return False
-    await db.makers.update_many(
-        {"slug": {"$in": slugs}},
-        {
-            "$set": {"last_homepage_featured_at": period_start_iso},
-            "$inc": {"homepage_impression_count": 1},
-        },
-    )
+    # Bulk-write position-tagged updates. We can't $inc different fields
+    # for different slugs in one update_many, so bucket by position.
+    from collections import defaultdict
+    buckets: dict[str, list[str]] = defaultdict(list)
+    for m in picked:
+        buckets[m.get("position") or "grid"].append(m["slug"])
+    for pos, slugs in buckets.items():
+        await db.makers.update_many(
+            {"slug": {"$in": slugs}},
+            {
+                "$set": {"last_homepage_featured_at": period_start_iso},
+                "$inc": {
+                    "homepage_impression_count": 1,
+                    f"homepage_position_counts.{pos}": 1,
+                },
+            },
+        )
+    picked_slugs = [m["slug"] for m in picked]
     await db.system_state.update_one(
         {"key": _ROTATION_STATE_KEY},
         {"$set": {
             "key": _ROTATION_STATE_KEY,
             "last_period_key": period_key,
             "last_period_start": period_start_iso,
-            "last_slugs": slugs,
+            "last_slugs": picked_slugs,
+            "last_positions": {
+                m["slug"]: m.get("position") or "grid" for m in picked
+            },
             "last_recorded_at": now_iso(),
         }},
         upsert=True,
     )
     await _write_ledger_entry(
-        period_key, period_start_iso, slugs, eligible_count,
+        period_key, period_start_iso, picked, eligible_count,
         "auto-selected via fair-exposure engine", cfg,
     )
     return True
@@ -717,98 +780,102 @@ async def _record_homepage_feature(slugs: list[str], period_start_iso: str,
 
 async def _refill_if_needed(locked_slugs: list[str], eligible: list[dict],
                             cfg: dict, period_start: datetime,
-                            period_key: str) -> list[dict]:
-    """Given a previously-locked set of slugs, return the current
-    display list — preserving locked ordering for still-eligible
-    makers and refilling any who dropped out (suspended, closed shop,
-    unpublished last product, etc.) with the next-highest-scored
-    eligible maker not already in the list.
+                            period_key: str,
+                            locked_positions: dict[str, str]) -> list[dict]:
+    """Preserve locked ordering for still-eligible makers, refill any
+    who dropped out with the next-highest-scored eligible maker (who
+    inherits the vacated position slot). Returns docs tagged with
+    `position` matching the original lock plus any refills.
 
-    Refill events are appended to the ledger for auditability but do
-    NOT trigger a re-stamp of impression counters — the refilled maker
-    IS being featured for the remainder of this period, but the
-    period-guard state doc keeps the original stamp intact so we don't
-    double-count.
+    iter331d — Position preservation: if the Hero slot's maker drops
+    out, the refill takes the Hero position (not a Grid slot). This
+    keeps the tier-count invariant while the period is active.
     """
     eligible_by_slug = {m["slug"]: m for m in eligible}
-    still_valid = [eligible_by_slug[s] for s in locked_slugs if s in eligible_by_slug]
-    dropped = [s for s in locked_slugs if s not in eligible_by_slug]
+    kept = []
+    dropped_by_position: dict[str, int] = {}
+    for slug in locked_slugs:
+        if slug in eligible_by_slug:
+            row = dict(eligible_by_slug[slug])
+            row["position"] = locked_positions.get(slug, "grid")
+            kept.append(row)
+        else:
+            pos = locked_positions.get(slug, "grid")
+            dropped_by_position[pos] = dropped_by_position.get(pos, 0) + 1
 
-    if not dropped:
-        return still_valid  # everything still eligible, return as-is
+    if not dropped_by_position:
+        return kept
 
-    # Refill deterministically from the best-scored eligible makers
-    # who aren't already in the still-valid list.
+    # Refill: for each dropped position, find the next best-scored
+    # eligible maker not already kept, assign them that position.
     _, all_scored = _pick_by_score(eligible, cfg, now=period_start)
-    already = {m["slug"] for m in still_valid}
-    for row in all_scored:
-        if len(still_valid) >= int(cfg["window"]):
-            break
-        if row["slug"] in already:
-            continue
-        still_valid.append(row)
-        already.add(row["slug"])
+    already = {m["slug"] for m in kept}
+    for pos, count in dropped_by_position.items():
+        for _ in range(count):
+            picked = next(
+                (r for r in all_scored if r["slug"] not in already), None
+            )
+            if picked is None:
+                break
+            picked = dict(picked)
+            picked["position"] = pos
+            kept.append(picked)
+            already.add(picked["slug"])
 
-    # Ledger event so admins can trace which slots refilled and why.
+    # Ledger + state update — do NOT touch last_period_key so
+    # impressions don't re-increment.
     await _write_ledger_entry(
         period_key,
         period_start.isoformat().replace("+00:00", "Z"),
-        [m["slug"] for m in still_valid],
-        len(eligible),
-        f"refill: dropped {dropped} → {[m['slug'] for m in still_valid if m['slug'] not in locked_slugs]}",
+        kept, len(eligible),
+        (
+            "refill: dropped "
+            + ",".join(f"{p}×{n}" for p, n in dropped_by_position.items())
+        ),
         cfg,
     )
-    # Update the state doc's `last_slugs` so subsequent requests
-    # within the same period see the refilled set. Do NOT touch
-    # last_period_key — that's the guard that keeps impressions from
-    # re-incrementing.
     await db.system_state.update_one(
         {"key": _ROTATION_STATE_KEY},
-        {"$set": {"last_slugs": [m["slug"] for m in still_valid]}},
+        {"$set": {
+            "last_slugs": [m["slug"] for m in kept],
+            "last_positions": {m["slug"]: m["position"] for m in kept},
+        }},
     )
-    return still_valid
+    return kept
 
 
 @router.get("/community/homepage-makers")
 async def get_homepage_makers():
-    """Public — powers `<MeetTheMakers />`. Returns up to `window`
-    eligible makers ranked by fair-exposure score. Selection is
-    **locked** for the current period (ISO week or UTC day depending
-    on cadence): the same set is returned for every request until the
-    period advances. If a locked maker becomes ineligible mid-period
-    (closed shop, went on vacation, deleted their last product,
-    etc.), the slot is silently refilled from the next-best-scored
-    eligible maker so the section never renders with fewer cards
-    than intended."""
+    """Public — powers `<MeetTheMakers />`. Returns up to
+    (hero+featured+grid) eligible makers ranked by fair-exposure score
+    with a `position` tag per row. Locked for the current period; if a
+    featured maker becomes ineligible mid-period the slot is refilled
+    from the next-best-scored eligible maker in the same tier."""
     cfg = await _rotation_config()
     eligible = await _eligible_homepage_makers(cfg)
     period_key, period_start_iso = _period_key(cfg["cadence"])
-    # Anchor "now" to the period start so scoring is deterministic
-    # across requests within the same period.
     period_start_dt = _parse_iso(period_start_iso) or datetime.now(timezone.utc)
 
     state = await db.system_state.find_one({"key": _ROTATION_STATE_KEY}, {"_id": 0}) or {}
     same_period = state.get("last_period_key") == period_key
     locked_slugs = list(state.get("last_slugs") or []) if same_period else []
+    locked_positions = dict(state.get("last_positions") or {}) if same_period else {}
 
     if same_period and locked_slugs:
-        # We're inside a locked period — return the same set, refilling
-        # any slots whose maker became ineligible since last write.
         picked = await _refill_if_needed(
             locked_slugs, eligible, cfg, period_start_dt, period_key,
+            locked_positions,
         )
     else:
-        # Fresh period — compute + stamp + ledger in one shot.
         picked, _ = _pick_by_score(eligible, cfg, now=period_start_dt)
-        slugs = [m["slug"] for m in picked]
         try:
             await _record_homepage_feature(
-                slugs, period_start_iso, period_key, len(eligible), cfg,
+                picked, period_start_iso, period_key, len(eligible), cfg,
             )
         except Exception:
-            logger.exception("[homepage-makers] record_feature failed for %s", slugs)
+            logger.exception("[homepage-makers] record_feature failed")
 
-    # Strip the private _debug_* / _activity_* fields for the public response.
+    # Strip private fields for the public response.
     public = [
         {k: v for k, v in m.items() if not k.startswith("_debug_") and not k.startswith("_activity_")}
         for m in picked
@@ -818,6 +885,9 @@ async def get_homepage_makers():
         "items": public,
         "rotation": {
             "eligible_total": len(eligible),
+            "hero_count": cfg["hero_count"],
+            "featured_count": cfg["featured_count"],
+            "grid_count": cfg["grid_count"],
             "window": cfg["window"],
             "cadence": cfg["cadence"],
             "period_key": period_key,
@@ -851,10 +921,23 @@ async def admin_patch_homepage_rotation_config(
 
     update: dict = {}
     if "window" in payload:
+        # iter331d — window is now derived from tier counts. Accept
+        # it as a legacy alias by spreading across the 3 tiers with
+        # the default (1/2/6) ratio so old admin scripts don't break.
         try:
-            update["window"] = max(1, min(int(payload["window"]), 12))
+            total = max(1, min(int(payload["window"]), 32))
         except (TypeError, ValueError):
-            raise HTTPException(400, "window must be an integer between 1 and 12")
+            raise HTTPException(400, "window must be a positive integer")
+        # Preserve current ratio if any set; else default 1/2/6.
+        update["hero_count"] = min(total, 1)
+        update["featured_count"] = min(max(total - 1, 0), 2)
+        update["grid_count"] = max(total - update["hero_count"] - update["featured_count"], 0)
+    for k in ("hero_count", "featured_count", "grid_count"):
+        if k in payload:
+            try:
+                update[k] = max(0, min(int(payload[k]), 24))
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"{k} must be a non-negative integer")
     if "cadence" in payload:
         val = str(payload["cadence"] or "").lower()
         if val not in ("weekly", "daily"):

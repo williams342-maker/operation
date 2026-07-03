@@ -88,8 +88,11 @@ async def test_admin_config_defaults_and_patch_and_validation():
         assert r.status_code == 400
 
         # window clamped 1-12.
+        # iter331d — window is now derived from hero+featured+grid.
+        # A legacy `window=500` payload spreads across tiers → still
+        # capped by our per-tier max (1 + 2 + 24 = 27).
         r = await c.patch(CFG, headers=h, json={"window": 500})
-        assert r.status_code == 200 and r.json()["window"] == 12
+        assert r.status_code == 200 and r.json()["window"] == 27
 
         # excluded_slugs normalises casing + trimming.
         r = await c.patch(CFG, headers=h, json={"excluded_slugs": ["  IRON-AND-OAK ", "iron-and-oak"]})
@@ -151,7 +154,7 @@ async def test_fair_exposure_spreads_evenly_over_cycle():
             e = await _eligible_homepage_makers(cfg)
             picked, _all = _pick_by_score(e, cfg, now=dt)
             picked_slugs = [m["slug"] for m in picked]
-            await _record_homepage_feature(picked_slugs, start, key, len(e), cfg)
+            await _record_homepage_feature(picked, start, key, len(e), cfg)
             seen.update(picked_slugs)
         assert seen == {m["slug"] for m in eligible_now}, (
             f"Only {len(seen)}/{n} makers featured after {periods_needed} periods"
@@ -455,7 +458,7 @@ async def test_growth_simulation_scales_and_stays_fair():
             eligible = [m for m in await _eligible_homepage_makers(cfg) if m["slug"].startswith(tag)]
             picked, _all = _pick_by_score(eligible, cfg, now=dt)
             await _record_homepage_feature(
-                [m["slug"] for m in picked], start, key, len(eligible), cfg,
+                picked, start, key, len(eligible), cfg,
             )
             elapsed = time.perf_counter() - t0
             max_time = max(max_time, elapsed)
