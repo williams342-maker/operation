@@ -1,3 +1,21 @@
+## 2026-07-03 — iter331e: `/makers` roster card sizing
+
+User feedback: on `/makers` the maker cards were too big at the
+2-column desktop layout — a single card dominated half the viewport
+and read more like a slideshow than a browsable roster.
+
+### Fix
+
+`MakersPage.jsx` grid `md:grid-cols-2` → `md:grid-cols-2 lg:grid-cols-3`.
+Gap tightened from 8 to 6/7 units to match the smaller cards. Mobile
+stays 1-col, tablet stays 2-col; only wide desktop reflows to 3.
+
+Measured: card width at 1920px viewport dropped from ~926px to 549px
+(~40% reduction — comfortably inside the user's "~30%" ask).
+
+Everything inside the card is unchanged: cover image + founding-maker
+badge + name/location overlay + description + technique pills.
+
 ## 2026-07-03 — iter331d: 9-slot Meet Our Makers (1 hero + 2 featured + 6 grid)
 
 Expanded the fair-exposure homepage rotation from a flat 4-slot list

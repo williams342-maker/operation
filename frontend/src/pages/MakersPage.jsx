@@ -127,11 +127,15 @@ export default function MakersPage() {
             Veteran-Owned
           </button>
         </div>
-        <div className="grid md:grid-cols-2 gap-8">
+        {/* iter331e — Grid gets a 3-column breakpoint at lg+ so each
+            card is ~34% narrower on wide screens (user feedback: cards
+            were too big at 2-col on desktop). Mobile and tablet stay
+            at 1/2 col for readability. */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-7">
           {filtered === null ? (
-            <div className="md:col-span-2"><CardSkeleton count={4} /></div>
+            <div className="md:col-span-2 lg:col-span-3"><CardSkeleton count={4} /></div>
           ) : filtered.length === 0 ? (
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 lg:col-span-3">
               <EmptyState
                 icon={Users}
                 eyebrow="◆ Workshop Roster"
