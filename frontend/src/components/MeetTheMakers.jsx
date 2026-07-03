@@ -1,33 +1,25 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowUpRight, MapPin } from "lucide-react";
-import { fetchMakers } from "../lib/api";
+import { fetchHomepageMakers } from "../lib/api";
 
 /**
  * "Meet the Makers" homepage section.
  *
- * People trust people more than platforms — this section humanises the
- * marketplace by surfacing 4 maker cards with a portrait + workshop cover
- * + location + specialties + a 2-sentence bio. Designed to be the warm,
- * personal counterweight to the more product-forward FeaturedBuildsRail
- * higher up the page.
+ * iter331 — Powered by the fair-exposure rotation engine at
+ * `/api/community/homepage-makers`. The backend scores every eligible
+ * maker (never-featured bonus, days-since-last-feature, impression
+ * penalty, new-maker boost, optional founder boost) and returns the
+ * top `window` (default 4) for the current period (ISO week or UTC day).
  *
- * Curation: a hand-picked CURATED_SLUGS list leads (one per primary
- * craft — wood, metal, leather, blacksmith) so visitors always see craft
- * diversity at a glance. Anything else tails after, capped at 4 total.
+ * Eligibility, rotation cadence, boost weights, and an exclusion list
+ * are all configurable via the admin panel — see
+ * SettingsTab > "Homepage rotation".
  *
- * Self-hides when fewer than 3 cards qualify (a single maker alone looks
- * worse than no section at all).
+ * Self-hides if the endpoint returns zero eligible makers so a lonely
+ * card row never appears.
  */
-
-const CURATED_SLUGS = [
-  "anvil-row-forge",      // blacksmith / forge — strongest portrait
-  "river-and-resin",      // wood + epoxy — most colorful cover
-  "iron-and-oak",         // CNC + plasma — flagship maker
-  "hidehouse-craft",      // leather — adds a non-CNC dimension
-];
 
 // Friendly labels for the technique codes we store. Falls through to the
 // raw code if a new technique is added before this map is updated.
@@ -41,24 +33,15 @@ const TECHNIQUE_LABEL = {
 };
 
 export default function MeetTheMakers({ testId = "home-meet-makers" }) {
-  const [makers, setMakers] = useState([]);
+  const [items, setItems] = useState([]);
 
   useEffect(() => {
-    fetchMakers()
-      .then((d) => setMakers(Array.isArray(d) ? d : []))
-      .catch(() => setMakers([]));
+    fetchHomepageMakers()
+      .then((d) => setItems(Array.isArray(d?.items) ? d.items : []))
+      .catch(() => setItems([]));
   }, []);
 
-  const ordered = useMemo(() => {
-    if (!makers.length) return [];
-    const bySlug = new Map(makers.map((m) => [m.slug, m]));
-    const head = CURATED_SLUGS.map((s) => bySlug.get(s)).filter(Boolean);
-    const headSet = new Set(head.map((m) => m.slug));
-    const tail = makers.filter((m) => !headSet.has(m.slug));
-    return [...head, ...tail].slice(0, 4);
-  }, [makers]);
-
-  if (ordered.length < 3) return null;
+  if (items.length === 0) return null;
   return (
     <section
       className="relative w-full py-16 md:py-20 overflow-hidden bg-paper border-b border-line"
@@ -97,7 +80,7 @@ export default function MeetTheMakers({ testId = "home-meet-makers" }) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 md:gap-6">
-          {ordered.map((m, i) => (
+          {items.map((m, i) => (
             <MakerCard key={m.id || m.slug} m={m} i={i} testId={`${testId}-card-${m.slug}`} />
           ))}
         </div>

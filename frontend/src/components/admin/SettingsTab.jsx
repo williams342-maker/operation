@@ -37,6 +37,10 @@ import {
   fetchOgDiag,
   fetchSeoDiag,
   adminPingIndexNow,
+  // iter331 — Homepage rotation engine (fair-exposure "Meet the Makers")
+  fetchHomepageRotationConfig,
+  updateHomepageRotationConfig,
+  fetchHomepageRotationPreview,
   // iter220 — Rotating hero headlines pool
   adminListHeroHeadlines,
   adminRefreshHeroHeadlines,
@@ -5912,6 +5916,263 @@ function CaptionEditorPanel({ row }) {
 
 
 
+
+// iter331 — Homepage rotation engine (fair-exposure "Meet the Makers")
+function HomepageRotationCard() {
+  const [cfg, setCfg] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [excludeInput, setExcludeInput] = useState("");
+
+  const load = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const [c, p] = await Promise.all([
+        fetchHomepageRotationConfig(),
+        fetchHomepageRotationPreview(),
+      ]);
+      setCfg(c);
+      setPreview(p);
+      setExcludeInput((c.excluded_slugs || []).join(", "));
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Failed to load rotation config.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const patch = async (delta) => {
+    setBusy(true);
+    setErr("");
+    try {
+      const next = await updateHomepageRotationConfig(delta);
+      setCfg(next);
+      const p = await fetchHomepageRotationPreview();
+      setPreview(p);
+      toast.success("Rotation config updated.");
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Failed to save.";
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveExcluded = async () => {
+    const slugs = excludeInput.split(/[,\s]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    await patch({ excluded_slugs: slugs });
+  };
+
+  if (!cfg) {
+    return (
+      <div className="border border-line bg-surface p-5" data-testid="homepage-rotation-card">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Loading rotation…</div>
+      </div>
+    );
+  }
+
+  const scored = preview?.scored || [];
+  const featured = scored.filter((r) => r.featured_now);
+  const upNext = scored.filter((r) => !r.featured_now).slice(0, 8);
+
+  return (
+    <div className="border border-line bg-surface p-5 space-y-5" data-testid="homepage-rotation-card">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-1">Homepage rotation</div>
+          <div className="font-display text-2xl tracking-tight">Fair-exposure &ldquo;Meet the Makers&rdquo;</div>
+          <p className="font-mono text-[11px] text-ink-muted mt-2 max-w-2xl leading-relaxed">
+            Scores every eligible maker each period so every founder earns roughly equal homepage
+            time. Higher priority for never-featured, longer-quiet, and (optionally) new or founding
+            makers. Fewer impressions = higher rank.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          disabled={busy}
+          className="px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em] transition"
+          data-testid="homepage-rotation-refresh"
+        >
+          Refresh preview
+        </button>
+      </div>
+
+      {err && (
+        <div className="border border-red-400/40 bg-red-400/5 px-3 py-2 font-mono text-[10px] text-red-400" data-testid="homepage-rotation-error">
+          {err}
+        </div>
+      )}
+
+      {/* Config knobs */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <NumberField label="Featured slots" value={cfg.window} min={1} max={12}
+          onSave={(v) => patch({ window: v })} testId="homepage-rotation-window" />
+        <SelectField label="Cadence" value={cfg.cadence}
+          options={[{ v: "weekly", l: "Weekly (ISO week)" }, { v: "daily", l: "Daily (UTC day)" }]}
+          onSave={(v) => patch({ cadence: v })} testId="homepage-rotation-cadence" />
+        <NumberField label="New-maker boost days" value={cfg.new_maker_boost_days} min={0} max={365}
+          onSave={(v) => patch({ new_maker_boost_days: v })} testId="homepage-rotation-nm-days" />
+        <NumberField label="New-maker boost points" value={cfg.new_maker_boost_points} min={0} max={100000}
+          onSave={(v) => patch({ new_maker_boost_points: v })} testId="homepage-rotation-nm-points" />
+        <NumberField label="Never-featured bonus" value={cfg.never_featured_bonus} min={0} max={100000}
+          onSave={(v) => patch({ never_featured_bonus: v })} testId="homepage-rotation-never-bonus" />
+        <NumberField label="Impression penalty" value={cfg.impression_penalty_per_feature} min={0} max={1000}
+          onSave={(v) => patch({ impression_penalty_per_feature: v })} testId="homepage-rotation-penalty" />
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-1">Founder boost</div>
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!cfg.founder_boost_enabled}
+              onChange={(e) => patch({ founder_boost_enabled: e.target.checked })}
+              disabled={busy}
+              data-testid="homepage-rotation-founder-toggle"
+            />
+            <span className="font-mono text-xs">{cfg.founder_boost_enabled ? "ON" : "OFF"}</span>
+          </label>
+        </div>
+        <NumberField label="Founder boost points" value={cfg.founder_boost_points} min={0} max={100000}
+          onSave={(v) => patch({ founder_boost_points: v })} testId="homepage-rotation-founder-points" />
+      </div>
+
+      {/* Exclusion list */}
+      <div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+          Excluded slugs ({(cfg.excluded_slugs || []).length})
+        </div>
+        <textarea
+          rows={2}
+          value={excludeInput}
+          onChange={(e) => setExcludeInput(e.target.value)}
+          placeholder="one-per-line-or-comma-separated"
+          className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
+          data-testid="homepage-rotation-excluded"
+        />
+        <button
+          type="button"
+          onClick={saveExcluded}
+          disabled={busy}
+          className="mt-1 px-3 py-1.5 border border-line hover:border-brand hover:text-brand font-mono text-[10px] uppercase tracking-[0.22em]"
+          data-testid="homepage-rotation-excluded-save"
+        >
+          Save exclusions
+        </button>
+      </div>
+
+      {/* Live preview */}
+      {preview && (
+        <div className="border-t border-line pt-4">
+          <div className="grid md:grid-cols-4 gap-3 mb-4 font-mono text-[10px] uppercase tracking-[0.22em]">
+            <Stat label="Eligible" value={preview.eligible_total} />
+            <Stat label="Period" value={preview.period?.key || "—"} />
+            <Stat label="Missing bio" value={preview.diagnostics?.missing_bio ?? "—"} />
+            <Stat label="Missing portrait" value={preview.diagnostics?.missing_portrait ?? "—"} />
+          </div>
+
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2" data-testid="homepage-rotation-featured-heading">
+            Featured this period ({featured.length}/{cfg.window})
+          </div>
+          <div className="grid gap-1.5 mb-4">
+            {featured.map((r) => (
+              <ScoredRow key={r.slug} row={r} highlight />
+            ))}
+            {featured.length === 0 && (
+              <div className="font-mono text-[11px] text-ink-muted">No eligible makers.</div>
+            )}
+          </div>
+
+          {upNext.length > 0 && (
+            <>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">
+                Up next
+              </div>
+              <div className="grid gap-1.5">
+                {upNext.map((r) => (
+                  <ScoredRow key={r.slug} row={r} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NumberField({ label, value, min, max, onSave, testId }) {
+  const [v, setV] = useState(value);
+  useEffect(() => { setV(value); }, [value]);
+  return (
+    <label className="block">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{label}</span>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n) && n !== value) onSave(n);
+        }}
+        className="mt-1 w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-1.5 font-mono text-xs"
+        data-testid={testId}
+      />
+    </label>
+  );
+}
+
+function SelectField({ label, value, options, onSave, testId }) {
+  return (
+    <label className="block">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onSave(e.target.value)}
+        className="mt-1 w-full bg-surface border border-line focus:border-brand outline-none px-3 py-1.5 font-mono text-xs"
+        data-testid={testId}
+      >
+        {options.map((o) => (
+          <option key={o.v} value={o.v}>{o.l}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ScoredRow({ row, highlight = false }) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 px-3 py-1.5 border font-mono text-[11px] ${
+        highlight ? "border-brand/60 bg-brand/5" : "border-line"
+      }`}
+      data-testid={`homepage-rotation-row-${row.slug}`}
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-ink truncate">{row.name || row.slug}</span>
+        <span className="text-ink-muted text-[10px] truncate">{row.slug}</span>
+        {row.tier === "founder" && (
+          <span className="px-1.5 py-0.5 border border-amber-500/50 text-amber-400 text-[8px] uppercase tracking-[0.16em]">Founder</span>
+        )}
+      </div>
+      <div className="flex items-center gap-3 text-[10px] whitespace-nowrap">
+        <span className="text-ink-muted">imp:</span>
+        <span className="text-ink">{row.impressions}</span>
+        <span className="text-ink-muted">score:</span>
+        <span className="text-ink">{row.score}</span>
+      </div>
+    </div>
+  );
+}
+
+
+
 export default function SettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -6089,6 +6350,9 @@ export default function SettingsTab() {
       <MetaCapiStatusCard />
 
       <HeroHeadlinesCard />
+
+      {/* iter331 — Fair-exposure homepage-makers rotation engine */}
+      <HomepageRotationCard />
 
       <OperatorOpsChecklistCard />
 

@@ -1505,6 +1505,32 @@ export const fetchTopWeekShowcase = (limit = 6) =>
 export const fetchMakerOfTheWeek = () =>
   http.get("/community/maker-of-the-week").then((r) => r.data);
 
+// iter331 — Fair-exposure homepage-makers rotation. Powers the
+// <MeetTheMakers /> section: 4 eligible makers per period, ranked by
+// scoring engine (never-featured, days-since-last, impressions,
+// new-maker + optional founder boost). Public + cached at the edge.
+export const fetchHomepageMakers = () =>
+  http.get("/community/homepage-makers").then((r) => r.data);
+
+// Admin config surface for the rotation engine.
+// NOTE: these three endpoints require an admin JWT — the `http` axios
+// instance does not attach it globally, so each call includes the
+// Authorization header explicitly. Matches the pattern used by other
+// admin helpers elsewhere in this file.
+export const fetchHomepageRotationConfig = () =>
+  http.get("/admin/homepage-rotation/config", {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+export const updateHomepageRotationConfig = (patch) =>
+  http.patch("/admin/homepage-rotation/config", patch, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+export const fetchHomepageRotationPreview = () =>
+  http.get("/admin/homepage-rotation/preview", {
+    headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
+  }).then((r) => r.data);
+
+
 // Marketplace velocity stats — powers the homepage "is this place alive?"
 // proof strip. Public, cached at the edge.
 export const fetchSiteVelocity = () =>

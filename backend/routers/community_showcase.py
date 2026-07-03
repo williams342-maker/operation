@@ -289,6 +289,410 @@ async def get_maker_of_the_week():
     }
 
 
+# ─────────────────────────────────────────────────────────────────────
+# iter331 — Homepage "Meet the Makers" · fair exposure engine
+#
+# Replaces the old CURATED_SLUGS hard-coded list in <MeetTheMakers />
+# with a scoring-based selector so every eligible maker earns
+# meaningful homepage time — even as the roster grows into the
+# hundreds. Simple round-robin was rejected because at N=500 an "every
+# maker eventually appears" cycle takes ~125 weeks.
+#
+# Eligibility (all must hold):
+#   1. Maker doc exists (all rows in `db.makers` are already approved
+#      — applications live in a separate collection).
+#   2. Not soft-deleted (`deleted_at ∈ [None, ""]`).
+#   3. Public — slug doesn't match test/beta noise patterns.
+#   4. Bio filled in (`bio` non-empty).
+#   5. Profile image present (`portrait` non-empty).
+#   6. At least one product with `status="published"` and not
+#      soft-deleted.
+#   7. Not in the admin exclusion list.
+#
+# Selection (fair-exposure score, higher = more likely to appear):
+#     never_featured_bonus    : +10_000 if last_homepage_featured_at is unset
+#     days_since_last_feature : min(days, 365)     (recency; capped)
+#     impression_penalty      : −5 × homepage_impression_count
+#     new_maker_boost         : +N_BOOST_POINTS while inside N_BOOST_DAYS
+#     founder_boost           : +F_BOOST_POINTS if founder AND toggle on
+#   Deterministic tie-break: lower impression_count, then slug asc.
+#
+# Cadence:
+#   - "weekly" (default) → picks stable for the ISO week; impressions
+#     increment once per (maker, ISO-week).
+#   - "daily"            → picks stable for the calendar UTC day;
+#     impressions increment once per (maker, UTC-day).
+#   Guarded by `system_state.homepage_rotation_state.last_period_key`
+#   so a burst of visitors on the same day never inflates counts.
+#
+# Config lives at `system_state.homepage_rotation_config`. Admin edits
+# via /api/admin/homepage-rotation/config; hot-reads on every request.
+# ─────────────────────────────────────────────────────────────────────
+
+# Kept in sync with routers/catalog.py::list_makers so we don't leak
+# internal test slugs onto the marketplace homepage.
+_HOMEPAGE_TEST_SLUG_RE = r"^(test-|iter\d+-|beta-|TEST_)"
+
+_ROTATION_STATE_KEY = "homepage_rotation_state"
+_ROTATION_CONFIG_KEY = "homepage_rotation_config"
+
+# Config defaults — every knob has a hard-coded fallback so the engine
+# works out-of-the-box even before the admin ever touches the config
+# doc. Any admin-supplied value overrides these.
+_DEFAULT_CONFIG = {
+    "window": 4,
+    "cadence": "weekly",              # "weekly" | "daily"
+    "founder_boost_enabled": False,
+    "founder_boost_points": 100,
+    "new_maker_boost_days": 30,
+    "new_maker_boost_points": 500,
+    "impression_penalty_per_feature": 5,
+    "never_featured_bonus": 10_000,
+    "excluded_slugs": [],
+}
+
+# Score-model constants (not admin-editable — safe operational limits).
+_MAX_DAYS_SINCE_LAST = 365  # cap recency contribution
+
+
+async def _rotation_config() -> dict:
+    """Merge stored admin config on top of _DEFAULT_CONFIG so callers
+    always see every field."""
+    row = await db.system_state.find_one(
+        {"key": _ROTATION_CONFIG_KEY}, {"_id": 0},
+    ) or {}
+    cfg = {**_DEFAULT_CONFIG}
+    for k in _DEFAULT_CONFIG:
+        if k in row and row[k] is not None:
+            cfg[k] = row[k]
+    # Normalise once so downstream code doesn't second-guess types.
+    cfg["window"] = max(1, min(int(cfg["window"] or 4), 12))
+    cfg["cadence"] = "daily" if str(cfg["cadence"]).lower() == "daily" else "weekly"
+    cfg["excluded_slugs"] = [s for s in (cfg.get("excluded_slugs") or []) if isinstance(s, str) and s]
+    return cfg
+
+
+def _period_key(cadence: str, dt: Optional[datetime] = None) -> tuple[str, str]:
+    """Return `(period_key, period_start_iso)` for the given cadence.
+    `period_key` is a stable string used for state guards; `period_start_iso`
+    is what we stamp into `last_homepage_featured_at`.
+    """
+    dt = dt or datetime.now(timezone.utc)
+    if cadence == "daily":
+        day = dt.strftime("%Y-%m-%d")
+        start = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+        return f"day:{day}", start.isoformat().replace("+00:00", "Z")
+    iso_year, iso_week, _ = dt.isocalendar()
+    monday = datetime.fromisocalendar(iso_year, iso_week, 1).replace(tzinfo=timezone.utc)
+    return f"week:{iso_year}-W{iso_week:02d}", monday.isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        s2 = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s2)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _is_founder(m: dict) -> bool:
+    """A maker is treated as a Founding Seller when their tier is
+    "founder" (matches the Founders Wall + product-feed audit definition
+    from iter328)."""
+    return (m.get("tier") or "").lower() == "founder"
+
+
+def _score_maker(m: dict, now: datetime, cfg: dict) -> tuple[float, tuple]:
+    """Fair-exposure score. Returns `(score, tie_break_tuple)` so the
+    caller can sort by (-score, tie_break) for a deterministic order.
+
+    Higher score = higher priority. Tie-break prefers fewer prior
+    impressions, then alphabetical slug.
+    """
+    score = 0.0
+
+    # Recency & never-featured bonus
+    last_at = _parse_iso(m.get("last_homepage_featured_at"))
+    if last_at is None:
+        score += float(cfg["never_featured_bonus"])
+    else:
+        days = max(0, min(int((now - last_at).total_seconds() // 86400), _MAX_DAYS_SINCE_LAST))
+        score += float(days)
+
+    # Impression penalty (compounds fairness — makers seen many times
+    # keep dropping below quieter peers).
+    impressions = int(m.get("homepage_impression_count") or 0)
+    score -= impressions * float(cfg["impression_penalty_per_feature"])
+
+    # New-maker boost — first N days after join get a temporary lift.
+    joined_at = _parse_iso(m.get("created_at"))
+    if joined_at is not None and cfg["new_maker_boost_days"] > 0:
+        age_days = int((now - joined_at).total_seconds() // 86400)
+        if 0 <= age_days < int(cfg["new_maker_boost_days"]):
+            score += float(cfg["new_maker_boost_points"])
+
+    # Optional founder boost — off by default so free-tier makers get
+    # the same shot as inaugural founders.
+    if cfg["founder_boost_enabled"] and _is_founder(m):
+        score += float(cfg["founder_boost_points"])
+
+    tie_break = (impressions, m.get("slug") or "")
+    return score, tie_break
+
+
+async def _eligible_homepage_makers(cfg: dict) -> list[dict]:
+    """Return every maker doc that qualifies for the homepage rotation.
+    Only fields needed for scoring OR by the homepage card renderer are
+    projected."""
+    excluded = set(cfg.get("excluded_slugs") or [])
+    base_q = {
+        "deleted_at": {"$in": [None, ""]},
+        "bio": {"$nin": [None, ""]},
+        "portrait": {"$nin": [None, ""]},
+        "slug": {"$not": {"$regex": _HOMEPAGE_TEST_SLUG_RE}},
+    }
+    if excluded:
+        base_q["slug"]["$nin"] = list(excluded)  # add to existing constraint
+    proj = {
+        "_id": 0, "id": 1, "slug": 1, "name": 1, "initials": 1,
+        "location": 1, "bio": 1, "techniques": 1, "years_crafting": 1,
+        "portrait": 1, "cover": 1, "listings_count": 1,
+        "is_veteran_owned": 1, "featured_example": 1,
+        "tier": 1, "created_at": 1,
+        "last_homepage_featured_at": 1, "homepage_impression_count": 1,
+    }
+    docs = await db.makers.find(base_q, proj).to_list(2000)
+    if not docs:
+        return []
+
+    # Mongo's `$not: $regex` doesn't compose with `$nin` on the same
+    # key across drivers — apply exclusion in Python as a safety net.
+    if excluded:
+        docs = [d for d in docs if d.get("slug") not in excluded]
+
+    # Enforce "≥1 published product" via one bulk aggregation.
+    slugs = [d["slug"] for d in docs]
+    live_slugs: set[str] = set()
+    pipe = [
+        {"$match": {
+            "maker_slug": {"$in": slugs},
+            "status": "published",
+            "deleted_at": {"$in": [None, ""]},
+        }},
+        {"$group": {"_id": "$maker_slug"}},
+    ]
+    async for row in db.products.aggregate(pipe):
+        live_slugs.add(row["_id"])
+
+    return [d for d in docs if d["slug"] in live_slugs]
+
+
+def _pick_by_score(eligible: list[dict], cfg: dict,
+                   now: Optional[datetime] = None) -> tuple[list[dict], list[dict]]:
+    """Rank `eligible` by fair-exposure score. Returns
+    `(picked, all_scored)` where `picked` has up to `cfg["window"]`
+    rows and `all_scored` is the full sorted list annotated with
+    debug fields — useful for the admin preview.
+    """
+    now = now or datetime.now(timezone.utc)
+    window = int(cfg["window"])
+    scored = []
+    for m in eligible:
+        score, tie = _score_maker(m, now, cfg)
+        scored.append((score, tie, m))
+    # Descending by score, ascending by tie-break tuple.
+    scored.sort(key=lambda t: (-t[0], t[1]))
+
+    all_scored = []
+    for score, tie, m in scored:
+        row = dict(m)
+        row["_debug_score"] = round(score, 2)
+        row["_debug_impressions"] = int(m.get("homepage_impression_count") or 0)
+        row["_debug_last_featured_at"] = m.get("last_homepage_featured_at")
+        all_scored.append(row)
+
+    picked = [row for row in all_scored[:window]]
+    return picked, all_scored
+
+
+async def _record_homepage_feature(slugs: list[str], period_start_iso: str,
+                                   period_key: str) -> bool:
+    """Idempotently stamp `last_homepage_featured_at` and increment
+    `homepage_impression_count` on each featured maker for the current
+    period. Guarded by state doc so the write only happens once per new
+    period, not per visitor. Returns True if a write occurred."""
+    if not slugs:
+        return False
+    state = await db.system_state.find_one({"key": _ROTATION_STATE_KEY}, {"_id": 0}) or {}
+    if state.get("last_period_key") == period_key:
+        return False
+    await db.makers.update_many(
+        {"slug": {"$in": slugs}},
+        {
+            "$set": {"last_homepage_featured_at": period_start_iso},
+            "$inc": {"homepage_impression_count": 1},
+        },
+    )
+    await db.system_state.update_one(
+        {"key": _ROTATION_STATE_KEY},
+        {"$set": {
+            "key": _ROTATION_STATE_KEY,
+            "last_period_key": period_key,
+            "last_period_start": period_start_iso,
+            "last_slugs": slugs,
+            "last_recorded_at": now_iso(),
+        }},
+        upsert=True,
+    )
+    return True
+
+
+@router.get("/community/homepage-makers")
+async def get_homepage_makers():
+    """Public — powers `<MeetTheMakers />`. Returns up to `window`
+    eligible makers ranked by fair-exposure score. Selection is stable
+    for the current period (ISO week or UTC day depending on cadence)."""
+    cfg = await _rotation_config()
+    eligible = await _eligible_homepage_makers(cfg)
+    period_key, period_start = _period_key(cfg["cadence"])
+    picked, _ = _pick_by_score(eligible, cfg)
+
+    slugs = [m["slug"] for m in picked]
+    try:
+        await _record_homepage_feature(slugs, period_start, period_key)
+    except Exception:
+        logger.exception("[homepage-makers] record_feature failed for %s", slugs)
+
+    # Strip the private _debug_* fields for the public response.
+    public = [{k: v for k, v in m.items() if not k.startswith("_debug_")} for m in picked]
+
+    return {
+        "items": public,
+        "rotation": {
+            "eligible_total": len(eligible),
+            "window": cfg["window"],
+            "cadence": cfg["cadence"],
+            "period_key": period_key,
+            "period_start": period_start,
+            "strategy": "fair-exposure",
+        },
+    }
+
+
+# ── Admin surface for the rotation ────────────────────────────────────
+@router.get("/admin/homepage-rotation/config")
+async def admin_get_homepage_rotation_config(_: dict = Depends(current_admin)):
+    """Read the current rotation config (merged with defaults)."""
+    return await _rotation_config()
+
+
+@router.patch("/admin/homepage-rotation/config")
+async def admin_patch_homepage_rotation_config(
+    payload: dict = Body(...),
+    _: dict = Depends(current_admin),
+):
+    """Update any subset of the rotation config. Unknown keys are
+    rejected outright so a typo can't silently fail. Values are
+    coerced/validated defensively so a bad admin edit can't crash
+    the public endpoint."""
+    allowed = set(_DEFAULT_CONFIG.keys())
+    unknown = [k for k in payload if k not in allowed]
+    if unknown:
+        raise HTTPException(400, f"Unknown config keys: {unknown}")
+
+    update: dict = {}
+    if "window" in payload:
+        try:
+            update["window"] = max(1, min(int(payload["window"]), 12))
+        except (TypeError, ValueError):
+            raise HTTPException(400, "window must be an integer between 1 and 12")
+    if "cadence" in payload:
+        val = str(payload["cadence"] or "").lower()
+        if val not in ("weekly", "daily"):
+            raise HTTPException(400, "cadence must be 'weekly' or 'daily'")
+        update["cadence"] = val
+    if "founder_boost_enabled" in payload:
+        update["founder_boost_enabled"] = bool(payload["founder_boost_enabled"])
+    for k in ("founder_boost_points", "new_maker_boost_days",
+              "new_maker_boost_points", "impression_penalty_per_feature",
+              "never_featured_bonus"):
+        if k in payload:
+            try:
+                update[k] = max(0, int(payload[k]))
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"{k} must be a non-negative integer")
+    if "excluded_slugs" in payload:
+        raw = payload["excluded_slugs"] or []
+        if not isinstance(raw, list):
+            raise HTTPException(400, "excluded_slugs must be an array of slugs")
+        cleaned = sorted({str(s).strip().lower() for s in raw if str(s).strip()})
+        update["excluded_slugs"] = cleaned
+
+    if update:
+        await db.system_state.update_one(
+            {"key": _ROTATION_CONFIG_KEY},
+            {"$set": {**update, "key": _ROTATION_CONFIG_KEY, "updated_at": now_iso()}},
+            upsert=True,
+        )
+    return await _rotation_config()
+
+
+@router.get("/admin/homepage-rotation/preview")
+async def admin_homepage_rotation_preview(_: dict = Depends(current_admin)):
+    """Dry-run — returns the fully scored eligible list (all rows, not
+    just the top `window`) so admins can see who's next in line, sanity-
+    check the boost weights, and spot excluded/ineligible makers.
+    Does NOT increment impressions."""
+    cfg = await _rotation_config()
+    eligible = await _eligible_homepage_makers(cfg)
+    period_key, period_start = _period_key(cfg["cadence"])
+    _, all_scored = _pick_by_score(eligible, cfg)
+    picked_slugs = [m["slug"] for m in all_scored[: cfg["window"]]]
+
+    # Include a lightweight histogram of the "why not eligible" reasons
+    # so the admin can immediately see how many makers are one bio-edit
+    # or one product-publish away from being included.
+    total_makers = await db.makers.count_documents({"deleted_at": {"$in": [None, ""]}})
+    missing_bio = await db.makers.count_documents({
+        "deleted_at": {"$in": [None, ""]},
+        "$or": [{"bio": {"$in": [None, ""]}}, {"bio": {"$exists": False}}],
+    })
+    missing_portrait = await db.makers.count_documents({
+        "deleted_at": {"$in": [None, ""]},
+        "$or": [{"portrait": {"$in": [None, ""]}}, {"portrait": {"$exists": False}}],
+    })
+
+    return {
+        "config": cfg,
+        "period": {"key": period_key, "start": period_start},
+        "eligible_total": len(eligible),
+        "next_up": picked_slugs,
+        "scored": [
+            {
+                "slug": m["slug"],
+                "name": m.get("name"),
+                "tier": m.get("tier"),
+                "featured_now": m["slug"] in picked_slugs,
+                "score": m["_debug_score"],
+                "impressions": m["_debug_impressions"],
+                "last_featured_at": m["_debug_last_featured_at"],
+                "created_at": m.get("created_at"),
+            }
+            for m in all_scored
+        ],
+        "diagnostics": {
+            "makers_total": total_makers,
+            "missing_bio": missing_bio,
+            "missing_portrait": missing_portrait,
+        },
+    }
+
+
+
+
 @router.get("/community/showcase/top-week")
 async def list_top_week_showcase(limit: int = 6):
     """Most-viewed showcase pieces over the last 7 days.
