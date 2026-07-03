@@ -1,4 +1,96 @@
-## 2026-07-02 — iter330c: Symmetric portrait upload
+## 2026-07-03 — iter331: Fair-exposure "Meet the Makers" rotation
+
+### Motivation
+
+The homepage "Meet the Makers" section had a hard-coded 4-slug list
+(`CURATED_SLUGS`) that never changed — same 4 makers to every visitor
+forever. As the roster grows (30 founders → 100 → 500), a naive
+round-robin would leave newcomers waiting months to appear. Replaced
+with a proper fair-exposure scoring engine.
+
+### Engine
+
+Every eligible maker gets a per-period score. Highest scores fill the
+featured slots. Score components:
+
+- **Never-featured bonus** (+10,000, top priority)
+- **Days since last feature** (+1 per day, capped 365)
+- **Impression penalty** (−5 × prior feature count)
+- **New-maker boost** (+500 for first 30 days after join)
+- **Founder boost** (+100 if enabled; off by default)
+
+Tie-break: fewer impressions, then slug alphabetical. Selection is
+stable across requests within the same period (ISO week or UTC day).
+
+### Eligibility
+
+All must hold: not soft-deleted, non-test slug, bio present,
+portrait present, ≥1 published product, not on admin exclusion list.
+
+### Admin surface
+
+- `GET /api/admin/homepage-rotation/config` — read live config
+- `PATCH /api/admin/homepage-rotation/config` — edit any knob
+- `GET /api/admin/homepage-rotation/preview` — dry-run + full scored
+  list + diagnostics histogram (missing bio / missing portrait counts)
+- **UI card:** `SettingsTab › Homepage rotation` — form + live preview
+  with 12 test-idable controls, exclusion textarea, and scored rows
+  showing (score, impressions, tier, featured_now).
+
+### Public endpoint
+
+- `GET /api/community/homepage-makers` — powers the marketplace
+  `<MeetTheMakers />` section. Self-hides on the frontend when
+  eligible_total = 0.
+
+### Impression tracking
+
+`makers.homepage_impression_count` and `makers.last_homepage_featured_at`
+are stamped once per (maker, period), guarded by
+`system_state.homepage_rotation_state.last_period_key`. Verified: 5
+rapid HTTP GETs → 1 impression increment per featured maker.
+
+### Verification
+
+- **Backend pytest** — 12/12 pass (main 6 + testing-agent's extras 6).
+- **Frontend Playwright** — homepage renders 4/4 expected cards; admin
+  card renders 12/12 testids + 12 scored preview rows; window edit,
+  founder toggle, exclusion save all propagate to backend.
+- **Fair-exposure simulation** — 19 eligible makers, weekly cadence:
+  every maker featured at least once by week 5, impression delta
+  never exceeded ±1 across the cycle.
+
+### Integration bug found + fixed by testing agent
+
+The three new admin helpers in `lib/api.js` initially omitted the
+`Authorization` header on the shared axios instance (no request
+interceptor exists). Result: HomepageRotationCard stuck at
+"LOADING ROTATION…" forever. Fixed by adding explicit
+`Authorization: Bearer ${localStorage.cm_admin_jwt}` to all three
+helpers. Testing agent flagged this as a class-of-bugs candidate —
+future work: add a global axios request interceptor that auto-attaches
+the admin JWT for any URL starting with `/admin/`.
+
+### Files touched
+
+- `/app/backend/routers/community_showcase.py` — engine + 4 endpoints
+- `/app/frontend/src/components/MeetTheMakers.jsx` — CURATED_SLUGS
+  removed, now hydrated from the new endpoint
+- `/app/frontend/src/components/admin/SettingsTab.jsx` —
+  `HomepageRotationCard` + supporting `NumberField`, `SelectField`,
+  `ScoredRow` helpers
+- `/app/frontend/src/lib/api.js` — helpers + Authorization fix
+- `/app/backend/tests/test_iter331_homepage_rotation.py` (new · 6 pytest)
+- `/app/backend/tests/test_iter331_homepage_rotation_extras.py` (new ·
+  by testing agent · 6 more pytest)
+
+### Production redeploy
+
+**Required.** After redeploy, first request will trigger scoring for
+week 27; all 30 founders + eligible makers get their fair rotation
+starting immediately.
+
+
 
 Applied the iter330/330b pattern to the Portrait field (square
 headshot). Same drag-drop + click uploader, same URL fallback,
@@ -28,6 +120,19 @@ Profile form.
 ### Production redeploy
 
 Batches with iter330 + 330b — one redeploy pushes all three.
+
+## 2026-07-02 — iter330c: Symmetric portrait upload
+
+Applied the iter330/330b pattern to the Portrait field (square
+headshot). Same drag-drop + click uploader, same URL fallback,
+same bad-URL hint. Backend endpoint `/maker/uploads/portrait` and
+helper `uploadMakerPortrait` already existed; wired them into the
+Profile form.
+
+### Files touched
+
+- `/app/frontend/src/pages/MakerDashboard/ProfileForm.jsx` — new
+  portrait state, `onPortraitFile` handler, square uploader block.
 
 ## 2026-07-02 — iter330b: Cover-photo bad-URL hint
 
