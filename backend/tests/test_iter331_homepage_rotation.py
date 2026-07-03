@@ -206,3 +206,41 @@ async def test_preview_endpoint_returns_full_scored_list():
     assert isinstance(body["scored"], list)
     for row in body["scored"]:
         assert set(row) >= {"slug", "score", "impressions", "featured_now"}
+
+
+@pytest.mark.asyncio
+async def test_activity_signals_contribute_to_score():
+    """Reward active shops: a maker with recent product + recent login
+    should outscore an identical maker with none of those signals."""
+    import sys
+    sys.path.insert(0, "/app/backend")
+    from routers.community_showcase import _score_maker, _rotation_config
+    from datetime import datetime, timezone
+    cfg = await _rotation_config()
+    now = datetime.now(timezone.utc)
+
+    quiet = {"slug": "q", "portrait": "x", "cover": "y", "bio": "z"}
+    active = {**quiet, "slug": "a",
+              "_activity_new_product_this_week": True,
+              "_activity_updated_listing_this_week": True,
+              "_activity_recent_login": True,
+              "_activity_recent_sale": True}
+
+    q_score, _ = _score_maker(quiet, now, cfg)
+    a_score, _ = _score_maker(active, now, cfg)
+    delta = a_score - q_score
+    expected = (cfg["activity_new_product_this_week_points"]
+                + cfg["activity_updated_listing_this_week_points"]
+                + cfg["activity_recent_login_points"]
+                + cfg["activity_recent_sale_points"])
+    assert delta == expected, f"expected +{expected}, got +{delta}"
+
+
+@pytest.mark.asyncio
+async def test_retuned_weights_defaults():
+    """User-approved retune from iter331b: new-maker 150, founder 50."""
+    import sys
+    sys.path.insert(0, "/app/backend")
+    from routers.community_showcase import _DEFAULT_CONFIG
+    assert _DEFAULT_CONFIG["new_maker_boost_points"] == 150
+    assert _DEFAULT_CONFIG["founder_boost_points"] == 50

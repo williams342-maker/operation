@@ -339,16 +339,35 @@ _ROTATION_CONFIG_KEY = "homepage_rotation_config"
 # Config defaults — every knob has a hard-coded fallback so the engine
 # works out-of-the-box even before the admin ever touches the config
 # doc. Any admin-supplied value overrides these.
+#
+# iter331b — Weight retune based on Preview data ("kiln-and-clay at
+# score 490 vs founders at 95"). The +500 new-maker bonus swamped the
+# rest of the model; lowered to +150 (well within the 100-200 range
+# suggested by the user). Founder boost lowered to +50 so it doesn't
+# override the fairness signals when enabled.
+#
+# NEW: activity-signal bonuses (all admin-editable). Rewards active
+# shops instead of just "present" shops — a maker who published a
+# product this week or made a sale outranks a peer who's been quiet.
 _DEFAULT_CONFIG = {
     "window": 4,
     "cadence": "weekly",              # "weekly" | "daily"
     "founder_boost_enabled": False,
-    "founder_boost_points": 100,
+    "founder_boost_points": 50,
     "new_maker_boost_days": 30,
-    "new_maker_boost_points": 500,
+    "new_maker_boost_points": 150,
     "impression_penalty_per_feature": 5,
     "never_featured_bonus": 10_000,
     "excluded_slugs": [],
+    # iter331b — Activity signals (all default-on so the engine works
+    # out of the box; admin can zero any weight to disable).
+    "activity_completed_profile_points": 20,   # portrait + cover + bio all set
+    "activity_shop_banner_points": 15,         # Plus-tier custom banner set
+    "activity_ten_plus_listings_points": 20,   # listings_count ≥ 10
+    "activity_new_product_this_week_points": 15,
+    "activity_updated_listing_this_week_points": 5,
+    "activity_recent_login_points": 10,        # login within last 7 days
+    "activity_recent_sale_points": 10,         # completed order within last 30 days
 }
 
 # Score-model constants (not admin-editable — safe operational limits).
@@ -439,14 +458,44 @@ def _score_maker(m: dict, now: datetime, cfg: dict) -> tuple[float, tuple]:
     if cfg["founder_boost_enabled"] and _is_founder(m):
         score += float(cfg["founder_boost_points"])
 
+    # iter331b — Activity signals. Reward shops that are actively
+    # tending their storefront, not just present. Each contributor is
+    # a small nudge (5-20 points); the total activity bump is bounded
+    # so it never eclipses the +10,000 never-featured guarantee. All
+    # signals were pre-computed on the maker doc in
+    # `_eligible_homepage_makers` so scoring stays IO-free.
+    if _has_completed_profile(m):
+        score += float(cfg["activity_completed_profile_points"])
+    if m.get("banner_image_url"):
+        score += float(cfg["activity_shop_banner_points"])
+    if int(m.get("listings_count") or 0) >= 10:
+        score += float(cfg["activity_ten_plus_listings_points"])
+    if m.get("_activity_new_product_this_week"):
+        score += float(cfg["activity_new_product_this_week_points"])
+    if m.get("_activity_updated_listing_this_week"):
+        score += float(cfg["activity_updated_listing_this_week_points"])
+    if m.get("_activity_recent_login"):
+        score += float(cfg["activity_recent_login_points"])
+    if m.get("_activity_recent_sale"):
+        score += float(cfg["activity_recent_sale_points"])
+
     tie_break = (impressions, m.get("slug") or "")
     return score, tie_break
+
+
+def _has_completed_profile(m: dict) -> bool:
+    """Portrait + cover + bio all populated. Portrait & bio are already
+    part of eligibility, so effectively this rewards makers who also
+    filled in the shop cover — a low-friction storefront-completeness
+    signal."""
+    return bool(m.get("portrait")) and bool(m.get("cover")) and bool(m.get("bio"))
 
 
 async def _eligible_homepage_makers(cfg: dict) -> list[dict]:
     """Return every maker doc that qualifies for the homepage rotation.
     Only fields needed for scoring OR by the homepage card renderer are
-    projected."""
+    projected. iter331b: activity signals are pre-computed here (in
+    bulk) so _score_maker can stay IO-free."""
     excluded = set(cfg.get("excluded_slugs") or [])
     base_q = {
         "deleted_at": {"$in": [None, ""]},
@@ -463,6 +512,8 @@ async def _eligible_homepage_makers(cfg: dict) -> list[dict]:
         "is_veteran_owned": 1, "featured_example": 1,
         "tier": 1, "created_at": 1,
         "last_homepage_featured_at": 1, "homepage_impression_count": 1,
+        # iter331b — read fields the activity-signal scorer needs.
+        "banner_image_url": 1, "last_login_at": 1,
     }
     docs = await db.makers.find(base_q, proj).to_list(2000)
     if not docs:
@@ -473,21 +524,79 @@ async def _eligible_homepage_makers(cfg: dict) -> list[dict]:
     if excluded:
         docs = [d for d in docs if d.get("slug") not in excluded]
 
-    # Enforce "≥1 published product" via one bulk aggregation.
+    # Enforce "≥1 published product" via one bulk aggregation. Also
+    # collect the two product-activity signals in the same pass to
+    # save a round-trip.
     slugs = [d["slug"] for d in docs]
+    week_ago_iso = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat().replace("+00:00", "Z")
+    month_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    month_ago_iso = month_ago.isoformat().replace("+00:00", "Z")
+
     live_slugs: set[str] = set()
+    new_product_slugs: set[str] = set()
+    updated_listing_slugs: set[str] = set()
     pipe = [
         {"$match": {
             "maker_slug": {"$in": slugs},
             "status": "published",
             "deleted_at": {"$in": [None, ""]},
         }},
-        {"$group": {"_id": "$maker_slug"}},
+        {"$group": {
+            "_id": "$maker_slug",
+            "any": {"$sum": 1},
+            "new_this_week": {"$sum": {
+                "$cond": [{"$gte": [{"$ifNull": ["$created_at", ""]}, week_ago_iso]}, 1, 0],
+            }},
+            "updated_this_week": {"$sum": {
+                "$cond": [{"$gte": [{"$ifNull": ["$updated_at", ""]}, week_ago_iso]}, 1, 0],
+            }},
+        }},
     ]
     async for row in db.products.aggregate(pipe):
-        live_slugs.add(row["_id"])
+        s = row["_id"]
+        if row.get("any"):
+            live_slugs.add(s)
+        if row.get("new_this_week"):
+            new_product_slugs.add(s)
+        if row.get("updated_this_week"):
+            updated_listing_slugs.add(s)
 
-    return [d for d in docs if d["slug"] in live_slugs]
+    # Recent-sale signal: pull the distinct maker_slugs on completed
+    # orders in the last 30 days. Robust to schema drift — we sweep
+    # both `orders` and `checkout_sessions` since Crafters uses both.
+    recent_sale_slugs: set[str] = set()
+    try:
+        async for row in db.orders.aggregate([
+            {"$match": {
+                "status": {"$in": ["paid", "fulfilled", "shipped", "delivered", "completed"]},
+                "created_at": {"$gte": month_ago_iso},
+                "$or": [{"maker_slug": {"$in": slugs}}, {"items.maker_slug": {"$in": slugs}}],
+            }},
+            {"$group": {"_id": {"$ifNull": ["$maker_slug", "$items.maker_slug"]}}},
+        ]):
+            v = row["_id"]
+            if isinstance(v, list):
+                recent_sale_slugs.update(x for x in v if isinstance(x, str))
+            elif isinstance(v, str):
+                recent_sale_slugs.add(v)
+    except Exception:
+        # Non-fatal — orders schema drift shouldn't tank the homepage.
+        logger.exception("[homepage-makers] recent-sale probe failed")
+
+    out = []
+    for d in docs:
+        s = d["slug"]
+        if s not in live_slugs:
+            continue
+        d["_activity_new_product_this_week"] = s in new_product_slugs
+        d["_activity_updated_listing_this_week"] = s in updated_listing_slugs
+        d["_activity_recent_sale"] = s in recent_sale_slugs
+        last_login = _parse_iso(d.get("last_login_at"))
+        d["_activity_recent_login"] = bool(
+            last_login and (datetime.now(timezone.utc) - last_login).days < 7
+        )
+        out.append(d)
+    return out
 
 
 def _pick_by_score(eligible: list[dict], cfg: dict,
@@ -618,7 +727,15 @@ async def admin_patch_homepage_rotation_config(
         update["founder_boost_enabled"] = bool(payload["founder_boost_enabled"])
     for k in ("founder_boost_points", "new_maker_boost_days",
               "new_maker_boost_points", "impression_penalty_per_feature",
-              "never_featured_bonus"):
+              "never_featured_bonus",
+              # iter331b — activity-signal weights
+              "activity_completed_profile_points",
+              "activity_shop_banner_points",
+              "activity_ten_plus_listings_points",
+              "activity_new_product_this_week_points",
+              "activity_updated_listing_this_week_points",
+              "activity_recent_login_points",
+              "activity_recent_sale_points"):
         if k in payload:
             try:
                 update[k] = max(0, int(payload[k]))

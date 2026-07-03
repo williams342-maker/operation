@@ -6041,6 +6041,32 @@ function HomepageRotationCard() {
           onSave={(v) => patch({ founder_boost_points: v })} testId="homepage-rotation-founder-points" />
       </div>
 
+      {/* iter331b — Activity-signal weights. Reward makers who are
+          actively tending their storefront, not just present. Each
+          knob is independent so admins can zero any signal to disable
+          it without touching the others. */}
+      <div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
+          Activity signals
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <NumberField label="Completed profile" value={cfg.activity_completed_profile_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_completed_profile_points: v })} testId="homepage-rotation-act-profile" />
+          <NumberField label="Shop banner" value={cfg.activity_shop_banner_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_shop_banner_points: v })} testId="homepage-rotation-act-banner" />
+          <NumberField label="10+ listings" value={cfg.activity_ten_plus_listings_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_ten_plus_listings_points: v })} testId="homepage-rotation-act-listings" />
+          <NumberField label="New product this week" value={cfg.activity_new_product_this_week_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_new_product_this_week_points: v })} testId="homepage-rotation-act-newprod" />
+          <NumberField label="Updated listing this week" value={cfg.activity_updated_listing_this_week_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_updated_listing_this_week_points: v })} testId="homepage-rotation-act-updlisting" />
+          <NumberField label="Recent login (7d)" value={cfg.activity_recent_login_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_recent_login_points: v })} testId="homepage-rotation-act-login" />
+          <NumberField label="Recent sale (30d)" value={cfg.activity_recent_sale_points} min={0} max={1000}
+            onSave={(v) => patch({ activity_recent_sale_points: v })} testId="homepage-rotation-act-sale" />
+        </div>
+      </div>
+
       {/* Exclusion list */}
       <div>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted mb-2">

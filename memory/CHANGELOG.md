@@ -1,3 +1,67 @@
+## 2026-07-03 — iter331b: Weight retune + activity signals
+
+Following user feedback that the +500 new-maker boost was
+dominating rankings ("new makers ≈490 vs founders ≈95"), retuned
+the weights + added activity-signal scoring for active shops.
+
+### Weight retune (defaults)
+
+- `new_maker_boost_points`: 500 → **150**
+- `founder_boost_points`: 100 → **50**
+
+### New: activity signals (all admin-configurable)
+
+Reward makers who actively tend their storefront, not just those
+who exist. Each signal is a small independent nudge; total activity
+bump is bounded so it never eclipses the +10,000 never-featured
+guarantee.
+
+| Signal | Default | Where read |
+|---|---|---|
+| Completed profile (portrait + cover + bio) | +20 | maker doc |
+| Shop banner (banner_image_url set) | +15 | maker doc |
+| 10+ listings | +20 | listings_count |
+| New product published this week | +15 | products.created_at |
+| Updated listing this week | +5 | products.updated_at |
+| Recent login (last 7 days) | +10 | makers.last_login_at |
+| Recent sale (last 30 days) | +10 | orders (fallback safe) |
+
+All 7 knobs are admin-editable via the same
+`PATCH /admin/homepage-rotation/config` surface. New UI section
+"Activity signals" mounted right below the founder-boost controls.
+
+### Score math example (Preview data)
+
+- `iron-and-oak` (founder + all activity signals): 10,000 + 20 + 15 + 5 + 10 = **10,050**
+- `kiln-and-clay` (new maker, quiet): 10,000 + 20 + 150 = **10,170** (still leads, but now by 120 not 500)
+- Baseline eligible maker: 10,000 + 20 = **10,020**
+
+### Verification
+
+- **Pytest**: 8/8 pass (added
+  `test_activity_signals_contribute_to_score` +
+  `test_retuned_weights_defaults`).
+- **E2E script**: seeded activity flags on iron-and-oak, verified
+  all four signal flags picked up from the batched aggregations
+  and product/order queries.
+
+### Files touched
+
+- `/app/backend/routers/community_showcase.py` — 7 new default keys,
+  `_score_maker` extended with 7 activity contributors,
+  `_eligible_homepage_makers` pre-computes activity signals via
+  batched `products` aggregation + `orders` aggregation, PATCH
+  validator accepts the new keys.
+- `/app/frontend/src/components/admin/SettingsTab.jsx` — new
+  "Activity signals" section with 7 NumberFields
+  (data-testid `homepage-rotation-act-*`).
+- `/app/backend/tests/test_iter331_homepage_rotation.py` — 2 new
+  test cases.
+
+### Production redeploy
+
+**Batches with iter331** — one redeploy pushes both.
+
 ## 2026-07-03 — iter331: Fair-exposure "Meet the Makers" rotation
 
 ### Motivation
