@@ -6015,8 +6015,14 @@ function HomepageRotationCard() {
 
       {/* Config knobs */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-        <NumberField label="Featured slots" value={cfg.window} min={1} max={12}
-          onSave={(v) => patch({ window: v })} testId="homepage-rotation-window" />
+        {/* iter331d — Split slot counts (Hero / Featured / Grid). Sum
+            = total window on the marketplace homepage. */}
+        <NumberField label="Hero slots" value={cfg.hero_count} min={0} max={3}
+          onSave={(v) => patch({ hero_count: v })} testId="homepage-rotation-hero-count" />
+        <NumberField label="Featured slots" value={cfg.featured_count} min={0} max={6}
+          onSave={(v) => patch({ featured_count: v })} testId="homepage-rotation-featured-count" />
+        <NumberField label="Grid slots" value={cfg.grid_count} min={0} max={24}
+          onSave={(v) => patch({ grid_count: v })} testId="homepage-rotation-grid-count" />
         <SelectField label="Cadence" value={cfg.cadence}
           options={[{ v: "weekly", l: "Weekly (ISO week)" }, { v: "daily", l: "Daily (UTC day)" }]}
           onSave={(v) => patch({ cadence: v })} testId="homepage-rotation-cadence" />

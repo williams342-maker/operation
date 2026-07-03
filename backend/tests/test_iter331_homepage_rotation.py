@@ -51,7 +51,11 @@ async def _reset_state(db):
     await db.homepage_rotation_ledger.delete_many({})
     await db.makers.update_many(
         {},
-        {"$unset": {"homepage_impression_count": "", "last_homepage_featured_at": ""}},
+        {"$unset": {
+            "homepage_impression_count": "",
+            "last_homepage_featured_at": "",
+            "homepage_position_counts": "",
+        }},
     )
 
 
@@ -485,4 +489,55 @@ async def test_growth_simulation_scales_and_stays_fair():
     finally:
         await db.makers.delete_many({"slug": {"$regex": f"^{tag}-"}})
         await db.products.delete_many({"maker_slug": {"$regex": f"^{tag}-"}})
+        await _reset_state(db)
+
+
+@pytest.mark.asyncio
+async def test_position_tagging_matches_tier_counts():
+    """iter331d — top-N slugs get tagged hero/featured/grid in order.
+    Defaults are 1 hero + 2 featured + 6 grid = 9 total slots."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    try:
+        await _reset_state(db)
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(PUB); r.raise_for_status()
+            body = r.json()
+        assert body["rotation"]["hero_count"] == 1
+        assert body["rotation"]["featured_count"] == 2
+        assert body["rotation"]["grid_count"] == 6
+        assert body["rotation"]["window"] == 9
+        # Position order in items[] must be: 1 hero, 2 featured, then 6 grid.
+        positions = [m.get("position") for m in body["items"]]
+        # Only as many as we have eligible makers (may be < 9).
+        eligible_total = body["rotation"]["eligible_total"]
+        assert len(positions) == min(9, eligible_total)
+        # Count by position matches config-capped-by-eligibility.
+        hero_seen = positions.count("hero")
+        feat_seen = positions.count("featured")
+        grid_seen = positions.count("grid")
+        assert hero_seen == min(1, eligible_total)
+        assert feat_seen == min(2, max(0, eligible_total - 1))
+        assert grid_seen == max(0, min(6, eligible_total - 3))
+    finally:
+        await _reset_state(db)
+
+
+@pytest.mark.asyncio
+async def test_position_aware_impression_counters():
+    """iter331d — homepage_position_counts.hero/featured/grid increment
+    per-position when a maker lands in that tier for a new period."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    try:
+        await _reset_state(db)
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(PUB); r.raise_for_status()
+            hero_slug = next(m["slug"] for m in r.json()["items"] if m["position"] == "hero")
+        maker = await db.makers.find_one({"slug": hero_slug}, {"_id": 0, "homepage_position_counts": 1})
+        counts = maker.get("homepage_position_counts") or {}
+        assert counts.get("hero") == 1
+        assert counts.get("featured", 0) == 0
+        assert counts.get("grid", 0) == 0
+    finally:
         await _reset_state(db)
