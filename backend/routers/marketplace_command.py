@@ -475,3 +475,310 @@ async def recruitment(
         rows=rows,
         generated_at=_now().isoformat().replace("+00:00", "Z"),
     )
+
+
+# =========================================================
+#   PHASE 2 — COMMERCE PULSE
+# =========================================================
+# iter420 — Live Revenue, Cart Abandonment, Trending Products,
+# Search Terms (top-live). All admin-only widget payloads sitting
+# below the main Command Center.
+
+class LiveRevenueBucket(BaseModel):
+    label: str
+    revenue: float
+    orders: int
+
+
+class LiveRevenueResponse(BaseModel):
+    last_15m: LiveRevenueBucket
+    last_60m: LiveRevenueBucket
+    today: LiveRevenueBucket
+    live_conversion_rate: float  # orders_last_hour / sessions_last_hour × 100
+    hourly_sparkline: list[float]  # last 24 hourly revenue values
+    generated_at: str
+
+
+@router.get("/admin/command/live-revenue", response_model=LiveRevenueResponse)
+async def live_revenue(_: dict = Depends(current_admin)):
+    _PAID = {"$in": ["paid", "fulfilled", "shipped", "succeeded", "complete"]}
+    now = _now()
+
+    async def _bucket(since: datetime) -> LiveRevenueBucket:
+        gte = since.isoformat().replace("+00:00", "Z")
+        match = {"created_at": {"$gte": gte}, "status": _PAID}
+        rev = await _sum_orders(match)
+        orders = await _count("orders", match)
+        return LiveRevenueBucket(label=since.isoformat(), revenue=round(rev, 2), orders=orders)
+
+    b15 = await _bucket(now - timedelta(minutes=15))
+    b60 = await _bucket(now - timedelta(minutes=60))
+    bT = await _bucket(now.replace(hour=0, minute=0, second=0, microsecond=0))
+    b15.label = "Last 15 min"
+    b60.label = "Last 60 min"
+    bT.label = "Today"
+
+    # Live conversion rate — orders in last hour / distinct sessions in last hour.
+    hour_ago = (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    live_sessions = 0
+    try:
+        live_sessions = len([s for s in await db.events.distinct(
+            "session_id", {"type": "page_view", "created_at": {"$gte": hour_ago}},
+        ) if s])
+    except Exception:
+        pass
+    live_conv = round((b60.orders / live_sessions * 100), 2) if live_sessions else 0.0
+
+    # 24h sparkline — revenue by hour.
+    sparkline: list[float] = []
+    for h in range(23, -1, -1):
+        start = now - timedelta(hours=h + 1)
+        end = now - timedelta(hours=h)
+        rev = await _sum_orders({
+            "created_at": {
+                "$gte": start.isoformat().replace("+00:00", "Z"),
+                "$lt": end.isoformat().replace("+00:00", "Z"),
+            },
+            "status": _PAID,
+        })
+        sparkline.append(round(rev, 2))
+
+    return LiveRevenueResponse(
+        last_15m=b15, last_60m=b60, today=bT,
+        live_conversion_rate=live_conv,
+        hourly_sparkline=sparkline,
+        generated_at=now.isoformat().replace("+00:00", "Z"),
+    )
+
+
+class CartAbandonmentResponse(BaseModel):
+    active: int         # updated < 15 min ago
+    abandoning: int     # 15–60 min
+    abandoned: int      # > 60 min
+    dollars_at_risk: float
+    top_abandoned_products: list[dict]
+    generated_at: str
+
+
+@router.get("/admin/command/cart-abandonment", response_model=CartAbandonmentResponse)
+async def cart_abandonment(_: dict = Depends(current_admin)):
+    """Split active carts by staleness. Carts with `order_id` set have
+    already converted and are excluded."""
+    now = _now()
+    t15 = (now - timedelta(minutes=15)).isoformat().replace("+00:00", "Z")
+    t60 = (now - timedelta(minutes=60)).isoformat().replace("+00:00", "Z")
+    t24h = (now - timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+
+    # Restrict to unconverted carts updated in the last 24h — a cart
+    # that's been idle for >24h is stale, not "abandoning".
+    _NOT_ORDERED = {"$or": [{"order_id": {"$exists": False}}, {"order_id": None}]}
+    base = {"updated_at": {"$gte": t24h}, **_NOT_ORDERED}
+
+    active = await _count("abandoned_carts", {**base, "updated_at": {"$gte": t15}})
+    abandoning = await _count("abandoned_carts", {
+        **base, "updated_at": {"$gte": t60, "$lt": t15},
+    })
+    abandoned = await _count("abandoned_carts", {
+        **base, "updated_at": {"$gte": t24h, "$lt": t60},
+    })
+
+    # Dollars at risk = sum of cart_total across abandoning+abandoned buckets
+    dollars_at_risk = 0.0
+    try:
+        cur = db.abandoned_carts.aggregate([
+            {"$match": {**base, "updated_at": {"$lt": t15}}},
+            {"$group": {"_id": None, "sum": {"$sum": {"$ifNull": ["$cart_total", 0]}}}},
+        ])
+        docs = await cur.to_list(1)
+        if docs:
+            dollars_at_risk = float(docs[0]["sum"] or 0)
+    except Exception:
+        pass
+
+    # Top abandoned products (from cart_items array unwind).
+    top_products: list[dict] = []
+    try:
+        pipe = [
+            {"$match": {**base, "updated_at": {"$lt": t15}}},
+            {"$unwind": {"path": "$cart_items", "preserveNullAndEmptyArrays": False}},
+            {"$group": {"_id": "$cart_items.product_slug",
+                        "count": {"$sum": {"$ifNull": ["$cart_items.quantity", 1]}},
+                        "title": {"$last": "$cart_items.title"}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 5},
+        ]
+        async for d in db.abandoned_carts.aggregate(pipe):
+            if d.get("_id"):
+                top_products.append({
+                    "product_slug": d["_id"],
+                    "title": d.get("title") or d["_id"],
+                    "abandoned_units": int(d["count"]),
+                })
+    except Exception:
+        pass
+
+    return CartAbandonmentResponse(
+        active=active, abandoning=abandoning, abandoned=abandoned,
+        dollars_at_risk=round(dollars_at_risk, 2),
+        top_abandoned_products=top_products,
+        generated_at=now.isoformat().replace("+00:00", "Z"),
+    )
+
+
+class TrendingProductRow(BaseModel):
+    product_slug: str
+    title: Optional[str] = None
+    maker_slug: Optional[str] = None
+    views_last_hour: int
+    views_24h_avg_per_hour: float
+    velocity: float  # ratio: last_hour / (24h avg per hour). >1 = trending up.
+
+
+class TrendingProductsResponse(BaseModel):
+    rows: list[TrendingProductRow]
+    generated_at: str
+
+
+@router.get("/admin/command/trending-products", response_model=TrendingProductsResponse)
+async def trending_products(limit: int = 8, _: dict = Depends(current_admin)):
+    """Products with view velocity > 1.5× baseline. Baseline is the
+    24-hour average of hourly views; hot windows show as spikes."""
+    now = _now()
+    t_1h = (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    t_24h = (now - timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+
+    # Views in the last hour, grouped by product.
+    last_hour: dict[str, int] = {}
+    try:
+        pipe = [
+            {"$match": {"type": "product_view", "created_at": {"$gte": t_1h}}},
+            {"$group": {"_id": "$product_slug", "n": {"$sum": 1}}},
+        ]
+        async for d in db.events.aggregate(pipe):
+            if d.get("_id"):
+                last_hour[d["_id"]] = int(d["n"])
+    except Exception:
+        pass
+
+    # 24h view totals for the same products.
+    last_24h: dict[str, int] = {}
+    try:
+        pipe = [
+            {"$match": {"type": "product_view", "created_at": {"$gte": t_24h}}},
+            {"$group": {"_id": "$product_slug", "n": {"$sum": 1}}},
+        ]
+        async for d in db.events.aggregate(pipe):
+            if d.get("_id"):
+                last_24h[d["_id"]] = int(d["n"])
+    except Exception:
+        pass
+
+    # Compute velocity and pick top N. Include only products with
+    # meaningful volume so a single view doesn't dominate.
+    rows_data = []
+    for slug, hour_n in last_hour.items():
+        if hour_n < 2:
+            continue
+        h24 = last_24h.get(slug, hour_n)
+        avg_per_hour = h24 / 24.0
+        velocity = hour_n / avg_per_hour if avg_per_hour > 0 else 0.0
+        rows_data.append((slug, hour_n, avg_per_hour, velocity))
+
+    rows_data.sort(key=lambda x: x[3], reverse=True)
+    rows_data = rows_data[:limit]
+
+    # Fetch titles for the top rows.
+    slugs = [r[0] for r in rows_data]
+    title_map: dict[str, dict] = {}
+    if slugs:
+        try:
+            async for p in db.products.find(
+                {"slug": {"$in": slugs}},
+                {"_id": 0, "slug": 1, "title": 1, "maker_slug": 1},
+            ):
+                title_map[p["slug"]] = p
+        except Exception:
+            pass
+
+    rows = [
+        TrendingProductRow(
+            product_slug=slug,
+            title=(title_map.get(slug) or {}).get("title") or slug,
+            maker_slug=(title_map.get(slug) or {}).get("maker_slug"),
+            views_last_hour=hour_n,
+            views_24h_avg_per_hour=round(avg_per_hour, 2),
+            velocity=round(velocity, 2),
+        )
+        for slug, hour_n, avg_per_hour, velocity in rows_data
+    ]
+    return TrendingProductsResponse(
+        rows=rows,
+        generated_at=now.isoformat().replace("+00:00", "Z"),
+    )
+
+
+class TopSearchRow(BaseModel):
+    normalized_query: str
+    latest_query: str
+    count: int
+    result_count_last: int
+    zero_result_share: float          # 0.0-1.0 — how often this query returns nothing
+    clicks: int
+    ctr: float                        # clicks / count
+
+
+class TopSearchResponse(BaseModel):
+    window_hours: int
+    rows: list[TopSearchRow]
+    generated_at: str
+
+
+@router.get("/admin/command/top-searches", response_model=TopSearchResponse)
+async def top_searches(
+    window_hours: int = 24,
+    limit: int = 10,
+    _: dict = Depends(current_admin),
+):
+    """Top live search terms including those WITH results. Complements
+    the Recruitment Opportunities widget which shows only zero-result
+    queries."""
+    window_hours = max(1, min(int(window_hours or 24), 168))
+    cutoff = (_now() - timedelta(hours=window_hours)).isoformat().replace("+00:00", "Z")
+
+    pipe = [
+        {"$match": {"created_at": {"$gte": cutoff}}},
+        {"$group": {
+            "_id": "$normalized_query",
+            "count": {"$sum": 1},
+            "latest_query": {"$last": "$query"},
+            "result_count_last": {"$last": "$result_count"},
+            "zero_result_events": {"$sum": {"$cond": ["$zero_result", 1, 0]}},
+            "clicks": {"$sum": {"$cond": [{"$ne": ["$clicked_product_id", None]}, 1, 0]}},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": int(limit)},
+    ]
+    rows: list[TopSearchRow] = []
+    try:
+        async for d in db.search_events.aggregate(pipe):
+            nq = d.get("_id") or ""
+            if not nq:
+                continue
+            count = int(d["count"])
+            rows.append(TopSearchRow(
+                normalized_query=nq,
+                latest_query=d.get("latest_query") or nq,
+                count=count,
+                result_count_last=int(d.get("result_count_last") or 0),
+                zero_result_share=round((d.get("zero_result_events") or 0) / count, 2) if count else 0.0,
+                clicks=int(d.get("clicks") or 0),
+                ctr=round((d.get("clicks") or 0) / count, 2) if count else 0.0,
+            ))
+    except Exception:
+        pass
+
+    return TopSearchResponse(
+        window_hours=window_hours,
+        rows=rows,
+        generated_at=_now().isoformat().replace("+00:00", "Z"),
+    )

@@ -1,3 +1,82 @@
+## 2026-07-04 — iter420: Commerce Pulse (Phase 2 widgets)
+
+Added the four Phase 2 widgets below the Command Center's main strip
+under a new "Commerce Pulse" divider. Every widget uses the same
+framework (`WidgetShell` + `useAdminFetch`) introduced in iter419 —
+zero new plumbing.
+
+### Backend endpoints (extends `routers/marketplace_command.py`)
+
+- `GET /api/admin/command/live-revenue` — three revenue buckets (15m,
+  60m, today) with order counts + live conversion rate (orders in the
+  last hour ÷ distinct sessions in the last hour) + 24-hour hourly
+  sparkline.
+- `GET /api/admin/command/cart-abandonment` — reads `abandoned_carts`
+  (already populated by `POST /api/cart/track`). Splits carts by
+  staleness: active (< 15 min), abandoning (15–60 min), abandoned
+  (1–24h). Sums `cart_total` across the >15m buckets as
+  `dollars_at_risk`. Unwinds `cart_items` to surface the top-abandoned
+  products so ops sees what to recover.
+- `GET /api/admin/command/trending-products` — computes per-product
+  view velocity = views last hour ÷ (24h average per hour). Requires
+  ≥2 views in the last hour to prevent single-view rows dominating.
+  Sorts by velocity DESC, top N. Joins product titles/maker_slug.
+- `GET /api/admin/command/top-searches` — every search query in the
+  window (not just zero-result), sorted by volume. Reports
+  `zero_result_share` (0.0–1.0) and CTR from click-through events
+  logged via `/api/search/click`.
+
+### Widgets
+
+- **LiveRevenue** — 3 bucket cards + big live-conversion pill + CSS
+  bar-graph sparkline of the last 24 hourly revenues.
+- **CartAbandonment** — 3 splits (emerald/amber/red tint), big
+  "dollars at risk" in red, top-abandoned products list below.
+- **TrendingProducts** — velocity-ranked list with 🔥 tag for
+  ≥3× spikes; product titles link to the PDP in a new tab. Empty
+  state: "No products spiking in the last hour".
+- **TopSearches** — 1h / 24h / 7d window pills. Every search shown
+  with count, CTR, and hits; zero-result rows tinted red with a
+  "no results" badge for cross-reference with Recruitment
+  Opportunities.
+
+### Layout
+
+`CommandCenter.jsx` now renders two dashboards:
+
+1. Main strip (iter419): `MarketplaceGrowth` (full) → `FounderOperations`
+   + `RecruitmentOpportunities` → `MarketplaceActivity` (full).
+2. **Commerce Pulse** (iter420) — separated by an eyebrow + H2 +
+   subtitle, then a 2×2 grid: `LiveRevenue`, `CartAbandonment`,
+   `TrendingProducts`, `TopSearches`.
+
+### Testing (`tests/test_iter420_commerce_pulse.py`)
+
+5 pytest cases, all passing:
+
+- `live-revenue` shape (3 buckets + conv rate + 24-item sparkline).
+- `cart-abandonment` splits three buckets correctly by seeding three
+  time-staggered carts + confirms `dollars_at_risk` sum + top products.
+- `trending-products` requires ≥2 views (cold single-view products
+  excluded).
+- `top-searches` ranks by volume + accurately reports
+  `zero_result_share` for both hit and dead queries.
+- All 4 endpoints reject anon access (401/403).
+
+19/19 total tests green across iter418 + iter419 + iter420.
+
+### Verification (preview)
+
+- All 8 widgets on the Command Center rendered simultaneously (verified
+  via DOM eval).
+- Top Searches widget picked up prior test queries and correctly tinted
+  zero-result rows in red vs. green rows for queries that returned
+  results (e.g., "Router").
+- Cart Abandonment endpoint verified against synthetic 3-cart seed;
+  splits computed correctly on the boundary times.
+
+---
+
 ## 2026-07-04 — iter419: Marketplace Command Center + Search Intent
 
 Replaced the operations landing view with a **widget-based Marketplace

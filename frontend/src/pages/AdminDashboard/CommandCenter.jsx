@@ -15,6 +15,11 @@ import "../../components/widgets/MarketplaceGrowth";
 import "../../components/widgets/FounderOperations";
 import "../../components/widgets/MarketplaceActivity";
 import "../../components/widgets/RecruitmentOpportunities";
+// iter420 — Commerce Pulse strip
+import "../../components/widgets/LiveRevenue";
+import "../../components/widgets/CartAbandonment";
+import "../../components/widgets/TrendingProducts";
+import "../../components/widgets/TopSearches";
 import { Dashboard } from "../../components/widgets/framework";
 
 const CRAFTERS_LAYOUT = [
@@ -22,6 +27,13 @@ const CRAFTERS_LAYOUT = [
   "FounderOperations",
   "RecruitmentOpportunities",
   { key: "MarketplaceActivity", span: 2 },
+];
+
+const CRAFTERS_COMMERCE_LAYOUT = [
+  "LiveRevenue",
+  "CartAbandonment",
+  "TrendingProducts",
+  "TopSearches",
 ];
 
 export default function CommandCenter() {
@@ -37,6 +49,21 @@ export default function CommandCenter() {
         </p>
       </div>
       <Dashboard layout={CRAFTERS_LAYOUT} />
+
+      {/* iter420 — Commerce Pulse: live revenue, abandonment, momentum, intent */}
+      <div className="pt-6 border-t border-line">
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-1">
+          ◆ Commerce Pulse
+        </div>
+        <h2 className="font-display text-2xl mb-1">Live money & momentum.</h2>
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mb-4">
+          Revenue · Recovery · Momentum · Intent
+        </p>
+        <Dashboard
+          layout={CRAFTERS_COMMERCE_LAYOUT}
+          className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        />
+      </div>
     </div>
   );
 }
