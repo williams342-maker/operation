@@ -1,3 +1,59 @@
+## 2026-07-04 — iter417: Application confirmation copy hardened
+
+**Reported problem:** applicants were assuming that clicking Submit =
+application received. Some never opened the verification email, then
+followed up asking why they'd heard nothing. The success screen
+already asked them to "check your inbox" but didn't make it explicit
+that **the application is not considered received until the email is
+confirmed**.
+
+### Changes (`ApplyPage.jsx` — copy only, no workflow changes)
+
+**Success screen (`state === "done"` branch)** — added a new callout
+box between the existing "we sent a link to X" line and the bullet
+list. Uses the same `border-l-4 border-brand bg-brand/5` treatment as
+the shop-announcement banner so it reads as a required action, not
+decoration. Copy is verbatim per the ticket:
+
+> **Please check your email to confirm your application was received.**
+> If you don't see it within a few minutes, check your spam or junk
+> folder. If no confirmation email arrives, we may not have received
+> your application — please review your email address and submit again.
+
+`data-testid="apply-done-not-received-notice"` for regression cover.
+
+**Application form** — added a helper line immediately under the EMAIL
+input (rendered inside the same `<label>` so it inherits the field
+context):
+
+> Use an email address you can access. We'll send a confirmation
+> email after you apply.
+
+`data-testid="apply-email-hint"` for regression cover. The hint is
+conditionally rendered only when the field key === "email" so no other
+field gets a stray note.
+
+### Untouched (per ticket)
+
+- Verification workflow (`submitMakerApplication` + 7-day token +
+  resend endpoint) — no changes.
+- Existing "Check your inbox" H1 + confirmation paragraph — kept as-is.
+- Existing bullet list (spam folder / wrong-email contact / 3-5 day
+  reply) — kept as-is.
+- Rest of the /apply page (fee table, pricing comparison, other form
+  fields) — no changes.
+
+### Verification (preview)
+
+- Filled and submitted the form. The `apply-done` screen renders the
+  new notice with the exact required copy. Success screen text
+  dumped to the log to confirm character-for-character match.
+- Rendered the form and confirmed the email-field hint appears once,
+  only under EMAIL, with the exact required copy.
+- Lint passes (no new warnings).
+
+---
+
 ## 2026-07-04 — iter416: Garage Builders emblem asset refresh
 
 **Community brand update** — replaced the outdated bronze "CNC Garage

@@ -167,6 +167,20 @@ export default function ApplyPage() {
         We&rsquo;ve sent a confirmation link to{" "}
         <b className="text-ink break-all">{f.email}</b>. Click it to finalize your application &mdash; the link is good for 7 days.
       </p>
+      {/* iter417 — Explicit "not received until confirmed" warning.
+          Applicants were assuming submission alone = received; a maker
+          reported never seeing the email and never getting a reply.
+          This copy makes the required-action nature of the email
+          unmissable and gives a clear next step if it never arrives. */}
+      <div
+        className="max-w-md mx-auto mb-8 border-l-4 border-brand bg-brand/5 px-4 py-4 text-left"
+        data-testid="apply-done-not-received-notice"
+      >
+        <p className="font-body text-sm text-ink leading-relaxed">
+          <b className="text-brand">Please check your email to confirm your application was received.</b>{" "}
+          If you don&rsquo;t see it within a few minutes, check your spam or junk folder. If no confirmation email arrives, we may not have received your application &mdash; please review your email address and submit again.
+        </p>
+      </div>
       <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted max-w-md mx-auto space-y-2 mb-8">
         <p>&bull; If you don&rsquo;t see the email, check your spam or promotions folder.</p>
         <p>&bull; If you entered the wrong email, contact us at <a className="text-brand hover:underline" href="mailto:team@craftersmarket.org">team@craftersmarket.org</a>.</p>
@@ -231,6 +245,18 @@ export default function ApplyPage() {
                 name={k} autoComplete={autoComp}
                 value={f[k]} onChange={set(k)} data-testid={`apply-${k}`}
                 className="w-full mt-2 bg-transparent border-b border-line focus:border-brand outline-none py-3 font-mono text-sm" />
+              {/* iter417 — Pre-submit reminder that a confirmation
+                  email is coming, so applicants use an inbox they can
+                  actually check (not a work address they no longer
+                  have, etc.). */}
+              {k === "email" && (
+                <span
+                  className="block mt-2 font-mono text-[10px] text-ink-muted normal-case tracking-normal leading-snug"
+                  data-testid="apply-email-hint"
+                >
+                  Use an email address you can access. We&rsquo;ll send a confirmation email after you apply.
+                </span>
+              )}
             </label>
           ))}
           <div className="md:col-span-2">
