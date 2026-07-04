@@ -1,3 +1,88 @@
+## 2026-07-04 — iter416: Garage Builders emblem asset refresh
+
+**Community brand update** — replaced the outdated bronze "CNC Garage
+Builders" badge with the new official Garage Builders mandala emblem
+across every non-Crafters-Market surface. Explicit rule: **Crafters
+Market CM-anvil identity is untouched** (nav, footer, favicon, PWA
+icons, /og-image.png horizontal lockup). Only the community emblem
+was refreshed.
+
+### Files replaced in place (same paths, same filenames — zero code changes)
+
+- `public/downloads/cnc-garage-builders.png` — 2278 KB (old bronze
+  badge) → 2654 KB (new mandala). This asset had 41+ references across
+  ~28 pages (OG social-share meta, /press Primary Mark, push
+  notification icons, Schema.org organization logo, backend
+  og_prerender defaults, ai_ad_creative default image). All references
+  keep working — same URL, new pixels.
+- `public/downloads/garage-builders.png` — refreshed master (was
+  already the mandala from iter413bv, kept for consistency).
+- `public/downloads/garage-builders-monochrome.png` — regenerated via
+  Nano Banana (Gemini 3.1 Flash Image) to true white-on-transparent
+  for packaging/print use. 856 KB → 762 KB.
+- `public/downloads/garage-builders-orange.png` — regenerated via Nano
+  Banana to single-color #ff4500 on transparent for profile-pic use.
+  886 KB → 719 KB.
+- `public/downloads/garage-builders-square.png` — regenerated as
+  1080×1080 social avatar variant. 975 KB → 980 KB.
+- `public/downloads/garage-builders-engraving.svg` — regenerated via
+  potrace vector-tracing from a thresholded copy of the master.
+  Installed `potrace` in the container (previous run failed because
+  the binary was missing — logged in `scripts/generate_emblem_variants.py`).
+
+### Untouched (Crafters Market corporate brand — separate from community brand)
+
+- `public/icons/logo-monogram*.png` (CM anvil monogram used in
+  Nav / Footer / mobile menu)
+- `public/icons/favicon-16.png`, `favicon-32.png`, `apple-touch-icon.png`,
+  `icon-192.png`, `icon-512.png`, `icon-maskable-*.png`
+- `public/favicon.ico`
+- `public/og-image.png` (horizontal CM-anvil lockup used as the
+  site-wide default OG per `index.html`)
+- Every code path referencing the assets (no filename or route
+  changes). BrandKitCard, CNCEmblem, PressPage, seoLandingConfig,
+  push.py, og_prerender.py, og_static_prerender.py, ai_ad_creative.py
+  all keep their existing `/downloads/*.png` URLs.
+
+### Brand architecture (per user's directive)
+
+- **Crafters Market = platform brand** → CM anvil monogram
+- **Garage Builders = community brand** → mandala emblem
+
+The two now serve distinct purposes and never overwrite each other.
+
+### Where the new emblem shows up
+
+- `/press` Brand Assets "Primary Mark" (was the bronze badge that
+  triggered this ticket)
+- `/community/emblem` interactive maker-segment badge
+- Maker Dashboard → Brand Kit downloads (4 variants: sticker, profile,
+  packaging, social)
+- Facebook / Twitter / LinkedIn share previews on all 28 pages that
+  reference `cnc-garage-builders.png` as their OG image
+- Web push notifications (icon + badge)
+- Google Search Knowledge Panel (Schema.org Organization logo via
+  backend `og_static_prerender.py`)
+
+### Follow-up (optional, when time allows)
+
+- Provide a true SVG master of the mandala so `garage-builders-engraving.svg`
+  can be regenerated at vector quality instead of potrace-traced from a raster.
+  Current SVG is functional but not designed for laser engraving detail.
+- Produce a **transparent-background** PNG variant so the primary mark
+  renders on any card color (current master has a black background from
+  the source image). Nano Banana can strip the background if requested.
+
+### Verification (preview)
+
+- HEAD checks on all 6 asset URLs return 200 with new byte sizes.
+- `/press` "Primary Mark" card renders the new mandala.
+- `/community/emblem` renders the new mandala interactively.
+- CM-anvil header logo confirmed unchanged.
+- Production needs a redeploy to publish.
+
+---
+
 ## 2026-07-04 — iter415: Maker shop hero contrast fix (light mode)
 
 **Reported bug:** a maker flagged that the shop title over the cover
