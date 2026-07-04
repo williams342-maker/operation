@@ -206,6 +206,37 @@ export default function FounderReviewTab() {
 
       {/* ---------- Review table ---------- */}
       <section data-testid="founder-review-table-wrap">
+        {/* iter421 — Health score distribution strip: at-a-glance
+            of how the roster is doing without scanning every row. */}
+        {data.rows.length > 0 && (
+          <div
+            className="flex flex-wrap gap-2 mb-3"
+            data-testid="health-distribution"
+          >
+            {(() => {
+              const buckets = [
+                { name: "Excellent", stars: 5, tint: "border-emerald-600 bg-emerald-500/10 text-emerald-500" },
+                { name: "Healthy", stars: 4, tint: "border-emerald-600/60 bg-emerald-500/5 text-emerald-500" },
+                { name: "Good", stars: 3, tint: "border-line bg-paper text-ink" },
+                { name: "Needs Attention", stars: 2, tint: "border-amber-500 bg-amber-500/10 text-amber-500" },
+                { name: "Dormant", stars: 1, tint: "border-red-500 bg-red-500/10 text-red-400" },
+              ];
+              return buckets.map((b) => {
+                const n = data.rows.filter((r) => (r.health || {}).stars === b.stars).length;
+                if (n === 0) return null;
+                return (
+                  <span
+                    key={b.stars}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${b.tint}`}
+                    data-testid={`health-bucket-${b.stars}`}
+                  >
+                    {"★".repeat(b.stars)}{"☆".repeat(5 - b.stars)} · {b.name} · {n}
+                  </span>
+                );
+              });
+            })()}
+          </div>
+        )}
         <div className="flex items-center justify-between mb-3">
           <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-brand">
             ◆ Founder Roster — Activity Review
@@ -224,6 +255,7 @@ export default function FounderReviewTab() {
             <thead className="bg-paper/70 text-ink-muted text-[10px] uppercase tracking-[0.2em]">
               <tr>
                 <th className="text-left px-3 py-2">Founder</th>
+                <th className="text-left px-3 py-2">Health</th>
                 <th className="text-left px-3 py-2">Approved</th>
                 <th className="text-left px-3 py-2">Last Login</th>
                 <th className="text-right px-3 py-2">Published</th>
@@ -260,6 +292,27 @@ export default function FounderReviewTab() {
                       <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted mt-1">
                         {row.founder_status}
                       </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
+                    {row.health && row.health.stars ? (
+                      <div className="min-w-[9rem]" data-testid={`health-${row.slug}`}>
+                        <div className={`font-display text-lg ${
+                          row.health.stars >= 4 ? "text-emerald-500"
+                          : row.health.stars === 3 ? "text-ink"
+                          : row.health.stars === 2 ? "text-amber-500" : "text-red-400"
+                        }`} title={`Score: ${row.health.score}/100`}>
+                          {"★".repeat(row.health.stars)}{"☆".repeat(5 - row.health.stars)}
+                        </div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">
+                          {row.health.verdict} · {row.health.score}/100
+                        </div>
+                        <div className="font-mono text-[9px] text-ink-muted mt-0.5">
+                          store {row.health.completeness_pct || 0}% complete
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="font-mono text-[10px] text-ink-muted">—</span>
                     )}
                   </td>
                   <td className="px-3 py-3 text-ink-muted text-[11px]">{fmtDate(row.approved_at)}</td>
@@ -307,7 +360,7 @@ export default function FounderReviewTab() {
               ))}
               {data.rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-ink-muted text-[11px] uppercase tracking-[0.2em]">
+                  <td colSpan={10} className="px-3 py-8 text-center text-ink-muted text-[11px] uppercase tracking-[0.2em]">
                     No Founder makers yet.
                   </td>
                 </tr>

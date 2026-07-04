@@ -1,3 +1,90 @@
+## 2026-07-04 — iter421: Maker Health Score (Phase 3)
+
+Per-maker composite health score baked into the Founder Review table.
+The four-signal Active/Needs-Review classifier from iter418 is
+augmented with a nuanced 0-100 weighted score that maps to a 1-5
+star rating + verdict. Admins can now scan the roster and see at a
+glance which founders are truly thriving, which are surface-polished
+but dormant, and which are dormant-and-shallow.
+
+### Score model (`_compute_health_score`)
+
+Weight budget = 100 pts:
+
+- **Login recency (20)**: 7d = 20, 30d = 15, 60d = 10, 90d = 5, else 0
+- **Published listings (20)**: 10+ = 20, 5-9 = 15, 3-4 = 10, 1-2 = 5, 0 = 0
+- **Recent product updates (10)**: 30d = 10, 90d = 5, else 0
+- **Sales activity (15)**: 5+ in 30d = 15, 1-4 in 30d = 10, all-time ≥1 = 5, else 0
+- **Product view volume (10)**: 50+ views in 7d = 10, 10-49 = 5, else 0
+- **Store completeness (15)**: 10 sub-fields worth 1-2 pts each
+  (shop_title, bio ≥40, cover, portrait, techniques, location,
+  ≥1 social link, website, machinery, shop_announcement)
+- **Response time set (10)**: ≤24h = 10, ≤72h = 5, else 0
+
+Total → star + verdict:
+- 90-100 · 5★ · Excellent
+- 75-89 · 4★ · Healthy
+- 60-74 · 3★ · Good
+- 40-59 · 2★ · Needs Attention
+- < 40  · 1★ · Dormant
+
+### Backend changes (`routers/admin_founders_review.py`)
+
+- `_activity_signals_for()` now additionally computes `sales_30d`,
+  `views_7d` (joins `events.type=product_view` filtered by product
+  slugs owned by the maker), and calls `_compute_health_score`.
+- `_compute_health_score(...)` is a pure function — no I/O — so it's
+  easy to unit-test and reuse anywhere.
+- `_completeness_breakdown(m)` returns (points, per-field detail dict)
+  so the UI can render checklists later if desired.
+- `FounderReviewRow` model gains a `health: dict` field carrying
+  `{score, stars, verdict, breakdown, completeness_detail,
+   completeness_pct}`.
+
+### Frontend (`FounderReviewTab.jsx`)
+
+- New **Health** column between Founder and Approved with a big star
+  row (tinted emerald/ink/amber/red by verdict), verdict + score, and
+  store-completeness percentage below.
+- New **health distribution strip** above the table shows total
+  counts per bucket (Excellent, Healthy, Good, Needs Attention,
+  Dormant) so admins see marketplace health at a glance without
+  scanning every row.
+
+### Testing (`tests/test_iter421_maker_health.py`)
+
+5 pytest cases, all passing:
+
+- Perfect maker (all signals) scores exactly 100 → 5★ Excellent.
+- Completely empty maker → < 40 → 1★ Dormant.
+- Mid-range signals → 20-40 band verified.
+- Completeness breakdown reports per-field ok/missing correctly.
+- Live `/api/admin/founders/review` returns `health` on every row.
+
+Combined suite: **24/24 tests green** across iter418+419+420+421.
+
+### Verification (preview)
+
+- Founder Review table renders a new Health column with star ratings,
+  verdicts, and store completeness percentages.
+- Health distribution strip surfaces the current mix (all 15 founders
+  are Dormant in preview — expected, as seeded makers have no login /
+  sales / view history).
+- Nuance verified: iron-and-oak shows 93% store completeness but 34/100
+  overall — the shop is *polished* but *inactive*. Metalart-pro shows
+  53% completeness and 23/100 — shallow *and* dormant. This is the
+  exact signal that makes downgrade decisions defensible.
+
+### What the admin gets
+
+Before iter421: "Active" or "Needs Review". Binary.
+After iter421: a graded verdict from Excellent → Dormant with a
+transparent 100-point breakdown. When you Move-to-Free a founder,
+the audit trail can now capture *why* (score = 18, no login in 90
+days, 0 listings) instead of just "dormant".
+
+---
+
 ## 2026-07-04 — iter420: Commerce Pulse (Phase 2 widgets)
 
 Added the four Phase 2 widgets below the Command Center's main strip

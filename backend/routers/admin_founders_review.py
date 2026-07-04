@@ -84,7 +84,12 @@ async def _activity_signals_for(maker: dict) -> dict:
     """Compute the four activity booleans + supporting metrics for a
     single Founder maker. Result is used by both classify() below and
     exposed verbatim to the admin review UI so the moderator can see
-    *why* a maker is flagged."""
+    *why* a maker is flagged.
+
+    iter421 additionally computes the composite Maker Health Score
+    (0-100 → 1-5 stars) and its breakdown so the review UI can render
+    the star + verdict inline.
+    """
     slug = maker.get("slug")
 
     # Product counts (published + total draft).
@@ -118,6 +123,32 @@ async def _activity_signals_for(maker: dict) -> dict:
         except Exception:
             pass
 
+    # Recent sales (last 30 days) for the health score.
+    sales_30d = 0
+    try:
+        sales_30d = await db.orders.count_documents({
+            "maker_slug": slug,
+            "created_at": {"$gte": _cutoff_iso(30)},
+        })
+    except Exception:
+        pass
+
+    # 7-day product-view volume across all of this maker's listings.
+    views_7d = 0
+    try:
+        maker_slugs_cur = db.products.find(
+            {"maker_slug": slug}, {"slug": 1, "_id": 0},
+        )
+        product_slugs = [p["slug"] async for p in maker_slugs_cur if p.get("slug")]
+        if product_slugs:
+            views_7d = await db.events.count_documents({
+                "type": "product_view",
+                "product_slug": {"$in": product_slugs},
+                "created_at": {"$gte": _cutoff_iso(7)},
+            })
+    except Exception:
+        pass
+
     # Shop-profile completion — has a bio > 40 chars and either
     # `studio_name` or `shop_title` beyond seed defaults.
     bio = (maker.get("bio") or "").strip()
@@ -137,6 +168,17 @@ async def _activity_signals_for(maker: dict) -> dict:
         "has_sales": sales_count >= 1,
     }
 
+    # iter421 — Composite health score.
+    health = _compute_health_score(
+        maker=maker,
+        last_login=last_login,
+        published_products=published_products,
+        last_product_update=last_product_update,
+        sales_count=sales_count,
+        sales_30d=sales_30d,
+        views_7d=views_7d,
+    )
+
     return {
         "signals": signals,
         "total_products": total_products,
@@ -144,6 +186,127 @@ async def _activity_signals_for(maker: dict) -> dict:
         "last_product_update": last_product_update,
         "last_login": last_login,
         "sales_count": sales_count,
+        "sales_30d": sales_30d,
+        "views_7d": views_7d,
+        "health": health,
+    }
+
+
+# ---------------------- Health score (iter421) ---------------------- #
+_HEALTH_MAX = 100
+
+
+def _completeness_breakdown(m: dict) -> tuple[int, dict]:
+    """Return (points_earned, per-field breakdown). Max = 15 points."""
+    checks = {
+        "shop_title":       (2, bool((m.get("shop_title") or "").strip())),
+        "bio_40_chars":     (2, len((m.get("bio") or "").strip()) >= 40),
+        "cover_image":      (2, bool(m.get("cover") or m.get("banner_image_url"))),
+        "portrait_image":   (2, bool(m.get("portrait"))),
+        "techniques":       (1, bool(m.get("techniques"))),
+        "location":         (1, bool((m.get("location") or "").strip())),
+        "social_link":      (1, any(str(k).startswith("social_") and m.get(k) for k in m.keys())),
+        "website_url":      (1, bool(m.get("website_url"))),
+        "machinery":        (1, bool(m.get("machinery"))),
+        "shop_announcement": (2, bool((m.get("shop_announcement") or "").strip() or (m.get("message_to_buyers") or "").strip())),
+    }
+    total = 0
+    detail: dict = {}
+    for field, (pts, ok) in checks.items():
+        detail[field] = bool(ok)
+        if ok:
+            total += pts
+    return total, detail
+
+
+def _compute_health_score(
+    *, maker: dict,
+    last_login: Optional[str],
+    published_products: int,
+    last_product_update: Optional[str],
+    sales_count: int,
+    sales_30d: int,
+    views_7d: int,
+) -> dict:
+    """Weighted 0-100 composite that maps to a 1-5 star rating.
+
+    Weight budget:
+      Login recency        20
+      Published listings   20
+      Recent updates       10
+      Sales (30d + total)  15
+      Product view volume  10
+      Store completeness   15
+      Response-time set    10
+                           ---
+      total                100
+    """
+    # 1. Login recency (max 20)
+    login_pts = 0
+    if last_login:
+        if last_login >= _cutoff_iso(7):    login_pts = 20
+        elif last_login >= _cutoff_iso(30): login_pts = 15
+        elif last_login >= _cutoff_iso(60): login_pts = 10
+        elif last_login >= _cutoff_iso(90): login_pts = 5
+
+    # 2. Published listings (max 20)
+    listings_pts = 0
+    if published_products >= 10:  listings_pts = 20
+    elif published_products >= 5: listings_pts = 15
+    elif published_products >= 3: listings_pts = 10
+    elif published_products >= 1: listings_pts = 5
+
+    # 3. Recent product updates (max 10)
+    updates_pts = 0
+    if last_product_update:
+        if last_product_update >= _cutoff_iso(30):  updates_pts = 10
+        elif last_product_update >= _cutoff_iso(90): updates_pts = 5
+
+    # 4. Sales activity (max 15)
+    sales_pts = 0
+    if sales_30d >= 5:        sales_pts = 15
+    elif sales_30d >= 1:      sales_pts = 10
+    elif sales_count >= 1:    sales_pts = 5
+
+    # 5. Product view volume (max 10)
+    views_pts = 0
+    if views_7d >= 50:  views_pts = 10
+    elif views_7d >= 10: views_pts = 5
+
+    # 6. Store completeness (max 15)
+    completeness_pts, completeness_detail = _completeness_breakdown(maker)
+
+    # 7. Response-time set (max 10)
+    rt = maker.get("response_time_hours")
+    rt_pts = 0
+    if isinstance(rt, (int, float)) and rt > 0:
+        if rt <= 24:  rt_pts = 10
+        elif rt <= 72: rt_pts = 5
+
+    total = min(_HEALTH_MAX, login_pts + listings_pts + updates_pts + sales_pts + views_pts + completeness_pts + rt_pts)
+
+    # Star rating + verdict
+    if total >= 90:   stars, verdict = 5, "Excellent"
+    elif total >= 75: stars, verdict = 4, "Healthy"
+    elif total >= 60: stars, verdict = 3, "Good"
+    elif total >= 40: stars, verdict = 2, "Needs Attention"
+    else:             stars, verdict = 1, "Dormant"
+
+    return {
+        "score": total,
+        "stars": stars,
+        "verdict": verdict,
+        "breakdown": {
+            "login": login_pts,
+            "listings": listings_pts,
+            "updates": updates_pts,
+            "sales": sales_pts,
+            "views": views_pts,
+            "completeness": completeness_pts,
+            "response_time": rt_pts,
+        },
+        "completeness_detail": completeness_detail,
+        "completeness_pct": round(completeness_pts / 15 * 100),
     }
 
 
@@ -236,10 +399,13 @@ class FounderReviewRow(BaseModel):
     published_products: int
     last_product_update: Optional[str] = None
     sales_count: int
+    sales_30d: int = 0
+    views_7d: int = 0
     signals: dict
     status: str  # "active" | "needs_review"
     founder_number: Optional[int] = None
     founder_status: Optional[str] = None    # inaugural / regular
+    health: dict = {}                       # iter421
 
 
 class FounderReviewResponse(BaseModel):
@@ -283,10 +449,13 @@ async def founder_review(_: dict = Depends(current_admin)):
             published_products=a["published_products"],
             last_product_update=a["last_product_update"],
             sales_count=a["sales_count"],
+            sales_30d=a.get("sales_30d", 0),
+            views_7d=a.get("views_7d", 0),
             signals=a["signals"],
             status=status,
             founder_number=m.get("founder_number"),
             founder_status=m.get("founder_status"),
+            health=a.get("health") or {},
         ))
 
     # Sort: needs_review first, then by founder_number ASC (nulls last).
