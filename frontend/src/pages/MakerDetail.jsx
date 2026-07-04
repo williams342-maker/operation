@@ -110,8 +110,17 @@ export default function MakerDetail() {
           className="absolute inset-0 w-full h-full object-cover"
           data-testid="maker-detail-hero-image"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/60 to-transparent" />
-        <div className="absolute bottom-10 left-4 md:left-8 xl:left-12 right-4">
+        {/* iter415 — Theme-independent scrim. Was fading to transparent
+            at the top which left overlay text on `text-ink` (dark
+            charcoal in light mode) unreadable on light cover photos.
+            New gradient stays ≥25% dark throughout so white overlay
+            text reads on any cover in either theme. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/25" />
+        {/* Overlay text is forced to white (via `text-white` on the
+            wrapper) because the scrim above guarantees a dark backdrop.
+            No `text-ink` / `text-ink-muted` usage inside — those flip
+            to dark in light mode and vanish. */}
+        <div className="absolute bottom-10 left-4 md:left-8 xl:left-12 right-4 text-white [text-shadow:_0_2px_10px_rgba(0,0,0,0.55)]">
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3 flex items-center gap-3">
             <span>◆ Approved Maker</span>
             {m.subscription_status === "active" && (
@@ -148,13 +157,13 @@ export default function MakerDetail() {
           <h1 className="font-display text-[64px] md:text-[120px] leading-[0.88]">{m.name}</h1>
           {m.shop_title && (
             <div
-              className="font-display text-xl md:text-2xl text-ink mt-2 italic"
+              className="font-display text-xl md:text-2xl text-white/95 mt-2 italic"
               data-testid="maker-shop-title"
             >
               {m.shop_title}
             </div>
           )}
-          <div className="font-mono text-xs uppercase tracking-[0.22em] text-ink-muted mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
+          <div className="font-mono text-xs uppercase tracking-[0.22em] text-white/75 mt-2">{m.location} · {m.listings_count} listings · ★ {m.rating}</div>
           {/* iter321 — Trust / proof strip. Loud, scannable, sits above
               the fold so buyers see the credentials before they scroll
               into the bio. Each chip auto-hides when the underlying
@@ -166,7 +175,7 @@ export default function MakerDetail() {
             >
               {m.location ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/25 bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-white/90"
                   data-testid="maker-trust-location"
                 >
                   <span className="text-brand">◆</span> Workshop · {m.location}
@@ -174,7 +183,7 @@ export default function MakerDetail() {
               ) : null}
               {m.years_crafting ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/25 bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-white/90"
                   data-testid="maker-trust-years"
                 >
                   <span className="text-brand">◆</span> {m.years_crafting}+ Years Active
@@ -182,7 +191,7 @@ export default function MakerDetail() {
               ) : null}
               {m.response_time_hours ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-500/40 bg-amber-500/[0.08] backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-brand"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-amber-500/50 bg-amber-500/[0.14] backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-amber-200"
                   data-testid="maker-trust-response"
                   title="Typical reply time to messages and custom-order briefs"
                 >
@@ -191,7 +200,7 @@ export default function MakerDetail() {
               ) : null}
               {m.machinery && m.machinery.length > 0 ? (
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-line bg-paper/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-ink"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-white/25 bg-black/40 backdrop-blur font-mono text-[10px] uppercase tracking-[0.22em] text-white/90"
                   data-testid="maker-trust-machines"
                 >
                   <span className="text-brand">◆</span> {m.machinery.length} CNC machine{m.machinery.length > 1 ? "s" : ""}
@@ -204,7 +213,7 @@ export default function MakerDetail() {
             <ShareLinkButton kind="maker" slug={m.slug} testId="maker-share-link" />
             <button
               onClick={() => setContactOpen(true)}
-              className="px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 bg-paper/70 backdrop-blur"
+              className="px-4 py-2 border border-white/25 hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] inline-flex items-center gap-2 bg-black/50 backdrop-blur text-white/90"
               data-testid="contact-maker-btn"
             >
               <Mail size={14} /> Message {m.name?.split(" ")[0] || "Maker"}
