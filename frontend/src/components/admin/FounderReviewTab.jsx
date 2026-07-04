@@ -55,6 +55,7 @@ export default function FounderReviewTab() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null); // slug that's currently being downgraded
   const [gateBusy, setGateBusy] = useState(false);
+  const [timelineSlug, setTimelineSlug] = useState(null); // iter421b — open drawer for slug
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -345,16 +346,27 @@ export default function FounderReviewTab() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => downgrade(row.slug)}
-                      disabled={busy === row.slug}
-                      className="px-2 py-1 border border-line hover:border-brand font-mono text-[9px] uppercase tracking-[0.2em] disabled:opacity-50"
-                      data-testid={`downgrade-${row.slug}`}
-                      title="Move this founder back to the Free tier. Frees a slot. Maker + listings kept."
-                    >
-                      {busy === row.slug ? "…" : "Move to Free"}
-                    </button>
+                    <div className="flex items-center gap-1 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setTimelineSlug(row.slug)}
+                        className="px-2 py-1 border border-line hover:border-brand font-mono text-[9px] uppercase tracking-[0.2em]"
+                        data-testid={`timeline-${row.slug}`}
+                        title="Show application → approval → listings → sales timeline"
+                      >
+                        Timeline
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downgrade(row.slug)}
+                        disabled={busy === row.slug}
+                        className="px-2 py-1 border border-line hover:border-brand font-mono text-[9px] uppercase tracking-[0.2em] disabled:opacity-50"
+                        data-testid={`downgrade-${row.slug}`}
+                        title="Move this founder back to the Free tier. Frees a slot. Maker + listings kept."
+                      >
+                        {busy === row.slug ? "…" : "Move to Free"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -374,6 +386,161 @@ export default function FounderReviewTab() {
           Downgrades open a slot and are logged in the audit trail.
         </p>
       </section>
+
+      {/* iter421b — Timeline drawer */}
+      {timelineSlug && (
+        <TimelineDrawer slug={timelineSlug} onClose={() => setTimelineSlug(null)} />
+      )}
+    </div>
+  );
+}
+
+
+// ------------------------------------------------------------------
+// Timeline drawer (iter421b) — lifecycle history for one founder.
+// ------------------------------------------------------------------
+const KIND_ICON = {
+  applied:         "◆",
+  verified:        "✓",
+  approved:        "★",
+  shop_published:  "▲",
+  first_product:   "•",
+  ten_products:    "◉",
+  first_sale:      "$",
+  downgraded:      "↓",
+  reinstated:      "↑",
+};
+
+const KIND_TINT = {
+  applied:         "text-ink-muted",
+  verified:        "text-emerald-500",
+  approved:        "text-brand",
+  shop_published:  "text-emerald-500",
+  first_product:   "text-ink",
+  ten_products:    "text-brand",
+  first_sale:      "text-brand",
+  downgraded:      "text-red-400",
+  reinstated:      "text-emerald-500",
+};
+
+function TimelineDrawer({ slug, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await fetch(`${API}/api/admin/founders/${slug}/timeline`, {
+          headers: adminHeaders(),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        if (!cancelled) setData(j);
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-end"
+      onClick={onClose}
+      data-testid="timeline-drawer"
+    >
+      <div
+        className="w-full max-w-lg h-full bg-paper border-l border-line overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-paper border-b border-line px-5 py-4 flex items-center justify-between z-10">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand">
+              ◆ Founder Timeline
+            </div>
+            <div className="font-display text-lg text-ink">{data?.name || slug}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="font-mono text-lg text-ink-muted hover:text-brand px-2"
+            data-testid="timeline-close"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-5">
+          {loading && <p className="font-mono text-xs text-ink-muted">Loading timeline…</p>}
+          {error && <p className="font-mono text-xs text-red-400">Couldn&rsquo;t load: {error}</p>}
+          {data && data.events.length === 0 && (
+            <p className="font-mono text-xs text-ink-muted">
+              No lifecycle events recorded yet.
+            </p>
+          )}
+          {data && data.events.length > 0 && (
+            <ol className="relative border-l border-line ml-3 space-y-5" data-testid="timeline-events">
+              {data.events.map((e, i) => (
+                <li
+                  key={i}
+                  className="pl-5 relative"
+                  data-testid={`timeline-event-${e.kind}`}
+                >
+                  <span
+                    className={`absolute -left-3 top-0 w-6 h-6 border border-line bg-paper rounded-full flex items-center justify-center font-mono text-[10px] ${KIND_TINT[e.kind] || "text-ink"}`}
+                  >
+                    {KIND_ICON[e.kind] || "•"}
+                  </span>
+                  <div className={`font-mono text-[10px] uppercase tracking-[0.2em] ${KIND_TINT[e.kind] || "text-ink-muted"}`}>
+                    {e.label}
+                  </div>
+                  <div className="font-mono text-[10px] text-ink-muted mt-0.5">
+                    {fmtDate(e.ts)}{e.actor ? ` · by ${e.actor}` : ""}
+                  </div>
+                  {e.detail && (
+                    <div className="font-body text-sm text-ink mt-1">{e.detail}</div>
+                  )}
+                  {e.snapshot && (
+                    <details className="mt-2 border border-line bg-paper/60 px-3 py-2" data-testid="timeline-snapshot">
+                      <summary className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted cursor-pointer">
+                        Health snapshot at decision time
+                      </summary>
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10px]">
+                        <dt className="text-ink-muted">Health Score</dt>
+                        <dd className="text-ink">{e.snapshot.health_score ?? "—"} / 100</dd>
+                        <dt className="text-ink-muted">Verdict</dt>
+                        <dd className="text-ink">{e.snapshot.health_verdict || "—"}</dd>
+                        <dt className="text-ink-muted">Store Complete</dt>
+                        <dd className="text-ink">{e.snapshot.completeness_pct ?? "—"}%</dd>
+                        <dt className="text-ink-muted">Last Login</dt>
+                        <dd className="text-ink">{fmtDate(e.snapshot.last_login)}</dd>
+                        <dt className="text-ink-muted">Published</dt>
+                        <dd className="text-ink">{e.snapshot.published_products ?? 0}</dd>
+                        <dt className="text-ink-muted">Total Products</dt>
+                        <dd className="text-ink">{e.snapshot.total_products ?? 0}</dd>
+                        <dt className="text-ink-muted">Sales (30d)</dt>
+                        <dd className="text-ink">{e.snapshot.sales_30d ?? 0}</dd>
+                        <dt className="text-ink-muted">Sales (all-time)</dt>
+                        <dd className="text-ink">{e.snapshot.sales_count ?? 0}</dd>
+                        <dt className="text-ink-muted">Views (7d)</dt>
+                        <dd className="text-ink">{e.snapshot.views_7d ?? 0}</dd>
+                        <dt className="text-ink-muted">Last Product Update</dt>
+                        <dd className="text-ink">{fmtDate(e.snapshot.last_product_update)}</dd>
+                      </dl>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

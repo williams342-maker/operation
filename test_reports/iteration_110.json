@@ -1,0 +1,77 @@
+{
+  "summary": "Full regression of Crafters Market Admin Command Center (iter418→iter421b). Backend pytest 29/29 pass. UI-driven testing on preview host confirms Marketplace Command Center is the default admin landing view with all 8 widgets (widget-growth, widget-founder-ops, widget-recruitment, widget-activity, widget-live-revenue, widget-cart-abandonment, widget-trending, widget-top-searches) rendering data/empty states with ZERO console errors. Founder Review tab renders 15/15 founders with Maker Health Score + verdict, health-distribution strip, timeline drawer opens/closes cleanly, and downgrade workflow (POST /api/admin/founders/{slug}/downgrade) is confirmed working: writes a `founder_downgrade` activity event with FULL health snapshot (health_score, health_verdict, health_breakdown, completeness_pct, signals, published_products, sales_30d, views_7d, last_login, actor, reason) and surfaces a new `downgraded` event in the founder timeline. Zero-result search flow verified end-to-end: GET /api/products?q=zzz-nonexistent-query-xyz-123 → surfaced in recruitment widget as normalized query. Dark mode readable on both CC + Founder Review. Recommendation: GO for redeploy — with the caveat of three minor UX/spec drifts noted below (downgrade uses window.prompt not a styled modal, health-verdict wording mismatch, /admin/dashboard mobile overflow that originates OUTSIDE Command Center scope).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/admin/marketplace-command/*",
+        "issue": "Spec-vs-implementation path mismatch: review request describes the widget endpoints as /api/admin/marketplace-command/{growth,activity,recruitment,live-revenue,abandoned-carts,trending,top-searches} but the actual registered paths are /api/admin/command/{growth,activity,recruitment,live-revenue,cart-abandonment,trending-products,top-searches}. All 7 return 200 at the actual paths and the frontend widgets consume them correctly, so this is documentation-only drift. Update either the spec doc or add path aliases if the marketplace-command/* form is expected by external consumers."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "FounderReviewTab.downgrade()",
+        "issue": "Downgrade confirmation uses window.prompt (browser-native dialog). Spec explicitly requires 'A confirm modal should appear — verify the copy states this is a manual admin action (no auto-downgrade).' Current prompt text: 'Move {slug} to the Free tier? This frees a Founder slot. The maker and their listings stay intact. Optional reason (visible in audit log):' — DOES NOT state manual/no-auto-downgrade. Also, native prompt is unstylable, breaks Playwright automation without dialog handlers, and does not match the rest of the admin's design system.",
+        "selector": "[data-testid='downgrade-<slug>'] → window.prompt",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "FounderReviewTab health verdict labels",
+        "issue": "Spec says buckets should be labelled 'Dormant / At Risk / Steady / Strong / Excellent'. Backend _compute_health_score returns 'Dormant / Needs Attention / Good / Healthy / Excellent' and the frontend renders these verbatim. Functional bands are identical (1-5 stars mapped to <40/40-59/60-74/75-89/90+); this is a copy drift, not a scoring bug.",
+        "selector": "[data-testid='health-<slug>']",
+        "priority": "LOW"
+      },
+      {
+        "component": "AdminDashboard mobile layout (390x844)",
+        "issue": "At 390px viewport the /admin/dashboard page has horizontal overflow: scrollWidth=3645 vs innerWidth=390. Culprit is ops-action-queue → Marketplace Health section (data-testid=ops-marketplace-health) rendering a fixed grid that does not collapse below md. Founder Review tab at 390px has NO overflow (sw=390). Command Center hero + widgets are also mobile-safe. So the overflow is caused by a NEIGHBOURING card outside the strict Command-Center/Founder-Review review scope — flagging because the same landing page is what the spec requires to be mobile-safe.",
+        "selector": "[data-testid='ops-marketplace-health']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Founder Review — health-distribution",
+        "issues": ["Only non-empty buckets are rendered (all 15 makers currently in the 1-star Dormant band, so only health-bucket-1 is in the DOM). Spec mentions 'health-bucket-0..5 bars'; backend emits stars 1-5 (no bucket-0). Consider rendering all 5 buckets as zero-count placeholders for a more informative at-a-glance distribution."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter418_founder_closeout.py",
+    "/app/backend/tests/test_iter419_command_center.py",
+    "/app/backend/tests/test_iter420_commerce_pulse.py",
+    "/app/backend/tests/test_iter421_maker_health.py",
+    "/app/backend/tests/test_iter421b_audit_and_timeline.py",
+    "/app/test_reports/pytest/iter418-421b_regression.xml"
+  ],
+  "action_items": [
+    "MEDIUM — Replace window.prompt in FounderReviewTab.downgrade with a proper Radix/shadcn AlertDialog. Copy must include: 'This is a manual admin action — no auto-downgrade will ever occur.' plus the reason field.",
+    "LOW — Reconcile health-verdict labels: either update backend _compute_health_score verdicts to ('Dormant', 'At Risk', 'Steady', 'Strong', 'Excellent') per spec, or update the spec/PRD to match the current 'Dormant / Needs Attention / Good / Healthy / Excellent'.",
+    "MEDIUM — Fix mobile overflow on /admin/dashboard caused by [data-testid='ops-marketplace-health'] grid (grid-cols-2 md:grid-cols-4 lg:grid-cols-7). Its child buttons are ~1797px wide on a 390px viewport — likely a min-width or fixed-px child. Not a Command-Center bug per se, but it renders on the same landing page and violates the responsive requirement in the review request.",
+    "LOW — Consider rendering all 5 star-buckets in health-distribution (even at count=0) for a fuller at-a-glance view. Update spec that buckets are 1-5, not 0-5.",
+    "DOC — Update the review-request spec (or add router alias) so endpoint paths are consistent: actual paths are /api/admin/command/*, not /api/admin/marketplace-command/*.",
+    "OPTIONAL — Add a data-testid='downgrade-confirm-modal' with visible copy 'manual admin action' so future subagents can assert the modal contract."
+  ],
+  "critical_code_review_comments": [
+    "Downgrade audit trail is production-safe: /app/backend/routers/admin_founders_review.py:532-562 writes a comprehensive snapshot (health_score, health_stars, health_verdict, health_breakdown, completeness_pct, signals, last_login, published_products, total_products, last_product_update, sales_count, sales_30d, views_7d) plus actor + reason. Verified via curl on a synthetic founder — every field populated correctly.",
+    "No auto-downgrade path exists in the codebase — grep for founder_downgrade shows the ONLY writer is the manual endpoint in admin_founders_review.py at line 490. Confirmed safe.",
+    "Marketplace Command Center widget framework is well-encapsulated: /app/frontend/src/pages/AdminDashboard/CommandCenter.jsx (69 lines) declares two layouts (CRAFTERS_LAYOUT + CRAFTERS_COMMERCE_LAYOUT) and delegates to Dashboard from framework.jsx. Widgets register via side-effect imports. Config-driven & easy to reshuffle for other brands (CortexViral / Williams Innovation as the header comment notes).",
+    "FounderReviewTab is 546 lines — approaching the 700-line threshold. Consider splitting the timeline-drawer JSX (lines ~440-540) into a separate FounderTimelineDrawer.jsx component for maintainability.",
+    "window.prompt on downgrade is the biggest UX regression vs the rest of the admin (which uses styled dialogs/toasts). Blocking issue for a polished ship if the spec's 'confirm modal' copy is strict.",
+    "All /api/admin/command/* endpoints correctly protected by current_admin dependency (verified via unauthenticated curl → 401). No PII leaked in payloads.",
+    "Health-distribution component only renders non-empty buckets, which explains why testing subagents may not find health-bucket-0 or health-bucket-2..5 when all founders cluster in one band (as the preview DB currently does). Cosmetic but worth aligning with the spec's expectation of a full 0-5 strip."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (29/29 pytest across iter418+iter419+iter420+iter421+iter421b; all 12 curl API contract checks pass)",
+    "frontend": "90% (all required data-testids present, all widgets render, timeline works, downgrade via API works. Deductions: window.prompt vs modal spec drift, health verdict wording drift, and /admin/dashboard mobile overflow from a neighbouring card. Command Center + Founder Review are individually mobile-safe.)"
+  },
+  "test_credentials": "Admin magic-link minted via `issue_admin_magic_token(os.environ['OPS_EMAIL'])` (currently williams342@gmail.com). Preview URL: https://active-project-4.preview.emergentagent.com. JWT stored at /tmp/admin_jwt.txt during this run.",
+  "seed_data_creation": "One synthetic founder ('iter421b-regression-test-founder', founder_number=99991) was seeded to prove the downgrade+audit-snapshot pipeline end-to-end via curl and was cleaned up after the assertion (also removed the resulting activity_events row). Zero-result search queries `zzz-nonexistent-query-xyz-*` were logged via GET /api/products and now persist in db.search_events; they surface in the recruitment widget and can be dismissed via the widget's recruit-hide-<query> button if unwanted.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter418→iter421b is production-safe. Command Center endpoints live at /api/admin/command/* (NOT /api/admin/marketplace-command/*). Health verdict labels in the codebase are 'Dormant / Needs Attention / Good / Healthy / Excellent' — if spec/PRD says otherwise, that's a copy drift only. Downgrade UX uses window.prompt today — if E1 upgrades to a styled AlertDialog, add data-testid='downgrade-confirm-modal' with copy 'manual admin action' so future assertions are trivial. Theme toggle testid = 'theme-toggle'; sets html class='js dark' on toggle. The default landing tab is 'applications' but AdminDashboard.jsx renders CommandCenter above the applications list — deep-links: /admin/dashboard = CC visible, /admin/dashboard?tab=founder-review = Founder Review tab. Downgrade timeline event kind = 'downgraded' (not 'downgrade' — worth flagging if the spec asserts 'downgrade' verbatim, but the review-request spec allows 'downgrade or similar').",
+  "rca of the issue": "N/A — no failing test. Three minor spec drifts noted but no blocking bugs. GO recommendation for redeploy assuming E1 acknowledges the three action items above."
+}

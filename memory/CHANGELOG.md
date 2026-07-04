@@ -1,3 +1,106 @@
+## 2026-07-04 — iter421b: Audit snapshot enrichment + Founder Timeline
+
+Two pre-production hardening additions on top of iter421's Maker
+Health Score:
+
+### 1. Downgrade audit captures the full decision state
+
+Every `founder_downgrade` audit entry now embeds a `snapshot` object
+containing the maker's exact health at decision time:
+
+```json
+{
+  "health_score": 34,
+  "health_stars": 1,
+  "health_verdict": "Dormant",
+  "health_breakdown": {"login": 0, "listings": 0, ...},
+  "completeness_pct": 93,
+  "signals": {"has_shop_profile": true, ...},
+  "last_login": "2026-04-01T...",
+  "published_products": 0,
+  "total_products": 0,
+  "last_product_update": null,
+  "sales_count": 0,
+  "sales_30d": 0,
+  "views_7d": 0
+}
+```
+
+Turns a subjective judgment call into a documented, reviewable
+decision. Six months later you can pull the audit event and see
+exactly *why* a founder was moved to Free — not just "reason: dormant"
+but the full 100-point breakdown and last-touch dates from that day.
+
+### 2. Founder Timeline
+
+New endpoint `GET /api/admin/founders/{slug}/timeline` composes a
+chronological history for any founder from existing collections
+(zero new writes required). Surfaces:
+
+- **applied** — from `beta_applications.created_at` matched by email
+- **verified** — from `beta_applications.verified_at`
+- **approved** — from `makers.approved_at`
+- **shop_published** — from `makers.published_at`
+- **first_product** — earliest `products` row for this maker_slug
+- **ten_products** — the 10th earliest product (skipped if < 10)
+- **first_sale** — earliest paid order for this maker_slug
+- **downgraded** — any `founder_downgrade` audit entry (with the
+  full snapshot from #1 above rendered as expandable detail)
+- **reinstated** — placeholder for future `founder_reinstate` events
+
+Sorted chronologically ascending. Support-facing: if a founder
+emails "why was I moved?", one click surfaces the whole story
+including the health snapshot at decision time.
+
+### Frontend
+
+- New **Timeline** button on every Founder Review row, opens a
+  right-side drawer with a vertical-timeline layout.
+- Icon-tinted event pills (◆ apply, ✓ verified, ★ approved,
+  ▲ shop, • first product, ◉ 10-product milestone, $ first sale,
+  ↓ downgraded — red, ↑ reinstated — emerald).
+- For downgrade events, a `<details>` "Health snapshot at decision
+  time" panel exposes the full audit snapshot as a labelled table.
+
+### Testing (`tests/test_iter421b_audit_and_timeline.py`)
+
+5 new pytest cases:
+
+- Downgrade writes complete health snapshot (score, verdict,
+  breakdown, completeness_pct, signals, sales_30d, views_7d) into
+  the audit event alongside actor + reason.
+- Timeline endpoint shape (slug, name, events with ts/kind/label).
+- Timeline composes end-to-end from a full seed (application →
+  verification → approval → shop published → first product → first
+  sale), verifies chronological order and correct event kinds.
+- Timeline requires auth (401/403 for anon).
+- Timeline returns 404 for unknown slug.
+
+Combined suite now **29/29 tests green** across
+iter418+419+420+421+421b.
+
+### Guarantees preserved
+
+- ✅ No auto-downgrade — decision is always admin action.
+- ✅ Maker + listings still preserved on downgrade.
+- ✅ Audit trail is now *complete* — actor, decision date, reason,
+  AND full state snapshot.
+
+### Governance maturity
+
+Crafters Market now has a Founder program that most marketplaces
+don't:
+
+- 100 slots capped, activity-based qualification (iter418)
+- Manual admin review + downgrade with reason (iter418)
+- Composite health scoring (iter421)
+- Defensible audit trail with state snapshot (iter421b)
+- Full lifecycle timeline per founder (iter421b)
+- Command Center integration (iter419)
+- Demo Founder + inaugural status support (pre-existing)
+
+---
+
 ## 2026-07-04 — iter421: Maker Health Score (Phase 3)
 
 Per-maker composite health score baked into the Founder Review table.

@@ -502,6 +502,11 @@ async def downgrade_to_free(
     prev_founder_number = m.get("founder_number")
     prev_status = m.get("founder_status")
 
+    # iter421b — Snapshot the maker's full activity + health *before*
+    # the downgrade so the audit event captures why the decision was
+    # made. Turning a subjective call into a documented, reviewable one.
+    activity_snapshot = await _activity_signals_for(m)
+
     await db.makers.update_one(
         {"slug": slug},
         {
@@ -521,7 +526,9 @@ async def downgrade_to_free(
         },
     )
 
-    # Audit trail.
+    health = activity_snapshot.get("health") or {}
+    # Audit trail — captures the decision maker, the decision reason,
+    # AND the marketplace state at decision time.
     await db.activity_events.insert_one({
         "id": str(uuid.uuid4()),
         "kind": "admin",
@@ -535,6 +542,22 @@ async def downgrade_to_free(
             f"{claims['email']} moved {slug} from Founder "
             f"(#{prev_founder_number or '?'}, {prev_status or '?'}) → Free"
         ),
+        # iter421b — Full state snapshot at decision time.
+        "snapshot": {
+            "health_score": health.get("score"),
+            "health_stars": health.get("stars"),
+            "health_verdict": health.get("verdict"),
+            "health_breakdown": health.get("breakdown"),
+            "completeness_pct": health.get("completeness_pct"),
+            "signals": activity_snapshot.get("signals"),
+            "last_login": activity_snapshot.get("last_login"),
+            "published_products": activity_snapshot.get("published_products"),
+            "total_products": activity_snapshot.get("total_products"),
+            "last_product_update": activity_snapshot.get("last_product_update"),
+            "sales_count": activity_snapshot.get("sales_count"),
+            "sales_30d": activity_snapshot.get("sales_30d"),
+            "views_7d": activity_snapshot.get("views_7d"),
+        },
         "created_at": now_iso(),
     })
 
@@ -585,3 +608,148 @@ async def set_applications_gate(
         "cap": cap,
         "at_or_over_cap": active >= cap,
     }
+
+
+# =========================================================
+#   FOUNDER TIMELINE (iter421b)
+# =========================================================
+class TimelineEvent(BaseModel):
+    ts: str
+    kind: str        # applied, verified, approved, shop_published, first_product,
+                     # ten_products, first_sale, downgraded, reinstated
+    label: str       # human-readable
+    detail: Optional[str] = None
+    actor: Optional[str] = None
+    snapshot: Optional[dict] = None  # populated for downgrade events
+
+
+class TimelineResponse(BaseModel):
+    slug: str
+    name: Optional[str] = None
+    events: list[TimelineEvent]
+
+
+@router.get("/admin/founders/{slug}/timeline", response_model=TimelineResponse)
+async def founder_timeline(slug: str, _: dict = Depends(current_admin)):
+    """Chronological history of a founder account. Composed on-demand
+    from existing collections so no new writes were needed to enable
+    it. Events surface: application, email verification, approval, first
+    shop publish, first product, 10-product milestone, first sale,
+    any admin downgrade/reinstate audit entries.
+
+    Support-facing utility — if a founder emails asking "why was I
+    moved" you can pull this and see the whole story."""
+    m = await db.makers.find_one({"slug": slug})
+    if not m:
+        raise HTTPException(404, "Maker not found.")
+
+    events: list[TimelineEvent] = []
+
+    # 1. Application submitted / verified (from beta_applications, matched by email).
+    email = (m.get("email") or "").lower()
+    if email:
+        try:
+            app_doc = await db.beta_applications.find_one({"email": email})
+            if app_doc:
+                if app_doc.get("created_at"):
+                    events.append(TimelineEvent(
+                        ts=app_doc["created_at"], kind="applied",
+                        label="Applied to Founding Access",
+                        detail=app_doc.get("studio_name"),
+                    ))
+                if app_doc.get("verified") and app_doc.get("verified_at"):
+                    events.append(TimelineEvent(
+                        ts=app_doc["verified_at"], kind="verified",
+                        label="Email Verified",
+                    ))
+        except Exception:
+            pass
+
+    # 2. Approved as Founder.
+    if m.get("approved_at"):
+        events.append(TimelineEvent(
+            ts=m["approved_at"], kind="approved",
+            label="Approved as Founder",
+            detail=(f"#{m.get('founder_number')} · {m.get('founder_status') or 'regular'}"
+                    if m.get("founder_number") else None),
+        ))
+
+    # 3. Shop published (first time the shop went live).
+    if m.get("published_at"):
+        events.append(TimelineEvent(
+            ts=m["published_at"], kind="shop_published",
+            label="Shop Published",
+        ))
+
+    # 4. First product + 10-product milestone.
+    try:
+        first = await db.products.find_one(
+            {"maker_slug": slug, "status": {"$in": ["published", None]}},
+            sort=[("created_at", 1)],
+        )
+        if first and first.get("created_at"):
+            events.append(TimelineEvent(
+                ts=first["created_at"], kind="first_product",
+                label="First Product Listed",
+                detail=first.get("title") or first.get("slug"),
+            ))
+
+        # 10th product — find the 10th earliest.
+        tenth_cur = db.products.find(
+            {"maker_slug": slug, "status": {"$in": ["published", None]}},
+            {"created_at": 1, "title": 1, "_id": 0},
+        ).sort("created_at", 1).limit(10)
+        tenth = await tenth_cur.to_list(10)
+        if len(tenth) >= 10:
+            events.append(TimelineEvent(
+                ts=tenth[-1]["created_at"], kind="ten_products",
+                label="10-Product Milestone",
+                detail=tenth[-1].get("title"),
+            ))
+    except Exception:
+        pass
+
+    # 5. First sale.
+    try:
+        first_sale = await db.orders.find_one(
+            {"maker_slug": slug,
+             "status": {"$in": ["paid", "fulfilled", "shipped", "succeeded", "complete"]}},
+            sort=[("created_at", 1)],
+        )
+        if first_sale and first_sale.get("created_at"):
+            events.append(TimelineEvent(
+                ts=first_sale["created_at"], kind="first_sale",
+                label="First Sale",
+                detail=f"${first_sale.get('total', 0):.2f}"
+                       if first_sale.get("total") is not None else None,
+            ))
+    except Exception:
+        pass
+
+    # 6. Admin actions — downgrade + any future reinstate events.
+    try:
+        audits_cur = db.activity_events.find(
+            {"kind": "admin", "target_slug": slug,
+             "action": {"$in": ["founder_downgrade", "founder_reinstate"]}},
+        ).sort("created_at", 1)
+        async for a in audits_cur:
+            events.append(TimelineEvent(
+                ts=a.get("created_at") or "",
+                kind="downgraded" if a["action"] == "founder_downgrade" else "reinstated",
+                label="Moved to Free" if a["action"] == "founder_downgrade" else "Reinstated as Founder",
+                detail=a.get("reason"),
+                actor=a.get("actor"),
+                snapshot=a.get("snapshot"),
+            ))
+    except Exception:
+        pass
+
+    # Sort chronologically ascending.
+    events = [e for e in events if e.ts]
+    events.sort(key=lambda e: e.ts)
+
+    return TimelineResponse(
+        slug=slug,
+        name=m.get("name"),
+        events=events,
+    )
