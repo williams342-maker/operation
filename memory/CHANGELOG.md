@@ -1,3 +1,33 @@
+## 2026-07-04 — iter417b: Founding Access application copy parity
+
+Follow-up to iter417 — applied the same "not received until confirmed"
+treatment to the Founding Access (`/founders`, `BetaPage.jsx`) surface
+so both application entry points communicate identically.
+
+### Changes (`BetaPage.jsx` — copy only, no workflow changes)
+
+- Success screen (`state === "done"` branch): added the same
+  `border-l-4 border-brand bg-brand/5` callout between the "we sent
+  a link to X" paragraph and the bullet list. Copy is verbatim from
+  the maker Apply page for consistency.
+  `data-testid="beta-applied-not-received-notice"`.
+
+- Application form: added the same helper line under the EMAIL input,
+  rendered only when field key === "email".
+  `data-testid="beta-email-hint"`.
+
+### Verification
+
+- Filled and submitted the /founders form. Success screen renders the
+  new notice with the required copy (character-for-character match
+  confirmed via evaluated textContent).
+- Form email field shows the helper hint on load.
+
+The two application flows (`/apply` and `/founders`) now share the
+same confirmation-copy contract.
+
+---
+
 ## 2026-07-04 — iter417: Application confirmation copy hardened
 
 **Reported problem:** applicants were assuming that clicking Submit =

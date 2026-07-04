@@ -149,6 +149,19 @@ export default function BetaPage() {
         <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed mb-6">
           We&rsquo;ve sent a confirmation link to <b className="text-ink break-all">{f.email}</b>. Click it to finalize your Founding Access application &mdash; the link is good for 7 days.
         </p>
+        {/* iter417 — Explicit "not received until confirmed" warning
+            for Founding Access applicants. Same treatment used on the
+            standard maker Apply page — applicants otherwise assume
+            submitting = received. */}
+        <div
+          className="max-w-md mx-auto mb-6 border-l-4 border-brand bg-brand/5 px-4 py-4 text-left"
+          data-testid="beta-applied-not-received-notice"
+        >
+          <p className="font-body text-sm text-ink leading-relaxed">
+            <b className="text-brand">Please check your email to confirm your application was received.</b>{" "}
+            If you don&rsquo;t see it within a few minutes, check your spam or junk folder. If no confirmation email arrives, we may not have received your application &mdash; please review your email address and submit again.
+          </p>
+        </div>
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted max-w-md mx-auto space-y-2">
           <p>&bull; Not seeing it? Check your spam or promotions folder.</p>
           <p>&bull; Wrong email? Contact us at <a className="text-brand hover:underline" href="mailto:team@craftersmarket.org">team@craftersmarket.org</a>.</p>
@@ -498,6 +511,18 @@ export default function BetaPage() {
                   data-testid={`beta-${k}`}
                   className="w-full mt-2 bg-transparent border-b border-line focus:border-brand outline-none py-3 font-mono text-sm"
                 />
+                {/* iter417 — Pre-submit reminder that a confirmation
+                    email is coming, so applicants use an inbox they can
+                    actually check. Same helper used on the standard
+                    maker Apply page. */}
+                {k === "email" && (
+                  <span
+                    className="block mt-2 font-mono text-[10px] text-ink-muted normal-case tracking-normal leading-snug"
+                    data-testid="beta-email-hint"
+                  >
+                    Use an email address you can access. We&rsquo;ll send a confirmation email after you apply.
+                  </span>
+                )}
               </label>
             ))}
 
