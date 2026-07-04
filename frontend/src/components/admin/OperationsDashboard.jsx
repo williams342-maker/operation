@@ -229,7 +229,7 @@ export default function OperationsDashboard({ onJumpToTab }) {
 
   return (
     <section
-      className="mb-6 space-y-5"
+      className="mb-6 space-y-5 min-w-0 overflow-x-hidden"
       data-testid="ops-dashboard"
       aria-label="Operations dashboard"
     >
@@ -347,10 +347,10 @@ export default function OperationsDashboard({ onJumpToTab }) {
       )}
 
       {/* ─────────────── Two-column layout: Action Queue + Activity Rail ─────────────── */}
-      <div className="grid lg:grid-cols-[1fr_280px] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 min-w-0">
 
         {/* Action Queue (Section 2) */}
-        <div className="space-y-4" data-testid="ops-action-queue">
+        <div className="space-y-4 min-w-0" data-testid="ops-action-queue">
           {[
             { id: "critical", label: "Critical",     accent: "text-danger",       items: data.action_queue.critical },
             { id: "review",   label: "Needs Review", accent: "text-amber-700",    items: data.action_queue.review },
@@ -486,21 +486,21 @@ export default function OperationsDashboard({ onJumpToTab }) {
               </h3>
             </button>
             {!collapsed.health && (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mt-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mt-3 min-w-0">
                 {data.marketplace_health.metrics.map((m) => (
                   <button
                     key={m.id}
                     onClick={() => jump(m.cta_tab)}
                     data-testid={`ops-health-${m.id}`}
-                    className="text-left border border-line p-3 hover:border-brand transition"
+                    className="text-left border border-line p-3 hover:border-brand transition min-w-0 overflow-hidden"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${STATUS_DOT[m.status]}`} aria-hidden />
-                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted truncate">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[m.status]}`} aria-hidden />
+                      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted truncate min-w-0">
                         {m.label}
                       </span>
                     </div>
-                    <div className="font-display text-xl text-ink mt-1 tabular-nums">{formatValue(m)}</div>
+                    <div className="font-display text-xl text-ink mt-1 tabular-nums truncate">{formatValue(m)}</div>
                   </button>
                 ))}
               </div>
@@ -706,7 +706,7 @@ export default function OperationsDashboard({ onJumpToTab }) {
 
         {/* Section 6 · Recent Activity Rail */}
         <aside
-          className="border border-line bg-paper p-3 md:p-4 lg:max-h-[640px] lg:overflow-y-auto"
+          className="border border-line bg-paper p-3 md:p-4 lg:max-h-[640px] lg:overflow-y-auto min-w-0"
           data-testid="ops-activity-rail"
         >
           <div className="flex items-center justify-between pb-2 border-b border-line">

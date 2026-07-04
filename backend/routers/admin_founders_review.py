@@ -286,10 +286,11 @@ def _compute_health_score(
     total = min(_HEALTH_MAX, login_pts + listings_pts + updates_pts + sales_pts + views_pts + completeness_pts + rt_pts)
 
     # Star rating + verdict
+    # iter422 — verdict labels aligned to spec: Excellent / Strong / Steady / At Risk / Dormant.
     if total >= 90:   stars, verdict = 5, "Excellent"
-    elif total >= 75: stars, verdict = 4, "Healthy"
-    elif total >= 60: stars, verdict = 3, "Good"
-    elif total >= 40: stars, verdict = 2, "Needs Attention"
+    elif total >= 75: stars, verdict = 4, "Strong"
+    elif total >= 60: stars, verdict = 3, "Steady"
+    elif total >= 40: stars, verdict = 2, "At Risk"
     else:             stars, verdict = 1, "Dormant"
 
     return {

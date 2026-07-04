@@ -15,6 +15,10 @@
  */
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "../ui/alert-dialog";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -56,6 +60,9 @@ export default function FounderReviewTab() {
   const [busy, setBusy] = useState(null); // slug that's currently being downgraded
   const [gateBusy, setGateBusy] = useState(false);
   const [timelineSlug, setTimelineSlug] = useState(null); // iter421b — open drawer for slug
+  // iter422 — replace window.prompt with styled AlertDialog
+  const [downgradeTarget, setDowngradeTarget] = useState(null); // slug string
+  const [downgradeReason, setDowngradeReason] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,12 +82,7 @@ export default function FounderReviewTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function downgrade(slug) {
-    const reason = window.prompt(
-      `Move ${slug} to the Free tier?\n\nThis frees a Founder slot. The maker and their listings stay intact.\n\nOptional reason (visible in audit log):`,
-      "",
-    );
-    if (reason === null) return; // cancelled
+  async function downgrade(slug, reason) {
     setBusy(slug);
     try {
       const r = await fetch(`${API}/api/admin/founders/${slug}/downgrade`, {
@@ -97,6 +99,19 @@ export default function FounderReviewTab() {
     } finally {
       setBusy(null);
     }
+  }
+
+  function openDowngrade(slug) {
+    setDowngradeReason("");
+    setDowngradeTarget(slug);
+  }
+
+  async function confirmDowngrade() {
+    const slug = downgradeTarget;
+    const reason = downgradeReason.trim();
+    setDowngradeTarget(null);
+    if (!slug) return;
+    await downgrade(slug, reason);
   }
 
   async function toggleGate(open) {
@@ -215,20 +230,23 @@ export default function FounderReviewTab() {
             data-testid="health-distribution"
           >
             {(() => {
+              // iter422 — spec-aligned bucket names + always render all 5
+              // buckets (even at count 0) so the distribution strip stays
+              // predictable/scannable across states.
               const buckets = [
                 { name: "Excellent", stars: 5, tint: "border-emerald-600 bg-emerald-500/10 text-emerald-500" },
-                { name: "Healthy", stars: 4, tint: "border-emerald-600/60 bg-emerald-500/5 text-emerald-500" },
-                { name: "Good", stars: 3, tint: "border-line bg-paper text-ink" },
-                { name: "Needs Attention", stars: 2, tint: "border-amber-500 bg-amber-500/10 text-amber-500" },
-                { name: "Dormant", stars: 1, tint: "border-red-500 bg-red-500/10 text-red-400" },
+                { name: "Strong",    stars: 4, tint: "border-emerald-600/60 bg-emerald-500/5 text-emerald-500" },
+                { name: "Steady",    stars: 3, tint: "border-line bg-paper text-ink" },
+                { name: "At Risk",   stars: 2, tint: "border-amber-500 bg-amber-500/10 text-amber-500" },
+                { name: "Dormant",   stars: 1, tint: "border-red-500 bg-red-500/10 text-red-400" },
               ];
               return buckets.map((b) => {
                 const n = data.rows.filter((r) => (r.health || {}).stars === b.stars).length;
-                if (n === 0) return null;
+                const dimmed = n === 0 ? "opacity-40" : "";
                 return (
                   <span
                     key={b.stars}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${b.tint}`}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.18em] ${b.tint} ${dimmed}`}
                     data-testid={`health-bucket-${b.stars}`}
                   >
                     {"★".repeat(b.stars)}{"☆".repeat(5 - b.stars)} · {b.name} · {n}
@@ -358,7 +376,7 @@ export default function FounderReviewTab() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => downgrade(row.slug)}
+                        onClick={() => openDowngrade(row.slug)}
                         disabled={busy === row.slug}
                         className="px-2 py-1 border border-line hover:border-brand font-mono text-[9px] uppercase tracking-[0.2em] disabled:opacity-50"
                         data-testid={`downgrade-${row.slug}`}
@@ -386,6 +404,53 @@ export default function FounderReviewTab() {
           Downgrades open a slot and are logged in the audit trail.
         </p>
       </section>
+
+      {/* iter422 — Downgrade confirmation (replaces window.prompt) */}
+      <AlertDialog open={!!downgradeTarget} onOpenChange={(o) => { if (!o) setDowngradeTarget(null); }}>
+        <AlertDialogContent data-testid="downgrade-confirm-modal">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move to Free tier?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block">
+                This is a <strong>manual admin action</strong> — no auto-downgrade
+                will ever occur. Move <span className="font-mono text-brand">{downgradeTarget}</span> to
+                the Free tier, freeing one Founder slot.
+              </span>
+              <span className="block mt-2 text-xs text-ink-muted">
+                The maker&rsquo;s account and their published listings stay intact.
+                A health snapshot of this decision is recorded in the audit trail.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="mt-2">
+            <label
+              htmlFor="downgrade-reason"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted"
+            >
+              Reason (optional, visible in audit log)
+            </label>
+            <textarea
+              id="downgrade-reason"
+              value={downgradeReason}
+              onChange={(e) => setDowngradeReason(e.target.value)}
+              rows={3}
+              className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-sm focus:outline-none focus:border-brand"
+              placeholder="e.g. Dormant 90+ days, no listings, no response to nudge."
+              data-testid="downgrade-reason-input"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="downgrade-cancel-btn">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDowngrade}
+              data-testid="downgrade-confirm-btn"
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Move to Free tier
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* iter421b — Timeline drawer */}
       {timelineSlug && (

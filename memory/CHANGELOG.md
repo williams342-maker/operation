@@ -1,3 +1,11 @@
+## 2026-07-04 — iter422: Admin Command Center regression polish
+Testing_agent_v3_fork run (report `/app/test_reports/iteration_110.json`) returned GO with three minor drifts. All resolved:
+- **Downgrade UX**: Replaced `window.prompt` in `FounderReviewTab.downgrade()` with a styled shadcn `AlertDialog`. Copy now explicitly states "This is a **manual admin action** — no auto-downgrade will ever occur." Includes a reason `<textarea>` (`data-testid="downgrade-reason-input"`) and Cancel/Confirm buttons (`downgrade-cancel-btn` / `downgrade-confirm-btn`). Modal itself carries `data-testid="downgrade-confirm-modal"` for future assertions.
+- **Health verdict labels**: Backend `_compute_health_score()` verdicts realigned to spec: Excellent / Strong / Steady / At Risk / Dormant (previously Healthy / Good / Needs Attention). Frontend distribution strip updated to match. All 29/29 iter418→iter421b pytests still pass.
+- **Full 5-bucket distribution**: `health-distribution` now renders all five star buckets (Excellent → Dormant) even at count=0, with `opacity-40` dimming on empty buckets, so the strip stays predictable across states.
+- **Mobile overflow**: `/admin/dashboard?tab=operations` no longer overflows on 390px viewports. Root cause was the Operations two-column layout allowing grid children to grow with their content. Added `min-w-0 overflow-x-hidden` on the outer ops-dashboard section, `grid-cols-1 min-w-0` on the mobile grid, and `min-w-0` on the marketplace-health grid + activity-rail. Verified: scrollWidth=390 = innerWidth=390 on both Operations and Founder Review tabs.
+
+
 ## 2026-07-04 — iter421b: Audit snapshot enrichment + Founder Timeline
 
 Two pre-production hardening additions on top of iter421's Maker
