@@ -60,6 +60,7 @@ from routers.analytics import router as analytics_router
 from routers.workshop_analytics import router as workshop_analytics_router
 from routers.backorder import router as backorder_router
 from routers.founders import router as founders_router
+from routers.admin_founders_review import router as admin_founders_review_router  # iter418
 from routers.founder_funnel import router as founder_funnel_router  # iter413ba
 from routers.attribution import router as attribution_router  # iter413bb
 from routers.orphan_pages import router as orphan_pages_router  # iter413bc
@@ -160,6 +161,7 @@ api.include_router(admin_shipping_router)
 api.include_router(workshop_analytics_router)
 api.include_router(backorder_router)
 api.include_router(founders_router)
+api.include_router(admin_founders_review_router)  # iter418 — Founder final-review + closeout
 api.include_router(founder_funnel_router)  # iter413ba — admin founder funnel dashboard
 api.include_router(attribution_router)  # iter413bb — lead → apply attribution
 api.include_router(orphan_pages_router)  # iter413bc — orphan pages detector

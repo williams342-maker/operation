@@ -1,3 +1,129 @@
+## 2026-07-04 — iter418: Founder Application Closeout + Final Review
+
+Founder status must be *earned by activity*, not merely awarded on
+signup. This iter turns a fixed pool of 100 slots into a rotating one
+governed by an admin-approved review loop. Applications auto-close at
+cap, an admin sees every founder's activity signals, and inactive
+founders can be moved to Free (freeing the slot) — without deleting
+the maker or their listings.
+
+### Backend
+
+**New file: `routers/admin_founders_review.py`**
+
+- `GET /api/admin/founders/slots-detail` — powers the dashboard card.
+  Returns `active` / `needs_review` / `total_founders` / `cap` /
+  `applications_open`.
+- `GET /api/admin/founders/review` — full roster with activity
+  metrics (published count, last product update, last login, sales
+  count) and per-row signal booleans (`has_shop_profile`,
+  `has_published_product`, `recent_login`, `has_sales`). Sorts
+  Needs-Review rows to the top.
+- `POST /api/admin/founders/{slug}/downgrade` — moves a Founder back
+  to the Standard tier. **Never deletes anything.** Strips
+  `founder_status`, `founder_number`, `founder_started_at`,
+  `founder_expires_at`, `founder_grace_until`; adds
+  `founder_downgraded_at`, `founder_downgraded_by`,
+  `founder_downgrade_reason`. Writes an entry to `activity_events`
+  (kind=admin, action=founder_downgrade) so the audit trail is intact.
+  Recomputes the applications gate but **never auto-reopens** it —
+  admin must click Reopen deliberately.
+- `POST /api/admin/founders/applications-gate` — manual open/close of
+  the applications gate. Warns if the admin reopens at/over cap.
+
+**Activity classifier** (`_activity_signals_for` + `_classify`):
+A Founder is `active` if ANY one of the four signals is true. `recent_login`
+window is 90 days. `has_shop_profile` requires a bio ≥ 40 chars plus
+a filled studio/shop name. `has_sales` counts orders OR successful
+payments (both collections). Only `needs_review` verdicts float to the
+top of the review list — `downgrade_to_free` is never an
+auto-classification, only an admin *action*.
+
+**Auto-close hook**: `founders.py::admin_promote` now calls
+`_refresh_close_flag` right after every promote. The moment the
+active-Founder headcount reaches `founder_slots_total`, the gate flips
+OFF. Manual re-open requires an admin.
+
+**Settings (`routers/settings.py`)** — added two new admin-toggleable
+flags to `DEFAULT_SETTINGS` and to both the public + admin surfaces:
+
+- `founder_applications_open: true` — the auto-flippable gate
+- `founder_slots_total: 100` — the hard cap
+
+Legacy `beta_signup_enabled` retained; effective public state is
+`beta_signup_enabled && founder_applications_open`.
+
+### Frontend
+
+**`pages/BetaPage.jsx`** — closed-state screen now uses the exact copy
+from the ticket:
+
+> Founder applications are currently closed while we review the first
+> 100 active maker slots.
+>
+> You can still apply as a maker, and additional Founder slots may
+> reopen if inactive accounts are moved to the Free tier.
+
+Heading changed from "Founding Access Is Closed" to "Founder
+Applications Are Closed" to match the ticket phrasing exactly. CTA
+still routes visitors to `/apply` (regular maker application) since
+that flow remains open.
+
+**New: `components/admin/FounderReviewTab.jsx`** — a full admin tab
+with two sections:
+
+1. **Founder Slots card** — `X / 100`, needs-review count, slots
+   available, applications-open pill (emerald when open, amber when
+   closed), plus a single button that either "Close Founder
+   Applications" or "Reopen Founder Applications" depending on state.
+   A warning banner surfaces when active count ≥ cap but the gate is
+   still open.
+
+2. **Founder Roster — Activity Review table** — every founder with
+   founder_number, name/shop/email, approved date, last login,
+   published/total listings, last product update, sales count, four
+   signal pills, verdict badge (Active/Needs Review), and a
+   `Move to Free` action per row. Rows in Needs-Review get an
+   amber tint. Downgrade prompts for an optional reason (stored in the
+   audit event) and refreshes the table on success.
+
+Wired into `AdminDashboard.jsx` under a new tab id `founder-review`
+gated by the `marketplace` capability.
+
+### Testing (`tests/test_iter418_founder_closeout.py`)
+
+6 pytest cases, all passing:
+
+- Public settings exposes the new keys with correct types.
+- `slots-detail` requires admin (401 for anonymous).
+- `slots-detail` shape + invariant (`active + needs_review == total_founders`).
+- Review rows carry the four-signal contract; verdict = ANY(signals).
+- Toggling the gate updates the public settings endpoint.
+- End-to-end downgrade: creates a synthetic Founder, downgrades,
+  asserts maker record survived, tier is standard, audit event written
+  with actor + kind, second downgrade attempt returns 400, cleanup
+  removes the synthetic row.
+
+### Verification (preview)
+
+- Closed the gate via API → `/founders` renders the new copy verbatim.
+- Reopened via `/admin/founders/applications-gate` → `/founders`
+  renders the full application form again.
+- Admin dashboard `founder-review` tab renders card + table with all
+  15 current Founders classified `active`, 0 `needs_review`.
+- Downgrade smoke path confirmed by pytest end-to-end.
+
+### Guarantees preserved
+
+- ✅ No existing maker accounts are removed.
+- ✅ No listings are deleted.
+- ✅ No auto-downgrade — only admin action.
+- ✅ Downgrade keeps maker + products intact; only strips Founder
+  metadata and writes the audit event.
+- ✅ Legacy `beta_signup_enabled` flag continues to work.
+
+---
+
 ## 2026-07-04 — iter417b: Founding Access application copy parity
 
 Follow-up to iter417 — applied the same "not received until confirmed"

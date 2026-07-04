@@ -35,6 +35,17 @@ DEFAULT_SETTINGS: dict = {
     # OFF, the Nav hides the "◆ BETA SIGNUP" pill and /beta renders a
     # "spots are closed" state instead of the application form.
     "beta_signup_enabled": True,
+    # iter418 — Founder application closeout.
+    # `founder_applications_open` gates the /founders CTA. It flips
+    # OFF automatically the moment an active-founder headcount reaches
+    # `founder_slots_total` (see admin_founders_review.py). Admin can
+    # also manually toggle. `beta_signup_enabled` is the *legacy* kill
+    # switch and is kept for backward compat; the effective public flag
+    # is the AND of both. `founder_slots_total` is the hard cap on how
+    # many *active* founders the marketplace holds simultaneously (100
+    # per the launch plan; adjustable if we ever expand the class).
+    "founder_applications_open": True,
+    "founder_slots_total": 100,
     "live_chat_enabled": True,
     "auto_clear_idle_rooms": False,
     "idle_clear_minutes": 60,
@@ -95,6 +106,8 @@ async def public_settings():
         "allow_maker_applications": s["allow_maker_applications"],
         "applications_closed_message": s["applications_closed_message"],
         "beta_signup_enabled": s["beta_signup_enabled"],
+        "founder_applications_open": s.get("founder_applications_open", True),
+        "founder_slots_total": s.get("founder_slots_total", 100),
         "live_chat_enabled": s["live_chat_enabled"],
         "leaderboard_enabled": s["leaderboard_enabled"],
         "leaderboard_rewards_enabled": s.get("leaderboard_rewards_enabled", True),
@@ -169,6 +182,8 @@ class SettingsPatch(BaseModel):
     allow_maker_applications: Optional[bool] = None
     applications_closed_message: Optional[str] = None
     beta_signup_enabled: Optional[bool] = None
+    founder_applications_open: Optional[bool] = None
+    founder_slots_total: Optional[int] = Field(default=None, ge=1, le=10000)
     live_chat_enabled: Optional[bool] = None
     auto_clear_idle_rooms: Optional[bool] = None
     idle_clear_minutes: Optional[int] = Field(default=None, ge=5, le=1440)

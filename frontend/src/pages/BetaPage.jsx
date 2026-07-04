@@ -39,7 +39,17 @@ export default function BetaPage() {
   });
 
   const settings = useSiteSettings();
-  const betaSignupEnabled = settings?.beta_signup_enabled !== false;
+  // iter418 — Applications gate is now the AND of two flags:
+  //   * `beta_signup_enabled` — legacy manual kill switch (kept for
+  //     backward-compat with existing admin scripts + tests)
+  //   * `founder_applications_open` — new auto-close flag that flips
+  //     OFF the moment the active-Founder cap is reached, but can be
+  //     manually toggled on/off from the admin Founder Slots card.
+  // Either being false = closed.
+  const applicationsOpen =
+    settings?.beta_signup_enabled !== false
+    && settings?.founder_applications_open !== false;
+  const betaSignupEnabled = applicationsOpen;
 
   const [f, setF] = useState({
     name: "",
@@ -174,19 +184,25 @@ export default function BetaPage() {
   // Admin has turned the Founding Access signup off — show a "closed"
   // state instead of the form. Existing Founding Sellers keep their access;
   // this just stops new signups.
-  if (settings && settings.beta_signup_enabled === false) {
+  if (settings && !applicationsOpen) {
     return (
       <div className="pt-40 pb-24 min-h-screen text-center grain px-4" data-testid="beta-closed">
         <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-4">
-          ◆ Founding Seller Program · Paused
+          ◆ Founding Seller Program · Final Review
         </div>
         <h1 className="font-display text-6xl md:text-8xl mb-6 leading-[0.9]">
-          Founding Access Is <span className="text-outline-orange">Closed.</span>
+          Founder Applications Are <span className="text-outline-orange">Closed.</span>
         </h1>
-        <p className="font-mono text-sm text-ink-muted max-w-md mx-auto leading-relaxed mb-8">
-          We're at capacity for our Founding Seller cohort. The program will
-          reopen for a second wave — keep an eye on our journal, or apply as a
-          regular maker below.
+        {/* iter418 — Copy per closeout ticket. Emphasizes that this is
+            a *review* pause, not a permanent close, and that regular
+            maker applications remain open. */}
+        <p className="font-body text-base sm:text-lg text-ink max-w-xl mx-auto leading-relaxed mb-4">
+          Founder applications are currently closed while we review the first
+          100 active maker slots.
+        </p>
+        <p className="font-body text-sm text-ink-muted max-w-xl mx-auto leading-relaxed mb-8">
+          You can still apply as a maker, and additional Founder slots may
+          reopen if inactive accounts are moved to the Free tier.
         </p>
         <Link
           to="/apply"

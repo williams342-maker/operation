@@ -35,6 +35,7 @@ import GrowthStatsBar from "../components/admin/GrowthStatsBar";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import FounderFunnelTab from "../components/admin/FounderFunnelTab";
+import FounderReviewTab from "../components/admin/FounderReviewTab"; // iter418
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
 import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
@@ -83,6 +84,7 @@ const TABS = [
   { id: "applications", label: "Applications", caps: ["marketplace"] },
   { id: "approved-makers", label: "Approved Makers", caps: ["marketplace"] },
   { id: "founder-funnel", label: "Founder Funnel", caps: ["marketplace", "content"] },
+  { id: "founder-review", label: "Founder Review", caps: ["marketplace"] },
   { id: "activation-funnel", label: "Activation Funnel", caps: ["marketplace", "content"] },
   { id: "orphan-pages", label: "Orphan Pages", caps: ["content"] },
   { id: "freshness", label: "Freshness", caps: ["content"] },
@@ -549,6 +551,7 @@ export default function AdminDashboard() {
             {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
             {tab === "approved-makers" && <ApprovedMakersTab />}
             {tab === "founder-funnel" && <FounderFunnelTab />}
+            {tab === "founder-review" && <FounderReviewTab />}
             {tab === "activation-funnel" && <ActivationFunnelTab />}
             {tab === "orphan-pages" && <OrphanPagesTab />}
             {tab === "freshness" && <FreshnessEngineTab />}

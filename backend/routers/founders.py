@@ -249,6 +249,16 @@ async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
 
     logger.info("[founders] promoted slug=%s status=%s number=%s beta=%s",
                 body.slug, status, final_number, update["is_beta_tester"])
+
+    # iter418 — Auto-close the founder application gate the moment the
+    # active-founder headcount reaches the configured cap. Never
+    # auto-reopens; admin re-opens deliberately from the review UI.
+    try:
+        from routers.admin_founders_review import _refresh_close_flag
+        await _refresh_close_flag(actor_email="promote_hook")
+    except Exception as e:
+        logger.warning("[founders] auto-close hook failed: %s", e)
+
     return {"ok": True, **update}
 
 
