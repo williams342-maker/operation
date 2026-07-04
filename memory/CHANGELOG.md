@@ -1,3 +1,128 @@
+## 2026-07-04 — iter419: Marketplace Command Center + Search Intent
+
+Replaced the operations landing view with a **widget-based Marketplace
+Command Center**. The dashboard now answers a founder's daily
+questions in order — is my marketplace growing today (Growth Engine),
+do I have enough active founders (Founder Operations), what's
+happening right now (Activity Feed), and which makers should I recruit
+next (Recruitment Opportunities). Old health strip demoted to
+supporting context below.
+
+### Widget framework (`components/widgets/framework.jsx`)
+
+Reusable across Crafters Market, Williams Innovation Group, and
+CortexViral per the multi-product architecture direction. Ships:
+
+- `WidgetShell` — title/eyebrow, loading/error states, auto-refresh
+  interval, refresh button with "N ago" tooltip, actions slot.
+- `registerWidget(key, def)` + `getWidget(key)` — module-level
+  registry. Widgets self-register on import.
+- `Dashboard({ layout })` — renders a config-driven grid. Layout is
+  a plain array like ``["MarketplaceGrowth", { key: "FounderOps",
+  span: 2 }]`` — swap the array to reconfigure the whole dashboard.
+- `useAdminFetch(path, { autoRefreshMs })` — standard admin-scoped
+  fetch hook that reads the JWT from `localStorage.cm_admin_jwt`.
+
+Intentionally skipped for now: drag-and-drop, per-user layout
+persistence, and the widget marketplace. Framework is production-ready
+without them.
+
+### Widgets
+
+- **MarketplaceGrowth** — reads `/api/admin/command/growth`. Renders
+  8 daily metrics (Visitors, Buyers, Applications, New Makers,
+  Products, Orders, Revenue, Conversion Rate) with yesterday deltas.
+  Category-growth strip below shows per-category listings added today.
+- **FounderOperations** — reads iter418's
+  `/api/admin/founders/slots-detail`. Big active/cap headline plus
+  needs-review, slots-available, applications-open pill. "Review →"
+  action deep-links to the Founder Review tab.
+- **MarketplaceActivity** — reads `/api/admin/command/activity`.
+  Momentum-only feed: New Founder Application · Email Verified ·
+  Maker Approved · Shop Published · New/First Product Listed · First
+  Sale for Maker · Custom-Order Brief Submitted. Kind-specific
+  tint so eyes land on the milestones (founder app, first sale) fast.
+- **RecruitmentOpportunities** — reads `/api/admin/command/recruitment`.
+  Top zero-result queries, 1d / 7d / 30d window pills. Two admin
+  actions per row: **Recruit** (marks as opportunity) and **Hide**
+  (typos, bad queries). Emits a toast on success and refreshes.
+
+### Backend
+
+**New: `routers/search_intent.py`**
+
+- `normalize_query(q)` — lowercase + punctuation stripped + whitespace
+  collapsed so "Horseshoe Art!" and "horseshoe art" bucket together.
+- `log_search(q, result_count, ...)` — writes a `search_events` doc
+  with the query, normalized bucket, ground-truth result count,
+  zero_result flag, filters snapshot, session/user/path/referrer. Never
+  throws — search UX is never blocked by logging failures.
+- `POST /api/search/click` — associates a click-through with the
+  originating search event (best-effort).
+- `GET /api/admin/search/zero-result` — grouped zero-result queue with
+  time-window filter, respects admin annotations.
+- `POST /api/admin/search/annotate` — hide/unhide/mark-opportunity/
+  unmark. Persisted in `search_intent_annotations`.
+
+Hooked into `catalog.py::list_products` at both cache-hit and
+fresh-compute return paths so no query is lost during the 60s TTL
+window. Session id lifted from `x-cm-session` header or `cm_session`
+cookie so we can trace intent per user without requiring login.
+
+**New: `routers/marketplace_command.py`**
+
+Three admin-only widget-payload endpoints:
+
+- `GET /api/admin/command/growth` — the eight required daily metrics
+  with yesterday deltas + top categories by listings added today.
+  UTC-based for now (timezone can be added later).
+- `GET /api/admin/command/activity` — merged momentum feed from
+  `beta_applications`, `makers`, `products`, `orders`,
+  `custom_orders`. Detects "first product listed" and "first sale for
+  maker" milestones by counting older rows for the same maker.
+  Restricted to 8 momentum kinds only — no login noise, no product
+  edits, no generic customer registers per the ticket rule.
+- `GET /api/admin/command/recruitment` — compact zero-result queue
+  for the widget (top N, sorted by count).
+
+### Frontend integration
+
+- `pages/AdminDashboard/CommandCenter.jsx` — composes the four widgets
+  via a small layout config: `MarketplaceGrowth` (full-width),
+  `FounderOperations`, `RecruitmentOpportunities`, then
+  `MarketplaceActivity` (full-width).
+- `pages/AdminDashboard.jsx` — the operations landing now leads with
+  `<CommandCenter />` and drops `<OperationsDashboard />` below under
+  an "Ops Context · Health & queues" divider.
+
+### Testing (`tests/test_iter419_command_center.py`)
+
+Eight pytest cases, all passing:
+
+- `normalize_query` casing/punctuation/whitespace contract.
+- End-to-end: hitting `/api/products?q=…` logs a `search_event` with
+  the ground-truth result count and session id from headers.
+- Zero-result endpoint groups by normalized query.
+- Annotate → hide removes a query from the queue.
+- Growth endpoint returns all 8 required metric keys + categories.
+- Activity endpoint restricts to the 8 allowed momentum kinds only.
+- Recruitment endpoint surfaces zero-result queries.
+- All admin endpoints reject anonymous access (401/403).
+
+### Skipped (per ticket)
+
+Auth-failure monitoring, 4xx/5xx dashboards, bot percentages, push
+delivery analytics. Not the current bottleneck.
+
+### Future architecture hooks
+
+The widget framework is deliberately generic so the Williams
+Innovation Group Executive Portfolio and CortexViral Command Center
+dashboards can reuse `WidgetShell` + `Dashboard` + the registry
+without changes. Each product will just export its own layout array.
+
+---
+
 ## 2026-07-04 — iter418: Founder Application Closeout + Final Review
 
 Founder status must be *earned by activity*, not merely awarded on

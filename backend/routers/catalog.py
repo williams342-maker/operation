@@ -145,7 +145,7 @@ async def root():
 
 
 @router.get("/products", response_model=List[Product])
-async def list_products(category: Optional[str] = None, technique: Optional[str] = None,
+async def list_products(request: Request, category: Optional[str] = None, technique: Optional[str] = None,
                         q: Optional[str] = None, featured: Optional[bool] = None,
                         featured_example: Optional[bool] = None,
                         maker: Optional[str] = None,
@@ -175,6 +175,23 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
         if hit and _time.monotonic() - hit[0] < _LIST_PRODUCTS_TTL_S:
             global _LIST_PRODUCTS_HITS
             _LIST_PRODUCTS_HITS += 1
+            # iter419 — Still log search intent on cache hits so we
+            # don't lose intent data during the 60s TTL window.
+            if q and (q or "").strip():
+                try:
+                    from routers.search_intent import log_search
+                    sess = request.headers.get("x-cm-session") or request.cookies.get("cm_session") or ""
+                    uid = request.headers.get("x-cm-user-id") or ""
+                    await log_search(
+                        q=q, result_count=len(hit[1]),
+                        filters={"category": category, "technique": technique,
+                                 "sort_mode": sort_mode, "featured": featured, "maker": maker},
+                        session_id=sess, user_id=uid,
+                        path=str(request.url.path),
+                        referrer=request.headers.get("referer"),
+                    )
+                except Exception:
+                    pass
             return hit[1]
         global _LIST_PRODUCTS_MISSES
         _LIST_PRODUCTS_MISSES += 1
@@ -422,6 +439,28 @@ async def list_products(category: Optional[str] = None, technique: Optional[str]
             oldest = min(_LIST_PRODUCTS_CACHE, key=lambda k: _LIST_PRODUCTS_CACHE[k][0])
             _LIST_PRODUCTS_CACHE.pop(oldest, None)
         _LIST_PRODUCTS_CACHE[cache_key] = (_time.monotonic(), result)
+    # iter419 — Log search intent (only when a query was supplied).
+    # Fire-and-forget: never blocks on I/O errors. Ground-truth result
+    # count comes from what we're actually returning, not a JS guess.
+    if q and (q or "").strip():
+        try:
+            from routers.search_intent import log_search
+            sess = request.headers.get("x-cm-session") or request.cookies.get("cm_session") or ""
+            uid = request.headers.get("x-cm-user-id") or ""
+            await log_search(
+                q=q,
+                result_count=len(result),
+                filters={
+                    "category": category, "technique": technique,
+                    "sort_mode": sort_mode, "featured": featured,
+                    "maker": maker,
+                },
+                session_id=sess, user_id=uid,
+                path=str(request.url.path),
+                referrer=request.headers.get("referer"),
+            )
+        except Exception:
+            pass
     return result
 
 

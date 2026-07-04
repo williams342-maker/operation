@@ -11,6 +11,7 @@ import {
 } from "../lib/api";
 import { Stat } from "../components/admin/_shared";
 import OperationsDashboard from "../components/admin/OperationsDashboard"; // iter413bp
+import CommandCenter from "./AdminDashboard/CommandCenter"; // iter419
 import AdminDensityToggle from "../components/AdminDensityToggle";
 import AnalyticsTab from "../components/admin/AnalyticsTab";
 import WebAnalyticsTab from "../components/admin/WebAnalyticsTab";
@@ -543,7 +544,21 @@ export default function AdminDashboard() {
               <AdminDensityToggle />
             </div>
             <AdminTabBoundary tabId={tab} key={tab}>
-            {tab === "operations" && <OperationsDashboard onJumpToTab={setTab} />}
+            {tab === "operations" && (
+              <div className="space-y-10">
+                {/* iter419 — Marketplace Command Center leads the
+                    operations landing. Answers "is my marketplace
+                    growing today" first, then the existing health
+                    strip below acts as supporting ops context. */}
+                <CommandCenter />
+                <div className="pt-6 border-t border-line">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-muted mb-3">
+                    ◇ Ops Context · Health & queues
+                  </div>
+                  <OperationsDashboard onJumpToTab={setTab} />
+                </div>
+              </div>
+            )}
             {tab === "analytics" && <AnalyticsTab />}
             {tab === "retention" && <RetentionTab />}
             {tab === "web" && <WebAnalyticsTab />}
