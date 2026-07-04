@@ -1,3 +1,59 @@
+## 2026-07-04 — iter415: Maker shop hero contrast fix (light mode)
+
+**Reported bug:** a maker flagged that the shop title over the cover
+image was too dark to read in light mode — fine in dark mode, but
+visitors arriving from Facebook/social links inherit the OS theme, so
+light-mode readers landed on an illegible hero.
+
+### Root cause
+
+`MakerDetail.jsx` hero (lines 106-213):
+
+1. Gradient scrim faded to `transparent` at the top, leaving parts
+   of the cover unscrimmed.
+2. `<h1>` had no color declared → inherited `text-ink`
+   (`#38342E`, dark charcoal) in light mode → invisible on light or
+   mid-tone cover photos.
+3. `shop_title`, location line, trust-strip chips, and the Message
+   button all used theme-dependent tokens (`text-ink`, `text-ink-muted`,
+   `bg-paper/40`) which flip to unreadable combinations in light mode.
+
+### Fix
+
+- Strengthened scrim to `bg-gradient-to-t from-black via-black/75 to-black/25`
+  so the hero is ≥25% dark throughout (no transparent zones).
+- Wrapped all overlay text in a container that forces `text-white`
+  with a subtle `text-shadow: 0 2px 10px rgba(0,0,0,0.55)` for extra
+  safety against bright spots in the cover.
+- `shop_title` → `text-white/95`; location line → `text-white/75`.
+- Trust chips → `bg-black/40 border-white/25 text-white/90` (theme-independent).
+- Response-time chip → `text-amber-200` on `bg-amber-500/[0.14]` to
+  retain the accent color while staying legible.
+- Message button → `bg-black/50 text-white/90 border-white/25`.
+
+### Verification (production)
+
+Smoke-tested on `craftersmarket.org` in both light and dark modes
+across multiple shops:
+
+- **Fly Flowers and Finery** (reporter's shop, mid-tone jewelry cover) — ✅
+- **Loom & Thread Co.** (bright green macramé cover, worst case) — ✅
+- **Williams CNC** (workshop with bright window backlight) — ✅
+- **Kiln & Clay Studio** (cream/beige pottery cover) — ✅
+
+Confirmed readable in both themes: shop name, italic shop_title,
+location line, "Approved Maker"/"Founding Maker"/"Veteran-Owned"
+badges, Workshop chip, Years-Active chip, Follow/Share/Message buttons.
+
+**Shared links from Facebook and other social platforms now remain
+readable regardless of the visitor's theme preference.**
+
+No functional or layout changes — same visual identity, guaranteed
+legibility across themes.
+
+---
+
+
 ## 2026-07-03 — iter331e: `/makers` roster card sizing
 
 User feedback: on `/makers` the maker cards were too big at the
