@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import Marquee from "react-fast-marquee";
 
 const PROCESS_IMG =
-  "https://images.unsplash.com/photo-1689960253768-72a12bc8320f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85";
+  "https://customer-assets.emergentagent.com/job_active-project-4/artifacts/mafn7t29_103d8c61-b252-4525-8529-2423dacd4253.png";
 
 const steps = [
   { no: "01", label: "Design & Pattern", desc: "Sketches, templates, toolpaths — every build starts with intent." },
@@ -68,12 +68,12 @@ export default function Process() {
             transition={{ duration: 1 }}
             className="md:col-span-6 relative aspect-[4/5] md:aspect-auto md:min-h-[640px] overflow-hidden border border-line"
           >
-            <img src={PROCESS_IMG} alt="CNC plasma cutting in process" className="absolute inset-0 w-full h-full object-cover media-img" />
+            <img src={PROCESS_IMG} alt="Crafters Market makers — metalwork, pottery, woodworking, leather, jewelry, painting, quilting, and more" className="absolute inset-0 w-full h-full object-cover media-img" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
             <div className="absolute top-5 left-5 tag text-brand border-brand">LIVE FEED</div>
             <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between font-mono text-xs uppercase tracking-[0.2em] text-ink">
-              <span>Workshop · Bay 03</span>
-              <span>Tool: 1/8" carbide</span>
+              <span>Independent makers · Continental US</span>
+              <span>Wood · Metal · Clay · Leather · Fiber · Glass</span>
             </div>
           </motion.div>
 
