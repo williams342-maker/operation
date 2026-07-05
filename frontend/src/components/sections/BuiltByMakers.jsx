@@ -25,9 +25,10 @@ const BRANDS = [
     href: "https://williamscnc.com",
     descriptor: "Precision CNC art · 30+ years · the studio behind it all",
     accent: "#c97b3c",  // copper, matching williamscnc.com's brand
-    // No public logo PNG on williamscnc.com — render a typographic
-    // wordmark in their copper accent so the card still feels "branded"
-    // without hot-linking an asset that might 404 later.
+    // iter424 — swapped in the actual Williams CNC swirl emblem
+    // (Photoroom-processed transparent PNG). Falls back to typographic
+    // wordmark if the image ever 404s.
+    logo: "https://customer-assets.emergentagent.com/job_active-project-4/artifacts/79vg8njk_Photoroom-20240924_151109.png",
     wordmark: "WILLIAMS / CNC",
   },
   {
