@@ -364,14 +364,17 @@ async def _section_marketplace_health() -> dict:
 
 async def _section_founder_funnel() -> dict:
     """Pipeline stage counts with conversion %."""
-    # Visitors come from the analytics events store. Fallback to 0 if collection missing.
+    # iter423 — Visitors are stored in `pageview_events` (routers/analytics.py::/analytics/track).
+    # Previously read `analytics_events` which never existed → always 0.
     seven_days_ago = (_now() - timedelta(days=7)).isoformat()
     visitors = 0
-    if "analytics_events" in await db.list_collection_names():
-        visitors = await db.analytics_events.count_documents({
-            "ts": {"$gte": seven_days_ago},
-            "event": {"$in": ["page_view", "pageview"]},
-        })
+    try:
+        distinct = await db.pageview_events.distinct(
+            "session_id", {"ts": {"$gte": seven_days_ago}},
+        )
+        visitors = len([d for d in distinct if d])
+    except Exception:
+        visitors = 0
 
     applied = await db.maker_applications.count_documents({"created_at": {"$gte": seven_days_ago}})
     approved = await db.maker_applications.count_documents({

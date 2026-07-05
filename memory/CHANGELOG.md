@@ -1,3 +1,19 @@
+## 2026-07-05 — iter423: Fix Command Center "Visitors Today" reading zero
+**Bug**: User reported production Command Center → Marketplace Growth → "Visitors Today" stuck at 0 despite GA Realtime showing live traffic.
+
+**Root cause**: `routers/marketplace_command.py::growth()` (and `live-revenue` and `ops_dashboard::_section_founder_funnel`) queried `db.events` with `{type: "page_view", created_at: ...}`. That collection has never contained page-view docs — the site's beacon at `routers/analytics.py::/analytics/track` writes to `db.pageview_events` with field `ts` (ISO string). Wrong collection + wrong field = always 0.
+
+**Fix** (`routers/marketplace_command.py` + `routers/ops_dashboard.py`):
+- Growth "Visitors Today" now reads distinct `session_id` from `db.pageview_events` filtered by `ts`.
+- Same fix for yesterday-window (conversion-rate baseline).
+- Same fix for live-revenue "live sessions in last hour".
+- Ops Dashboard Founder Funnel visitor stage now reads from `pageview_events` instead of a non-existent `analytics_events` collection.
+
+**Verified on preview**: `GET /api/admin/command/growth` now returns `delta_vs_yesterday: -1` for visitors (was always 0). Preview DB has 2,787 lifetime page views recorded in `pageview_events`; the query is finally hitting the right data. Once production is redeployed the widget will match GA Realtime numbers.
+
+**Tests**: iter419 + iter420 pytest suites remain green (13/13).
+
+
 ## 2026-07-04 — iter422: Admin Command Center regression polish
 Testing_agent_v3_fork run (report `/app/test_reports/iteration_110.json`) returned GO with three minor drifts. All resolved:
 - **Downgrade UX**: Replaced `window.prompt` in `FounderReviewTab.downgrade()` with a styled shadcn `AlertDialog`. Copy now explicitly states "This is a **manual admin action** — no auto-downgrade will ever occur." Includes a reason `<textarea>` (`data-testid="downgrade-reason-input"`) and Cancel/Confirm buttons (`downgrade-cancel-btn` / `downgrade-confirm-btn`). Modal itself carries `data-testid="downgrade-confirm-modal"` for future assertions.

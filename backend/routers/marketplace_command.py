@@ -106,12 +106,15 @@ async def growth(_: dict = Depends(current_admin)):
         y = await fn(gte=yday, lt=today)
         return t, (t - y)
 
-    # ---- Visitors (24h page_view events) ---- #
+    # ---- Visitors (page_view beacons on the site) ---- #
+    # iter423 — fix: previously queried db.events {type=page_view} but the
+    # site's beacon writes to db.pageview_events (see routers/analytics.py
+    # `/analytics/track`). Field is `ts` (ISO string), not `created_at`.
     async def _visitors(gte, lt):
-        m = {"type": "page_view", "created_at": {"$gte": gte}}
-        if lt: m["created_at"]["$lt"] = lt
+        m = {"ts": {"$gte": gte}}
+        if lt: m["ts"]["$lt"] = lt
         try:
-            distinct = await db.events.distinct("session_id", m)
+            distinct = await db.pageview_events.distinct("session_id", m)
             return len([d for d in distinct if d])
         except Exception:
             return 0
@@ -180,8 +183,8 @@ async def growth(_: dict = Depends(current_admin)):
     })
     conv_yday_visitors = 0
     try:
-        conv_yday_visitors = len([d for d in await db.events.distinct("session_id", {
-            "type": "page_view", "created_at": {"$gte": yday, "$lt": today},
+        conv_yday_visitors = len([d for d in await db.pageview_events.distinct("session_id", {
+            "ts": {"$gte": yday, "$lt": today},
         }) if d])
     except Exception:
         pass
@@ -522,8 +525,9 @@ async def live_revenue(_: dict = Depends(current_admin)):
     hour_ago = (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
     live_sessions = 0
     try:
-        live_sessions = len([s for s in await db.events.distinct(
-            "session_id", {"type": "page_view", "created_at": {"$gte": hour_ago}},
+        # iter423 — same fix as growth: read from pageview_events / ts.
+        live_sessions = len([s for s in await db.pageview_events.distinct(
+            "session_id", {"ts": {"$gte": hour_ago}},
         ) if s])
     except Exception:
         pass
