@@ -1,3 +1,22 @@
+## 2026-07-05 — iter425: Unify all "live users" surfaces with GA4 Realtime
+**Bug**: User reported Admin Command Center "LIVE · 1" pill and Workshop Analytics "Active Visitors" tile didn't match Google Analytics card that showed "18 active users right now".
+
+**Root cause**: Two separate surfaces were reading fabricated / undercounted data:
+1. `routers/analytics.py::admin_live_now` (LIVE pill in admin nav + Operations header) only read distinct `visitor_id` from `pageview_events` last 5 min. First-party beacon undercounts vs GA4 (SPA route changes, adblock, bot filtering).
+2. `routers/workshop_analytics.py::live` (Workshop Analytics dashboard `/live` tab) was **fully synthetic** — computed `active = max(1, round(community_users * 0.003))` and `random.randint()` sparkline. Never touched real page-view data OR GA4.
+
+**Fix**:
+- `admin_live_now`: now calls GA4 Realtime `activeUsers` in parallel with first-party 5-min count, returns `max(first_party, ga_active)` so the LIVE pill matches GA. Includes `ga_active_users`, `first_party_5m`, `source` debug fields.
+- `workshop_analytics::live`: completely rewritten to pull real data:
+  - `active_visitors` = `max(first_party_5m, ga4_active_users_30m)` (matches GA card)
+  - `active_pages` = top 8 pages by distinct visitors from `pageview_events` last 30 min
+  - `recent_events` = last 10 real page views with human "time ago" labels + real country
+  - `sparkline` = 10 × 3-min buckets over last 30 min (real distinct visitor counts)
+  - Graceful fallback: if GA4 not connected → first-party only. If neither → placeholder rows so the chart still renders.
+
+**Verified on preview**: `GET /api/workshop-analytics/live` now returns `active_visitors: 20, ga_active_users: 20` (was `1` from fake formula). Endpoint no longer imports `random` for this path.
+
+
 ## 2026-07-05 — iter423: Fix Command Center "Visitors Today" reading zero
 **Bug**: User reported production Command Center → Marketplace Growth → "Visitors Today" stuck at 0 despite GA Realtime showing live traffic.
 

@@ -467,7 +467,15 @@ async def admin_seo_landing_analytics(days: int = 30, _: dict = Depends(current_
 @router.get("/admin/analytics/live")
 async def admin_live_now(_: dict = Depends(current_admin)):
     """Real-time pulse — distinct visitor IDs seen in the last 5 minutes
-    (and a tighter 1-minute count for the heartbeat dot)."""
+    (and a tighter 1-minute count for the heartbeat dot).
+
+    iter425 — When GA4 is connected, we ALSO surface GA's `activeUsers`
+    (last-30-min window). The admin nav badge and Operations "LIVE" pill
+    display whichever number is higher so the admin dashboard matches the
+    same number the "Google Analytics" card shows a few sections below.
+    Our first-party beacon undercounts (SPA route changes, crawler blocks,
+    adblock) — GA gives the honest live count.
+    """
     now = datetime.now(timezone.utc)
     cutoff_5m = (now - timedelta(minutes=5)).isoformat()
     cutoff_1m = (now - timedelta(minutes=1)).isoformat()
@@ -483,7 +491,44 @@ async def admin_live_now(_: dict = Depends(current_admin)):
     ]
     r5 = await db.pageview_events.aggregate(pipe5).to_list(1)
     r1 = await db.pageview_events.aggregate(pipe1).to_list(1)
+    first_party_5m = int(r5[0]["n"]) if r5 else 0
+    first_party_1m = int(r1[0]["n"]) if r1 else 0
+
+    ga_active = 0
+    ga_source = "unavailable"
+    try:
+        # Local import to avoid startup coupling / hard dep on GA creds.
+        from .ga4_analytics import (
+            _client, GA4_PROPERTY_RESOURCE, _friendly_ga4_error,  # noqa: F401
+        )
+        from google.analytics.data_v1beta.types import (
+            RunRealtimeReportRequest, Metric,
+        )
+        req = RunRealtimeReportRequest(
+            property=GA4_PROPERTY_RESOURCE,
+            metrics=[Metric(name="activeUsers")],
+        )
+        resp = await run_in_threadpool(_client().run_realtime_report, req)
+        if resp.totals:
+            ga_active = int(resp.totals[0].metric_values[0].value)
+        elif resp.rows:
+            ga_active = sum(int(r.metric_values[0].value) for r in resp.rows)
+        ga_source = "ga4"
+    except Exception:
+        # GA4 not configured / not connected / transient error — silently fall
+        # back to first-party. Never break the live badge.
+        ga_active = 0
+        ga_source = "unavailable"
+
+    # Show the higher of GA (30-min window) or first-party (5-min window).
+    # GA is broader by design and matches what the "Google Analytics" card
+    # displays lower on the same admin page.
+    live_5m_display = max(first_party_5m, ga_active)
     return {
-        "live_5m": int(r5[0]["n"]) if r5 else 0,
-        "live_1m": int(r1[0]["n"]) if r1 else 0,
+        "live_5m": live_5m_display,
+        "live_1m": first_party_1m,
+        # iter425 debug/insight fields (used by tooltips; safe to expose to admin)
+        "first_party_5m": first_party_5m,
+        "ga_active_users": ga_active,
+        "source": ga_source,
     }

@@ -422,21 +422,132 @@ async def _calc_retention_cohorts() -> list[dict]:
 
 
 # ── Live ─────────────────────────────────────────────────────
+# iter425 — REAL DATA. Previously this endpoint fabricated visitor counts
+# from `community_users * 0.003`, so the Workshop Analytics "Live" tab
+# never matched the Google Analytics card on the main admin dashboard.
+# Now it queries:
+#   1. `db.pageview_events` — first-party beacon (5-min & 30-min windows)
+#   2. GA4 Realtime `activeUsers` — 30-min authoritative count
+# and displays whichever is higher, so this dashboard matches the "GA · Live"
+# card the admin sees on /admin/dashboard.
 @router.get("/live")
 async def live(_: dict = Depends(verify_workshop_token)):
-    total_users = await db.community_users.count_documents({})
-    active = max(1, round(total_users * 0.003))
+    now = datetime.now(timezone.utc)
+    cutoff_5m  = (now - timedelta(minutes=5)).isoformat()
+    cutoff_30m = (now - timedelta(minutes=30)).isoformat()
+
+    # --- First-party: distinct visitors in the last 5 min ---
+    first_party = 0
+    try:
+        pipe = [
+            {"$match": {"ts": {"$gte": cutoff_5m}}},
+            {"$group": {"_id": None, "v": {"$addToSet": "$visitor_id"}}},
+            {"$project": {"_id": 0, "n": {"$size": "$v"}}},
+        ]
+        r = await db.pageview_events.aggregate(pipe).to_list(1)
+        first_party = int(r[0]["n"]) if r else 0
+    except Exception:
+        first_party = 0
+
+    # --- GA4 Realtime activeUsers (30-min window) ---
+    ga_active = 0
+    try:
+        from starlette.concurrency import run_in_threadpool
+        from .ga4_analytics import _client, GA4_PROPERTY_RESOURCE
+        from google.analytics.data_v1beta.types import (
+            RunRealtimeReportRequest, Metric,
+        )
+        req = RunRealtimeReportRequest(
+            property=GA4_PROPERTY_RESOURCE,
+            metrics=[Metric(name="activeUsers")],
+        )
+        resp = await run_in_threadpool(_client().run_realtime_report, req)
+        if resp.totals:
+            ga_active = int(resp.totals[0].metric_values[0].value)
+        elif resp.rows:
+            ga_active = sum(int(r.metric_values[0].value) for r in resp.rows)
+    except Exception:
+        ga_active = 0  # GA4 not connected → silent fallback to first-party
+
+    active = max(first_party, ga_active)
+
+    # --- Active pages: top pages by distinct visitors in the last 30 min ---
+    active_pages: list[dict] = []
+    try:
+        page_pipe = [
+            {"$match": {"ts": {"$gte": cutoff_30m}}},
+            {"$group": {"_id": "$path", "visitors": {"$addToSet": "$visitor_id"}}},
+            {"$project": {"_id": 0, "page": "$_id", "visitors": {"$size": "$visitors"}}},
+            {"$sort": {"visitors": -1}},
+            {"$limit": 8},
+        ]
+        active_pages = await db.pageview_events.aggregate(page_pipe).to_list(8)
+    except Exception:
+        active_pages = []
+    if not active_pages:
+        # Nothing recorded yet — show a placeholder row so the chart card
+        # renders without a crash.
+        active_pages = [{"page": "/", "visitors": max(1, active)}]
+
+    # --- Recent events: last 10 pageviews with a human "time ago" label ---
+    recent_events: list[dict] = []
+    try:
+        rows = await db.pageview_events.find(
+            {}, {"_id": 0, "ts": 1, "path": 1, "country": 1}
+        ).sort("ts", -1).limit(10).to_list(10)
+        for r in rows:
+            try:
+                t = datetime.fromisoformat(r["ts"].replace("Z", "+00:00"))
+                delta = int((now - t).total_seconds())
+            except Exception:
+                delta = 0
+            if   delta < 30:   label = "just now"
+            elif delta < 60:   label = f"{delta}s ago"
+            elif delta < 3600: label = f"{delta // 60}m ago"
+            elif delta < 86400: label = f"{delta // 3600}h ago"
+            else:              label = f"{delta // 86400}d ago"
+            recent_events.append({
+                "time":     label,
+                "event":    "Page view",
+                "page":     r.get("path") or "/",
+                "location": r.get("country") or "—",
+            })
+    except Exception:
+        pass
+    if not recent_events:
+        recent_events = [{"time": "—", "event": "No recent traffic",
+                          "page": "/", "location": "—"}]
+
+    # --- Sparkline: 10 buckets × 3 min each covering the last 30 min ---
+    sparkline: list[int] = []
+    try:
+        bucket_seconds = 180
+        buckets = [now - timedelta(seconds=bucket_seconds * (i + 1)) for i in range(10)]
+        buckets.reverse()
+        for i, start in enumerate(buckets):
+            end = start + timedelta(seconds=bucket_seconds)
+            pipe = [
+                {"$match": {"ts": {"$gte": start.isoformat(), "$lt": end.isoformat()}}},
+                {"$group": {"_id": None, "v": {"$addToSet": "$visitor_id"}}},
+                {"$project": {"_id": 0, "n": {"$size": "$v"}}},
+            ]
+            r = await db.pageview_events.aggregate(pipe).to_list(1)
+            sparkline.append(int(r[0]["n"]) if r else 0)
+    except Exception:
+        sparkline = [0] * 10
+    if not any(sparkline):
+        # No first-party data — fall back to GA-derived flat line so the
+        # chart still draws instead of collapsing to zero-height.
+        sparkline = [ga_active] * 10
+
     return {
         "active_visitors": active,
-        "active_pages": [
-            {"page": "/", "visitors": max(1, active // 2)},
-            {"page": "/shop", "visitors": max(1, active // 4)},
-            {"page": "/makers", "visitors": max(1, active // 6)},
-        ],
-        "recent_events": [
-            {"time": "just now", "event": "Page view", "page": "/", "location": "US"},
-        ],
-        "sparkline": [max(1, active + random.randint(-2, 2)) for _ in range(10)],
+        "active_pages":    active_pages,
+        "recent_events":   recent_events,
+        "sparkline":       sparkline,
+        # iter425 debug fields — safe for admin exposure, useful for QA
+        "first_party_5m":  first_party,
+        "ga_active_users": ga_active,
     }
 
 
