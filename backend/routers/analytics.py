@@ -498,6 +498,7 @@ async def admin_live_now(_: dict = Depends(current_admin)):
     ga_source = "unavailable"
     try:
         # Local import to avoid startup coupling / hard dep on GA creds.
+        from starlette.concurrency import run_in_threadpool
         from .ga4_analytics import (
             _client, GA4_PROPERTY_RESOURCE, _friendly_ga4_error,  # noqa: F401
         )
