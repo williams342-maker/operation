@@ -37,6 +37,7 @@ import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
 import FounderFunnelTab from "../components/admin/FounderFunnelTab";
 import FounderReviewTab from "../components/admin/FounderReviewTab"; // iter418
+import ModerationQueueTab from "../components/admin/ModerationQueueTab"; // iter426 — Play UGC compliance
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
 import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
@@ -113,6 +114,9 @@ const TABS = [
   { id: "retention", label: "Retention", caps: ["content", "finance"] },
   { id: "reviews", label: "Reviews", caps: ["moderation"] },
   { id: "review-disputes", label: "Review Disputes", caps: ["moderation"] },
+  // iter426 — Google Play UGC compliance: unified content-report queue
+  // covering listings, reviews, journal, showcase, DMs, makers, and buyers.
+  { id: "moderation-queue", label: "Moderation Queue", caps: ["moderation"] },
   { id: "secrets", label: "Secrets", superOnly: true },
   // iter412 — AI SEO Growth Agent. Visible to admins with the "content"
   // capability since it generates content rewrites that need approval.
@@ -587,6 +591,7 @@ export default function AdminDashboard() {
             {tab === "listings" && <ListingsTab />}
             {tab === "users" && <UsersTab />}
             {tab === "reviews" && <ReviewsTab />}
+            {tab === "moderation-queue" && <ModerationQueueTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}

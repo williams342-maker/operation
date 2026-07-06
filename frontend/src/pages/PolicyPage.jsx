@@ -2004,7 +2004,7 @@ export const SECTIONS = [
         bullets: [
           "Access \u2014 a copy of personal information we hold about you.",
           "Correction \u2014 correction of inaccurate information.",
-          "Deletion \u2014 deletion of personal information we no longer have a lawful or operational basis to retain.",
+          "Deletion \u2014 deletion of personal information we no longer have a lawful or operational basis to retain. Self-service account deletion (buyers and makers) is available at /account/delete.",
           "Portability \u2014 a machine-readable export of personal information where required.",
           "Objection \u2014 objection to specific processing activities where applicable law grants that right.",
           "Marketing preferences \u2014 opt out of marketing communications at any time (transactional communications cannot be opted out of while you have an active account).",

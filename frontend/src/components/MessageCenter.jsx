@@ -4,6 +4,8 @@ import {
   Inbox, Star, AlertCircle, Send, Archive, Trash2, Search,
   ArrowLeft, MailOpen, Mail, Paperclip, X,
 } from "lucide-react";
+import ReportButton from "./ReportButton";
+import BlockUserButton from "./BlockUserButton";
 
 /**
  * MessageCenter — shared two-pane inbox used by both the Maker Dashboard
@@ -339,6 +341,13 @@ export default function MessageCenter({
               <ToolBtn onClick={async () => { await patchThread(openId, { mark_unread: true }); setOpenId(null); reload(); toast.success("Marked unread."); }} title="Mark unread"><MailOpen size={14} /></ToolBtn>
               <ToolBtn onClick={async () => { await patchThread(openId, { archived: true }); setOpenId(null); reload(); toast.success("Archived."); }} title="Archive"><Archive size={14} /></ToolBtn>
               <ToolBtn onClick={async () => { await patchThread(openId, { trashed: true }); setOpenId(null); reload(); toast.success("Trashed."); }} title="Trash"><Trash2 size={14} /></ToolBtn>
+              {/* iter426 — Google Play UGC compliance: report + block */}
+              <BlockUserButton
+                threadId={openId}
+                blocked={!!(openThreadObj?.blocked_at)}
+                role={role}
+                onToggle={() => reload()}
+              />
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4" data-testid="mc-reader">
               {messages.map((m) => {
@@ -373,6 +382,13 @@ export default function MessageCenter({
                               />
                             </a>
                           ))}
+                        </div>
+                      )}
+                      {/* iter426 — report this specific message */}
+                      {!fromMe && (
+                        <div className="mt-2 text-right">
+                          <ReportButton kind="message" targetId={m.id} compact
+                                        testId={`mc-msg-report-${m.id}`} />
                         </div>
                       )}
                     </div>

@@ -278,6 +278,16 @@ api.include_router(admin_all_roas_router)
 # iter334s — A/B test: pricing-label headline framing.
 from routers.ab_pricing_label import router as ab_pricing_label_router
 api.include_router(ab_pricing_label_router)
+
+# iter426 — Google Play compliance sprint: buyer account deletion,
+# unified content-report queue, and DM block/unblock.
+from routers.community_account import router as community_account_router
+api.include_router(community_account_router)
+from routers.content_reports import router as content_reports_router
+api.include_router(content_reports_router)
+from routers.dm_blocks import router as dm_blocks_router
+api.include_router(dm_blocks_router)
+
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchReviews, submitReview } from "../lib/api";
+import ReportButton from "./ReportButton";
 
 function StarRow({ value, onSelect, size = 24 }) {
   return (
@@ -54,6 +55,10 @@ function ReviewCard({ r }) {
               from {r.source}
             </span>
           )}
+          <span className="ml-auto">
+            <ReportButton kind="review" targetId={r.id} compact
+                          testId={`review-report-${r.id}`} />
+          </span>
         </div>
       )}
     </article>

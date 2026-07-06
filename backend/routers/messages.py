@@ -289,6 +289,11 @@ async def start_thread(
         raise HTTPException(400, "This shop has not configured an email yet.")
     if sender_email == _norm_email(maker.get("email")):
         raise HTTPException(400, "You can't message your own shop.")
+    # iter426 — DM block enforcement. A buyer cannot open a new thread with
+    # a maker if either side has blocked the other.
+    from routers.dm_blocks import is_blocked as _blk
+    if await _blk(f"buyer:{sender_email}", f"maker:{payload.maker_slug}"):
+        raise HTTPException(403, "This shop is unavailable for new messages.")
 
     body = _scrub(payload.body, MAX_BODY)
     subject = _scrub(payload.subject, MAX_SUBJECT) or f"Question for {maker['name']}"
@@ -562,6 +567,10 @@ async def maker_reply(
     )
     if not t:
         raise HTTPException(404, "Thread not found.")
+    # iter426 — DM block enforcement (Google Play UGC compliance).
+    from routers.dm_blocks import is_blocked as _blk
+    if await _blk(f"maker:{slug}", f"buyer:{(t.get('buyer_email') or '').lower()}"):
+        raise HTTPException(403, "You cannot reply on a blocked conversation.")
     body = _scrub(payload.body, MAX_BODY)
     attachments = await _resolve_attachments(payload.attachment_ids, f"maker:{slug}")
     if not body and not attachments:
@@ -757,6 +766,10 @@ async def buyer_reply(
     )
     if not t:
         raise HTTPException(404, "Thread not found.")
+    # iter426 — DM block enforcement (Google Play UGC compliance).
+    from routers.dm_blocks import is_blocked as _blk
+    if await _blk(f"buyer:{email}", f"maker:{t.get('maker_slug','')}"):
+        raise HTTPException(403, "You cannot reply on a blocked conversation.")
     body = _scrub(payload.body, MAX_BODY)
     attachments = await _resolve_attachments(payload.attachment_ids, f"buyer:{email}")
     if not body and not attachments:

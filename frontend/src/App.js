@@ -50,6 +50,7 @@ import PolicyDetailPage from "./pages/PolicyDetailPage";
 import PrintBundlePage from "./pages/PrintBundlePage";
 import CommunityPage from "./pages/CommunityPage";
 import CommunityEmblemPage from "./pages/CommunityEmblemPage"; // iter413bs
+import AccountDeletePage from "./pages/AccountDeletePage"; // iter426 — Play compliance
 import CompassPreviewPage from "./pages/CompassPreviewPage"; // iter413ct+ — temporary brand-pick preview
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
@@ -348,6 +349,8 @@ function App() {
                 <Route path="/community/verify" element={<CommunityVerify />} />
                 <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
                 <Route path="/messages" element={<BuyerMessagesPage />} />
+                {/* iter426 — Google Play Account Deletion compliance page */}
+                <Route path="/account/delete" element={<AccountDeletePage />} />
                 <Route path="/maker/listings/new" element={<MakerListingEditor />} />
                 <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
                 <Route path="/maker/renewals" element={<Navigate to="/maker/dashboard?tab=renewals" replace />} />

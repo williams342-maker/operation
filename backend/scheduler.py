@@ -462,6 +462,33 @@ async def _job_purge_deleted_makers() -> None:
         logger.exception("[scheduler] purge_deleted_makers failed: %s", e)
 
 
+async def _job_purge_deleted_buyers() -> None:
+    """iter426 — Google Play Account Deletion parity. Hard-delete buyer
+    (community_users) accounts whose 30-day grace window has elapsed.
+    Delegates to `routers/community_account.py::purge_buyer_account`
+    which handles the per-collection anonymize/delete + audit trail.
+    """
+    from datetime import datetime, timezone
+    from core import db
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        cutoff = await db.community_users.find(
+            {"deletion_purge_at": {"$ne": None, "$lte": now}},
+            {"_id": 0, "email": 1},
+        ).to_list(500)
+        if not cutoff:
+            return
+        from routers.community_account import purge_buyer_account
+        for u in cutoff:
+            email = (u.get("email") or "").lower().strip()
+            if not email:
+                continue
+            r = await purge_buyer_account(email)
+            logger.info("[scheduler] purged buyer %s (counts=%s)", email, r.get("counts"))
+    except Exception as e:
+        logger.exception("[scheduler] purge_deleted_buyers failed: %s", e)
+
+
 
 
 async def _job_abandoned_cart_push() -> None:
@@ -1631,6 +1658,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # forum posts, reviews). See `_job_purge_deleted_makers` for details.
     sched.add_job(_job_purge_deleted_makers, CronTrigger(hour=3, minute=30),
                   id="purge_deleted_makers", replace_existing=True)
+    # iter426 — buyer (community_user) 30-day grace purge (Google Play
+    # Account Deletion parity). Runs 15 minutes after the maker purge.
+    sched.add_job(_job_purge_deleted_buyers, CronTrigger(hour=3, minute=45),
+                  id="purge_deleted_buyers", replace_existing=True)
     # Auto-boost on best-sellers — runs daily at 04:00 UTC. For each maker
     # that opted in (`auto_boost_enabled=true`), promotes up to N listings
     # whose 30-day order count crosses the threshold and aren't currently

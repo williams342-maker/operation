@@ -23,6 +23,7 @@ import { Film } from "lucide-react";
 import QualityBadge from "../components/QualityBadge";
 import AuthorLabel from "../components/AuthorLabel";
 import SectionErrorBoundary from "../components/SectionErrorBoundary";
+import ReportButton from "../components/ReportButton";
 import { useConfirm } from "../hooks/useConfirm";
 
 const TABS = [
@@ -902,6 +903,12 @@ function ShowcaseCard({ post, onLike, canLike, me, onChanged }) {
             ★ Featured
           </span>
         )}
+        {/* iter426 — Report button (Google Play UGC compliance) */}
+        <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition">
+          <ReportButton kind="showcase" targetId={post.id} compact
+                        className="bg-paper/85 border border-line px-2 py-1"
+                        testId={`showcase-${post.id}-report`} />
+        </div>
       </div>
       <div className="p-4">
         {editing ? (

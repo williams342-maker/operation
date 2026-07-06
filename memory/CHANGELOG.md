@@ -1,3 +1,85 @@
+## 2026-07-05 — iter426: Google Play Compliance Sprint (P0)
+
+Full policy-compliance sprint to prepare the Android TWA for Play Store
+submission. **Zero implementation of Play Billing** (audit only, per user
+directive). No redesigns; UGC-compliance additions only.
+
+### Backend (new/modified)
+- `routers/community_account.py` — buyer (community_user) deletion parity
+  with makers. Endpoints: `POST /api/community/account/request-deletion`,
+  `/cancel-deletion`, `/delete-now`, `GET /deletion-status`. Grace = 30 days.
+  Full anonymize-then-delete for PII with legally-required retention on
+  `payment_transactions` (name/email/address tombstoned).
+- `routers/content_reports.py` — unified content report endpoint
+  (`POST /api/reports`) + admin queue (`GET /api/admin/reports`) + four
+  moderator actions (dismiss / remove-content / warn-user / suspend-user).
+  Kinds: listing, review, journal, showcase, message, maker, buyer.
+  Dedup + 20/day cap for anti-abuse. Every action writes to `admin_audit`.
+- `routers/dm_blocks.py` — DM block/unblock (`POST /api/messages/blocks`,
+  `/blocks/remove`, `GET /blocks`) + `is_blocked()` helper. Bidirectional.
+- `routers/messages.py` — block enforcement wired into `/messages/start`,
+  buyer reply, and maker reply paths.
+- `scheduler.py` — new daily job `_job_purge_deleted_buyers` at 03:45 UTC.
+
+### Frontend (new)
+- `pages/AccountDeletePage.jsx` — public `/account/delete` info page with
+  in-app controls for signed-in buyers (request/cancel + immediate delete),
+  fallback deep-links to buyer/maker login, and support email path.
+  Explicit "what we delete / retain / timeline" per Play policy.
+- `components/ReportButton.jsx` — reusable UGC report button + modal.
+  12 reason categories incl. CSAM.
+- `components/BlockUserButton.jsx` — DM block/unblock button + confirm.
+- `components/admin/ModerationQueueTab.jsx` — admin queue with filters,
+  per-row action buttons, open-count badge.
+
+### Frontend (wire-ins)
+- `App.js` — `/account/delete` route.
+- `pages/AdminDashboard.jsx` — new "Moderation Queue" tab (moderation cap).
+- `components/MakerReviews.jsx` — Report button on each review.
+- `pages/CommunityPage.jsx` — Report button on showcase cards.
+- `components/MessageCenter.jsx` — Block button in DM toolbar + per-message
+  Report button.
+- `pages/PolicyPage.jsx` — Privacy Policy §6 links to `/account/delete`.
+
+### Docs
+- `docs/PLAY_ASSET_LINKS.md` — exact SHA-256 insertion procedure
+  (Play Console → Release → Setup → App integrity). Warns against upload-
+  key or debug-key fingerprints.
+- `docs/PLAY_BILLING_AUDIT.md` — 10-row inventory of every paid surface
+  categorized Physical vs Digital + recommendation to feature-flag Digital
+  surfaces off in the TWA for v1 submission (Physical goods only via Stripe).
+- `docs/PLAY_COMPLIANCE_CHECKLIST.md` — final ✅/⚠️/❌ report across all
+  9 policy dimensions. **Zero blocking issues.** All ⚠️ items are Play
+  Console form-fills or a Bubblewrap targetSdkVersion=34 bump.
+
+### Assets
+- `frontend/public/.well-known/assetlinks.json` — placeholder tightened to
+  `REPLACE_WITH_PLAY_APP_SIGNING_SHA256` (from a vaguer bubblewrap hint).
+
+### Tests
+- `tests/test_iter426_play_compliance.py` — 11 tests, all pass.
+  Covers deletion lifecycle, report dedup, admin action audit trail,
+  block bidirectionality, purge idempotency.
+
+### Bug found + fixed during testing
+- `if not u:` on a projected Mongo `find_one` result treated `{}` (doc
+  exists but projected fields empty) as "not found". Switched to
+  `if u is None:` in `community_account.request_deletion` /
+  `cancel_deletion`.
+
+### What's NOT included (deferred by design)
+- Play Billing SDK integration (audit-only per user directive).
+- Email notification to offender on warn/suspend.
+- Report volume dashboard widget (out of scope for the sprint).
+- Buyer settings page beyond `/account/delete` (buyer account is
+  intentionally lightweight — no other settings needed for compliance).
+
+### Verified on preview
+- `/account/delete` renders full page (screenshot).
+- Admin Moderation Queue renders for super_admin with filters + empty state.
+- All 4 new endpoints registered (401/405 as expected pre-auth).
+
+
 ## 2026-07-05 — iter425: Unify all "live users" surfaces with GA4 Realtime
 **Bug**: User reported Admin Command Center "LIVE · 1" pill and Workshop Analytics "Active Visitors" tile didn't match Google Analytics card that showed "18 active users right now".
 
