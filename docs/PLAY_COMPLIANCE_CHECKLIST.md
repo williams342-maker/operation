@@ -99,7 +99,7 @@ Legend: ✅ Pass · ⚠️ Needs attention · ❌ Blocking issue
 
 | Item | Status | Notes |
 |---|---|---|
-| Target API level 34 (Android 14) — required Aug 2025 | ⚠️ | **Action:** update `bubblewrap.config.js` `targetSdkVersion: 34` before submission. Current placeholder likely still 33. |
+| Target API level 35 (Android 15) — required for new apps + updates as of Aug 2025 | ⚠️ | **Action:** confirm `twa-manifest.json` / `bubblewrap.config.js` `targetSdkVersion` is **35**. This repo now pins `targetSdkVersion: 35` in `android/twa-manifest.json`; verify it survives the next `bubblewrap update`. |
 | App bundle format (`.aab`) | ✅ | Bubblewrap defaults to `.aab` |
 | Signing key management | ✅ | Play App Signing enabled — see `docs/PLAY_ASSET_LINKS.md` |
 
@@ -134,7 +134,7 @@ account creation).
 
 1. Update `frontend/public/.well-known/assetlinks.json` SHA-256 after
    first Play upload (see `PLAY_ASSET_LINKS.md`).
-2. Bump `targetSdkVersion` to 34 in `bubblewrap.config.js`.
+2. Confirm `bubblewrap.config.js` / `twa-manifest.json` `targetSdkVersion` is **35** (Android 15 — required by Play for new apps and updates as of Aug 2025). Now pinned to `35` in `android/twa-manifest.json`.
 3. Create `playreview@craftersmarket.org` account + seed sample data.
 4. Fill Play Console Data Safety form.
 5. Feature-flag Digital surfaces off inside the TWA (`PLAY_BILLING_AUDIT.md` §3).

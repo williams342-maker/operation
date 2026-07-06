@@ -48,6 +48,7 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://craftersmarket.org/",
   "minSdkVersion": 21,
+  "targetSdkVersion": 35,
   "fallbackType": "customtabs",
   "features": {
     "playBilling": {
