@@ -51,6 +51,7 @@ import PrintBundlePage from "./pages/PrintBundlePage";
 import CommunityPage from "./pages/CommunityPage";
 import CommunityEmblemPage from "./pages/CommunityEmblemPage"; // iter413bs
 import AccountDeletePage from "./pages/AccountDeletePage"; // iter426 — Play compliance
+import DataRequestPage from "./pages/DataRequestPage"; // iter426b — Play Data Safety partial-data request
 import CompassPreviewPage from "./pages/CompassPreviewPage"; // iter413ct+ — temporary brand-pick preview
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
 import BuyerMessagesPage from "./pages/BuyerMessagesPage";
@@ -351,6 +352,8 @@ function App() {
                 <Route path="/messages" element={<BuyerMessagesPage />} />
                 {/* iter426 — Google Play Account Deletion compliance page */}
                 <Route path="/account/delete" element={<AccountDeletePage />} />
+                {/* iter426b — Play Data Safety: partial-data-deletion request */}
+                <Route path="/account/data-request" element={<DataRequestPage />} />
                 <Route path="/maker/listings/new" element={<MakerListingEditor />} />
                 <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
                 <Route path="/maker/renewals" element={<Navigate to="/maker/dashboard?tab=renewals" replace />} />
