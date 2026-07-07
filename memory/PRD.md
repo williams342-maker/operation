@@ -1,3 +1,25 @@
+## 2026-07-07 — iter430: New marketplace category — Home Fragrance & Wellness
+
+Permanent top-level category (first natural home/body fragrance maker onboarded).
+Subcategories (Candles, Wax Melts, Room Sprays, Linen Sprays, Reed Diffusers, Essential Oils,
+Incense, Potpourri, Car Diffusers, Sachets, Aromatherapy, Air Fresheners, Other) live in the
+category-aware second-level dropdown (TECHNIQUES_BY_CATEGORY).
+
+### Touched (kept-in-sync registries)
+- Frontend: `MakerListingEditor/constants.js` (CATEGORIES + SHIPPING_DEFAULTS $12), `lib/techniqueOptions.js`
+  (subcategory list → auto-flows to founder application ALL_TECHNIQUES + listing editor), `CategoryStrip.jsx`
+  (new candle tile, grid xl:11→12 cols), `Footer.jsx` (Shop + Handmade-by-Category links),
+  `seoLandingConfig.js` (full `/home-fragrance` SEO landing: intro, bodyExtras, 4 FAQs, related links, product matcher).
+- Backend: `platform_capabilities.py` (_CATEGORIES + _TECHNIQUES_BY_CATEGORY mirror), `checkout.py`
+  (SHIPPING_BY_CATEGORY $12), `seo.py` (prerender slug + sitemap 0.85), `pinterest_feed.py`
+  (category → "Home & Garden > Decor > Home Fragrances" GPC leaf).
+- ShopPage pills/filters derive from CATEGORIES import → automatic. Counts derive from products → automatic.
+
+### Verified
+- capabilities API returns category + 13 subcategories; sitemap includes /home-fragrance.
+- /home-fragrance landing renders (H1 + breadcrumb); /shop?category=Home%20Fragrance%20%26%20Wellness filter works.
+- Homepage tile renders with loaded candle image (12 tiles, one row).
+
 ## 2026-07-07 — iter429: iOS App (Capacitor shell) + App Store prep
 
 ### New: /app/ios — native iOS app wrapping https://craftersmarket.org

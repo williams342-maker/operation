@@ -28,6 +28,8 @@ const TILES = [
   { label: "Leather Goods", cat: "Leather Goods",     img: "https://images.unsplash.com/photo-1517254797898-04edd251bfb3?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
   { label: "Fiber & Textiles", cat: "Fiber & Textiles", img: "https://static.prod-images.emergentagent.com/jobs/ad0439ad-da94-4caf-a818-28a88417ad46/images/726f314711119649e49e73f1d347dcdc5ae477dac02a3edcf47526939defc817.png" },
   { label: "Jewelry",       q: "Jewelry",          img: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
+  // iter430 — Home Fragrance & Wellness (first fragrance maker onboarded).
+  { label: "Home Fragrance", cat: "Home Fragrance & Wellness", img: "https://images.unsplash.com/photo-1603006905003-be475563bc59?crop=entropy&cs=srgb&fm=jpg&w=600&q=85" },
 ];
 
 export default function CategoryStrip() {
@@ -41,7 +43,7 @@ export default function CategoryStrip() {
           </div>
           <Link to="/shop" className="industrial-link font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand hidden md:inline">View all →</Link>
         </div>
-        <div className="grid grid-cols-3 md:grid-cols-6 xl:grid-cols-11 gap-4 md:gap-5">
+        <div className="grid grid-cols-3 md:grid-cols-6 xl:grid-cols-12 gap-4 md:gap-5">
           {TILES.map((t, i) => (
             <motion.div key={t.label}
               initial={{ opacity: 0, y: 18 }}

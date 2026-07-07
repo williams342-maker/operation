@@ -76,6 +76,9 @@ def _google_product_category(category: str, technique: str) -> str:
     cat = (category or "").lower()
     # Order matters — most specific matches first so e.g. "Wedding Gifts"
     # hits the wedding branch before falling through to "gift".
+    if "fragrance" in cat or "candle" in cat or "wellness" in cat or "aromatherapy" in cat:
+        # Home Fragrances — verified leaf, 3 levels (iter430).
+        return "Home & Garden > Decor > Home Fragrances"
     if "address" in cat or "house number" in cat:
         # House Numbers & Letters — verified leaf, 3 levels.
         return "Home & Garden > Decor > House Numbers & Letters"

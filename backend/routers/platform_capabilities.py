@@ -39,6 +39,7 @@ _CATEGORIES = [
     "Furniture", "Kitchen & Bar", "Sculpture", "Jewelry & Wearables",
     "Pottery & Ceramics", "Woodworking", "Leather Goods",
     "Fiber & Textiles", "Glass", "Paper Crafts", "Mixed Media",
+    "Home Fragrance & Wellness",
     "Holiday & Seasonal", "Other",
 ]
 
@@ -61,6 +62,7 @@ _TECHNIQUES_BY_CATEGORY = {
     "Fiber & Textiles":    ["Embroidery", "Thread Painting", "Sewing", "Quilting", "Crochet", "Knitting", "Weaving", "Needle Felting", "Macramé", "Mixed Media", "Other"],
     "Leather Goods":       ["Tooling", "Hand Stitching", "Carving", "Dyeing", "Braiding", "Burnishing", "Laser Engraving", "Other"],
     "Pottery & Ceramics":  ["Wheel Throwing", "Hand Building", "Slip Casting", "Raku", "Glazing", "Sgraffito", "Other"],
+    "Home Fragrance & Wellness": ["Candles", "Wax Melts", "Room Sprays", "Linen Sprays", "Reed Diffusers", "Essential Oils", "Incense", "Potpourri", "Car Diffusers", "Sachets", "Aromatherapy", "Air Fresheners", "Other"],
     "Holiday & Seasonal":  ["Mixed Media", "Embroidery", "Plasma", "Laser", "Hand-Painted", "Wood Burning", "Other"],
     "Paper Crafts":        ["Origami", "Quilling", "Papier-Mâché", "Bookbinding", "Hand-Cut", "Mixed Media", "Other"],
     "Mixed Media":         ["Collage", "Assemblage", "Resin", "Hand-Painted", "Embroidery", "Other"],

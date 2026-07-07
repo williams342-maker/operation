@@ -82,6 +82,11 @@ export const TECHNIQUES_BY_CATEGORY = {
   "Paper Crafts":        ["Origami", "Quilling", "Papier-Mâché", "Bookbinding", "Hand-Cut", "Mixed Media", "Other"],
   "Mixed Media":         ["Collage", "Assemblage", "Resin", "Hand-Painted", "Embroidery", "Other"],
   "Glass":               ["Glassblowing", "Stained Glass", "Fused Glass", "Lampwork", "Etching", "Mosaic", "Other"],
+
+  // ── iter430 — Home Fragrance & Wellness (first fragrance maker) ──
+  // Product-type subcategories rather than craft methods — this is
+  // what buyers search by and what the maker needs to segment on.
+  "Home Fragrance & Wellness": ["Candles", "Wax Melts", "Room Sprays", "Linen Sprays", "Reed Diffusers", "Essential Oils", "Incense", "Potpourri", "Car Diffusers", "Sachets", "Aromatherapy", "Air Fresheners", "Other"],
 };
 
 /**

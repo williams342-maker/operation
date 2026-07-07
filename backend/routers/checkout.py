@@ -104,6 +104,9 @@ SHIPPING_BY_CATEGORY = {
     "Woodworking": 30.0,
     "Leather Goods": 12.0,
     "Fiber & Textiles": 12.0,
+    # iter430 — candles/wax melts/sprays. Mirrored in the editor's
+    # SHIPPING_DEFAULTS (constants.js) — keep both in sync.
+    "Home Fragrance & Wellness": 12.0,
     "Holiday & Seasonal": 25.0,
 }
 DEFAULT_SHIPPING = 30.0

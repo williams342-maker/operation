@@ -46,6 +46,11 @@ export const CATEGORIES = [
   "Glass",
   "Paper Crafts",
   "Mixed Media",
+  // iter430 — First natural home & body fragrance maker onboarded.
+  // Permanent top-level category; subcategory granularity (Candles,
+  // Wax Melts, Room Sprays…) lives in TECHNIQUES_BY_CATEGORY
+  // (lib/techniqueOptions.js) which drives the second-level dropdown.
+  "Home Fragrance & Wellness",
   "Holiday & Seasonal",
   "Other",
 ];
@@ -83,6 +88,9 @@ export const SHIPPING_DEFAULTS = {
   "Woodworking": 30.0,
   "Leather Goods": 12.0,
   "Fiber & Textiles": 12.0,
+  // iter430 — candles/wax melts/sprays: small heavy-ish parcels, USPS
+  // small flat-rate territory. Mirrored in checkout.py.
+  "Home Fragrance & Wellness": 12.0,
   "Holiday & Seasonal": 25.0,
 };
 export const SHIPPING_FALLBACK = 30.0;

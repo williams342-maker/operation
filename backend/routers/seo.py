@@ -37,6 +37,8 @@ SEO_LANDING_SLUGS: tuple[str, ...] = (
     # craft categories so Google indexes the marketplace beyond CNC/metal.
     "handmade-woodworking", "handmade-pottery", "handmade-jewelry",
     "leather-goods", "handmade-textiles",
+    # iter430 — Home Fragrance & Wellness category landing.
+    "home-fragrance",
     # iter411b — Buyer-intent variants of the new craft categories.
     # Narrower than the category pages above but convert harder because
     # the searcher already knows the specific product type.
@@ -151,6 +153,7 @@ async def sitemap_xml(http_request: Request):
         ("/handmade-jewelry",     "weekly", "0.85"),
         ("/leather-goods",        "weekly", "0.85"),
         ("/handmade-textiles",    "weekly", "0.85"),
+        ("/home-fragrance",       "weekly", "0.85"),
         # iter411b — Buyer-intent variants. Slightly higher priority
         # because each targets a high-conversion search phrase.
         ("/handmade-mugs",       "weekly", "0.88"),

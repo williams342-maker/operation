@@ -924,6 +924,68 @@ export const SEO_LANDING_PAGES = {
     ctaHref: "/shop?category=Pottery%20%26%20Ceramics",
   },
 
+  // ── iter430 — Home Fragrance & Wellness category landing ────────────
+  "home-fragrance": {
+    slug: "home-fragrance",
+    keyword: "Handmade Home Fragrance",
+    eyebrow: "Marketplace · Home Fragrance & Wellness",
+    h1: "Handmade Home Fragrance from Independent Makers.",
+    intro:
+      "Hand-poured candles, wax melts, room and linen sprays, reed diffusers, essential oils, incense, potpourri, and aromatherapy blends from vetted American makers — small-batch, honestly scented, and made by the person who answers your messages.",
+    paragraphs: [
+      "Every fragrance maker on Crafters Market is individually approved before they can list a single product. We verify studio photos, materials, and finished past work — so the candle on your shelf was actually hand-poured in a small studio, not relabeled from a factory pallet.",
+      "Filter by product type (candles, wax melts, room sprays, reed diffusers, essential oils, incense) or by maker. Most orders ship in under a week, and many makers offer custom scent work — wedding favors, memorial candles, signature scents for small businesses — through our custom order flow.",
+    ],
+    bodyExtras: [
+      {
+        heading: "What small-batch fragrance actually means",
+        paragraphs: [
+          "Small-batch makers pour in kettles measured in pounds, not tons. That changes everything: waxes are chosen for burn quality (soy, coconut-soy, beeswax) instead of shelf price, fragrance loads are tuned by hand and cure for days before sale, and wicks are sized to the exact vessel so the melt pool reaches the edge without tunneling or sooting.",
+          "The same care shows up across the category — room and linen sprays blended with skin-safe fragrance and distilled water, reed diffusers with genuine rattan reeds, incense hand-dipped rather than machine-extruded, and essential oils sourced from named distillers rather than anonymous brokers.",
+        ],
+      },
+      {
+        heading: "Choosing between candles, melts, sprays, and diffusers",
+        paragraphs: [
+          "Candles give the ritual — flame, warm light, and the strongest scent throw while burning. Wax melts deliver the same fragrance flame-free through a warmer, ideal for households with kids or pets. Room and linen sprays are instant and portable; reed diffusers scent a room continuously for weeks with zero effort. Many buyers keep one of each: a candle for evenings, melts for daytime, and a spray for refreshing bedding and upholstery.",
+          "For aromatherapy, look to makers listing pure essential oils and blends — lavender for wind-down, eucalyptus for showers, citrus for workspaces. Every listing states exactly what's inside; our makers label materials honestly because their name is on the label.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Are these candles really hand-poured?",
+        a: "Yes. Every fragrance maker on Crafters Market is individually vetted — we require studio photos, materials details, and samples of past work before approval. No drop-shippers, no relabeled factory stock. Roughly 1 in 4 maker applications gets approved.",
+      },
+      {
+        q: "What waxes and ingredients do makers use?",
+        a: "Most candles and melts here are soy, coconut-soy, or beeswax — cleaner-burning than paraffin and easier on sensitive noses. Sprays are blended with skin-safe fragrance oils, and aromatherapy products use pure essential oils. Each listing states its materials; if something matters to you (vegan, phthalate-free, pet-safe), message the maker directly.",
+      },
+      {
+        q: "Can I order custom scents for a wedding or business?",
+        a: "Yes — custom scent work is one of the most-requested commissions in this category. Submit a brief with your quantity, vessel or format preference, scent direction, and date. We route it to a fragrance maker whose studio fits the job, and you'll get a quote — usually inside 48 hours.",
+      },
+      {
+        q: "How is fragrance shipped safely?",
+        a: "Candles and diffusers ship in snug, padded boxes; most makers avoid shipping soft waxes during heat waves or add insulation in summer. Sprays and oils ship in leak-checked, sealed bottles. If anything arrives damaged, the maker covers replacement or refund — no fight, no paperwork.",
+      },
+    ],
+    relatedLinks: [
+      { to: "/handmade-pottery", label: "Handmade Pottery", blurb: "Wheel-thrown ceramics — pairs well with candle vessels." },
+      { to: "/handmade-textiles", label: "Handmade Textiles", blurb: "Quilts, weavings, and fiber art for cozy rooms." },
+      { to: "/personalized-gifts", label: "Personalized Gifts", blurb: "All custom and monogrammed gift pieces." },
+      { to: "/wedding-gifts", label: "Wedding Gifts", blurb: "Favors, registry pieces, and one-of-a-kind sets." },
+      { to: "/artisan-marketplace", label: "Artisan Marketplace", blurb: "The full curated marketplace of vetted makers." },
+      { to: "/how-custom-orders-work", label: "How Custom Orders Work", blurb: "5-step brief-to-shipping flow." },
+    ],
+    match: (p) =>
+      /candle|wax melt|room spray|linen spray|reed diffuser|diffuser|essential oil|incense|potpourri|sachet|aromatherapy|air freshener|soy wax|beeswax|fragrance|scented/i
+        .test(`${p.title} ${p.description} ${(p.materials || []).join(" ")}`)
+      || p.category === "Home Fragrance & Wellness",
+    ctaLabel: "Browse home fragrance",
+    ctaHref: "/shop?category=Home%20Fragrance%20%26%20Wellness",
+  },
+
   "handmade-jewelry": {
     slug: "handmade-jewelry",
     keyword: "Handmade Jewelry",
