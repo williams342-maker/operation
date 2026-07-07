@@ -288,6 +288,13 @@ api.include_router(content_reports_router)
 from routers.dm_blocks import router as dm_blocks_router
 api.include_router(dm_blocks_router)
 
+# iter427 — Growth Analytics (admin dashboard + CSV export) +
+# lightweight click-event tracker for funnel signals.
+from routers.admin_growth_analytics import router as admin_growth_analytics_router
+api.include_router(admin_growth_analytics_router)
+from routers.analytics_events import router as analytics_events_router
+api.include_router(analytics_events_router)
+
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

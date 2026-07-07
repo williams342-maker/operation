@@ -1,5 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { trackEvent } from "../../lib/growthTrack";
 
 const MAKER_IMG =
   "https://images.unsplash.com/photo-1764115424737-25aca6f47835?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxjbmMlMjBwbGFzbWElMjBjdXR0aW5nJTIwbWV0YWwlMjB3b3JrZXJ8ZW58MHx8fHwxNzc3MTU0OTc2fDA&ixlib=rb-4.1.0&q=85";
@@ -84,6 +85,7 @@ export default function ForMakers() {
           <div className="mt-10 flex flex-wrap gap-4">
             <a
               href="/apply"
+              onClick={() => trackEvent("apply_click", { path: window.location.pathname })}
               className="btn-industrial bg-paper text-ink border-line hover:bg-white hover:text-ink hover:border-line"
               data-testid="makers-apply-btn"
             >

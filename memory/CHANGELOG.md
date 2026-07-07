@@ -1,3 +1,40 @@
+## 2026-07-07 — iter427: Growth Analytics admin page + click-event tracker
+
+### New endpoints
+- `GET /api/admin/analytics/growth` — returns `{ range, grain, start, end, summary, rows[], top_pages[], funnel[] }`. Query params: `range=daily|weekly|monthly` OR `start_date&end_date`. Reuses `pageview_events`, `maker_applications`, `makers`, `products`, `payment_transactions`, `analytics_events`. Only aggregate counts — zero PII.
+- `GET /api/admin/analytics/growth/export` — streaming CSV with all 16 columns.
+- `POST /api/analytics/events` — public tracker, allow-listed event types, bot UA filter, silently succeeds on unknown types.
+
+### New collections
+- `db.analytics_events` — `{event_type, path, session_id, visitor_id, user_id?, shop_id?, listing_id?, referrer, user_agent, created_at}`. Allow-list: page_view, apply_click, maker_application_submitted, email_verified, shop_created, listing_created, add_to_cart, checkout_started, order_completed, portfolio_click.
+
+### Frontend
+- `components/admin/GrowthAnalyticsTab.jsx` — new admin page with:
+  - 7 date-range chips (Today / 7d / 30d / This month / Last month / Weekly / Monthly) + custom date-range picker
+  - 8 summary cards (Visitors, Applications, Approved, New listings, Orders, Gross sales, Commission, Add-to-cart)
+  - 5 Recharts panels (traffic, applications, listings, revenue, funnel)
+  - Top pages table (path / views / visitors)
+  - Full data table with 11 columns + 4 CSV export buttons (daily / weekly / monthly / selected range)
+  - Loading + empty-state rendering
+  - `overflow-x-hidden min-w-0` on wrapper for mobile safety
+- `lib/growthTrack.js` — reusable client tracker with `sessionStorage`+`localStorage` IDs and `keepalive:true` beacons
+- `sections/ForMakers.jsx` — Apply button fires `apply_click`
+- `AdminDashboard.jsx` — new "Growth Analytics" tab (no cap gate; read-only)
+
+### Tests (13/13 pass)
+- Admin-only access (401 without token)
+- Daily / weekly / monthly aggregation
+- Custom date-range filtering
+- Bad date format returns 422
+- CSV export headers + format
+- Empty state (no seeded data → 200, zeros in summary, funnel stages present)
+- Event ingestion (allow-listed types stored, disallowed types silently ignored, bot UA ignored)
+
+### Verified on preview
+- Desktop 1440×900: page renders 948 visitors, 1,551 page views, 4 applications, 15 new listings, 0 orders (real preview data)
+- Mobile 390×844: scrollWidth=390 = innerWidth (no horizontal overflow)
+
+
 ## 2026-07-05 — iter426: Google Play Compliance Sprint (P0)
 
 Full policy-compliance sprint to prepare the Android TWA for Play Store
