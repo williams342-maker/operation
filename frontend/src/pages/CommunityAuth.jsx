@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
+import { fetchAuthFlags as fetchFlagsForApple, appleSignInStartUrl as appleStartUrl } from "../lib/api";
 import {
   communityRequestMagic, communityVerifyMagic, communityGoogleExchange,
   fetchCommunityEua,
@@ -23,9 +24,11 @@ export function CommunityLogin() {
   const [state, setState] = useState({ status: "idle", message: "" });
   const [eua, setEua] = useState(null);
   const [accepted, setAccepted] = useState(false);
+  const [appleEnabled, setAppleEnabled] = useState(false);
 
   useEffect(() => {
     fetchCommunityEua().then(setEua).catch(() => {});
+    fetchFlagsForApple().then((f) => setAppleEnabled(!!f.apple_enabled)).catch(() => {});
   }, []);
 
   const stampAndPersist = () => {
@@ -56,6 +59,15 @@ export function CommunityLogin() {
         message: e2?.response?.data?.detail || "Could not send the link.",
       });
     }
+  };
+
+  const onApple = () => {
+    if (!accepted) {
+      setState({ status: "error", message: "Please accept the Community Terms to continue." });
+      return;
+    }
+    stampAndPersist();
+    window.location.href = appleStartUrl(eua?.version);
   };
 
   const onGoogle = () => {
@@ -105,6 +117,20 @@ export function CommunityLogin() {
               <div className="mt-1 text-[10px] text-ink-muted leading-snug">{eua.summary}</div>
             </div>
           </label>
+        )}
+
+        {appleEnabled && (
+          <button
+            onClick={onApple}
+            disabled={!accepted}
+            className="w-full bg-black text-white border border-black hover:opacity-85 py-3 px-5 font-mono text-[11px] uppercase tracking-[0.22em] flex items-center justify-center gap-3 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            data-testid="community-apple-btn"
+          >
+            <svg width="15" height="15" viewBox="0 0 814 1000" fill="currentColor" aria-hidden="true">
+              <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76.5 0-103.7 40.8-165.9 40.8s-105.6-57-155.5-127C46.7 790.7 0 663 0 541.8c0-194.4 126.4-297.5 250.8-297.5 66.1 0 121.2 43.4 162.7 43.4 39.5 0 101.1-46 176.3-46 28.5 0 130.9 2.6 198.3 99.2zm-234-181.5c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/>
+            </svg>
+            Sign in with Apple
+          </button>
         )}
 
         <button

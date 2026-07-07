@@ -11,7 +11,9 @@
       "js.stripe.com",
       "checkout.stripe.com",
       "accounts.google.com",
-      "auth.emergentagent.com"
+      "auth.emergentagent.com",
+      "appleid.apple.com",
+      "appleid.cdn-apple.com"
     ]
   },
   "ios": {

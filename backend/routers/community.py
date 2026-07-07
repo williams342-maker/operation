@@ -17,6 +17,7 @@ from fastapi import APIRouter
 
 # Sub-routers — each declares its own APIRouter and endpoints.
 from . import community_auth as _auth
+from . import apple_auth as _apple
 from . import community_files as _files
 from . import community_forum as _forum
 from . import community_showcase as _showcase
@@ -24,6 +25,7 @@ from . import community_showcase as _showcase
 # Combined router for server.py.
 router = APIRouter()
 router.include_router(_auth.router)
+router.include_router(_apple.router)
 router.include_router(_showcase.router)
 router.include_router(_files.router)
 router.include_router(_forum.router)

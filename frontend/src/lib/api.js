@@ -113,6 +113,12 @@ export const fetchFeePolicy = () => http.get("/policy/fee-policy").then((r) => r
 
 // ───────────────────── unified password auth ─────────────────────
 export const fetchAuthFlags = () => http.get("/auth/password/flags").then((r) => r.data);
+// Sign in with Apple — redirect flow. Start URL sends the browser to Apple;
+// exchange swaps the one-time code from the callback for the buyer JWT.
+export const appleSignInStartUrl = (euaVersion) =>
+  `${API}/community/auth/apple/start?eua_version=${encodeURIComponent(euaVersion || "")}`;
+export const communityAppleExchange = (code) =>
+  http.post("/community/auth/apple/exchange", { code }).then((r) => r.data);
 export const passwordLogin = (email, password, role) =>
   http.post("/auth/password/login", { email, password, role }).then((r) => r.data);
 export const passwordSet = (role, new_password, current_password, token) =>

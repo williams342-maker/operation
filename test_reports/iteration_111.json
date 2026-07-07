@@ -1,0 +1,30 @@
+{
+  "summary": "iter431 — Sign in with Apple: comprehensive backend + frontend testing. All 10 backend pytest cases pass (start redirect params + state persistence, all callback error branches, happy-path new user with monkeypatched verifier, account linking to existing email with same email/no duplicates, EUA gate for new email without eua_version, single-use exchange code + bogus code 401, magic-link regression, /auth/password/flags apple_enabled). All frontend flows pass (buyer button order Apple→Google→email, black Apple button, EUA gate error message, successful redirect to appleid.apple.com with correct client_id/redirect_uri/response_type/scope/response_mode/state/nonce, /signin?apple=error&reason=cancelled shows 'Apple sign-in was cancelled.', community-apple-btn above community-google-btn and disabled until EUA checked, Maker tab regression — no Apple/Google buttons).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter431_apple_signin.py",
+    "/app/test_reports/pytest/iter431_apple_signin.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "apple_auth.py is clean: 220 LOC, single responsibility, proper async, environment-driven feature flag with 503 fallback, state+nonce persisted to Mongo with TTL check, form_post callback validates state/nonce/aud/iss/exp, one-time login code decouples id_token from redirect URL (good security hygiene).",
+    "Account linking via email upsert (_upsert_buyer) is correct — the same email deduplicates Google/magic-link/Apple onto one buyer row. Verified: apple_sub and apple_private_email are additive updates on the existing user_id.",
+    "EUA gate correctly enforces first-time acceptance carried through eua_version query param on /start, while existing users on CURRENT_EUA_VERSION pass through without a re-prompt.",
+    "Minor consideration (non-blocking): the state doc is deleted via find_one_and_delete BEFORE the EUA/id_token checks — so a legitimate user who lands on invalid_token or eua_required must restart from /signin (cannot retry with same state). This is arguably correct (states are single-use) but worth noting for UX."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (all flows)"},
+  "test_credentials": "Apple happy paths use monkeypatched verify_apple_id_token; no real Apple ID login attempted (impossible in preview since APPLE_REDIRECT_URI is craftersmarket.org prod).",
+  "seed_data_creation": "Test users are cleaned up (apple-test-*@example.com, apple-test-magic-*@example.com prefixes). No persistent seed data added.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All Apple sign-in acceptance criteria verified end-to-end. Test suite at /app/backend/tests/test_iter431_apple_signin.py can be re-run with: `pytest backend/tests/test_iter431_apple_signin.py -v`. The suite sets APPLE_SERVICE_ID and APPLE_REDIRECT_URI in os.environ before importing routers.apple_auth, so it is self-contained. Frontend regression coverage: buyer button order, EUA gate, cancelled-error surface, Maker tab absence — all pass on preview URL."
+}

@@ -375,4 +375,8 @@ async def auth_password_flags():
         "maker_enabled": ENABLE_MAKER_PASSWORD_AUTH,
         "admin_enabled": ENABLE_ADMIN_PASSWORD_AUTH,
         "min_length": PASSWORD_MIN_LENGTH,
+        "apple_enabled": bool(
+            (os.environ.get("APPLE_SERVICE_ID") or "").strip()
+            and (os.environ.get("APPLE_REDIRECT_URI") or "").strip()
+        ),
     }
