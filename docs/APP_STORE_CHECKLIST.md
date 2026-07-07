@@ -16,15 +16,19 @@ Companion to `/app/docs/IOS_BUILD_GUIDE.md`. Work top-to-bottom; items marked
   `curl -s https://craftersmarket.org/.well-known/apple-app-site-association` returns the JSON.
   Note: the file may be served as `application/octet-stream`; Apple's CDN generally accepts this. Validate after deploy with `https://app-site-association.cdn-apple.com/a/v1/craftersmarket.org` — if it errors on content-type, contact Emergent support to add an `application/json` header override for that path. (Validator: https://app-site-association.cdn-apple.com/a/v1/craftersmarket.org)
 
-## 2. ⚠️ Sign in with Apple (Guideline 4.8)
+## 2. ✅ Sign in with Apple (Guideline 4.8) — IMPLEMENTED
 
-The app offers **Google login**. Apple requires that any app using a
-third-party login also offer **Sign in with Apple** (or an equivalent
-privacy-focused option) — this is one of the most common rejection reasons.
+"Continue with Apple" is live in the codebase (shown first, per Apple HIG),
+using the redirect/form_post flow that works in Safari AND the app's WKWebView.
+Same verified email = same account (no duplicates). Remaining setup (one-time,
+in the Apple Developer portal — https://developer.apple.com/account/resources/identifiers/list):
 
-Options (pick one before submitting):
-- [ ] **Add Sign in with Apple** to the website's sign-in page (works via web OAuth; ask Emergent to implement it).
-- [ ] **Hide Google login when inside the iOS app** and rely on email/password only (the `cm-native-ios` class on `<html>` makes this a one-line CSS/JS change) — email/password-only apps are exempt from 4.8.
+- [ ] **App ID**: create/verify identifier `org.craftersmarket.app` and tick the *Sign in with Apple* capability.
+- [ ] **Services ID**: create identifier `org.craftersmarket.app.signin` → enable *Sign in with Apple* → Configure:
+      Primary App ID = `org.craftersmarket.app`, Domain = `craftersmarket.org`,
+      Return URL = `https://craftersmarket.org/api/community/auth/apple/callback`.
+- [ ] Env vars are already in `backend/.env` (`APPLE_SERVICE_ID=org.craftersmarket.app.signin`, `APPLE_REDIRECT_URI=https://craftersmarket.org/api/community/auth/apple/callback`) — **redeploy** after the portal setup and the button goes live. (No .p8 key needed — we verify Apple's id_token directly against Apple's public JWKS.)
+- [ ] Test on the production site in Safari, then on a physical iPhone inside the app, before submitting.
 
 ## 3. ⚠️ Guideline 4.2 (minimum functionality) defense
 

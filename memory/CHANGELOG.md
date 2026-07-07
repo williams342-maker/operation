@@ -1,3 +1,24 @@
+## 2026-07-07 — iter431: Sign in with Apple (web + iOS, Guideline 4.8)
+
+- Flow: redirect/form_post (WKWebView-safe, no popups). `GET /api/community/auth/apple/start`
+  → appleid.apple.com → form_post `POST .../apple/callback` (verify id_token vs Apple JWKS:
+  aud/iss/exp/nonce + single-use state doc in `apple_auth_states`) → one-time login code
+  (`apple_login_codes`, 5-min TTL) → 303 to `/signin?apple=ok&code=…` → `POST .../apple/exchange`
+  → standard buyer JWT. Errors bounce to `/signin?apple=error&reason=…`.
+- Account linking: email-keyed `_upsert_buyer` — Apple sign-in with same verified email lands on
+  the existing account; `apple_sub` + `apple_private_email` stored additively.
+- EUA gate carried via `eua_version` query param on /start, validated at callback.
+- Feature-flagged: `apple_enabled` on `/api/auth/password/flags` (requires APPLE_SERVICE_ID +
+  APPLE_REDIRECT_URI env, both in backend/.env). Button hides if unset.
+- Files: `backend/routers/apple_auth.py` (new), community.py (router include), auth_password.py
+  (flag), `SignInPage.jsx` (Apple button FIRST → Google → email + exchange effect),
+  `CommunityAuth.jsx` (Apple btn), `lib/api.js`, ios capacitor allowNavigation (+appleid.apple.com).
+- Tests: `backend/tests/test_iter431_apple_signin.py` — 10/10 pass (happy path + linking + EUA +
+  single-use codes, mocked verifier); frontend flows 100% (report iteration_111.json).
+- USER TODO before it works in prod: Apple portal — App ID `org.craftersmarket.app` w/ SIWA
+  capability + Services ID `org.craftersmarket.app.signin` (domain craftersmarket.org, return URL
+  https://craftersmarket.org/api/community/auth/apple/callback) → then redeploy. No .p8 needed.
+
 ## 2026-07-07 — iter430: New marketplace category — Home Fragrance & Wellness
 
 Permanent top-level category (first natural home/body fragrance maker onboarded).
