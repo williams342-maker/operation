@@ -83,12 +83,10 @@ open App.xcworkspace
 1. **Signing** — Select the `App` target → *Signing & Capabilities* tab →
    check *Automatically manage signing* → choose your Team (appears after you
    enroll in the [Apple Developer Program](https://developer.apple.com/programs/), $99/yr).
-2. **Associated Domains** — the entitlement is already in the project. Xcode
-   will register it automatically with your team. After you know your **Team ID**
-   (visible in Xcode signing pane or developer.apple.com → Membership), replace
-   `TEAMID` in `frontend/public/.well-known/apple-app-site-association` and
-   **redeploy the website** — deep links won't activate until Apple's CDN can
-   fetch that file with your real Team ID.
+2. **Associated Domains** — the entitlement is already in the project and the
+   AASA file already carries the real Team ID (`PMFM2873UR`). Just make sure the
+   website has been **redeployed** since 2026-07-07 so Apple's CDN can fetch
+   `https://craftersmarket.org/.well-known/apple-app-site-association`.
 3. **Run on Simulator** — pick an iPhone 16 simulator, press ▶. Verify:
    login, browsing, add-to-cart, checkout, image upload (photo library),
    pull-to-refresh, airplane-mode offline screen.

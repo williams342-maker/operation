@@ -12,9 +12,9 @@ Companion to `/app/docs/IOS_BUILD_GUIDE.md`. Work top-to-bottom; items marked
 - [ ] App Store Connect → *My Apps* → **+ New App**
   - Platform: iOS · Name: **Crafters Market** · Language: English (U.S.)
   - Bundle ID: `org.craftersmarket.app` · SKU: `craftersmarket-ios-1`
-- [ ] Replace `TEAMID` in `frontend/public/.well-known/apple-app-site-association` with your real Team ID and **redeploy the website**. Verify:
+- [x] Team ID `PMFM2873UR` is already in `frontend/public/.well-known/apple-app-site-association` — **redeploy the website** to publish it. Verify:
   `curl -s https://craftersmarket.org/.well-known/apple-app-site-association` returns the JSON.
-  Note: the file may be served as `application/octet-stream`; Apple's CDN generally accepts this. Validate after deploy with `https://app-site-association.cdn-apple.com/a/v1/craftersmarket.org` — if it errors on content-type, contact Emergent support to add an `application/json` header override for that path.
+  Note: the file may be served as `application/octet-stream`; Apple's CDN generally accepts this. Validate after deploy with `https://app-site-association.cdn-apple.com/a/v1/craftersmarket.org` — if it errors on content-type, contact Emergent support to add an `application/json` header override for that path. (Validator: https://app-site-association.cdn-apple.com/a/v1/craftersmarket.org)
 
 ## 2. ⚠️ Sign in with Apple (Guideline 4.8)
 
