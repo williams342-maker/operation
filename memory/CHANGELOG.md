@@ -1,3 +1,43 @@
+## 2026-07-07 — iter428: Beta App Testing program + dismissible "NEW" pill
+
+### Backend
+- `routers/beta_program.py`:
+  - Public: `GET /api/beta-program/config`, `POST /api/beta-program/signup`, `GET /api/beta-program/stats`
+  - Admin: `GET/PATCH /api/admin/beta-program/config`, `GET /api/admin/beta-program/signups`
+  - Config singleton in `db.settings._id=beta_program` (enabled, android_url, ios_url, headline, bugs_fixed, features_requested, features_released, updated_at)
+  - Signups in `db.beta_signups` — dedup on (email, device); stats endpoint exposes ONLY first-name + state (privacy-safe live-feed)
+
+### Frontend
+- `pages/AppTestingPage.jsx` — full landing at `/app-testing`:
+  - Hero: headline + two-phone side-by-side mockups + green/white CTAs
+  - "Built by makers. Tested by makers." tagline
+  - 4 Why-Join cards (Early Access · Feedback · Independent Makers · Early Tester Badge)
+  - Device split (Google Play Testing vs Apple TestFlight) with brand-colored buttons
+  - 8-item roadmap ✅⬜ (Shopping / Search / Messaging / Seller Dashboard done; Wishlist / Push / In-App Chat / Live Auctions upcoming)
+  - Feedback flow (4 steps)
+  - **Live community stats section** (Android/iPhone counts, bugs fixed, feature requests, features released, latest 4 joins with first-name + state)
+  - Collapsible FAQ (4 questions)
+  - Bottom CTA
+  - Signup modal collects name/email/state/device → POSTs then opens platform join URL in new tab
+- `components/BetaTestingHint.jsx` — dismissible pill following the light/dark hint pattern. Fixed bottom-right, `localStorage: cm-beta-app-hint-dismissed`, only mounts when config.enabled=true, clicks navigate to /app-testing.
+- `components/admin/BetaProgramTab.jsx` — full admin panel: enable/disable toggle, headline + URL fields, 3 stat counters, signups table (name/email/device/state/joined).
+- Wire-ins: `App.js` mounts `<BetaTestingHint />` globally + `/app-testing` route; `AdminDashboard.jsx` gets "Beta Program" tab.
+
+### Tests — 7/7 pass
+- Public config defaults
+- Signup + dedup by (email, device)
+- Device validation (rejects unknown values)
+- Stats shape + PII safety (no full names or emails leaked)
+- Admin config requires auth
+- Admin config PATCH updates
+- Admin signups list includes email/full name
+
+### Verified on preview
+- `/app-testing` renders all sections (screenshot)
+- Mobile 390×844: scrollWidth=390 = innerWidth (zero horizontal overflow)
+- Hint pill mounts + dismisses via close button + persists via localStorage
+
+
 ## 2026-07-07 — iter427: Growth Analytics admin page + click-event tracker
 
 ### New endpoints

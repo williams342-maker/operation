@@ -295,6 +295,10 @@ api.include_router(admin_growth_analytics_router)
 from routers.analytics_events import router as analytics_events_router
 api.include_router(analytics_events_router)
 
+# iter428 — Beta app testing program (landing page + dismissible hint).
+from routers.beta_program import router as beta_program_router
+api.include_router(beta_program_router)
+
 app.include_router(api)
 
 # iter109 — Canonical-host 301 redirect middleware. When `CANONICAL_HOST`

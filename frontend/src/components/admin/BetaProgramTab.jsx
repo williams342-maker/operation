@@ -1,0 +1,155 @@
+/**
+ * iter428 — Admin panel for the beta app-testing program.
+ * Two roles: (1) toggle program on/off + edit URLs + tune the community
+ * stat counters, (2) audit the signup list.
+ */
+import React, { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+const API = process.env.REACT_APP_BACKEND_URL;
+const _auth = () => {
+  const t = localStorage.getItem("cm_admin_jwt");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+export default function BetaProgramTab() {
+  const [cfg, setCfg] = useState(null);
+  const [signups, setSignups] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [c, s] = await Promise.all([
+        fetch(`${API}/api/admin/beta-program/config`, { headers: _auth() }).then(r => r.json()),
+        fetch(`${API}/api/admin/beta-program/signups`, { headers: _auth() }).then(r => r.json()),
+      ]);
+      setCfg(c); setSignups(s.signups || []);
+    } catch (e) { toast.error(`Load failed: ${e.message}`); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const body = {
+        enabled: cfg.enabled,
+        android_url: cfg.android_url,
+        ios_url: cfg.ios_url,
+        headline: cfg.headline,
+        bugs_fixed: Number(cfg.bugs_fixed) || 0,
+        features_requested: Number(cfg.features_requested) || 0,
+        features_released: Number(cfg.features_released) || 0,
+      };
+      const r = await fetch(`${API}/api/admin/beta-program/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ..._auth() },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setCfg(d);
+      toast.success("Beta program config saved.");
+    } catch (e) { toast.error(e.message); }
+    finally { setSaving(false); }
+  }
+
+  if (loading || !cfg) return (
+    <div className="border border-line p-6 text-center text-ink-muted font-mono text-xs">Loading…</div>
+  );
+
+  return (
+    <div className="space-y-6" data-testid="beta-program-tab">
+      <div className="border border-line p-6">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">◆ Program config</div>
+
+        <label className="flex items-center gap-3 mb-4">
+          <input type="checkbox" checked={!!cfg.enabled}
+                 onChange={(e) => setCfg({ ...cfg, enabled: e.target.checked })}
+                 className="accent-brand" data-testid="bp-enabled" />
+          <span className="text-ink">Beta program is active (renders the /app-testing landing page + header hint)</span>
+        </label>
+
+        <label className="block mb-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Headline</span>
+          <input value={cfg.headline || ""}
+                 onChange={(e) => setCfg({ ...cfg, headline: e.target.value })}
+                 maxLength={140}
+                 className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-sm"
+                 data-testid="bp-headline" />
+        </label>
+        <label className="block mb-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Android join URL (Google Play testing)</span>
+          <input value={cfg.android_url || ""}
+                 onChange={(e) => setCfg({ ...cfg, android_url: e.target.value })}
+                 className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-xs"
+                 data-testid="bp-android-url" />
+        </label>
+        <label className="block mb-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">iOS join URL (TestFlight)</span>
+          <input value={cfg.ios_url || ""}
+                 onChange={(e) => setCfg({ ...cfg, ios_url: e.target.value })}
+                 className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-xs"
+                 data-testid="bp-ios-url" />
+        </label>
+
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          {[
+            { k: "bugs_fixed",         label: "Bugs fixed" },
+            { k: "features_requested", label: "Feature requests" },
+            { k: "features_released",  label: "Features released" },
+          ].map(f => (
+            <label key={f.k} className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">{f.label}</span>
+              <input type="number" min="0" value={cfg[f.k] ?? 0}
+                     onChange={(e) => setCfg({ ...cfg, [f.k]: e.target.value })}
+                     className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-sm tabular-nums"
+                     data-testid={`bp-${f.k}`} />
+            </label>
+          ))}
+        </div>
+
+        <button onClick={save} disabled={saving}
+                className="bg-brand hover:bg-brand-hover text-ink font-mono text-xs uppercase tracking-[0.22em] px-6 py-2 disabled:opacity-40"
+                data-testid="bp-save">
+          {saving ? "…" : "Save configuration"}
+        </button>
+      </div>
+
+      <div className="border border-line p-6" data-testid="bp-signups-section">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
+          ◆ Signups · {signups.length}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-mono">
+            <thead>
+              <tr className="text-ink-muted uppercase tracking-[0.18em] text-[10px]">
+                <th className="text-left px-2 py-2">Joined</th>
+                <th className="text-left px-2 py-2">Name</th>
+                <th className="text-left px-2 py-2">Email</th>
+                <th className="text-left px-2 py-2">Device</th>
+                <th className="text-left px-2 py-2">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {signups.length === 0 && (
+                <tr><td colSpan={5} className="text-center py-6 text-ink-muted">No signups yet.</td></tr>
+              )}
+              {signups.map(s => (
+                <tr key={s.id} className="border-t border-line">
+                  <td className="px-2 py-2 whitespace-nowrap">{new Date(s.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-2">{s.name}</td>
+                  <td className="px-2 py-2">{s.email}</td>
+                  <td className="px-2 py-2 uppercase">{s.device}</td>
+                  <td className="px-2 py-2">{s.state || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
