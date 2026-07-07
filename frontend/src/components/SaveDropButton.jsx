@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
+import { nativeHaptic } from "@/lib/nativeBridge";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const STORE_KEY = "cm_saved_drops";  // localStorage cache of slugs
@@ -44,6 +45,7 @@ export default function SaveDropButton({ makerSlug, makerName, productSlug, know
       writeCache(next);
       setSaved(true);
       setShowInput(false);
+      nativeHaptic("medium");
       toast.success(`Saved. We'll email you the next drop from ${makerName || makerSlug}.`);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Couldn't save — try again.");

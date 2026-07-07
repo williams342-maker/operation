@@ -1,0 +1,39 @@
+{
+  "appId": "org.craftersmarket.app",
+  "appName": "Crafters Market",
+  "webDir": "www",
+  "server": {
+    "url": "https://craftersmarket.org/?utm_source=ios-app",
+    "allowNavigation": [
+      "craftersmarket.org",
+      "*.craftersmarket.org",
+      "*.stripe.com",
+      "js.stripe.com",
+      "checkout.stripe.com",
+      "accounts.google.com",
+      "auth.emergentagent.com"
+    ]
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": true,
+    "backgroundColor": "#0a0a0a",
+    "allowsLinkPreview": false,
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#0a0a0a",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0a0a0a"
+    }
+  }
+}

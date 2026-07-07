@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.org.craftersmarket.app"],
+        "components": [
+          { "/": "/api/*", "exclude": true },
+          { "/": "/admin*", "exclude": true },
+          { "/": "*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.org.craftersmarket.app"]
+  }
+}

@@ -1,3 +1,29 @@
+## 2026-07-07 — iter429: iOS App (Capacitor shell) + App Store prep
+
+### New: /app/ios — native iOS app wrapping https://craftersmarket.org
+- Capacitor 7 project, bundle ID `org.craftersmarket.app` (matches Android), iPhone + iPad, min iOS 14, dark #0a0a0a theme.
+- Plugins: app, browser, haptics, network, push-notifications (dormant), share, splash-screen, status-bar.
+- `capacitor.config.json`: remote server.url with utm_source=ios-app; allowNavigation for craftersmarket.org, *.stripe.com (in-app checkout), accounts.google.com, auth.emergentagent.com; everything else auto-opens in Safari.
+- `CraftersViewController.swift`: pull-to-refresh (haptic), branded loading overlay, native offline screen w/ Try Again (NWPathMonitor), swipe-back gesture, light status bar.
+- `AppDelegate.swift`: universal links load directly in webview.
+- `App.entitlements`: applinks + webcredentials for craftersmarket.org (wired into pbxproj CODE_SIGN_ENTITLEMENTS).
+- `Info.plist`: camera/photo-library/microphone usage strings, ITSAppUsesNonExemptEncryption=false.
+- Assets: 1024 app icon + 2732 dark splash generated from brand monogram.
+- AASA file at `frontend/public/.well-known/apple-app-site-association` (TEAMID placeholder — must be replaced after Apple Developer enrollment, then site redeployed).
+
+### Frontend native hooks (no-ops on web)
+- `src/lib/nativeBridge.js`: detects Capacitor shell, routes navigator.share through native iOS share sheet (all existing share buttons upgraded for free), exposes nativeHaptic(), sets status bar, adds `cm-native-ios` html class. Imported in index.js.
+- `SaveDropButton.jsx`: medium haptic on successful save/favorite.
+
+### Docs
+- `/app/docs/IOS_BUILD_GUIDE.md` — Windows→Mac handoff (cloud Mac / Codemagic options), Xcode build+archive+TestFlight steps, push-enablement guide.
+- `/app/docs/APP_STORE_CHECKLIST.md` — Apple Developer enrollment, ⚠️ Sign in with Apple (Guideline 4.8 — Google login is offered), 4.2 defense notes, privacy labels, account deletion pointers, demo reviewer account, physical-goods payment exemption (3.1.3(e)), screenshots, AASA validation.
+
+### Known limitations
+- iOS binary cannot be compiled in this environment (needs Xcode/macOS). Project verified structurally: pbxproj references, cap copy, config validity, frontend compiles + serves.
+- Push notifications scaffolded but dormant until APNs key exists.
+- Pre-submission blocker: Sign in with Apple decision (add it, or hide Google login inside the native app).
+
 ## iter328 — Founder Feed Audit Diagnostic (2026-07-02)
 
 **Status: SHIPPED** — read-only admin endpoint. Phase D freeze respected (diagnostic-only, no feature).
