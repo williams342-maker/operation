@@ -24,6 +24,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Users, Hammer, HandHeart, HeartHandshake, Wrench, ShoppingBag, ArrowRight } from "lucide-react";
 import SitePromo from "../SitePromo";
+import BetaMiniCard from "../BetaMiniCard";
 
 const SETS = [
   {
@@ -160,6 +161,10 @@ export default function Hero() {
       />
 
       <div className="relative max-w-[1500px] mx-auto px-6 md:px-10 lg:px-14 pt-12 md:pt-20 pb-12 md:pb-20">
+        {/* iter428c — compact app-store card, top-right of hero (desktop only) */}
+        <div className="hidden lg:block absolute top-6 right-6 xl:right-10 z-20 pointer-events-auto">
+          <BetaMiniCard />
+        </div>
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* LEFT — Copy block (cross-fades on rotation) */}
           <div className="relative z-10">
