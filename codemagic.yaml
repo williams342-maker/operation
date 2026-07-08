@@ -12,9 +12,9 @@ workflows:
       # Codemagic → Teams → Integrations → Developer Portal (name it exactly "codemagic")
       app_store_connect: codemagic
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: org.craftersmarket.app
+      groups:
+        # Must contain secret var CERTIFICATE_PRIVATE_KEY (see IOS_BUILD_GUIDE.md)
+        - appstore_credentials
       node: 20
       xcode: latest
       cocoapods: default
@@ -40,6 +40,18 @@ workflows:
         script: |
           cd ios/ios/App
           pod install
+      - name: Initialize keychain
+        script: |
+          keychain initialize
+      - name: Fetch or CREATE App Store signing files (cert + provisioning profile)
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --platform IOS \
+            --create
+      - name: Add certificates to keychain
+        script: |
+          keychain add-certificates
       - name: Apply Apple code signing profiles
         script: |
           xcode-project use-profiles
@@ -71,12 +83,13 @@ workflows:
     integrations:
       app_store_connect: codemagic
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: org.craftersmarket.app
+      groups:
+        - appstore_credentials
       node: 20
       xcode: latest
       cocoapods: default
+      vars:
+        BUNDLE_ID: "org.craftersmarket.app"
     scripts:
       - name: Install Capacitor JS dependencies
         script: |
@@ -90,6 +103,18 @@ workflows:
         script: |
           cd ios/ios/App
           pod install
+      - name: Initialize keychain
+        script: |
+          keychain initialize
+      - name: Fetch or CREATE App Store signing files (cert + provisioning profile)
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --platform IOS \
+            --create
+      - name: Add certificates to keychain
+        script: |
+          keychain add-certificates
       - name: Apply Apple code signing profiles
         script: |
           xcode-project use-profiles

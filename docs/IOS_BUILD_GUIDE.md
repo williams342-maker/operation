@@ -75,9 +75,19 @@ The repo root contains a ready-made **`codemagic.yaml`** with two workflows:
 2. Teams → your team → **Integrations → Developer Portal → Manage keys → Add key**:
    - Name it exactly **`codemagic`** (the yaml references this name)
    - Issuer ID + Key ID from step C2, upload the `.p8` file.
-3. That's it — no certificates or provisioning profiles to create by hand.
-   Codemagic auto-creates the distribution certificate and App Store provisioning
-   profile from that API key (`ios_signing` block in the yaml).
+3. **Certificate private key** — Codemagic needs an RSA key to create your iOS
+   Distribution certificate. On Windows, open PowerShell and run:
+   ```powershell
+   ssh-keygen -t rsa -b 2048 -m PEM -f ios_cert_key -q -N '""'
+   ```
+   (If prompted for a passphrase, leave it empty.) Open the resulting `ios_cert_key`
+   file in Notepad and copy ALL of it (including the BEGIN/END lines). Then in
+   Codemagic: your app → **Environment variables** tab →
+   - Variable name: `CERTIFICATE_PRIVATE_KEY` · Value: paste the key · check **Secret**
+   - Group: type `appstore_credentials` (create it) → Add.
+   The build's "Fetch or CREATE App Store signing files" step uses this to
+   auto-create the distribution certificate and App Store provisioning profile —
+   nothing to make by hand in the Apple portal.
 
 ### Required credentials summary
 
@@ -100,7 +110,7 @@ from Codemagic's `$BUILD_NUMBER`.
 For subsequent releases: tag a commit `ios-v1.0.1` (or hit Start new build) — everything else is automatic.
 
 ### Codemagic troubleshooting
-- **"No matching profiles / entitlement error"** → Associated Domains capability missing on the App ID (step B2).
+- **"No matching profiles found"** → the `CERTIFICATE_PRIVATE_KEY` env var is missing/not in group `appstore_credentials` (step D3), or the API key lacks App Manager access, or the Associated Domains capability is missing on the App ID (step B2).
 - **"App not found" on TestFlight upload** → App record not created yet (step C1), or the API key lacks App Manager access.
 - **Pod install fails** → retry the build; if persistent, bump `xcode: latest` to a pinned version (e.g. `xcode: 16.4`) in `codemagic.yaml`.
 - Build logs live under the build's **xcodebuild logs** artifact.
@@ -202,3 +212,4 @@ today. When you're ready:
 Because the shell loads the live website, **web changes ship instantly with no
 App Store review**. You only need a new build/submission when you change the
 native shell itself (icons, plugins, permissions, Capacitor upgrades).
+ermissions, Capacitor upgrades).
