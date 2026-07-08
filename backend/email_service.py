@@ -1003,6 +1003,45 @@ async def send_ops_beta_signup(name: str, email: str, platform: str, phone_model
     return await _send(BETA_NOTIFY_EMAIL, f"New Crafters Market beta tester signup — {plat}", html)
 
 
+async def send_beta_invite(name: str, email: str, platform: str, join_url: str):
+    """iter434 — one-click tester invite with platform-specific setup steps."""
+    first = (name or "").strip().split(" ")[0] or "there"
+    if platform == "ios":
+        plat = "iPhone"
+        steps = [
+            "Install the free <strong>TestFlight</strong> app from the App Store (it's Apple's official beta-testing app).",
+            f"On your iPhone, open your invite link: <a href='{join_url}' style='color:#e8b04b'>{join_url}</a>",
+            "Tap <strong>Accept</strong>, then <strong>Install</strong> — Crafters Market appears on your home screen.",
+            "Use the app like you normally would. If anything looks off, use TestFlight's built-in screenshot feedback or just reply to this email.",
+        ]
+    else:
+        plat = "Android"
+        steps = [
+            f"On your Android phone, open your invite link while signed into your Google account: <a href='{join_url}' style='color:#e8b04b'>{join_url}</a>",
+            "Tap <strong>Become a tester</strong> on the page that opens.",
+            "Install <strong>Crafters Market</strong> from the Google Play link on that same page.",
+            "Use the app like you normally would — if anything looks off, just reply to this email.",
+        ]
+    body = f"""
+      <p style='font-size:14px;color:#e5e5e5;line-height:1.7'>Hi {first},</p>
+      <p style='font-size:14px;color:#e5e5e5;line-height:1.7'>
+        You're in! You've been approved to beta test the <strong>Crafters Market {plat} app</strong>.
+        Here's how to get set up (takes about 2 minutes):
+      </p>
+      <ol style='font-size:14px;color:#e5e5e5;line-height:1.9;padding-left:20px'>
+        {''.join(f'<li style="margin-bottom:8px">{s}</li>' for s in steps)}
+      </ol>
+      <div style='text-align:center;margin:26px 0'>
+        <a href='{join_url}' style='background:#e8b04b;color:#0a0a0a;text-decoration:none;padding:13px 34px;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;display:inline-block'>Join the beta</a>
+      </div>
+      <p style='font-size:13px;color:#a3a3a3;line-height:1.7'>
+        Beta builds can contain bugs — that's exactly what you're helping us find.
+        Thank you for helping build Crafters Market. Reply anytime with feedback, big or small.
+      </p>"""
+    html = _shell("You're invited.", f"Your Crafters Market {plat} beta invitation", body, "Beta program")
+    return await _send(email, f"Your Crafters Market {plat} beta invite — setup inside", html)
+
+
 async def send_applicant_received(applicant_email: str, name: str, studio: str,
                                   is_beta: bool = False):
     """Sent to the applicant immediately after they submit a maker (or

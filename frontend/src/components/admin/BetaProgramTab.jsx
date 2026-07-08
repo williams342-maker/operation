@@ -54,6 +54,23 @@ export default function BetaProgramTab() {
     } catch (e) { toast.error(e.message); }
   }
 
+  const [inviting, setInviting] = useState(null);
+  async function sendInvite(row) {
+    if (!window.confirm(`Email the ${(row.platform || row.device || "").toUpperCase()} beta invite to ${row.email}?`)) return;
+    setInviting(row.id);
+    try {
+      const r = await fetch(`${API}/api/admin/beta-program/signups/${row.id}/invite`, {
+        method: "POST",
+        headers: { ..._auth() },
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setSignups((rows) => rows.map((s) => (s.id === row.id ? { ...s, ...d } : s)));
+      toast.success(`Invite sent to ${row.email}.`);
+    } catch (e) { toast.error(e.message); }
+    finally { setInviting(null); }
+  }
+
   async function save() {
     setSaving(true);
     try {
@@ -157,11 +174,12 @@ export default function BetaProgramTab() {
                 <th className="text-left px-2 py-2">Role</th>
                 <th className="text-left px-2 py-2">Notes</th>
                 <th className="text-left px-2 py-2">Status</th>
+                <th className="text-left px-2 py-2">Invite</th>
               </tr>
             </thead>
             <tbody>
               {signups.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-6 text-ink-muted">No signups yet.</td></tr>
+                <tr><td colSpan={9} className="text-center py-6 text-ink-muted">No signups yet.</td></tr>
               )}
               {signups.map(s => (
                 <tr key={s.id} className="border-t border-line align-top" data-testid={`bp-signup-row-${s.id}`}>
@@ -183,6 +201,17 @@ export default function BetaProgramTab() {
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-2 py-2">
+                    <button
+                      onClick={() => sendInvite(s)}
+                      disabled={inviting === s.id}
+                      className="border border-brand text-brand hover:bg-brand hover:text-ink px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] disabled:opacity-40 transition whitespace-nowrap"
+                      data-testid={`bp-invite-${s.id}`}
+                      title="Email setup instructions and mark as Invitation Sent"
+                    >
+                      {inviting === s.id ? "Sending…" : s.status === "invitation_sent" ? "Resend" : "Send invite"}
+                    </button>
                   </td>
                 </tr>
               ))}

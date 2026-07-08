@@ -1,3 +1,17 @@
+## 2026-07-08 — iter434: One-click "Send invite" for beta testers
+
+- Backend `POST /api/admin/beta-program/signups/{id}/invite` (admin): emails platform-specific
+  setup steps (email_service.send_beta_invite — Android: Play testing link steps; iOS: TestFlight
+  install steps; branded CTA button), sets status=invitation_sent + invited_at.
+  Guards: 404 unknown id, 400 if platform config URL missing or still PLACEHOLDER
+  ("Set the iOS TestFlight link in Beta Program settings first."), 401 no auth.
+- Join URLs come from existing admin Beta Program config (android_url / ios_url in
+  settings.beta_program). iOS invites work as soon as the real TestFlight link is saved there.
+- Admin BetaProgramTab: new Invite column — "Send invite" button (confirm dialog, busy state,
+  "Resend" label after sent), row updates in place.
+- Self-tested via curl/python: android invite 200 + invitation_sent + email_events row status
+  'sent'; ios 400 placeholder; 404; 401. Frontend compiles clean.
+
 ## 2026-07-08 — iter433: Beta signup collection pages (Android/iOS) + admin statuses
 
 - Homepage BetaMiniCard + /app-testing CTAs no longer open Play/TestFlight — they route to new

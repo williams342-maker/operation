@@ -225,3 +225,29 @@ async def admin_signup_status(signup_id: str, patch: StatusPatch, _: dict = Depe
     row = await db.beta_signups.find_one({"id": signup_id}, {"_id": 0})
     row.setdefault("platform", row.get("device"))
     return row
+
+
+@router.post("/admin/beta-program/signups/{signup_id}/invite")
+async def admin_send_invite(signup_id: str, _: dict = Depends(current_admin)):
+    """iter434 — one-click invite: emails platform setup steps and flips
+    status to invitation_sent."""
+    row = await db.beta_signups.find_one({"id": signup_id}, {"_id": 0})
+    if not row:
+        raise HTTPException(404, "Signup not found.")
+    platform = row.get("platform") or row.get("device") or ""
+    if platform not in ("android", "ios"):
+        raise HTTPException(400, "This signup has no single platform — set it to android or ios first.")
+    cfg = await _get_config()
+    join_url = cfg.get("android_url") if platform == "android" else cfg.get("ios_url")
+    if not join_url or "PLACEHOLDER" in join_url:
+        label = "Android testing" if platform == "android" else "iOS TestFlight"
+        raise HTTPException(400, f"Set the {label} link in Beta Program settings first.")
+    from email_service import send_beta_invite
+    await send_beta_invite(name=row.get("name") or "", email=row["email"], platform=platform, join_url=join_url)
+    await db.beta_signups.update_one(
+        {"id": signup_id},
+        {"$set": {"status": "invitation_sent", "invited_at": now_iso(), "status_updated_at": now_iso()}},
+    )
+    row = await db.beta_signups.find_one({"id": signup_id}, {"_id": 0})
+    row.setdefault("platform", row.get("device"))
+    return row
