@@ -1,3 +1,22 @@
+## 2026-07-07 — iter432: Codemagic cloud iOS build (no Mac needed)
+
+- `/app/codemagic.yaml` (repo root): 2 workflows — `ios-testflight` (build+sign+TestFlight upload,
+  triggers on `ios-v*` tags or manual) and `ios-build-only`. mac_mini_m2, node 20, xcode latest,
+  cocoapods; `ios_signing` auto-fetches certs/profiles via App Store Connect API key integration
+  named `codemagic`; build number = Codemagic $BUILD_NUMBER; artifacts: .ipa + xcodebuild logs.
+- Fixed CI blockers in the Capacitor template: created missing
+  `App.xcworkspace/contents.xcworkspacedata` and shared scheme
+  `App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` (BlueprintIdentifier 504EC3031FED79650016851F)
+  — headless xcodebuild fails without both.
+- IOS_BUILD_GUIDE.md: new "Building without a Mac — Codemagic" section (Windows-only path):
+  Save to GitHub → App ID needs ✅ Associated Domains capability added (deep-link entitlement,
+  signing fails without it) → App Store Connect app record + API key (App Manager, .p8/KeyID/IssuerID)
+  → Codemagic integration named exactly `codemagic` → first build → TestFlight.
+- Verified: yaml parses, workspace/scheme XML valid, target UUID matches pbxproj, .gitignore
+  CI-compatible. NOT verified: actual macOS build (only possible on Codemagic itself).
+- USER TODO: enable Associated Domains on App ID, create ASC app record + API key, connect repo
+  to Codemagic, run first build.
+
 ## 2026-07-07 — iter431: Sign in with Apple (web + iOS, Guideline 4.8)
 
 - Flow: redirect/form_post (WKWebView-safe, no popups). `GET /api/community/auth/apple/start`

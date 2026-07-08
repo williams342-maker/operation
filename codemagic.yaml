@@ -1,0 +1,103 @@
+# Codemagic CI/CD — Crafters Market iOS (Capacitor)
+# Repo layout: Capacitor project lives in ./ios, Xcode project in ./ios/ios/App
+# Docs: /app/docs/IOS_BUILD_GUIDE.md  (section "Building without a Mac — Codemagic")
+
+workflows:
+  ios-testflight:
+    name: Crafters Market iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      # Name of the App Store Connect API key you add in
+      # Codemagic → Teams → Integrations → Developer Portal (name it exactly "codemagic")
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: org.craftersmarket.app
+      node: 20
+      xcode: latest
+      cocoapods: default
+      vars:
+        APP_NAME: "Crafters Market"
+        BUNDLE_ID: "org.craftersmarket.app"
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: "ios-v*"
+          include: true
+    scripts:
+      - name: Install Capacitor JS dependencies
+        script: |
+          cd ios
+          npm install
+      - name: Sync Capacitor iOS project (copies config, updates plugins)
+        script: |
+          cd ios
+          npx cap sync ios
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios/ios/App
+          pod install
+      - name: Apply Apple code signing profiles
+        script: |
+          xcode-project use-profiles
+      - name: Set incrementing build number
+        script: |
+          cd ios/ios/App
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Build signed .ipa
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/ios/App/App.xcworkspace" \
+            --scheme "App"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integrations
+        # Uploads every successful build to TestFlight automatically.
+        submit_to_testflight: true
+        # Flip to true later to auto-submit for App Store review:
+        submit_to_app_store: false
+
+  # Manual/branch builds without TestFlight upload (for quick validation)
+  ios-build-only:
+    name: Crafters Market iOS (build only, no upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: org.craftersmarket.app
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install Capacitor JS dependencies
+        script: |
+          cd ios
+          npm install
+      - name: Sync Capacitor iOS project
+        script: |
+          cd ios
+          npx cap sync ios
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios/ios/App
+          pod install
+      - name: Apply Apple code signing profiles
+        script: |
+          xcode-project use-profiles
+      - name: Build signed .ipa
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/ios/App/App.xcworkspace" \
+            --scheme "App"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log

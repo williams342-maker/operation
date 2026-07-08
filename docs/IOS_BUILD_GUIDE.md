@@ -40,11 +40,78 @@ Web-side native hooks (already live in the React frontend):
 
 ---
 
-## Options if you don't own a Mac
+## Building without a Mac — Codemagic (recommended for Windows users)
 
-1. **Borrow / rent a Mac** — any Apple Silicon or Intel Mac running macOS 13+.
-2. **Cloud Mac** — [MacStadium](https://www.macstadium.com), [MacinCloud](https://www.macincloud.com), or AWS EC2 Mac instances (hourly rental, remote desktop into a Mac).
-3. **CI build service** — [Codemagic](https://codemagic.io), [Bitrise](https://bitrise.io), or GitHub Actions `macos` runners can build & upload to App Store Connect from your repo without you ever touching a Mac. Codemagic has a free tier and first-class Capacitor support.
+The repo root contains a ready-made **`codemagic.yaml`** with two workflows:
+
+| Workflow | What it does | When it runs |
+|---|---|---|
+| `ios-testflight` | Builds, signs, and **uploads to TestFlight** | Push a git tag like `ios-v1.0.0`, or start manually |
+| `ios-build-only` | Builds a signed `.ipa` artifact, no upload | Start manually |
+
+### One-time setup (~20 minutes, all from Windows)
+
+**A. Get the code on GitHub**
+1. In Emergent chat, use **Save to GitHub** to push this project to a repo you own.
+
+**B. Apple Developer portal — verify App ID capabilities**
+1. https://developer.apple.com/account/resources/identifiers/list → click `org.craftersmarket.app`.
+2. Make sure BOTH capabilities are checked, then Save:
+   - ✅ **Sign in with Apple** (done already)
+   - ✅ **Associated Domains** ← required because the app uses deep links
+     (`App.entitlements` declares `applinks:craftersmarket.org`); signing FAILS without it.
+
+**C. App Store Connect — create the app record + API key**
+1. https://appstoreconnect.apple.com → My Apps → **+ New App**:
+   Platform iOS · Name **Crafters Market** · Bundle ID `org.craftersmarket.app` · SKU `craftersmarket-ios-1`.
+   (TestFlight uploads have nowhere to land without this record.)
+2. Users and Access → **Integrations** tab → *App Store Connect API* → Team Keys → **Generate API Key**:
+   - Name: `Codemagic` · Access: **App Manager**
+   - **Download the `.p8` file** (one-time download — keep it safe)
+   - Note the **Key ID** (on the key row) and **Issuer ID** (top of the page).
+
+**D. Codemagic — connect everything**
+1. Sign up at https://codemagic.io (free tier includes macOS build minutes) → **Add application** → pick your GitHub repo → select **codemagic.yaml** when asked.
+2. Teams → your team → **Integrations → Developer Portal → Manage keys → Add key**:
+   - Name it exactly **`codemagic`** (the yaml references this name)
+   - Issuer ID + Key ID from step C2, upload the `.p8` file.
+3. That's it — no certificates or provisioning profiles to create by hand.
+   Codemagic auto-creates the distribution certificate and App Store provisioning
+   profile from that API key (`ios_signing` block in the yaml).
+
+### Required credentials summary
+
+| Item | Where it lives | Used for |
+|---|---|---|
+| App Store Connect API key (`.p8` + Key ID + Issuer ID) | Codemagic → Integrations, named `codemagic` | Signing files + TestFlight upload |
+| App ID `org.craftersmarket.app` w/ Sign in with Apple + Associated Domains | Apple Developer portal | Provisioning profile generation |
+| App record in App Store Connect | appstoreconnect.apple.com | TestFlight destination |
+
+No other environment variables are required — bundle ID, scheme, and workspace
+paths are hardcoded in `codemagic.yaml`, and the build number auto-increments
+from Codemagic's `$BUILD_NUMBER`.
+
+### Run your first build
+1. Codemagic dashboard → your app → **Start new build** → workflow **Crafters Market iOS → TestFlight** → Start.
+2. ~15–25 min later the build appears in App Store Connect → TestFlight (processing adds another ~15 min).
+3. Install the **TestFlight** app on your iPhone → accept your own invite (add yourself as an internal tester on the TestFlight tab) → install Crafters Market.
+4. Test on your phone: login (incl. Continue with Apple), browse, favorite (haptic), share (native sheet), photo upload, checkout, pull-to-refresh, airplane-mode offline screen.
+
+For subsequent releases: tag a commit `ios-v1.0.1` (or hit Start new build) — everything else is automatic.
+
+### Codemagic troubleshooting
+- **"No matching profiles / entitlement error"** → Associated Domains capability missing on the App ID (step B2).
+- **"App not found" on TestFlight upload** → App record not created yet (step C1), or the API key lacks App Manager access.
+- **Pod install fails** → retry the build; if persistent, bump `xcode: latest` to a pinned version (e.g. `xcode: 16.4`) in `codemagic.yaml`.
+- Build logs live under the build's **xcodebuild logs** artifact.
+
+---
+
+## Options if you don't own a Mac (alternatives)
+
+1. **Cloud CI build (recommended)** — Codemagic, fully configured above via `codemagic.yaml`.
+2. **Borrow / rent a Mac** — any Apple Silicon or Intel Mac running macOS 13+.
+3. **Cloud Mac desktop** — [MacStadium](https://www.macstadium.com), [MacinCloud](https://www.macincloud.com), or AWS EC2 Mac instances (hourly rental, remote desktop into a Mac).
 
 ---
 
