@@ -14,14 +14,13 @@ const KEY = "cm-beta-mini-dismissed";
 export default function BetaMiniCard() {
   const [enabled, setEnabled] = useState(false);
   const [show, setShow] = useState(true);
-  const [cfg, setCfg] = useState({ android_url: "", ios_url: "" });
 
   useEffect(() => {
     try { if (localStorage.getItem(KEY) === "1") setShow(false); } catch { /* noop */ }
     fetch(`${API}/api/beta-program/config`, { credentials: "omit" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d?.enabled) { setEnabled(true); setCfg(d); }
+        if (d?.enabled) setEnabled(true);
       })
       .catch(() => {});
   }, []);
@@ -34,10 +33,6 @@ export default function BetaMiniCard() {
   };
 
   if (!enabled || !show) return null;
-
-  const open = (url) => {
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-  };
 
   return (
     <div
@@ -76,14 +71,14 @@ export default function BetaMiniCard() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => open(cfg.android_url)}
+          <Link
+            to="/app-testing/android"
             className="mt-1 w-full border border-[#3ddc84] text-[#3ddc84] font-mono text-[9px] uppercase tracking-[0.2em] py-1.5 px-2 flex items-center justify-between hover:bg-[#3ddc84]/10 transition"
             data-testid="beta-mini-android"
           >
             <span>Sign up for Android</span>
             <ArrowRight size={10} />
-          </button>
+          </Link>
         </div>
 
         {/* iOS side */}
@@ -103,14 +98,14 @@ export default function BetaMiniCard() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => open(cfg.ios_url)}
+          <Link
+            to="/app-testing/ios"
             className="mt-1 w-full border border-white text-white font-mono text-[9px] uppercase tracking-[0.2em] py-1.5 px-2 flex items-center justify-between hover:bg-white/10 transition"
             data-testid="beta-mini-ios"
           >
             <span>Sign up for iOS</span>
             <ArrowRight size={10} />
-          </button>
+          </Link>
         </div>
       </div>
 

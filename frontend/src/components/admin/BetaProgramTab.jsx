@@ -31,6 +31,29 @@ export default function BetaProgramTab() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const STATUS_OPTIONS = [
+    { value: "pending", label: "Pending" },
+    { value: "approved", label: "Approved" },
+    { value: "invitation_sent", label: "Invitation Sent" },
+    { value: "installed", label: "Installed" },
+    { value: "active_tester", label: "Active Tester" },
+    { value: "removed", label: "Removed" },
+  ];
+
+  async function setStatus(id, status) {
+    try {
+      const r = await fetch(`${API}/api/admin/beta-program/signups/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ..._auth() },
+        body: JSON.stringify({ status }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setSignups((rows) => rows.map((s) => (s.id === id ? { ...s, status } : s)));
+      toast.success("Status updated.");
+    } catch (e) { toast.error(e.message); }
+  }
+
   async function save() {
     setSaving(true);
     try {
@@ -126,24 +149,41 @@ export default function BetaProgramTab() {
           <table className="w-full text-xs font-mono">
             <thead>
               <tr className="text-ink-muted uppercase tracking-[0.18em] text-[10px]">
-                <th className="text-left px-2 py-2">Joined</th>
+                <th className="text-left px-2 py-2">Submitted</th>
                 <th className="text-left px-2 py-2">Name</th>
                 <th className="text-left px-2 py-2">Email</th>
-                <th className="text-left px-2 py-2">Device</th>
-                <th className="text-left px-2 py-2">State</th>
+                <th className="text-left px-2 py-2">Platform</th>
+                <th className="text-left px-2 py-2">Phone model</th>
+                <th className="text-left px-2 py-2">Role</th>
+                <th className="text-left px-2 py-2">Notes</th>
+                <th className="text-left px-2 py-2">Status</th>
               </tr>
             </thead>
             <tbody>
               {signups.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-6 text-ink-muted">No signups yet.</td></tr>
+                <tr><td colSpan={8} className="text-center py-6 text-ink-muted">No signups yet.</td></tr>
               )}
               {signups.map(s => (
-                <tr key={s.id} className="border-t border-line">
+                <tr key={s.id} className="border-t border-line align-top" data-testid={`bp-signup-row-${s.id}`}>
                   <td className="px-2 py-2 whitespace-nowrap">{new Date(s.created_at).toLocaleString()}</td>
                   <td className="px-2 py-2">{s.name}</td>
                   <td className="px-2 py-2">{s.email}</td>
-                  <td className="px-2 py-2 uppercase">{s.device}</td>
-                  <td className="px-2 py-2">{s.state || "—"}</td>
+                  <td className="px-2 py-2 uppercase">{s.platform || s.device}</td>
+                  <td className="px-2 py-2">{s.phone_model || "—"}</td>
+                  <td className="px-2 py-2 capitalize">{s.role || "—"}</td>
+                  <td className="px-2 py-2 max-w-[220px] whitespace-pre-wrap break-words">{s.notes || "—"}</td>
+                  <td className="px-2 py-2">
+                    <select
+                      value={s.status || "pending"}
+                      onChange={(e) => setStatus(s.id, e.target.value)}
+                      className="border border-line bg-paper px-2 py-1 font-mono text-[11px]"
+                      data-testid={`bp-status-${s.id}`}
+                    >
+                      {STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>

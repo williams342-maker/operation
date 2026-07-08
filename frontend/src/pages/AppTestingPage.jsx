@@ -5,7 +5,7 @@
  * + bottom CTA. Signup posts to /api/beta-program/signup.
  */
 import React, { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   Rocket, MessageSquare, Heart, Award, Smartphone, Check, Square,
   ChevronDown, ArrowRight,
@@ -56,100 +56,10 @@ function StatTile({ label, value, testid }) {
   );
 }
 
-function SignupModal({ open, onClose, defaultDevice }) {
-  const [name, setName]     = useState("");
-  const [email, setEmail]   = useState("");
-  const [state, setState]   = useState("");
-  const [device, setDevice] = useState(defaultDevice || "android");
-  const [busy, setBusy]     = useState(false);
-  useEffect(() => { if (defaultDevice) setDevice(defaultDevice); }, [defaultDevice]);
-  if (!open) return null;
-
-  async function submit(e) {
-    e.preventDefault();
-    if (!name.trim() || !email.trim()) {
-      toast.error("Please enter your name and email.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const r = await fetch(`${API}/api/beta-program/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), state: state.trim(), device }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-      // Look up the join URL from the freshly-loaded config
-      const cfg = await fetch(`${API}/api/beta-program/config`).then((r) => r.json());
-      const url = device === "ios" ? cfg.ios_url : cfg.android_url;
-      toast.success(d.duplicate ? "You're already on the list — opening join page." : "You're in! Opening the join page…");
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-      onClose();
-    } catch (e) { toast.error(e.message); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center px-4"
-         onClick={(e) => e.target === e.currentTarget && onClose()}
-         data-testid="beta-signup-modal">
-      <form onSubmit={submit} className="max-w-md w-full bg-paper border border-line p-6">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
-          ◆ Join the beta
-        </div>
-        <h3 className="font-display text-2xl mb-4 text-ink">Sign up to test the app</h3>
-        <label className="block mb-3">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80}
-                 className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-sm focus:outline-none focus:border-brand"
-                 data-testid="beta-signup-name" />
-        </label>
-        <label className="block mb-3">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                 className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-sm focus:outline-none focus:border-brand"
-                 data-testid="beta-signup-email" />
-        </label>
-        <label className="block mb-3">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">State (optional — shows on live-testers feed)</span>
-          <input value={state} onChange={(e) => setState(e.target.value)} maxLength={40}
-                 className="mt-1 w-full border border-line bg-paper px-3 py-2 font-mono text-sm focus:outline-none focus:border-brand"
-                 placeholder="e.g. Washington"
-                 data-testid="beta-signup-state" />
-        </label>
-        <div className="mb-4">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted block mb-1">Device</span>
-          <div className="flex gap-2">
-            {["android", "ios", "both"].map(d => (
-              <button type="button" key={d} onClick={() => setDevice(d)}
-                      className={`flex-1 border px-3 py-2 font-mono text-xs uppercase tracking-[0.22em] transition
-                        ${device === d ? "border-brand bg-brand/10 text-brand" : "border-line text-ink-muted hover:border-ink-muted"}`}
-                      data-testid={`beta-signup-device-${d}`}>
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={onClose}
-                  className="flex-1 border border-line px-4 py-2 font-mono text-xs uppercase tracking-[0.22em] hover:bg-surface-2"
-                  data-testid="beta-signup-cancel">Cancel</button>
-          <button type="submit" disabled={busy}
-                  className="flex-1 bg-brand hover:bg-brand-hover text-ink font-mono text-xs uppercase tracking-[0.22em] px-4 py-2 disabled:opacity-40"
-                  data-testid="beta-signup-submit">
-            {busy ? "…" : "Sign up & open join page"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 export default function AppTestingPage() {
+  const navigate = useNavigate();
   const [config, setConfig] = useState(null);
   const [stats, setStats]   = useState(null);
-  const [modal, setModal]   = useState(null); // null | "android" | "ios"
   const [openFaq, setOpenFaq] = useState(-1);
 
   useEffect(() => {
@@ -179,12 +89,12 @@ export default function AppTestingPage() {
               Android · iPhone · Free to Join
             </p>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => setModal("android")}
+              <button onClick={() => navigate("/app-testing/android")}
                       className="bg-[#3ddc84] hover:opacity-90 text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] px-6 py-3"
                       data-testid="hero-join-android">
                 Join Android Testing →
               </button>
-              <button onClick={() => setModal("ios")}
+              <button onClick={() => navigate("/app-testing/ios")}
                       className="bg-white hover:bg-neutral-100 text-[#0a0a0a] border border-line font-mono text-xs uppercase tracking-[0.22em] px-6 py-3"
                       data-testid="hero-join-ios">
                 Join iPhone Testing →
@@ -271,7 +181,7 @@ export default function AppTestingPage() {
               </div>
 
               <button
-                onClick={() => setModal("android")}
+                onClick={() => navigate("/app-testing/android")}
                 className="mt-auto group w-full border-2 border-[#3ddc84] text-[#3ddc84] font-mono text-sm uppercase tracking-[0.28em] py-4 px-6 flex items-center justify-between hover:bg-[#3ddc84]/10 transition"
                 data-testid="device-join-android"
               >
@@ -299,7 +209,7 @@ export default function AppTestingPage() {
               </div>
 
               <button
-                onClick={() => setModal("ios")}
+                onClick={() => navigate("/app-testing/ios")}
                 className="mt-auto group w-full border-2 border-white text-white font-mono text-sm uppercase tracking-[0.28em] py-4 px-6 flex items-center justify-between hover:bg-white/10 transition"
                 data-testid="device-join-ios"
               >
@@ -425,12 +335,12 @@ export default function AppTestingPage() {
         </h2>
         <p className="text-ink-muted mb-6">Two taps to join. Two devices to help.</p>
         <div className="flex flex-wrap justify-center gap-3">
-          <button onClick={() => setModal("android")}
+          <button onClick={() => navigate("/app-testing/android")}
                   className="bg-[#3ddc84] hover:opacity-90 text-[#0a0a0a] font-mono text-xs uppercase tracking-[0.22em] px-6 py-3 inline-flex items-center gap-1"
                   data-testid="cta-join-android">
             Join Android <ArrowRight size={14} />
           </button>
-          <button onClick={() => setModal("ios")}
+          <button onClick={() => navigate("/app-testing/ios")}
                   className="bg-white hover:bg-neutral-100 text-[#0a0a0a] border border-line font-mono text-xs uppercase tracking-[0.22em] px-6 py-3 inline-flex items-center gap-1"
                   data-testid="cta-join-ios">
             Join iPhone <ArrowRight size={14} />
@@ -438,7 +348,6 @@ export default function AppTestingPage() {
         </div>
       </section>
 
-      <SignupModal open={!!modal} onClose={() => setModal(null)} defaultDevice={modal} />
     </div>
   );
 }

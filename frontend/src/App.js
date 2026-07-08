@@ -53,6 +53,7 @@ import CommunityEmblemPage from "./pages/CommunityEmblemPage"; // iter413bs
 import AccountDeletePage from "./pages/AccountDeletePage"; // iter426 — Play compliance
 import DataRequestPage from "./pages/DataRequestPage"; // iter426b — Play Data Safety partial-data request
 import AppTestingPage from "./pages/AppTestingPage"; // iter428 — Beta app testing
+import BetaSignupPage from "./pages/BetaSignupPage"; // iter433 — per-platform beta collection
 import BetaTestingHint from "./components/BetaTestingHint"; // iter428 — dismissible NEW pill
 import CompassPreviewPage from "./pages/CompassPreviewPage"; // iter413ct+ — temporary brand-pick preview
 import { CommunityLogin, CommunityVerify, CommunityAuthCallback } from "./pages/CommunityAuth";
@@ -359,6 +360,8 @@ function App() {
                 <Route path="/account/data-request" element={<DataRequestPage />} />
                 {/* iter428 — Beta app-testing landing page */}
                 <Route path="/app-testing" element={<AppTestingPage />} />
+                <Route path="/app-testing/android" element={<BetaSignupPage platform="android" />} />
+                <Route path="/app-testing/ios" element={<BetaSignupPage platform="ios" />} />
                 <Route path="/maker/listings/new" element={<MakerListingEditor />} />
                 <Route path="/maker/listings/:slug/edit" element={<MakerListingEditor />} />
                 <Route path="/maker/renewals" element={<Navigate to="/maker/dashboard?tab=renewals" replace />} />

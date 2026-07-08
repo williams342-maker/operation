@@ -74,6 +74,7 @@ MAILGUN_REGION = os.environ.get("MAILGUN_REGION", "us").lower()
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
 SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
 OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
+BETA_NOTIFY_EMAIL = os.environ.get("BETA_NOTIFY_EMAIL", "") or OPS_EMAIL
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -980,6 +981,26 @@ async def send_ops_new_application(name: str, studio: str, location: str, email:
       <p style='font-size:13px;color:#e5e5e5;margin-top:18px;line-height:1.6'>{about}</p>"""
     html = _shell("Maker Application.", "A new maker just applied to the program.", body, "Maker / ops alert")
     return await _send(OPS_EMAIL, f"New maker application · {studio}", html)
+
+
+async def send_ops_beta_signup(name: str, email: str, platform: str, phone_model: str | None,
+                               role: str, notes: str | None, submitted_at: str):
+    """iter433 — notify ops of every beta-tester signup (Android/iOS)."""
+    if not BETA_NOTIFY_EMAIL:
+        return
+    plat = "Android" if platform == "android" else "iOS"
+    rows = [
+        ("Name", name), ("Email", email), ("Platform", plat),
+        ("Phone model", phone_model or "—"), ("Role", (role or "").replace("_", " ").title()),
+        ("Submitted", submitted_at),
+    ]
+    body = f"""
+      <table width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-top:1px solid #262626'>
+        {''.join(f"<tr><td style='padding:8px 0;color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>{k}</td><td style='padding:8px 0;color:#e5e5e5;text-align:right'>{v}</td></tr>" for k, v in rows)}
+      </table>
+      {f"<p style='font-size:13px;color:#e5e5e5;margin-top:18px;line-height:1.6'><strong>Notes:</strong> {notes}</p>" if notes else ""}"""
+    html = _shell("Beta Tester Signup.", f"A new {plat} beta tester just signed up.", body, "Beta program alert")
+    return await _send(BETA_NOTIFY_EMAIL, f"New Crafters Market beta tester signup — {plat}", html)
 
 
 async def send_applicant_received(applicant_email: str, name: str, studio: str,

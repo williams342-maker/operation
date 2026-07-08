@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 from core import db, now_iso
@@ -90,6 +90,57 @@ async def signup(payload: SignupIn):
     return {"ok": True, "id": row["id"], "duplicate": False}
 
 
+# iter433 — detailed per-platform collection form (/app-testing/android|ios).
+BETA_STATUSES = ["pending", "approved", "invitation_sent", "installed", "active_tester", "removed"]
+
+
+class ApplyIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    email: EmailStr
+    platform: Literal["android", "ios"]
+    phone_model: Optional[str] = Field(None, max_length=80)
+    role: Literal["shopper", "maker", "both"]
+    notes: Optional[str] = Field(None, max_length=1000)
+    ack: bool
+
+
+@router.post("/beta-program/apply")
+async def apply(payload: ApplyIn, bg: BackgroundTasks):
+    if not payload.ack:
+        raise HTTPException(400, "Please confirm you understand this is a beta app.")
+    email = payload.email.lower()
+    # Dedup on (email, platform) — `device` doubles as the platform key so the
+    # legacy quick-signup rows and stats counters stay consistent.
+    existing = await db.beta_signups.find_one(
+        {"email": email, "device": payload.platform}, {"_id": 0, "id": 1},
+    )
+    if existing:
+        return {"ok": True, "id": existing["id"], "duplicate": True}
+    row = {
+        "id": uuid.uuid4().hex,
+        "name": payload.name.strip(),
+        "email": email,
+        "device": payload.platform,
+        "platform": payload.platform,
+        "phone_model": (payload.phone_model or "").strip() or None,
+        "role": payload.role,
+        "notes": (payload.notes or "").strip() or None,
+        "ack": True,
+        "status": "pending",
+        "state": None,
+        "created_at": now_iso(),
+    }
+    await db.beta_signups.insert_one(row)
+    from email_service import send_ops_beta_signup
+    bg.add_task(
+        send_ops_beta_signup,
+        name=row["name"], email=email, platform=payload.platform,
+        phone_model=row["phone_model"], role=payload.role,
+        notes=row["notes"], submitted_at=row["created_at"],
+    )
+    return {"ok": True, "id": row["id"], "duplicate": False}
+
+
 @router.get("/beta-program/stats")
 async def stats():
     c = await _get_config()
@@ -153,4 +204,24 @@ async def admin_config_patch(patch: ConfigPatch, _: dict = Depends(current_admin
 async def admin_signups(limit: int = 500, _: dict = Depends(current_admin)):
     limit = max(1, min(2000, int(limit or 500)))
     rows = await db.beta_signups.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
-    return {"signups": rows, "total": len(rows)}
+    for r in rows:
+        r.setdefault("status", "pending")
+        r.setdefault("platform", r.get("device"))
+    return {"signups": rows, "total": len(rows), "statuses": BETA_STATUSES}
+
+
+class StatusPatch(BaseModel):
+    status: Literal["pending", "approved", "invitation_sent", "installed", "active_tester", "removed"]
+
+
+@router.patch("/admin/beta-program/signups/{signup_id}")
+async def admin_signup_status(signup_id: str, patch: StatusPatch, _: dict = Depends(current_admin)):
+    r = await db.beta_signups.update_one(
+        {"id": signup_id},
+        {"$set": {"status": patch.status, "status_updated_at": now_iso()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Signup not found.")
+    row = await db.beta_signups.find_one({"id": signup_id}, {"_id": 0})
+    row.setdefault("platform", row.get("device"))
+    return row
