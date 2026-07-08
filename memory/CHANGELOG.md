@@ -1,3 +1,26 @@
+## 2026-07-08 — iter433: Beta signup collection pages (Android/iOS) + admin statuses
+
+- Homepage BetaMiniCard + /app-testing CTAs no longer open Play/TestFlight — they route to new
+  public pages /app-testing/android + /app-testing/ios (BetaSignupPage.jsx, platform prop).
+  Legacy SignupModal removed from AppTestingPage.
+- Form: name*, email*, phone model, role (shopper/maker/both), notes, required beta-ack checkbox.
+  Confirmation: "Thanks — your beta testing request has been received…".
+- Backend `POST /api/beta-program/apply`: dedup on (email, platform) [device key mirrors platform
+  for legacy stats compat], stores status='pending', ack, phone_model, role, notes; BackgroundTask
+  emails ops via email_service.send_ops_beta_signup → BETA_NOTIFY_EMAIL
+  (=williams342@gmail.com in backend/.env, falls back to OPS_EMAIL). Subject:
+  "New Crafters Market beta tester signup — Android/iOS".
+- Admin: GET /admin/beta-program/signups returns new fields + statuses list (legacy rows
+  normalized); PATCH /admin/beta-program/signups/{id} {status} — statuses: pending, approved,
+  invitation_sent, installed, active_tester, removed. BetaProgramTab table upgraded
+  (Submitted/Name/Email/Platform/Phone model/Role/Notes/Status dropdown w/ persist).
+- Tests: 18/18 new (test_iter433_beta_collection.py) + 7/7 legacy regression + all frontend flows
+  pass (report iteration_112.json). Cookie-banner overlap on the form fixed (pb-36).
+- FUTURE (user stated): once apps are approved, swap collection-page behavior for direct
+  Play/TestFlight links (config fields android_url/ios_url still exist in admin for this).
+- NOTE: admin dashboard UI login for team@craftersmarket.org currently shows a 30-day
+  password-rotation modal (unrelated env-level policy) — testing agent verified admin API via JWT.
+
 ## 2026-07-07 — iter432: Codemagic cloud iOS build (no Mac needed)
 
 - `/app/codemagic.yaml` (repo root): 2 workflows — `ios-testflight` (build+sign+TestFlight upload,

@@ -82,7 +82,7 @@ export default function BetaSignupPage({ platform = "android" }) {
 
   return (
     <div className="min-h-screen bg-paper text-ink" data-testid={`beta-signup-page-${platform}`}>
-      <div className="max-w-xl mx-auto px-6 pt-14 pb-20">
+      <div className="max-w-xl mx-auto px-6 pt-14 pb-36 sm:pb-28">
         <Link
           to="/app-testing"
           className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted hover:text-brand transition mb-8"
