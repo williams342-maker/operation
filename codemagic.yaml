@@ -57,7 +57,7 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
-        auth: integrations
+        auth: integration
         # Uploads every successful build to TestFlight automatically.
         submit_to_testflight: true
         # Flip to true later to auto-submit for App Store review:
