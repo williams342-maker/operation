@@ -15,21 +15,44 @@ const _auth = () => {
 export default function BetaProgramTab() {
   const [cfg, setCfg] = useState(null);
   const [signups, setSignups] = useState([]);
+  const [feedback, setFeedback] = useState([]);
+  const [viewShot, setViewShot] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, s] = await Promise.all([
+      const [c, s, f] = await Promise.all([
         fetch(`${API}/api/admin/beta-program/config`, { headers: _auth() }).then(r => r.json()),
         fetch(`${API}/api/admin/beta-program/signups`, { headers: _auth() }).then(r => r.json()),
+        fetch(`${API}/api/admin/beta-program/feedback`, { headers: _auth() }).then(r => r.json()),
       ]);
-      setCfg(c); setSignups(s.signups || []);
+      setCfg(c); setSignups(s.signups || []); setFeedback(f.feedback || []);
     } catch (e) { toast.error(`Load failed: ${e.message}`); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const FEEDBACK_STATUS_OPTIONS = [
+    { value: "new", label: "New" },
+    { value: "reviewed", label: "Reviewed" },
+    { value: "resolved", label: "Resolved" },
+  ];
+
+  async function setFeedbackStatus(id, status) {
+    try {
+      const r = await fetch(`${API}/api/admin/beta-program/feedback/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ..._auth() },
+        body: JSON.stringify({ status }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setFeedback((rows) => rows.map((f) => (f.id === id ? { ...f, status } : f)));
+      toast.success("Feedback status updated.");
+    } catch (e) { toast.error(e.message); }
+  }
 
   const STATUS_OPTIONS = [
     { value: "pending", label: "Pending" },
@@ -219,6 +242,71 @@ export default function BetaProgramTab() {
           </table>
         </div>
       </div>
+
+      <div className="border border-line p-6" data-testid="bp-feedback-section">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
+          ◆ Feedback · {feedback.length}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-mono">
+            <thead>
+              <tr className="text-ink-muted uppercase tracking-[0.18em] text-[10px]">
+                <th className="text-left px-2 py-2">Submitted</th>
+                <th className="text-left px-2 py-2">Platform</th>
+                <th className="text-left px-2 py-2">Type</th>
+                <th className="text-left px-2 py-2">From</th>
+                <th className="text-left px-2 py-2">Phone model</th>
+                <th className="text-left px-2 py-2">Message</th>
+                <th className="text-left px-2 py-2">Shot</th>
+                <th className="text-left px-2 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {feedback.length === 0 && (
+                <tr><td colSpan={8} className="text-center py-6 text-ink-muted">No feedback yet.</td></tr>
+              )}
+              {feedback.map(f => (
+                <tr key={f.id} className="border-t border-line align-top" data-testid={`bp-feedback-row-${f.id}`}>
+                  <td className="px-2 py-2 whitespace-nowrap">{new Date(f.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-2 uppercase">{f.platform}</td>
+                  <td className="px-2 py-2 capitalize">{f.type}</td>
+                  <td className="px-2 py-2">{f.name ? `${f.name} · ` : ""}{f.email}</td>
+                  <td className="px-2 py-2">{f.phone_model || "—"}</td>
+                  <td className="px-2 py-2 max-w-[280px] whitespace-pre-wrap break-words">{f.message}</td>
+                  <td className="px-2 py-2">
+                    {f.screenshot ? (
+                      <button onClick={() => setViewShot(f.screenshot)}
+                              className="text-brand hover:underline text-[11px]"
+                              data-testid={`bp-feedback-shot-${f.id}`}>
+                        View
+                      </button>
+                    ) : "—"}
+                  </td>
+                  <td className="px-2 py-2">
+                    <select
+                      value={f.status || "new"}
+                      onChange={(e) => setFeedbackStatus(f.id, e.target.value)}
+                      className="border border-line bg-paper px-2 py-1 font-mono text-[11px]"
+                      data-testid={`bp-feedback-status-${f.id}`}
+                    >
+                      {FEEDBACK_STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {viewShot && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 cursor-zoom-out"
+             onClick={() => setViewShot(null)} data-testid="bp-shot-modal">
+          <img src={viewShot} alt="feedback screenshot" className="max-h-[85vh] max-w-full border border-line" />
+        </div>
+      )}
     </div>
   );
 }

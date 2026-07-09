@@ -175,6 +175,12 @@ export default function BetaSignupPage({ platform = "android" }) {
             <p className="mt-4 text-[11px] text-ink-muted text-center">
               We only use your email for beta-program communication. No spam, ever.
             </p>
+            <p className="mt-2 text-[11px] text-ink-muted text-center">
+              Already testing?{" "}
+              <Link to="/app-testing/feedback" className="text-brand hover:underline" data-testid="beta-feedback-link">
+                Report a bug or share feedback →
+              </Link>
+            </p>
           </form>
         )}
       </div>

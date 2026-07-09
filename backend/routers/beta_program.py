@@ -251,3 +251,68 @@ async def admin_send_invite(signup_id: str, _: dict = Depends(current_admin)):
     row = await db.beta_signups.find_one({"id": signup_id}, {"_id": 0})
     row.setdefault("platform", row.get("device"))
     return row
+
+
+# ───────────────────── iter435 — Beta feedback (/app-testing/feedback) ──────
+FEEDBACK_STATUSES = ["new", "reviewed", "resolved"]
+
+
+class FeedbackIn(BaseModel):
+    name: Optional[str] = Field(None, max_length=80)
+    email: EmailStr
+    platform: Literal["android", "ios", "web"]
+    phone_model: Optional[str] = Field(None, max_length=80)
+    type: Literal["bug", "suggestion", "other"]
+    message: str = Field(..., min_length=5, max_length=4000)
+    screenshot: Optional[str] = Field(None, max_length=4_000_000)  # data URL, ~3 MB cap
+
+
+@router.post("/beta-program/feedback")
+async def submit_feedback(payload: FeedbackIn, bg: BackgroundTasks):
+    shot = payload.screenshot or None
+    if shot and not shot.startswith("data:image/"):
+        raise HTTPException(400, "Screenshot must be an image.")
+    row = {
+        "id": uuid.uuid4().hex,
+        "name": (payload.name or "").strip() or None,
+        "email": payload.email.lower(),
+        "platform": payload.platform,
+        "phone_model": (payload.phone_model or "").strip() or None,
+        "type": payload.type,
+        "message": payload.message.strip(),
+        "screenshot": shot,
+        "status": "new",
+        "created_at": now_iso(),
+    }
+    await db.beta_app_feedback.insert_one(row)
+    row.pop("_id", None)
+    from email_service import send_ops_beta_feedback
+    bg.add_task(
+        send_ops_beta_feedback,
+        name=row["name"] or "", email=row["email"], platform=payload.platform,
+        phone_model=row["phone_model"], ftype=payload.type, message=row["message"],
+        has_screenshot=bool(shot), submitted_at=row["created_at"],
+    )
+    return {"ok": True, "id": row["id"]}
+
+
+@router.get("/admin/beta-program/feedback")
+async def admin_feedback(limit: int = 500, _: dict = Depends(current_admin)):
+    limit = max(1, min(2000, int(limit or 500)))
+    rows = await db.beta_app_feedback.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    return {"feedback": rows, "total": len(rows), "statuses": FEEDBACK_STATUSES}
+
+
+class FeedbackStatusPatch(BaseModel):
+    status: Literal["new", "reviewed", "resolved"]
+
+
+@router.patch("/admin/beta-program/feedback/{feedback_id}")
+async def admin_feedback_status(feedback_id: str, patch: FeedbackStatusPatch, _: dict = Depends(current_admin)):
+    r = await db.beta_app_feedback.update_one(
+        {"id": feedback_id},
+        {"$set": {"status": patch.status, "status_updated_at": now_iso()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Feedback not found.")
+    return await db.beta_app_feedback.find_one({"id": feedback_id}, {"_id": 0})

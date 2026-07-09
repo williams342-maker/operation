@@ -1,3 +1,21 @@
+## 2026-07-09 — iter435: /app-testing/feedback — beta bug/feedback page
+
+- Public page (BetaFeedbackPage.jsx): platform toggle (Android/iPhone/Website), type
+  (Bug/Suggestion/Other), message*, email*, name/phone optional, screenshot upload
+  (client-side canvas downscale to 1600px JPEG → data URL, 3MB server cap, must be data:image/*).
+  Confirmation + "Send another". Linked from BetaSignupPage footer ("Report a bug…").
+  Use as the Feedback URL in Play Console / TestFlight: https://craftersmarket.org/app-testing/feedback
+- Backend: POST /api/beta-program/feedback → db.beta_app_feedback (NOTE: named beta_APP_feedback
+  because legacy db.beta_feedback belongs to the old site widget in routers/settings.py and is
+  counted by growth_stats — do not mix schemas). Ops email "New beta feedback — {Platform} — {Type}"
+  → BETA_NOTIFY_EMAIL. Admin: GET /admin/beta-program/feedback + PATCH …/{id} {status:
+  new|reviewed|resolved}.
+- Admin BetaProgramTab: new Feedback section (table w/ screenshot "View" → fullscreen modal,
+  status dropdown).
+- Self-tested: submit + validation 422 + bad screenshot 400 + admin list/patch + 401 + email event
+  'sent' + frontend E2E submit → confirmation. Gotcha hit: an App.js route search_replace reported
+  success but didn't persist (hot-reload race?) — always re-grep App.js after route edits.
+
 ## 2026-07-08 — iter434: One-click "Send invite" for beta testers
 
 - Backend `POST /api/admin/beta-program/signups/{id}/invite` (admin): emails platform-specific

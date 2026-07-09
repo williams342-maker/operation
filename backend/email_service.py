@@ -1042,6 +1042,28 @@ async def send_beta_invite(name: str, email: str, platform: str, join_url: str):
     return await _send(email, f"Your Crafters Market {plat} beta invite — setup inside", html)
 
 
+async def send_ops_beta_feedback(name: str, email: str, platform: str, phone_model: str | None,
+                                 ftype: str, message: str, has_screenshot: bool, submitted_at: str):
+    """iter435 — notify ops of every beta feedback submission."""
+    if not BETA_NOTIFY_EMAIL:
+        return
+    plat = {"android": "Android", "ios": "iOS"}.get(platform, "Web")
+    kind = (ftype or "other").title()
+    rows = [
+        ("From", f"{name or '—'} · {email}"), ("Platform", plat), ("Type", kind),
+        ("Phone model", phone_model or "—"),
+        ("Screenshot", "Yes — view in Admin → Beta Program" if has_screenshot else "No"),
+        ("Submitted", submitted_at),
+    ]
+    body = f"""
+      <table width='100%' cellpadding='0' cellspacing='0' style='font-size:13px;border-top:1px solid #262626'>
+        {''.join(f"<tr><td style='padding:8px 0;color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>{k}</td><td style='padding:8px 0;color:#e5e5e5;text-align:right'>{v}</td></tr>" for k, v in rows)}
+      </table>
+      <p style='font-size:13px;color:#e5e5e5;margin-top:18px;line-height:1.7;white-space:pre-wrap'>{message}</p>"""
+    html = _shell("Beta Feedback.", f"A tester just sent {kind.lower()} feedback on {plat}.", body, "Beta program alert")
+    return await _send(BETA_NOTIFY_EMAIL, f"New beta feedback — {plat} — {kind}", html)
+
+
 async def send_applicant_received(applicant_email: str, name: str, studio: str,
                                   is_beta: bool = False):
     """Sent to the applicant immediately after they submit a maker (or
