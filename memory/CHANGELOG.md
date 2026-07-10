@@ -1,3 +1,26 @@
+## 2026-07-10 — iter437: Admin → PayPal Events (read-only viewer)
+
+- New admin tab "PayPal Events" (caps: finance; super admin williams342@gmail.com sees all).
+  Component: components/admin/PayPalEventsTab.jsx; registered in AdminDashboard TABS + render.
+- Webhook handler enriched: sanitized payload stored (recursive redaction of token/secret/
+  password/credential/authorization/client_id keys + links stripped), extracted order_id/
+  capture_id/authorization_id/invoice_id/custom_id/amount/currency, http_outcome
+  ("200 ok" / "200 processing error" / "400 signature verification failed"), duplicate_count +
+  last_duplicate_at incremented on repeat deliveries.
+- Admin API (all Depends(current_admin)): GET /admin/paypal/events (filters env/type/verify/
+  processing/date range, search across event/order/resource/invoice/capture/auth IDs, paginated
+  25/page max 100, newest first, payload excluded from list), GET /admin/paypal/events/summary
+  (24h cards: received/verified/verify-failures/processing-failures/duplicates + config health
+  Configured/Missing only), GET /admin/paypal/events/{id} (full detail, payload re-sanitized).
+  Lazy index creation on event_id/event_type/received_at/verification_status/environment.
+- Read-only by design: no reprocess/mark-successful actions. Simulator note displayed verbatim.
+- Tests: tests/test_iter437_paypal_admin.py 7/7 + iter436 regression 7/7; UI verified via
+  screenshot with super-admin JWT (table, drawer, health, note).
+- GOTCHA (recurring): parallel search_replace batches on the SAME file can clobber each other
+  (lost edit + duplicated tail). Serialize same-file edits. Happened twice (SignInPage, paypal).
+- Admin password-rotation modal (30-day policy) appears for team@craftersmarket.org UI login —
+  unrelated env-level policy; super admin JWT with williams342@gmail.com is the test identity.
+
 ## 2026-07-10 — iter436b: PayPal sandbox credentials configured + live-verified
 
 - Sandbox Client ID/Secret + Webhook ID (9XT72327E2740625K) set in backend/.env.

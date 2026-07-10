@@ -144,7 +144,12 @@ async def paypal_webhook(request: Request):
         return JSONResponse({"error": "missing event id"}, status_code=400)
 
     # 2. Fast-path dedupe before burning a verification API call.
-    if await db.paypal_webhook_events.find_one({"event_id": event_id}, {"_id": 1}):
+    existing = await db.paypal_webhook_events.find_one({"event_id": event_id}, {"_id": 1})
+    if existing:
+        await db.paypal_webhook_events.update_one(
+            {"event_id": event_id},
+            {"$inc": {"duplicate_count": 1}, "$set": {"last_duplicate_at": now_iso()}},
+        )
         logger.info("[paypal] duplicate event ignored · id=%s", event_id)
         return {"status": "duplicate", "event_id": event_id}
 
@@ -166,11 +171,16 @@ async def paypal_webhook(request: Request):
         "environment": cfg["env"],
         "verification_status": status,
         "processing_result": None,
+        "http_outcome": None,
+        "duplicate_count": 0,
         "received_at": now_iso(),
+        **_extract_ids(event),
+        "payload": _sanitize(event),
     }
 
     if status != "SUCCESS":
         doc["processing_result"] = "rejected_unverified"
+        doc["http_outcome"] = "400 signature verification failed"
         await db.paypal_webhook_events.update_one(
             {"event_id": event_id}, {"$setOnInsert": doc}, upsert=True,
         )
@@ -183,6 +193,10 @@ async def paypal_webhook(request: Request):
         {"event_id": event_id}, {"$setOnInsert": doc}, upsert=True,
     )
     if res.upserted_id is None:
+        await db.paypal_webhook_events.update_one(
+            {"event_id": event_id},
+            {"$inc": {"duplicate_count": 1}, "$set": {"last_duplicate_at": now_iso()}},
+        )
         return {"status": "duplicate", "event_id": event_id}
 
     # 5. Process + record the outcome.
@@ -192,8 +206,174 @@ async def paypal_webhook(request: Request):
         result = f"error:{type(e).__name__}"
         logger.error("[paypal] event processing failed · id=%s · %s", event_id, type(e).__name__)
     await db.paypal_webhook_events.update_one(
-        {"event_id": event_id}, {"$set": {"processing_result": result}},
+        {"event_id": event_id},
+        {"$set": {"processing_result": result,
+                  "http_outcome": "200 ok" if not result.startswith("error:") else "200 processing error"}},
     )
     logger.info("[paypal] webhook processed · id=%s · type=%s · result=%s",
                 event_id, doc["event_type"], result)
     return {"status": "ok", "event_id": event_id, "result": result}
+
+
+# ═════════════════ iter437 — Read-only admin viewer (Admin → PayPal Events) ═
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from fastapi import Depends, HTTPException, Query  # noqa: E402
+
+from maker_auth import current_admin  # noqa: E402
+
+_SENSITIVE_KEY_PARTS = ("token", "secret", "password", "credential", "authorization", "auth_assertion", "client_id")
+
+
+def _sanitize(obj, depth: int = 0):
+    """Strip anything credential-shaped from a payload before storage/display."""
+    if depth > 8:
+        return "…"
+    if isinstance(obj, dict):
+        return {
+            k: ("[redacted]" if any(p in k.lower() for p in _SENSITIVE_KEY_PARTS) else _sanitize(v, depth + 1))
+            for k, v in obj.items() if k != "links"
+        }
+    if isinstance(obj, list):
+        return [_sanitize(v, depth + 1) for v in obj[:50]]
+    return obj
+
+
+def _extract_ids(event: dict) -> dict:
+    """Pull order/capture/invoice/custom ids + amount out of common event shapes."""
+    res = event.get("resource") or {}
+    rtype = (event.get("resource_type") or "").lower()
+    out = {
+        "order_id": None, "capture_id": None, "authorization_id": None,
+        "invoice_id": res.get("invoice_id"), "custom_id": res.get("custom_id"),
+        "amount": None, "currency": None,
+    }
+    related = ((res.get("supplementary_data") or {}).get("related_ids") or {})
+    out["order_id"] = related.get("order_id") or (res.get("id") if rtype in ("checkout-order", "order") else None)
+    if rtype == "capture":
+        out["capture_id"] = res.get("id")
+    if rtype == "authorization":
+        out["authorization_id"] = res.get("id")
+    amt = res.get("amount") or {}
+    if isinstance(amt, dict):
+        out["amount"] = amt.get("value") or (amt.get("total"))
+        out["currency"] = amt.get("currency_code") or amt.get("currency")
+    if out["amount"] is None:
+        pu = (res.get("purchase_units") or [{}])[0]
+        pamt = pu.get("amount") or {}
+        out["amount"], out["currency"] = pamt.get("value"), pamt.get("currency_code")
+        out["invoice_id"] = out["invoice_id"] or pu.get("invoice_id")
+        out["custom_id"] = out["custom_id"] or pu.get("custom_id")
+    return out
+
+
+_indexes_ready = False
+
+
+async def _ensure_indexes():
+    global _indexes_ready
+    if _indexes_ready:
+        return
+    col = db.paypal_webhook_events
+    for key in ("event_id", "event_type", "received_at", "verification_status", "environment"):
+        await col.create_index(key)
+    _indexes_ready = True
+
+
+@router.get("/admin/paypal/events")
+async def admin_paypal_events(
+    environment: str = "",
+    event_type: str = "",
+    verification_status: str = "",
+    processing_result: str = "",
+    q: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    _: dict = Depends(current_admin),
+):
+    await _ensure_indexes()
+    flt: dict = {}
+    if environment in ("sandbox", "live"):
+        flt["environment"] = environment
+    if event_type:
+        flt["event_type"] = event_type
+    if verification_status:
+        flt["verification_status"] = verification_status.upper()
+    if processing_result:
+        if processing_result == "error":
+            flt["processing_result"] = {"$regex": "^error:"}
+        else:
+            flt["processing_result"] = processing_result
+    if q:
+        needle = q.strip()
+        flt["$or"] = [
+            {"event_id": needle}, {"order_id": needle}, {"resource_id": needle},
+            {"invoice_id": needle}, {"capture_id": needle}, {"authorization_id": needle},
+        ]
+    date_flt = {}
+    if date_from:
+        date_flt["$gte"] = date_from
+    if date_to:
+        date_flt["$lte"] = date_to + ("T23:59:59Z" if len(date_to) == 10 else "")
+    if date_flt:
+        flt["received_at"] = date_flt
+
+    col = db.paypal_webhook_events
+    total = await col.count_documents(flt)
+    rows = await (
+        col.find(flt, {"_id": 0, "payload": 0})
+        .sort("received_at", -1)
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+        .to_list(page_size)
+    )
+    event_types = await col.distinct("event_type")
+    return {
+        "events": rows, "total": total, "page": page, "page_size": page_size,
+        "event_types": sorted(t for t in event_types if t),
+    }
+
+
+@router.get("/admin/paypal/events/summary")
+async def admin_paypal_summary(_: dict = Depends(current_admin)):
+    await _ensure_indexes()
+    col = db.paypal_webhook_events
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    base = {"received_at": {"$gte": cutoff}}
+    received = await col.count_documents(base)
+    verified = await col.count_documents({**base, "verification_status": "SUCCESS"})
+    ver_failed = await col.count_documents({**base, "verification_status": {"$in": ["FAILURE", "ERROR"]}})
+    proc_failed = await col.count_documents({**base, "processing_result": {"$regex": "^error:"}})
+    dup_agg = await col.aggregate([
+        {"$match": {"last_duplicate_at": {"$gte": cutoff}}},
+        {"$group": {"_id": None, "n": {"$sum": "$duplicate_count"}}},
+    ]).to_list(1)
+    cfg = _config()
+    return {
+        "last_24h": {
+            "received": received, "verified": verified,
+            "verification_failures": ver_failed, "processing_failures": proc_failed,
+            "duplicates": (dup_agg[0]["n"] if dup_agg else 0),
+        },
+        "health": {
+            "environment": cfg["env"],
+            "client_id": "Configured" if cfg["client_id"] else "Missing",
+            "client_secret": "Configured" if cfg["client_secret"] else "Missing",
+            "webhook_id": "Configured" if cfg["webhook_id"] else "Missing",
+        },
+    }
+
+
+@router.get("/admin/paypal/events/{event_id}")
+async def admin_paypal_event_detail(event_id: str, _: dict = Depends(current_admin)):
+    doc = await db.paypal_webhook_events.find_one({"event_id": event_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Event not found.")
+    # Defense in depth: payloads are sanitized at write time, but re-sanitize
+    # on the way out in case older rows predate sanitization.
+    if doc.get("payload"):
+        doc["payload"] = _sanitize(doc["payload"])
+    return doc
