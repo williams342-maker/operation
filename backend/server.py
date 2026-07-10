@@ -10,6 +10,7 @@ from routers.admin import router as admin_router
 from routers.ai import router as ai_router
 from routers.ai_marketing import router as ai_marketing_router
 from routers.auth_password import router as auth_password_router
+from routers.paypal_webhooks import router as paypal_webhooks_router
 from routers.catalog import router as catalog_router
 from routers.applications_verify import router as applications_verify_router
 from routers.csv_import import router as csv_import_router
@@ -152,6 +153,7 @@ api.include_router(ad_spend_router)
 api.include_router(newsletter_router)
 api.include_router(chat_mod_router)
 api.include_router(auth_password_router)
+api.include_router(paypal_webhooks_router)
 api.include_router(ai_marketing_router)
 api.include_router(discount_codes_router)
 api.include_router(csv_import_router)

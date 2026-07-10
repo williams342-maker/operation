@@ -1,3 +1,21 @@
+## 2026-07-10 — iter436: Secure PayPal webhook endpoint
+
+- `POST /api/webhooks/paypal` (routers/paypal_webhooks.py, registered in server.py): reads RAW body,
+  verifies via PayPal verify-webhook-signature API (OAuth2 client-credentials token cached per env),
+  rejects unverified (400, stored as rejected_unverified), dedupes on PayPal event id (fast-path
+  find + atomic $setOnInsert upsert race guard), persists to db.paypal_webhook_events
+  {event_id, event_type, resource_type, resource_id, summary, event_time, environment,
+  verification_status, processing_result, received_at}, returns 200. Failures logged w/o creds.
+  Unconfigured → 503. `_process_event()` is the business-logic hook (currently 'recorded').
+- Env (backend/.env, all empty awaiting user creds): PAYPAL_ENVIRONMENT=sandbox,
+  PAYPAL_CLIENT_ID_SANDBOX/SECRET_SANDBOX/WEBHOOK_ID_SANDBOX + _LIVE variants. Sandbox/live fully
+  separated (API base + creds + webhook id resolved by PAYPAL_ENVIRONMENT).
+- Tests: tests/test_iter436_paypal_webhooks.py — 7/7 pass (invalid JSON, missing headers, missing
+  id, verified stored+processed, duplicate not reprocessed, FAILURE recorded+400, transport 503).
+- USER TODO: create PayPal REST app at developer.paypal.com → paste sandbox client id/secret;
+  add webhook https://craftersmarket.org/api/webhooks/paypal in the PayPal app → paste Webhook ID;
+  set env values in production deploy; real verification untestable until creds exist.
+
 ## 2026-07-09 — iter435: /app-testing/feedback — beta bug/feedback page
 
 - Public page (BetaFeedbackPage.jsx): platform toggle (Android/iPhone/Website), type
