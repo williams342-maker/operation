@@ -1,3 +1,12 @@
+## 2026-07-10 — iter436b: PayPal sandbox credentials configured + live-verified
+
+- Sandbox Client ID/Secret + Webhook ID (9XT72327E2740625K) set in backend/.env.
+- Verified against real PayPal sandbox: OAuth token acquired; forged webhook rejected by
+  verify-webhook-signature (FAILURE -> 400, stored rejected_unverified). Pipeline fully live.
+- Registered webhook URL: https://craftersmarket.org/api/webhooks/paypal (production).
+- NOTE: PayPal webhook simulator events may fail verification (simulator uses its own webhook id);
+  a real sandbox transaction is the reliable e2e test.
+
 ## 2026-07-10 — iter436: Secure PayPal webhook endpoint
 
 - `POST /api/webhooks/paypal` (routers/paypal_webhooks.py, registered in server.py): reads RAW body,
