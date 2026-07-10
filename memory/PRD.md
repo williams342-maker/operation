@@ -1,3 +1,20 @@
+## 2026-07-10 — iter438b: PayPal signature verification FIX (raw-body) + diagnostics
+
+- ROOT CAUSE of real-event FAILURE: verify-webhook-signature was sent a re-serialized
+  webhook_event (json.loads → httpx json=). Any byte diff vs what PayPal signed (whitespace,
+  unicode, float formatting) fails the CRC. FIX: splice the ORIGINAL raw bytes into the
+  verification request: json.dumps(meta)[:-1] + ',"webhook_event":' + raw + '}'.
+  _verify_signature signature changed to (cfg, headers, raw_body: bytes).
+- Diagnostics added (user-requested): masked webhook_id (last 4) + env + forwarded-header list
+  logged before verify; PayPal response status + body (≤500 chars, no secrets) logged after.
+- Verified chain: GET /v1/notifications/webhooks with configured creds shows webhook
+  9XT72327E2740625K registered on THIS app with url craftersmarket.org/api/webhooks/paypal →
+  same app for checkout + verification. Frontend client-id comes from the same env var via
+  /api/paypal/checkout/config → cannot diverge.
+- Tests 14/14 pass; live e2e log confirms masked-id + response-body logging works.
+- USER: redeploy, then repeat the sandbox purchase — expect verification SUCCESS and
+  processing_result reconciled:<internal-id> in Admin → PayPal Events.
+
 ## 2026-07-10 — iter438: PayPal Checkout (Orders v2) alongside Stripe — SANDBOX
 
 - Backend routers/paypal_checkout.py: POST /api/paypal/checkout/orders (resolves cart via

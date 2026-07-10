@@ -89,26 +89,47 @@ async def _access_token(cfg: dict) -> str:
     return data["access_token"]
 
 
-async def _verify_signature(cfg: dict, headers, event: dict) -> str:
-    """Returns PayPal's verification_status: SUCCESS | FAILURE (or ERROR on transport issues)."""
+def _mask(v: str) -> str:
+    return ("…" + v[-4:]) if v and len(v) > 4 else "…"
+
+
+async def _verify_signature(cfg: dict, headers, raw_body: bytes) -> str:
+    """Returns PayPal's verification_status: SUCCESS | FAILURE (or ERROR on
+    transport issues).
+
+    CRITICAL: `webhook_event` must be the EXACT raw bytes PayPal sent — any
+    re-serialization (key order, whitespace, unicode escapes, float formatting)
+    changes the CRC and PayPal returns FAILURE. We therefore splice the raw
+    body into the request string instead of letting the JSON encoder touch it.
+    """
     token = await _access_token(cfg)
-    payload = {
-        "auth_algo": headers.get("paypal-auth-algo"),
-        "cert_url": headers.get("paypal-cert-url"),
-        "transmission_id": headers.get("paypal-transmission-id"),
-        "transmission_sig": headers.get("paypal-transmission-sig"),
-        "transmission_time": headers.get("paypal-transmission-time"),
+    hdr_names = ["paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id",
+                 "paypal-transmission-sig", "paypal-transmission-time"]
+    forwarded = {h: headers.get(h) for h in hdr_names}
+    meta = {
+        "auth_algo": forwarded["paypal-auth-algo"],
+        "cert_url": forwarded["paypal-cert-url"],
+        "transmission_id": forwarded["paypal-transmission-id"],
+        "transmission_sig": forwarded["paypal-transmission-sig"],
+        "transmission_time": forwarded["paypal-transmission-time"],
         "webhook_id": cfg["webhook_id"],
-        "webhook_event": event,
     }
+    logger.info(
+        "[paypal] verifying · webhook_id=%s · env=%s · headers_present=%s",
+        _mask(cfg["webhook_id"]), cfg["env"],
+        ",".join(h for h in hdr_names if forwarded[h]),
+    )
+    body = json.dumps(meta)[:-1] + ',"webhook_event":' + raw_body.decode("utf-8") + "}"
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(
             f"{cfg['base']}/v1/notifications/verify-webhook-signature",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json=payload,
+            content=body,
         )
+    # Response bodies contain no credentials — safe to log verbatim.
+    logger.info("[paypal] verify-webhook-signature · status=%s · body=%s",
+                r.status_code, r.text[:500])
     if r.status_code != 200:
-        logger.error("[paypal] verify-webhook-signature HTTP %s", r.status_code)
         return "ERROR"
     return (r.json().get("verification_status") or "FAILURE").upper()
 
@@ -166,9 +187,9 @@ async def paypal_webhook(request: Request):
         logger.info("[paypal] duplicate event ignored · id=%s", event_id)
         return {"status": "duplicate", "event_id": event_id}
 
-    # 3. Verify with PayPal.
+    # 3. Verify with PayPal — pass the RAW bytes, never the re-parsed event.
     try:
-        status = await _verify_signature(cfg, request.headers, event)
+        status = await _verify_signature(cfg, request.headers, raw)
     except Exception as e:
         logger.error("[paypal] verification error · id=%s · %s", event_id, type(e).__name__)
         return JSONResponse({"error": "verification unavailable"}, status_code=503)
