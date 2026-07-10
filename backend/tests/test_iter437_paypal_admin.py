@@ -116,7 +116,7 @@ async def test_detail_sanitization_and_ids(client, verify_success):
     assert d["order_id"] == "ORD-777" and d["invoice_id"] == "INV-42" and d["custom_id"] == "order-abc"
     assert d["amount"] == "25.00" and d["currency"] == "USD"
     assert d["capture_id"] == ev["resource"]["id"]
-    assert d["http_outcome"] == "200 ok" and d["processing_result"] == "recorded"
+    assert d["http_outcome"] == "200 ok" and d["processing_result"] == "recorded_no_matching_order"
     # credential-shaped keys redacted in stored payload
     assert d["payload"]["resource"]["secret_token"] == "[redacted]"
     assert "links" not in d["payload"]

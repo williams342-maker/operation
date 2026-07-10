@@ -1,3 +1,30 @@
+## 2026-07-10 — iter438: PayPal Checkout (Orders v2) alongside Stripe — SANDBOX
+
+- Backend routers/paypal_checkout.py: POST /api/paypal/checkout/orders (resolves cart via
+  checkout.py's _resolve_cart/_quote_for/_resolve_discount — SERVER-side totals, browser only sends
+  item ids; creates PayPal v2 order w/ item breakdown + shipping + discount, PayPal-Request-Id
+  idempotency, custom_id/invoice_id = internal id; stores db.paypal_orders snapshot),
+  POST .../{id}/capture (404 unknown, idempotent re-capture, handles ORDER_ALREADY_CAPTURED,
+  402 non-completed, stores capture_id/payer), GET /api/paypal/checkout/config (public client-id).
+- Webhook reconciliation: paypal_webhooks._process_event now matches PAYMENT.CAPTURE.COMPLETED /
+  CHECKOUT.ORDER.COMPLETED by custom_id→db.paypal_orders, sets reconciled=True →
+  processing_result "reconciled:<id>"; non-matching capture events → "recorded_no_matching_order"
+  (iter436/437 tests updated accordingly, 14/14 pass).
+- Frontend: components/PayPalCheckoutButton.jsx (SDK loaded from config client-id, Smart Buttons,
+  StrictMode-safe render w/ buttons.close() cleanup — first attempt hit "zoid destroyed all
+  components"), CartPage buildPayPalPayload (mirrors checkout validations; attribution/SMS fields
+  intentionally omitted for MVP), rendered under Stripe CHECKOUT btn with "or pay with" divider +
+  sandbox badge; CheckoutSuccess now branches: ?paypal_order=… → PayPalSuccess (clears cart),
+  else original Stripe flow untouched.
+- VERIFIED: real sandbox order created ($149 item + $25 ship = $174 breakdown), capture guards,
+  reconciliation, Stripe /cart/quote regression OK, UI section renders.
+- NOT VERIFIABLE IN PREVIEW: PayPal buttons iframe (PayPal blocks headless browsers — ERR_ABORTED
+  on smart/buttons). Must be eyeballed in a real browser. Full buyer flow needs a sandbox personal
+  account login.
+- KNOWN GAP (intentional test-phase scope): PayPal captures live in db.paypal_orders + admin PayPal
+  Events; they DO NOT yet create maker orders / decrement stock / send receipts (Stripe's
+  finalization pipeline in checkout_status is Stripe-transaction-specific). Wire before going live.
+
 ## 2026-07-10 — iter437: Admin → PayPal Events (read-only viewer)
 
 - New admin tab "PayPal Events" (caps: finance; super admin williams342@gmail.com sees all).

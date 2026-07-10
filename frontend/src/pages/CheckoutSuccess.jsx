@@ -19,6 +19,40 @@ const SHARE_BRAND_MEDIA =
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
+  const ppOrder = params.get("paypal_order");
+  if (ppOrder) {
+    return <PayPalSuccess orderId={ppOrder} total={params.get("total") || ""} />;
+  }
+  return <StripeCheckoutSuccess />;
+}
+
+// iter438 — lightweight confirmation for PayPal captures (server-side
+// captured before this page renders; no polling needed).
+function PayPalSuccess({ orderId, total }) {
+  const { clear } = useCart();
+  useEffect(() => { clear(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="pt-32 pb-24 grain min-h-screen" data-testid="paypal-success-page">
+      <div className="max-w-xl mx-auto px-6 text-center">
+        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-4">◆ Order confirmed</div>
+        <h1 className="font-display text-4xl sm:text-5xl mb-4">Payment received.</h1>
+        <p className="text-ink-muted mb-2">
+          Your PayPal payment{total ? ` of $${total}` : ""} was captured successfully.
+        </p>
+        <p className="font-mono text-[11px] text-ink-muted mb-8" data-testid="paypal-success-order-id">
+          Reference: CM-PP-{String(orderId).slice(0, 12)}
+        </p>
+        <Link to="/shop" className="btn-industrial btn-primary inline-flex" data-testid="paypal-success-continue">
+          Continue shopping →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function StripeCheckoutSuccess() {
+  const [params] = useSearchParams();
   const sid = params.get("session_id");
   const [state, setState] = useState({ status: "polling", payment_status: "", amount_total: 0, currency: "usd", customer_email: "" });
   const [accountState, setAccountState] = useState({ kind: "idle", message: "" });

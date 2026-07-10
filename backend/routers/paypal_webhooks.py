@@ -114,8 +114,21 @@ async def _verify_signature(cfg: dict, headers, event: dict) -> str:
 
 
 async def _process_event(event: dict) -> str:
-    """Business-logic hook. Extend with per-event handling (e.g.
-    PAYMENT.CAPTURE.COMPLETED) as PayPal payments come online."""
+    """Business-logic hook. iter438: reconcile PayPal checkout captures."""
+    etype = event.get("event_type") or ""
+    if etype in ("PAYMENT.CAPTURE.COMPLETED", "CHECKOUT.ORDER.COMPLETED"):
+        res = event.get("resource") or {}
+        internal_id = res.get("custom_id")
+        capture_id = res.get("id")
+        flt = {"id": internal_id} if internal_id else {"capture_id": capture_id}
+        upd = await db.paypal_orders.update_one(
+            flt,
+            {"$set": {"reconciled": True, "reconciled_at": now_iso(),
+                      "reconciled_by_event": event.get("id")}},
+        )
+        if upd.matched_count:
+            return f"reconciled:{internal_id or capture_id}"
+        return "recorded_no_matching_order"
     return "recorded"
 
 

@@ -90,7 +90,7 @@ async def test_verified_event_stored_and_processed(client, verify_success):
     assert r.json()["status"] == "ok"
     doc = await db.paypal_webhook_events.find_one({"event_id": ev["id"]})
     assert doc["verification_status"] == "SUCCESS"
-    assert doc["processing_result"] == "recorded"
+    assert doc["processing_result"] == "recorded_no_matching_order"  # iter438: capture events reconcile
     assert doc["event_type"] == ev["event_type"]
     assert doc["resource_id"] == ev["resource"]["id"]
     assert doc["environment"] == "sandbox"

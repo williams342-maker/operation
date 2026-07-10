@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../lib/cart";
 import { createCheckout, fetchCartQuote, trackCart } from "../lib/api";
+import PayPalCheckoutButton from "../components/PayPalCheckoutButton";
 import { getAttributionSource, getMsclkid, getGclid, getFbclid } from "../lib/analytics";
 import { uetTrack } from "../lib/consent";
 import { trackMeta } from "../lib/metaPixel";
@@ -164,6 +165,46 @@ export default function CartPage() {
   const removeCode = () => {
     setAppliedCode(""); setDiscountInput("");
     try { localStorage.removeItem("cm_cart_discount"); } catch {}
+  };
+
+  // iter438 — payload for PayPal Smart Buttons. Mirrors `checkout`'s
+  // validations; the server recomputes all totals so only item identifiers
+  // and buyer details ship from the browser.
+  const buildPayPalPayload = () => {
+    const fail = (msg) => { setErr(msg); throw new Error(msg); };
+    if (!email || !/.+@.+\..+/.test(email)) fail("Enter a valid email so we can send your receipt.");
+    if (!consent.accepted) fail("Please review and accept the Site Policies to continue.");
+    if (!quote?.digital_only) {
+      const missing = ["name", "line1", "city", "state", "postal_code"]
+        .filter((k) => !(shipAddr[k] || "").trim());
+      if (missing.length) fail("Please complete your shipping address before checkout.");
+      if (!/^\d{5}(-\d{4})?$/.test(shipAddr.postal_code.trim())) fail("Enter a valid 5-digit ZIP code.");
+    }
+    setErr("");
+    return {
+      items: items.map((i) => ({
+        product_id: i.id, quantity: i.quantity,
+        variant_id: i.variant_id || undefined,
+        personalization_text: i.personalization_text || undefined,
+        personalization_image_url: i.personalization_image_url || undefined,
+        personalization_upload_ids: i.personalization_upload_ids?.length ? i.personalization_upload_ids : undefined,
+        color_choice: i.color_choice || undefined,
+        custom_option_ids: i.custom_option_ids?.length ? i.custom_option_ids : undefined,
+      })),
+      origin_url: window.location.origin,
+      customer_email: email,
+      gift_note: giftNote || undefined,
+      discount_code: appliedCode || undefined,
+      shipping_address: quote?.digital_only ? undefined : {
+        name: shipAddr.name.trim(), line1: shipAddr.line1.trim(),
+        line2: (shipAddr.line2 || "").trim() || undefined,
+        city: shipAddr.city.trim(), state: shipAddr.state.trim(),
+        postal_code: shipAddr.postal_code.trim(), country: "US",
+      },
+      policy_accepted: true,
+      policy_version: consent.version,
+      policy_accepted_at: new Date().toISOString(),
+    };
   };
 
   const checkout = async () => {
@@ -656,6 +697,11 @@ export default function CartPage() {
                 {loading ? "Redirecting…" : "Checkout →"}
               </button>
               {err && <p className="text-brand font-mono text-xs mt-3">{err}</p>}
+              <PayPalCheckoutButton
+                buildPayload={buildPayPalPayload}
+                disabled={!consent.accepted}
+                onPaid={clear}
+              />
               <button onClick={clear} className="block mt-4 mx-auto industrial-link font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">Clear cart</button>
             </aside>
           </div>
