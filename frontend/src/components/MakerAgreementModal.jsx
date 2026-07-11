@@ -52,7 +52,7 @@ export default function MakerAgreementModal() {
         </p>
         <a href="/policies/terms#maker-agreement" target="_blank" rel="noreferrer"
            className="industrial-link font-mono text-xs uppercase tracking-[0.18em]"
-           data-testid="agreement-read-link">
+           data-testid="agreement-full-link">
           Read the full agreement →
         </a>
         <label className="flex items-start gap-2.5 mt-5 cursor-pointer">

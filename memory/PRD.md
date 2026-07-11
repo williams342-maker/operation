@@ -110,6 +110,54 @@ date range shown, maker-browser timezone grouping, current partial day EXCLUDED 
 
 NEXT: Phase 4 Digital Products (product type, file upload, auto-delivery, download limits).
 
+## 2026-07-11 — iter453: Phase 4 Digital Products + Maker Agreement COMPLETE + VERIFIED
+
+Built on the pre-existing iter327/328 foundation (listing_type physical/digital/both,
+digital-only checkout skips shipping, HMAC download tokens, delivery manifest + email).
+User choices: 100MB/file max 5 files (legacy 10-file listings grandfathered); instant
+links on confirmation page + email; UNLIMITED downloads by default, links expire 30d,
+buyers re-download forever from /purchases; makers may optionally set a limit/TTL;
+Physical + Digital only (Service deferred); creator file types pdf svg dxf dwg ai eps
+stl step stp 3mf zip png jpg jpeg epub mp3 mp4.
+
+- Backend routers/digital_products.py: chunked uploads (init → PUT ≤6MB chunks →
+  complete assembles + scans + real R2 PUT), heuristic security scan gate
+  (scan_digital_file: magic-bytes vs ext, PE/ELF/shebang rejection, zip member
+  blocklist + zip-bomb ratio; NOT real AV — ClamAV unavailable, HIGHLIGHTED to user),
+  versioned replace w/ release_notes (versions[] history preserved, buyers always get
+  latest), PATCH digital-settings {download_limit, download_ttl_days, clear_limit},
+  buyer endpoints GET /buyer/purchases (email-scoped) + POST .../download-links
+  (re-mint honoring per-product TTL) + GET .../download-history.
+- checkout.py download endpoint hardened: scan-blocked → 410, download_limit → 403,
+  db.download_history audit rows (ip/ua/version), 302 now redirects to a 5-min
+  PRESIGNED r2.cloudflarestorage.com URL (r2_storage.presigned_get_url) — raw public
+  storage paths never leak. Mint-time TTL honors product download_ttl_days.
+- Backend routers/maker_agreement.py: CURRENT_AGREEMENT_VERSION 1.0 (env
+  MAKER_AGREEMENT_VERSION), GET /maker/agreement/status, POST /accept (201; records
+  version/timestamp/IP first x-forwarded-for hop/user-agent; wrong version 409;
+  APPEND-ONLY — re-accepts add rows), GET /admin/agreement/acceptances (audit table +
+  makers_by_version + pending_current).
+- Frontend: lib/chunkedUpload.js (4MB chunks, progress); ListingTypeSection.jsx
+  (100MB copy, 5-file cap, replace button w/ release-notes prompt, v2 + scanned
+  badges, DeliverySettings block); PurchasesPage.jsx at /purchases (sign-in gate →
+  buyer re-downloads + history); MakerAgreementModal.jsx (blocking, checkbox-gated,
+  mounted in MakerDashboard); admin/MakerAgreementTab.jsx (tab id maker-agreement);
+  CheckoutSuccess copy links to /purchases.
+- TESTED: 14/14 unit + 19/19 live pytest (test_iter453_digital_phase4.py,
+  test_iter453_live_digital_phase4.py); testing agent iteration_116.json 100%
+  backend + frontend, 0 issues. Live-verified: real R2 chunked upload, presigned 302,
+  limit 403, append-only audit, blocking modal accept flow, purchases re-download.
+- Seed/demo: buyer-demo@craftersmarket.org owns tx seed-digital-demo-1 →
+  mountain-range-silhouette (now listing_type=both, file at v2 after replace test).
+  iron-and-oak + metalart-pro have accepted agreement v1.0.
+- Known limitations: scanning is heuristic (no ClamAV in env — layer real AV before
+  large-scale prod use); nav has no Purchases link yet (reachable via /purchases +
+  CheckoutSuccess link).
+
+NEXT: per roadmap — Featured Maker Promotion Engine / INFORM Act automation /
+cart-recovery SMS / PolicyPage refactor. To bump agreement version later: set
+MAKER_AGREEMENT_VERSION env → all makers re-prompted automatically.
+
 ## 2026-07-11 — iter449: Cookie Preference Center (P1 compliance) COMPLETE
 
 - NEW /cookie-preferences page (pages/CookiePreferences.jsx): 3 categories — Strictly

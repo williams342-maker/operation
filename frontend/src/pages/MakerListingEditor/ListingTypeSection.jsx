@@ -274,7 +274,8 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
                     <div className="font-mono text-[9.5px] text-ink-muted mt-0.5 flex items-center gap-1.5">
                       {f.ext} · {formatBytes(f.size_bytes)}
                       {f.scan?.status === "clean" && (
-                        <span className="inline-flex items-center gap-0.5 text-green-500" title="Passed security scan">
+                        <span className="inline-flex items-center gap-0.5 text-green-500" title="Passed security scan"
+                              data-testid={`editor-digital-file-scan-${f.id}`}>
                           <ShieldCheck size={9} /> scanned
                         </span>
                       )}
