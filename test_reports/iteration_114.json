@@ -1,0 +1,44 @@
+{
+  "summary": "iter451 Phase 2 Store Search — thorough E2E backend + frontend verification. Backend: existing 6 unit tests + 18 new live-URL tests (24 total) all pass — endpoint shape, section-name hits, per-maker scoping (cross-maker leakage impossible), empty q, special-regex q (wood (oak), a+b, .*, [abc], hello?, x|y), long q truncation to 80, unknown-maker slug, zero-result suggestions capped at 5, scoring descending, limit default=12/max=24, popular-search meta reflects logged queries with results and excludes zero-result queries, per-maker meta isolation. Frontend on preview URL: input visible with correct combobox/aria-expanded/aria-autocomplete=list; typing 'wall' opens dropdown with store-search-section-wall-art (Wall Art · 3 products) at top; typing 'oak' returns 2 products with 1 <mark> highlight (only 'Carved Oak Wedding Monogram' has 'oak' in the title — 'Rustic Family Name Sign' matches on tags so its title correctly has no mark); Escape closes; nonsense query shows zero-result suggestion rows on iron-and-oak (has sections) AND correctly shows store-search-empty panel on metalart-pro (no sections) — perfect branching; store-search-by-section container renders when hits span multiple sections (broad 'a' query showed 2 chips); clicking product navigates to /shop/rustic-family-name-sign staying within storefront; localStorage cm_store_recent_iron-and-oak persisted [\"sign\"] after click; refocusing empty input surfaces store-search-recent-sign row and popular row from meta endpoint; clicking outside dropdown closes it; clicking section-hit row navigates to /makers/iron-and-oak/wall-art (Phase 1 deep link still works); mobile 390x844 dropdown fits within viewport (x=16, w=358) and is not clipped; no console errors originating from StoreSearch — the only 2 errors observed are unrelated ERR_NAME_NOT_RESOLVED (mocked google-ads endpoint per PRD). Screenshots captured for user: /app/test_reports/iter114_desktop_search.jpg (desktop 'oak' with highlighted mark) and /app/test_reports/iter114_mobile_search.jpg (mobile 'oak' with 2 product hits). Phase 2 Store Search is production-ready.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter114_store_search_live.py",
+    "/app/backend/tests/test_iter451_store_search.py",
+    "/app/test_reports/pytest/iter114_live.xml",
+    "/app/test_reports/pytest/iter114_store_search.xml",
+    "/app/test_reports/iter114_desktop_search.jpg",
+    "/app/test_reports/iter114_mobile_search.jpg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "store_search.py L118 `total = len(scored)`: results-count logged to store_search_logs is products-only. A query that returns ONLY section hits (e.g. 'wall' on iron-and-oak → wall-art section with 3 products but no product title contains 'wall') logs results=0, so it's excluded from popular searches even though it's a legitimately useful result. Consider `total = len(scored) + len(section_hits)` OR log a separate `section_hits` field that meta also counts. Non-blocking but reduces the value of the popular-search rail for section-heavy stores.",
+    "store_search.py L60 `q = _norm(q).lower()`: lowercased once, then used in `title.lower() == q` (line 44) which is correct, but for regex `re.escape(q)` (already lowercased) with `re.IGNORECASE` flag — the IGNORECASE flag is redundant since q is lowercased AND then `.search(title)` in _score uses IGNORECASE too, so effectively double-lowercasing. Functionally correct, just a minor perf micro-opt.",
+    "StoreSearch.jsx L131 input padding `py-2.5` combined with the fixed h-8/w-8 image thumbnails at L173 look great at desktop; at mobile 390px, dropdown fits within viewport (verified box x=16, w=358 out of 390). Good.",
+    "StoreSearch.jsx L92-107 `go()` function: when clicking a product row, `pushRecent` uses `q.trim().toLowerCase()` — the current search term — not the product title. When clicking a section/suggestion row, it uses `row.name.toLowerCase()`. Verified: after clicking 'Rustic Family Name Sign' from a 'sign' search, localStorage stored ['sign'] (the query, not the product title). This is the expected UX pattern (Etsy/Amazon behavior) so it's fine — just calling out for main agent awareness.",
+    "StoreSearch.jsx L109-115 `onKey`: handler only runs `if (!open) return` — so ArrowDown while dropdown is closed does nothing. If the user tabs into the input and presses ArrowDown while the dropdown just closed, they can't reopen with keyboard. Minor a11y gap; typing any character re-opens it via setOpen(true) so real users are unaffected.",
+    "StoreSearch.jsx L57-60 outside-click listener: `mousedown` on document — works but doesn't handle touch events explicitly. On mobile Safari, `mousedown` is synthesized from touch so it still works (verified on mobile 390px viewport). Non-blocking.",
+    "store_search.py L124-129 fire-and-forget insert: uses `await` inside `try/except Exception: pass` — if Mongo is slow this still blocks the response. A true fire-and-forget would `asyncio.create_task(...)`. Non-blocking; current implementation still returns quickly in normal operation.",
+    "Highlight component L26-37: single-occurrence highlight only (first match). If the query appears twice in a title, only the first is marked. Acceptable for search relevance UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter114_store_search_live.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (24/24 tests — 6 unit + 18 live E2E)",
+    "frontend": "100% (16/16 checklist items: input+combobox aria, debounced live search, section hit ranking, product hits with highlighted <mark>, keyboard nav ArrowDown/Up/Enter/Escape, zero-result suggestions branching (with/without sections), by_section jump chips, product→/shop nav, section→/makers/{slug}/{section} nav, recent (localStorage per-store), popular from meta, click-outside close, mobile 390px viewport fit, deep-link regression, no StoreSearch console errors)"
+  },
+  "test_credentials": "None required — guest browsing tested.",
+  "seed_data_creation": "Populated store_search_logs collection for iron-and-oak with test queries (sign, oak, wall, mountain, a, zzzz…). These are legitimate log entries and self-clear via the 30-day window in meta aggregation. metalart-pro logs also touched via cross-maker scoping test. No product/section data mutated.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 Store Search is production-ready. Backend endpoints (/api/makers/{slug}/search and /search/meta) are stable and correctly scoped per maker. Frontend component StoreSearch.jsx handles all documented edge cases including the two zero-result branches (suggestions when store has sections vs. empty panel when it doesn't). One minor product-improvement suggestion for main agent: consider whether section-only-hit queries should count toward popular searches (see first code-review comment) — non-blocking. Seed makers: iron-and-oak (3 sections: wall-art [3 products incl. mountain-range-silhouette, rustic-family-name-sign, carved-oak-wedding-monogram], bottle-openers [1], fire-pits-outdoor [0]); metalart-pro (0 sections, used for no-sections branch tests). Test files: /app/backend/tests/test_iter114_store_search_live.py.",
+  "rca of the issue": "N/A — no bugs found."
+}

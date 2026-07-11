@@ -336,6 +336,8 @@ from routers.finance_ledger import router as finance_ledger_router
 api.include_router(finance_ledger_router)
 from routers.store_sections import router as store_sections_router
 api.include_router(store_sections_router)
+from routers.store_search import router as store_search_router
+api.include_router(store_search_router)
 
 app.include_router(api)
 

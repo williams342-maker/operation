@@ -18,6 +18,7 @@ import SaveDropButton from "../components/SaveDropButton";
 import WorkshopVideoGrid from "../components/WorkshopVideoGrid";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 import Breadcrumbs from "../components/Breadcrumbs";
+import StoreSearch from "../components/StoreSearch"; // iter451 — store-scoped search
 
 // Always emit the canonical apex URL — never the preview hostname.
 const SITE_URL = "https://craftersmarket.org";
@@ -405,6 +406,11 @@ export default function MakerDetail() {
         <h2 className="font-display text-4xl md:text-6xl mb-8">
           {activeSection ? activeSection.name : "From the workshop"}
         </h2>
+        {/* iter451 — "Search this Store": scoped to this maker only,
+            section-aware autocomplete. */}
+        <div className="mb-8 -mt-2">
+          <StoreSearch makerSlug={m.slug} makerName={m.name} />
+        </div>
         {activeSection?.description && (
           <p className="font-mono text-xs text-ink-muted -mt-4 mb-8 max-w-xl leading-relaxed" data-testid="section-description">
             {activeSection.description}
