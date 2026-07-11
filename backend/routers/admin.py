@@ -1126,10 +1126,21 @@ async def admin_email_brief_party(
 
 @router.get("/admin/orders")
 async def admin_orders(_: dict = Depends(current_admin)):
-    """All paid orders, newest first."""
-    return await db.payment_transactions.find(
+    """All paid orders, newest first, with per-maker payout status attached."""
+    rows = await db.payment_transactions.find(
         {"payment_status": "paid"}, {"_id": 0}
     ).sort("created_at", -1).to_list(500)
+    sids = [r["session_id"] for r in rows if r.get("session_id")]
+    by_session: dict[str, list] = {}
+    async for p in db.maker_payouts.find(
+            {"session_id": {"$in": sids}},
+            {"_id": 0, "session_id": 1, "maker_slug": 1, "status": 1,
+             "payout_batch_id": 1, "gross_cents": 1, "commission_cents": 1,
+             "amount_cents": 1, "paid_at": 1}):
+        by_session.setdefault(p["session_id"], []).append(p)
+    for r in rows:
+        r["payouts"] = by_session.get(r.get("session_id"), [])
+    return rows
 
 
 @router.post("/admin/orders/{session_id}/refund")

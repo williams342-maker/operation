@@ -3768,11 +3768,19 @@ async def send_maker_paypal_email_needed(maker_email: str, maker_name: str,
 
 
 async def send_maker_payout_sent(maker_email: str, maker_name: str, amount: float,
-                                 paypal_email: str, batch_id: str | None):
+                                 paypal_email: str, batch_id: str | None,
+                                 sandbox_test: bool = False, orders_count: int | None = None):
     """Payout receipt — a PayPal Payouts batch just paid this maker."""
     if not maker_email:
         return None
+    from datetime import datetime, timezone
+    test_note = (
+        "<p style='font-size:12px;color:#facc15;border:1px solid #854d0e;padding:8px 12px;"
+        "margin-bottom:14px'>⚠ SANDBOX TEST PAYOUT — no real money moved. This is a $0.01 "
+        "test of the payout pipeline.</p>"
+    ) if sandbox_test else ""
     body = (
+        test_note +
         f"<p style='font-size:14px;line-height:1.7;color:#e5e5e5'>We've sent your Crafters "
         f"Market payout via PayPal:</p>"
         f"<div style='border:1px solid #262626;padding:16px;margin:18px 0;text-align:center'>"
@@ -3780,10 +3788,51 @@ async def send_maker_payout_sent(maker_email: str, maker_name: str, amount: floa
         f"<div style='color:#ff4500;font-family:Impact,sans-serif;font-size:34px'>${amount:.2f}</div></div>"
         f"<p style='font-size:13px;color:#a3a3a3;line-height:1.7'>Sent to: "
         f"<span style='color:#e5e5e5'>{paypal_email}</span>"
+        + (f"<br/>Orders included: <span style='color:#e5e5e5'>{orders_count}</span>" if orders_count else "")
         + (f"<br/>PayPal batch: <span style='color:#e5e5e5'>{batch_id}</span>" if batch_id else "")
+        + f"<br/>Date: <span style='color:#e5e5e5'>{datetime.now(timezone.utc).strftime('%B %d, %Y')}</span>"
         + "<br/>Funds typically appear in your PayPal account within minutes.</p>"
     )
-    html = _shell(f"Payout sent, {maker_name}.", "Your PayPal payout is on its way.",
-                  body, "Payout receipt")
-    return await _send(maker_email, f"Payout sent · ${amount:.2f} → {paypal_email}", html)
+    html = _shell(
+        ("Sandbox test payout." if sandbox_test else f"Payout sent, {maker_name}."),
+        "Your PayPal payout is on its way.", body,
+        "Sandbox test payout" if sandbox_test else "Payout receipt")
+    subject = (f"Sandbox test payout · ${amount:.2f} → {paypal_email}" if sandbox_test
+               else f"Payout sent · ${amount:.2f} → {paypal_email}")
+    return await _send(maker_email, subject, html)
 
+
+
+async def send_admin_payout_report(report: dict):
+    """iter444 — engine cycle summary for the platform team."""
+    to = OPS_EMAIL
+    if not to:
+        return None
+    skipped = report.get("skipped") or []
+    failures = report.get("failures") or []
+    by_reason = {}
+    for s in skipped:
+        by_reason[s["reason"]] = by_reason.get(s["reason"], 0) + 1
+    skip_rows = "".join(
+        f"<tr><td style='padding:4px 10px;color:#a3a3a3'>{k}</td>"
+        f"<td style='padding:4px 10px;color:#e5e5e5;text-align:right'>{v}</td></tr>"
+        for k, v in sorted(by_reason.items()))
+    body = (
+        f"<div style='border:1px solid #262626;padding:16px;margin:14px 0;text-align:center'>"
+        f"<div style='color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>Total paid</div>"
+        f"<div style='color:#ff4500;font-family:Impact,sans-serif;font-size:34px'>"
+        f"${(report.get('total_paid_cents') or 0) / 100:.2f}</div>"
+        f"<div style='color:#a3a3a3;font-size:12px'>{report.get('paid_makers') or 0} maker(s) · "
+        f"{len(failures)} failure(s) · {len(skipped)} skipped · run {report.get('run_id') or '—'}</div></div>"
+        + (f"<table style='width:100%;border:1px solid #262626;border-collapse:collapse;font-size:12px'>"
+           f"<tr><th style='padding:4px 10px;text-align:left;color:#a3a3a3'>Skip reason</th>"
+           f"<th style='padding:4px 10px;text-align:right;color:#a3a3a3'>Makers</th></tr>{skip_rows}</table>"
+           if skip_rows else "")
+        + (f"<p style='color:#f87171;font-size:12px'>Failures: "
+           f"{'; '.join(f.get('error', '')[:120] for f in failures)}</p>" if failures else "")
+    )
+    html = _shell("Payout cycle report.",
+                  f"Trigger: {report.get('trigger')} · due: {', '.join(report.get('due_frequencies') or [])}",
+                  body, "Automated payout engine")
+    return await _send(to, f"Payout report · ${(report.get('total_paid_cents') or 0) / 100:.2f} "
+                           f"to {report.get('paid_makers') or 0} maker(s)", html)

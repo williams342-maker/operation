@@ -603,18 +603,30 @@ function MonthlyStatements({ txns, query }) {
 // Section: Payment settings (Stripe-managed)
 // ============================================================================
 // ============================================================================
-// iter441 — PayPal payout destination + deferred balance banner
+// iter441/444 — Financial settings: PayPal payout email, payout method,
+// schedule, minimum, hold period + live balance strip
 // ============================================================================
 function PayPalPayoutCard({ payouts }) {
   const [me, setMe] = useState(null);
   const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
+  const [ov, setOv] = useState(null);
+  const [minUsd, setMinUsd] = useState("25");
+
+  const loadOverview = () => {
+    import("../../lib/api").then(({ fetchMakerPayoutOverview }) =>
+      fetchMakerPayoutOverview().then((d) => {
+        setOv(d);
+        setMinUsd(String(Math.round((d.payout_min_cents || 2500) / 100)));
+      }).catch(() => {}));
+  };
 
   useEffect(() => {
     fetchMakerMe().then((m) => {
       setMe(m);
       setEmail(m?.paypal_email || "");
     }).catch(() => {});
+    loadOverview();
   }, []);
 
   const rows = payouts?.payouts || payouts || [];
@@ -622,24 +634,37 @@ function PayPalPayoutCard({ payouts }) {
     .filter((p) => p.provider === "paypal" && ["deferred", "failed"].includes(p.status))
     .reduce((sum, p) => sum + (Number(p.amount_cents) || 0), 0);
 
+  const saveSettings = async (patch) => {
+    setSaving(true);
+    try {
+      const m = await updateMakerProfile(patch);
+      setMe(m);
+      loadOverview();
+      toast.success("Financial settings saved.");
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error((typeof detail === "string" && detail) || "Could not save settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     const v = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
       toast.error("Please enter a valid PayPal email address.");
       return;
     }
-    setSaving(true);
-    try {
-      const m = await updateMakerProfile({ paypal_email: v });
-      setMe(m);
-      toast.success("PayPal payout email saved.");
-    } catch (e) {
-      const detail = e?.response?.data?.detail;
-      toast.error((typeof detail === "string" && detail) || "Could not save your PayPal email.");
-    } finally {
-      setSaving(false);
-    }
+    await saveSettings({ paypal_email: v });
   };
+
+  const usd = (c) => `$${((c || 0) / 100).toFixed(2)}`;
+  const stat = (label, value, testId) => (
+    <div className="border border-line p-2" data-testid={testId}>
+      <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-muted">{label}</div>
+      <div className="font-mono text-sm text-ink mt-0.5">{value}</div>
+    </div>
+  );
 
   return (
     <div className="mb-6" data-testid="paypal-payout-card">
@@ -657,11 +682,21 @@ function PayPalPayoutCard({ payouts }) {
       )}
       <div className="border border-line bg-paper p-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
-          ◆ PayPal payouts
+          ◆ Financial settings — PayPal payouts
         </div>
+
+        {ov && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4" data-testid="payout-overview-strip">
+            {stat("Available", usd(ov.available_cents), "po-available")}
+            {stat("Pending", usd(ov.pending_cents), "po-pending")}
+            {stat("Next payout", ov.next_payout_date || "manual", "po-next")}
+            {stat("Lifetime paid", usd(ov.lifetime_paid_cents), "po-lifetime")}
+          </div>
+        )}
+
         <p className="font-mono text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
           When a buyer pays with PayPal, your share accrues here and is paid to your PayPal
-          account. Add the PayPal email you'd like to be paid at.
+          account automatically on your schedule.
         </p>
         {me?.paypal_email && (
           <p className="font-mono text-xs mb-3" data-testid="paypal-email-current">
@@ -669,7 +704,7 @@ function PayPalPayoutCard({ payouts }) {
             Payout email on file: <span className="text-ink">{me.paypal_email}</span>
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 mb-5">
           <input
             type="email"
             value={email}
@@ -687,6 +722,51 @@ function PayPalPayoutCard({ payouts }) {
           >
             {saving ? "Saving…" : me?.paypal_email ? "Update email" : "Save email"}
           </button>
+        </div>
+
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mb-2">Payout method</div>
+            {["stripe", "paypal"].map((v) => (
+              <label key={v} className="flex items-center gap-2 font-mono text-xs mb-1 cursor-pointer">
+                <input type="radio" name="payout_method" checked={(ov?.payout_method || "paypal") === v}
+                       onChange={() => saveSettings({ payout_method: v })}
+                       data-testid={`payout-method-${v}`} />
+                {v === "stripe" ? "Stripe" : "PayPal"}
+              </label>
+            ))}
+          </div>
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mb-2">Payout frequency</div>
+            {["daily", "weekly", "monthly", "manual"].map((v) => (
+              <label key={v} className="flex items-center gap-2 font-mono text-xs mb-1 cursor-pointer">
+                <input type="radio" name="payout_frequency" checked={(ov?.payout_frequency || "weekly") === v}
+                       onChange={() => saveSettings({ payout_frequency: v })}
+                       data-testid={`payout-frequency-${v}`} />
+                {v[0].toUpperCase() + v.slice(1)}
+              </label>
+            ))}
+          </div>
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mb-2">Minimum automatic payout</div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs">$</span>
+              <input type="number" min="25" step="1" value={minUsd}
+                     onChange={(e) => setMinUsd(e.target.value)}
+                     className="border border-line bg-paper px-2 py-1.5 font-mono text-xs w-20"
+                     data-testid="payout-min-input" />
+              <button type="button" disabled={saving}
+                      onClick={() => saveSettings({ payout_min_cents: Math.round((parseFloat(minUsd) || 25) * 100) })}
+                      className="border border-line px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] hover:border-brand transition"
+                      data-testid="payout-min-save-btn">
+                Set
+              </button>
+            </div>
+            <p className="font-mono text-[10px] text-ink-muted mt-2">
+              Platform minimum $25 · Orders become eligible after{" "}
+              <strong className="text-ink">{ov?.hold_days ?? 7} days</strong> (platform-controlled).
+            </p>
+          </div>
         </div>
       </div>
     </div>

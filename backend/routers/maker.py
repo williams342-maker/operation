@@ -124,6 +124,18 @@ async def maker_update_profile(
     slug: str = Depends(current_maker_slug),
 ):
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
+    # iter444 — Financial settings validation (payout engine inputs).
+    if "payout_method" in updates and updates["payout_method"] not in ("stripe", "paypal"):
+        updates.pop("payout_method")
+    if "payout_frequency" in updates and updates["payout_frequency"] not in (
+            "daily", "weekly", "monthly", "manual"):
+        updates.pop("payout_frequency")
+    if "payout_min_cents" in updates:
+        from routers.payout_engine import PLATFORM_MIN_CENTS
+        try:
+            updates["payout_min_cents"] = max(int(updates["payout_min_cents"]), PLATFORM_MIN_CENTS)
+        except (TypeError, ValueError):
+            updates.pop("payout_min_cents", None)
     # Clamp years_crafting to a sane range — buyers should not see
     # "75 years" or "-2 years" on a maker page (likely typo / hostile input).
     if "years_crafting" in updates:
@@ -2349,6 +2361,7 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
         "session_id": session_id,
         "payment_provider": tx.get("payment_provider") or "stripe",
         "paypal_order_id": tx.get("paypal_order_id"),
+        "payout_info": await _order_payout_info(tx, slug),
         "buyer_email": tx.get("customer_email"),
         "buyer_name": tx.get("customer_name") or tx.get("buyer_name"),
         "created_at": tx.get("created_at"),
@@ -3302,3 +3315,50 @@ async def maker_delete_journal_post(
     if res.deleted_count == 0:
         raise HTTPException(404, "Post not found, or not authored by this maker.")
     return {"ok": True}
+
+
+# ── iter444: maker payout overview (Financial settings card) ────────────────
+
+@router.get("/maker/payout-overview")
+async def maker_payout_overview(slug: str = Depends(current_maker_slug)):
+    from routers.payout_engine import (
+        PLATFORM_MIN_CENTS, compute_overview, maker_payout_settings, next_payout_date,
+    )
+    m = await db.makers.find_one({"slug": slug}, {"_id": 0}) or {}
+    st = maker_payout_settings(m)
+    ov = await compute_overview()
+    e = next((x for x in ov["makers"] if x["maker_slug"] == slug), None) or {}
+    return {
+        **st,
+        "platform_min_cents": PLATFORM_MIN_CENTS,
+        "hold_days": ov["automation"]["hold_days"],
+        "paypal_email": m.get("paypal_email"),
+        "available_cents": e.get("eligible_cents", 0),
+        "pending_cents": (e.get("waiting_hold_cents", 0) + e.get("processing_cents", 0)
+                          + e.get("disputed_cents", 0) + e.get("refund_hold_cents", 0)),
+        "next_payout_date": next_payout_date(st["payout_frequency"]),
+        "last_payout_at": e.get("last_payout_at"),
+        "lifetime_paid_cents": e.get("paid_cents", 0),
+        "automation_enabled": ov["automation"]["enabled"],
+    }
+
+
+async def _order_payout_info(tx: dict, maker_slug: str) -> dict | None:
+    """iter444 — per-order money breakdown for PayPal orders: gross, PayPal
+    fee, platform commission, maker net, payout inclusion + batch/txn ids."""
+    if (tx.get("payment_provider") or "stripe") != "paypal":
+        return None
+    row = await db.maker_payouts.find_one(
+        {"session_id": tx["session_id"], "maker_slug": maker_slug}, {"_id": 0})
+    fees = tx.get("paypal_fees") or {}
+    return {
+        "gross_cents": (row or {}).get("gross_cents"),
+        "paypal_fee_cents": fees.get("paypal_fee_cents"),
+        "commission_cents": (row or {}).get("commission_cents"),
+        "maker_net_cents": (row or {}).get("amount_cents"),
+        "payout_status": (row or {}).get("status"),
+        "included_in_payout": bool((row or {}).get("payout_run_id")),
+        "payout_run_id": (row or {}).get("payout_run_id"),
+        "payout_batch_id": (row or {}).get("payout_batch_id"),
+        "transaction_id": (row or {}).get("payout_item_id") or tx.get("paypal_capture_id"),
+    }

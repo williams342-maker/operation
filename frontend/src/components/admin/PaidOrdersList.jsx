@@ -128,12 +128,38 @@ export default function PaidOrdersList({ items }) {
                   PP order {o.paypal_order_id || "—"} · capture {o.paypal_capture_id || "—"}
                   {o.paypal_fees && (
                     <span>
-                      {" "}· fee ${((o.paypal_fees.paypal_fee_cents || 0) / 100).toFixed(2)} · net $
-                      {((o.paypal_fees.net_cents || 0) / 100).toFixed(2)}
+                      {" "}· gross ${((o.paypal_fees.gross_cents || 0) / 100).toFixed(2)}
+                      {" "}· PayPal fee ${((o.paypal_fees.paypal_fee_cents || 0) / 100).toFixed(2)}
+                      {" "}· net ${((o.paypal_fees.net_cents || 0) / 100).toFixed(2)}
                     </span>
                   )}
                 </div>
               )}
+              {(o.payouts || []).map((p) => (
+                <div
+                  key={`${p.session_id}-${p.maker_slug}`}
+                  className="font-mono text-[10px] text-ink-muted mt-1"
+                  data-testid={`order-payout-${o.session_id}-${p.maker_slug}`}
+                >
+                  ↳ {p.maker_slug} · commission ${((p.commission_cents || 0) / 100).toFixed(2)}
+                  {" "}· maker net ${((p.amount_cents || 0) / 100).toFixed(2)} ·{" "}
+                  <span
+                    className={`border px-1 py-0.5 uppercase tracking-[0.12em] ${
+                      p.status === "paid"
+                        ? "text-green-600 border-green-500/40"
+                        : p.status === "processing"
+                          ? "text-sky-600 border-sky-500/40"
+                          : p.status === "failed"
+                            ? "text-red-400 border-red-400/40"
+                            : "text-amber-500 border-amber-400/40"
+                    }`}
+                    data-testid={`order-payout-status-${o.session_id}-${p.maker_slug}`}
+                  >
+                    payout {p.status}
+                  </span>
+                  {p.payout_batch_id && <span> · batch {p.payout_batch_id}</span>}
+                </div>
+              ))}
               {err[o.session_id] && (
                 <p className="font-mono text-[10px] text-red-400 mt-1">{err[o.session_id]}</p>
               )}

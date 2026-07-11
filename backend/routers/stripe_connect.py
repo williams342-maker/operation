@@ -726,6 +726,17 @@ async def transfer_to_makers_for_session(session_id: str) -> dict:
                 "amount_cents": amount_cents,
                 "fees_deducted_cents": settled["deducted_cents"],
             })
+            # iter444 — marketplace ledger: standardized sale + payout entries
+            # (Stripe Connect pays instantly, so both land together).
+            from ledger import ledger_record
+            fb = fee_breakdown_cents(subtotal, m, external_attribution)
+            await ledger_record("sale", "stripe", session_id, maker_slug,
+                                gross_cents=fb["gross_cents"],
+                                commission_cents=fb["commission_cents"],
+                                net_cents=fb["net_cents"], order_ids=[session_id])
+            await ledger_record("payout", "stripe", f"transfer:{transfer.id}", maker_slug,
+                                net_cents=amount_cents, payout_batch_id=transfer.id,
+                                order_ids=[session_id])
         except Exception as e:
             logger.exception("Transfer failed maker=%s session=%s: %s",
                              maker_slug, session_id, e)
@@ -817,6 +828,9 @@ async def refund_session(session_id: str) -> dict:
                 }},
             )
             reversal_results.append({"maker": p["maker_slug"], "reversal_id": rev.id})
+            from ledger import ledger_record
+            await ledger_record("refund", "stripe", session_id, p["maker_slug"],
+                                meta={"reversal_id": rev.id})
         except Exception as e:
             logger.exception("reversal failed maker=%s session=%s: %s",
                              p["maker_slug"], session_id, e)

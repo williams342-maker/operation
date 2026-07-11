@@ -62,6 +62,14 @@ async def apply_paypal_refund(internal_id: str, refund_id: str | None,
         {"session_id": session_id, "status": "deferred"},
         {"$set": {"status": "cancelled", "updated_at": now_iso()}},
     )
+    from ledger import ledger_record
+    tx2 = await db.payment_transactions.find_one(
+        {"session_id": session_id}, {"_id": 0, "items": 1})
+    makers = {(it.get("maker_slug") or "") for it in (tx2 or {}).get("items", []) if it.get("maker_slug")}
+    for slug in (makers or {"__order__"}):
+        await ledger_record("refund", "paypal", session_id, slug,
+                            gross_cents=int(round(amount * 100)),
+                            meta={"refund_id": refund_id, "kind": kind})
 
 
 async def refund_paypal_session(session_id: str) -> dict:
@@ -253,6 +261,7 @@ async def finalize_paypal_order(internal_id: str, trigger: str = "unknown",
                 {"$setOnInsert": {
                     "session_id": session_id, "maker_slug": maker_slug,
                     "provider": "paypal",
+                    "environment": doc.get("environment"),
                     "paypal_order_id": doc.get("paypal_order_id"),
                     "amount": round(subtotal, 2),
                     "amount_cents": fees["net_cents"],
@@ -264,9 +273,18 @@ async def finalize_paypal_order(internal_id: str, trigger: str = "unknown",
                     "processing_fee_bps": PROCESSING_FEE_BPS,
                     "status": "deferred",
                     "reason": "paypal-manual-payout",
+                    "earned_at": now_iso(),
                     "updated_at": now_iso(),
                 }}, upsert=True,
             )
+            from ledger import ledger_record
+            await ledger_record(
+                "sale", "paypal", session_id, maker_slug,
+                gross_cents=fees["gross_cents"],
+                commission_cents=fees["commission_cents"],
+                net_cents=fees["net_cents"],
+                order_ids=[session_id],
+                meta={"paypal_order_id": doc.get("paypal_order_id")})
         steps.append("commission_recorded")
     except Exception as e:
         logger.exception("[paypal-finalize] commission recording failed · %s", e)

@@ -149,10 +149,20 @@ async def payouts_run(req: PayoutRunRequest, claims: dict = Depends(current_admi
         raise HTTPException(400, "No eligible maker balances to pay.")
 
     run_id = uuid.uuid4().hex[:20]
+    return await _execute_run(items, run_id, created_by=claims.get("email"), kind="manual")
+
+
+async def _execute_run(items: list[dict], run_id: str, created_by: str,
+                       kind: str = "manual") -> dict:
+    """Shared payout executor — used by the admin Pay-Now endpoints AND the
+    automated payout engine (routers/payout_engine.py). Restart-safe: rows
+    are claimed under run_id before PayPal is called; stale `created` runs
+    are rolled back by the engine's recovery sweep."""
     cfg = _config()
+    total_cents = sum(i["amount_cents"] for i in items)
     run_doc = {
-        "id": run_id, "environment": cfg["env"], "status": "created",
-        "created_by": claims.get("email"), "created_at": now_iso(),
+        "id": run_id, "kind": kind, "environment": cfg["env"], "status": "created",
+        "created_by": created_by, "created_at": now_iso(),
         "total_cents": total_cents, "maker_count": len(items),
         "items": [{k: i[k] for k in ("maker_slug", "paypal_email", "amount_cents", "sessions")}
                   for i in items],
@@ -169,6 +179,36 @@ async def payouts_run(req: PayoutRunRequest, claims: dict = Depends(current_admi
                       "paypal_email_used": i["paypal_email"],
                       "updated_at": now_iso()}},
         )
+
+    # Review fix (iter443): recompute every maker's amount from the rows THIS
+    # run actually claimed. A concurrent run may have claimed some/all rows
+    # between our read and our claim — paying the pre-claim amounts would
+    # double-pay. Makers with nothing claimed are dropped.
+    claimed_items = []
+    for i in items:
+        rows_claimed = await db.maker_payouts.find(
+            {"payout_run_id": run_id, "maker_slug": i["maker_slug"]},
+            {"_id": 0, "amount_cents": 1, "session_id": 1}).to_list(1000)
+        if not rows_claimed:
+            continue
+        claimed_items.append({
+            **i,
+            "amount_cents": sum(int(r.get("amount_cents") or 0) for r in rows_claimed),
+            "sessions": [r["session_id"] for r in rows_claimed],
+        })
+    items = claimed_items
+    total_cents = sum(i["amount_cents"] for i in items)
+    if not items:
+        await db.paypal_payout_runs.update_one(
+            {"id": run_id}, {"$set": {"status": "failed",
+                                      "error": "raced: rows already claimed by another run"}})
+        raise HTTPException(409, "Those balances were just claimed by another payout run.")
+    await db.paypal_payout_runs.update_one(
+        {"id": run_id},
+        {"$set": {"total_cents": total_cents, "maker_count": len(items),
+                  "items": [{k: i[k] for k in ("maker_slug", "paypal_email", "amount_cents", "sessions")}
+                            for i in items]}},
+    )
 
     payload = {
         "sender_batch_header": {
@@ -230,11 +270,17 @@ async def payouts_run(req: PayoutRunRequest, claims: dict = Depends(current_admi
                   "updated_at": now_iso()}},
     )
     await db.audit_log.insert_one({
-        "kind": "paypal_payout_batch", "actor": claims.get("email"),
+        "kind": "paypal_payout_batch", "actor": created_by, "run_kind": kind,
         "run_id": run_id, "payout_batch_id": batch_id,
         "total_cents": total_cents, "maker_count": len(items),
         "created_at": now_iso(),
     })
+    # Marketplace ledger — one `payout` entry per maker (provider-agnostic).
+    from ledger import ledger_record
+    for i in items:
+        await ledger_record("payout", "paypal", f"run:{run_id}", i["maker_slug"],
+                            net_cents=i["amount_cents"], payout_run_id=run_id,
+                            payout_batch_id=batch_id, order_ids=i["sessions"])
     # Payout receipt email per maker — best effort.
     try:
         import email_service
@@ -243,7 +289,8 @@ async def payouts_run(req: PayoutRunRequest, claims: dict = Depends(current_admi
             if m and m.get("email"):
                 await email_service.send_maker_payout_sent(
                     m["email"], m.get("name") or i["maker_slug"],
-                    i["amount_cents"] / 100.0, i["paypal_email"], batch_id)
+                    i["amount_cents"] / 100.0, i["paypal_email"], batch_id,
+                    orders_count=len(i.get("sessions") or []))
     except Exception as e:
         logger.warning("[paypal-payouts] receipt emails failed · %s", e)
 
@@ -259,6 +306,110 @@ async def payouts_runs(_: dict = Depends(current_admin)):
     rows = await db.paypal_payout_runs.find({}, {"_id": 0}).sort(
         "created_at", -1).limit(50).to_list(50)
     return {"runs": rows}
+
+
+# ── iter443: $0.01 sandbox test payout ───────────────────────────────────────
+# Proves the full pipeline (batch → webhook → paid → receipt email) without
+# touching maker balances. Runs are stored with kind="test" and NO
+# maker_payouts rows, so summary balances, lifetime-paid totals, commission
+# and tax reporting are untouched by design.
+
+class TestPayoutRequest(BaseModel):
+    recipient_email: str
+    confirm: bool = False
+    request_id: str  # client-generated idempotency key
+
+
+@router.post("/admin/paypal/payouts/test")
+async def test_payout(req: TestPayoutRequest, claims: dict = Depends(current_admin)):
+    cfg = _config()
+    if cfg["env"] != "sandbox":
+        raise HTTPException(403, "Test payouts are only available in sandbox mode.")
+    if not paypal_configured():
+        raise HTTPException(503, "PayPal is not configured.")
+    email = req.recipient_email.strip().lower()
+    if "@" not in email or not email.endswith("example.com"):
+        raise HTTPException(
+            400, "Recipient must be a PayPal sandbox account "
+                 "(…@business.example.com or …@personal.example.com).")
+    if not req.confirm:
+        raise HTTPException(400, "Explicit confirmation required: confirm the recipient and $0.01 amount.")
+
+    run_id = "test-" + uuid.uuid4().hex[:16]
+    item_id = f"{run_id}:__test__"
+    run_doc = {
+        "id": run_id, "kind": "test", "request_id": req.request_id,
+        "environment": "sandbox", "status": "created",
+        "recipient_email": email, "amount_cents": 1, "total_cents": 1,
+        "maker_count": 0, "sender_item_id": item_id,
+        "created_by": claims.get("email"), "created_at": now_iso(),
+        "items": [],
+    }
+    # Idempotency — one PayPal call per request_id, ever.
+    await db.paypal_payout_runs.update_one(
+        {"kind": "test", "request_id": req.request_id},
+        {"$setOnInsert": run_doc}, upsert=True)
+    owner = await db.paypal_payout_runs.find_one(
+        {"kind": "test", "request_id": req.request_id}, {"_id": 0})
+    if owner["id"] != run_id:
+        return {"duplicate": True, "run_id": owner["id"],
+                "payout_batch_id": owner.get("payout_batch_id"),
+                "batch_status": owner.get("batch_status"),
+                "item_id": owner.get("sender_item_id"),
+                "test_item_status": owner.get("test_item_status")}
+
+    payload = {
+        "sender_batch_header": {
+            "sender_batch_id": run_id,
+            "email_subject": "Sandbox test payout — Crafters Market",
+            "email_message": "SANDBOX TEST payout of $0.01. No real money moved.",
+        },
+        "items": [{
+            "recipient_type": "EMAIL",
+            "receiver": email,
+            "amount": {"value": "0.01", "currency": "USD"},
+            "note": "Crafters Market SANDBOX TEST payout",
+            "sender_item_id": item_id,
+        }],
+    }
+    token = await _access_token(cfg)
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            f"{cfg['base']}/v1/payments/payouts",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+        )
+    body = r.json() if r.content else {}
+    if r.status_code not in (200, 201):
+        api_response = {"name": body.get("name"), "message": body.get("message"),
+                        "debug_id": body.get("debug_id"), "http_status": r.status_code}
+        await db.paypal_payout_runs.update_one(
+            {"id": run_id}, {"$set": {"status": "failed", "api_response": api_response}})
+        raise HTTPException(502, f"PayPal rejected the test payout: {body.get('message') or r.status_code}")
+
+    bh = body.get("batch_header") or {}
+    api_response = {"payout_batch_id": bh.get("payout_batch_id"),
+                    "batch_status": bh.get("batch_status"),
+                    "http_status": r.status_code}
+    await db.paypal_payout_runs.update_one(
+        {"id": run_id},
+        {"$set": {"status": "submitted", "payout_batch_id": bh.get("payout_batch_id"),
+                  "batch_status": bh.get("batch_status"),
+                  "test_item_status": "submitted",
+                  "api_response": api_response, "submitted_at": now_iso()}})
+    try:
+        import email_service
+        await email_service.send_maker_payout_sent(
+            claims.get("email"), "Crafters Market Admin", 0.01, email,
+            bh.get("payout_batch_id"), sandbox_test=True)
+    except Exception as e:
+        logger.warning("[paypal-payouts] test receipt email failed · %s", e)
+    logger.info("[paypal-payouts] TEST payout submitted · run=%s · batch=%s",
+                run_id, bh.get("payout_batch_id"))
+    return {"run_id": run_id, "payout_batch_id": bh.get("payout_batch_id"),
+            "batch_status": bh.get("batch_status"), "item_id": item_id,
+            "amount": "0.01", "test_item_status": "submitted",
+            "api_response": api_response}
 
 
 @router.get("/admin/paypal/payouts/export.csv")
@@ -312,6 +463,23 @@ async def apply_payout_item_event(event: dict) -> str:
     run_id, maker_slug = sender_item_id.split(":", 1)
     status = (res.get("transaction_status") or "").upper()
     item_id = res.get("payout_item_id")
+    if maker_slug == "__test__":
+        # iter443 — sandbox test payout: stamp the test run only, never
+        # maker balances.
+        etype = event.get("event_type", "")
+        outcome = ("paid" if status == "SUCCESS" or etype.endswith("SUCCEEDED")
+                   else "failed" if status in _ITEM_FAIL_STATUSES
+                   else (status or "updated").lower())
+        upd = await db.paypal_payout_runs.update_one(
+            {"id": run_id, "kind": "test"},
+            {"$set": {"test_item_status": outcome, "payout_item_id": item_id,
+                      "transaction_status": status, "updated_at": now_iso()},
+             "$push": {"webhook_updates": {"event_id": event.get("id"),
+                                           "event_type": etype, "status": status,
+                                           "at": now_iso()}}})
+        if not upd.matched_count:
+            return "recorded_no_matching_payout"
+        return f"payout_test_item:{outcome}"
     flt = {"payout_run_id": run_id, "maker_slug": maker_slug}
     if not await db.maker_payouts.count_documents(flt):
         return "recorded_no_matching_payout"
@@ -327,6 +495,7 @@ async def apply_payout_item_event(event: dict) -> str:
         await db.maker_payouts.update_many(flt, {"$set": {
             "status": "failed", "payout_status": status or "FAILED",
             "payout_item_id": item_id,
+            "failure_permanent": status in ("BLOCKED", "DENIED", "REVERSED", "REFUNDED"),
             "failure_reason": errors.get("message") or status or "payout failed",
             "updated_at": now_iso()}})
         outcome = "failed"
@@ -428,3 +597,43 @@ async def job_paypal_email_reminders() -> None:
             {"$set": {"paypal_email_reminder_count": sent + 1,
                       "paypal_email_reminder_at": now_iso()}})
         logger.info("[paypal-payouts] reminder %s/3 sent · maker=%s", sent + 1, slug)
+
+
+# ── iter444: Automated payout engine controls ────────────────────────────────
+
+@router.get("/admin/paypal/payouts/overview")
+async def payouts_engine_overview(_: dict = Depends(current_admin)):
+    from .payout_engine import compute_overview
+    ov = await compute_overview()
+    last = await db.payout_reports.find({}, {"_id": 0}).sort("at", -1).limit(1).to_list(1)
+    ov["last_report"] = last[0] if last else None
+    return ov
+
+
+class AutomationToggle(BaseModel):
+    enabled: bool
+
+
+@router.post("/admin/paypal/payouts/automation")
+async def payouts_automation_toggle(req: AutomationToggle, claims: dict = Depends(current_admin)):
+    from .payout_engine import automation_status
+    await db.site_settings.update_one(
+        {"_id": "global"}, {"$set": {"paypal_autopayout_enabled": bool(req.enabled)}}, upsert=True)
+    await db.audit_log.insert_one({
+        "kind": "paypal_autopayout_toggle", "actor": claims.get("email"),
+        "enabled": bool(req.enabled), "created_at": now_iso()})
+    return await automation_status()
+
+
+class RunNowRequest(BaseModel):
+    dry_run: bool = True
+
+
+@router.post("/admin/paypal/payouts/automation/run-now")
+async def payouts_automation_run_now(req: RunNowRequest, claims: dict = Depends(current_admin)):
+    """Admin-triggered engine cycle (sandbox verification / catch-up).
+    force=True bypasses the enable flags + frequency check — never the
+    eligibility/skip rules."""
+    from .payout_engine import run_automated_payouts
+    return await run_automated_payouts(
+        trigger=f"admin:{claims.get('email')}", dry_run=req.dry_run, force=True)

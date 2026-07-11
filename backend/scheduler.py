@@ -68,6 +68,19 @@ async def _job_paypal_email_reminders() -> None:
         logger.exception("[scheduler] paypal-email reminders failed: %s", e)
 
 
+async def _job_automated_payouts() -> None:
+    """iter444 — automated payout engine. Runs only when BOTH the
+    PAYPAL_AUTOPAYOUT_ENABLED env flag and the admin toggle are on."""
+    from routers.payout_engine import run_automated_payouts
+    try:
+        r = await run_automated_payouts(trigger="cron")
+        logger.info("[scheduler] autopayout cycle: ran=%s paid=%s total=%s skipped=%s",
+                    r.get("ran"), r.get("paid_makers"), r.get("total_paid_cents"),
+                    len(r.get("skipped") or []))
+    except Exception as e:
+        logger.exception("[scheduler] autopayout failed: %s", e)
+
+
 async def _job_listing_renewal_reminders() -> None:
     """Daily: email makers whose manual-renewal listings expire in 7 days."""
     from revenue import send_listing_expiry_reminders
@@ -1619,6 +1632,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # deferred PayPal balances and no PayPal email on file. 10:15 UTC daily.
     sched.add_job(_job_paypal_email_reminders, CronTrigger(hour=10, minute=15),
                   id="paypal_email_reminders", replace_existing=True)
+    # iter444 — automated payouts: daily 3:00 AM Pacific (engine decides which
+    # frequencies are due: daily always, weekly on Friday, monthly on the 1st).
+    sched.add_job(_job_automated_payouts,
+                  CronTrigger(hour=3, minute=0, timezone="America/Los_Angeles"),
+                  id="automated_payouts", replace_existing=True)
     # Listing renewal reminders — runs 09:30 UTC daily, emails makers
     # whose manual-renewal listings expire in 7 days. Auto-renew listings
     # skip this nudge (they're handled silently by expire_listings).

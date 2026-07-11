@@ -470,6 +470,8 @@ export const stripeConnectDashboardLink = () =>
     { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerPayouts = () =>
   http.get("/maker/payouts", { headers: authHeaders() }).then((r) => r.data);
+export const fetchMakerPayoutOverview = () =>
+  http.get("/maker/payout-overview", { headers: authHeaders() }).then((r) => r.data);
 
 // ---------- Admin Console ----------
 const adminAuthHeaders = () => {

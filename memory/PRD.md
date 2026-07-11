@@ -1,3 +1,35 @@
+## 2026-07-11 — iter445: Marketplace Ledger UI + Finance Reconciliation dashboard (Phase A verification complete)
+
+- USER-REQUESTED verification of Phase A UIs done (all 4 surfaces screenshot-verified):
+  1. Maker Financial Settings (Payment settings sub-tab): PayPal email, Stripe/PayPal method radios,
+     Daily/Weekly/Monthly/Manual schedule, min payout ($25 platform floor), Available/Pending/
+     Next payout/Lifetime paid strip — all rendering with live data.
+  2. Admin → PayPal Payouts UPGRADED to consume /overview: 7 summary cards (Eligible, Waiting hold,
+     Waiting minimum, Missing email, Processing, Paid today, Failed), NEW automation strip
+     (enabled/armed/paused badge + Arm/Pause toggle + Dry-run-now + last cycle report), table now
+     shows Maker/Available/Pending/Method/Next payout/Pay Now (+ Pay Selected / Pay All / $0.01 test).
+  3. Admin → Orders: every PayPal order shows badge, PP order id, capture id, gross, PayPal fee,
+     and NEW per-maker payout lines (commission, maker net, payout status chip, batch id) via
+     enriched GET /api/admin/orders (maker_payouts join).
+  4. NEW Admin → "Ledger · Recon" tab (finance cap): reconciliation cards (Stripe Balance,
+     PayPal Balance [LIVE from sandbox Reporting API — $5,000 fetched], Ledger Balance,
+     Outstanding Maker Balances, Pending Payouts, Paid Today, Refunds, Disputes) + single
+     status indicator (✔ Ledger Balanced / ⚠ Difference: $x.xx) + filterable journal table
+     (Order, Provider, Kind, Maker, Gross, Fee, Commission, Maker net, Payout batch).
+- NEW backend: /app/backend/routers/finance_ledger.py — GET /api/admin/ledger (filter provider/kind)
+  + GET /api/admin/finance/reconciliation (ledger aggregate vs maker_payouts books; diff_cents;
+  balances via Stripe Balance API + PayPal /v1/reporting/balances, both null-safe).
+- Recon math: ledger_outstanding = Σsale.net − Σrefund.(net|gross) − Σpayout.net;
+  book_outstanding = maker_payouts deferred+failed(retryable); diff surfaces discrepancies
+  (preview shows real ⚠ $0.62 from a legacy pre-ledger stripe row — working as intended).
+- Tests: /app/backend/tests/test_iter445_ledger_recon.py (7 new) — full payout suite 54/54 pass.
+  Hardened test_iter444 fixture: freezes non-test makers (payouts_on_hold) during force-run tests
+  so shared-DB demo data can't contaminate counts.
+- PREVIEW demo data seeded (pp_demo445a/b/c + DEMOBATCH445XYZ) for UI verification; seed script
+  at /tmp/seed_iter445_demo.py. Admin team@craftersmarket.org granted 'finance' capability in
+  preview DB (was content+marketplace only — PayPal Payouts/Ledger tabs were invisible without it).
+- SANDBOX ONLY: no live PayPal calls; automation flag remains OFF by default.
+
 ## 2026-07-11 — iter438d: PayPal verification RESOLVED in production
 
 - Users latest redeploy fixed it: production Admin -> PayPal Events shows CHECKOUT.ORDER.APPROVED

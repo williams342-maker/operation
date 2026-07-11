@@ -311,6 +311,10 @@ class Maker(BaseModel):
     bio: str
     # iter441 — PayPal Payouts destination email (None until the maker adds it).
     paypal_email: Optional[str] = None
+    # iter444 — Financial settings (payout engine).
+    payout_method: Optional[str] = None
+    payout_frequency: Optional[str] = None
+    payout_min_cents: Optional[int] = None
     techniques: List[str] = []
     # "Meet the Makers" upgrade (iter178) — story-building fields that
     # buyers use to vet a maker before committing to a custom order.
@@ -903,6 +907,10 @@ class MakerProfileUpdate(BaseModel):
     external_ads_opt_out: Optional[bool] = None
     # iter441 — PayPal Payouts destination (validated email format).
     paypal_email: Optional[EmailStr] = None
+    # iter444 — Financial settings (validated/clamped in maker.py).
+    payout_method: Optional[str] = None       # stripe | paypal
+    payout_frequency: Optional[str] = None    # daily | weekly | monthly | manual
+    payout_min_cents: Optional[int] = None    # never below platform minimum ($25)
     # ---- Settings tab patchable fields ----
     vacation_mode: Optional[bool] = None
     vacation_message: Optional[str] = None

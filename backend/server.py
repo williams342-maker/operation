@@ -332,6 +332,8 @@ api.include_router(analytics_events_router)
 # iter428 — Beta app testing program (landing page + dismissible hint).
 from routers.beta_program import router as beta_program_router
 api.include_router(beta_program_router)
+from routers.finance_ledger import router as finance_ledger_router
+api.include_router(finance_ledger_router)
 
 app.include_router(api)
 

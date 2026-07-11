@@ -1,3 +1,24 @@
+## 2026-07-11 — iter443: Code review fix + $0.01 sandbox test payout
+
+- CODE REVIEW (8 areas): 7 clean; 1 real bug found & FIXED — concurrent double-submission race
+  in payouts_run: amounts are now recomputed from rows actually claimed under this run_id after
+  the atomic claim; makers with 0 claimed rows dropped; 409 if everything was raced away.
+- maker_payouts rows now tagged with `environment` at finalize (audit).
+- TEST PAYOUT: POST /api/admin/paypal/payouts/test {recipient_email, confirm, request_id} —
+  sandbox-only (403 in live), recipient must end example.com, exactly $0.01, explicit confirm
+  required, idempotent per request_id ($setOnInsert upsert → duplicate returns existing run),
+  stored as paypal_payout_runs kind="test" with ZERO maker_payouts rows (balances/lifetime/
+  commission/tax untouched — proven by tests). sender_item_id = "<run>:__test__";
+  apply_payout_item_event special-cases __test__ → stamps run.test_item_status
+  submitted→paid/failed + webhook_updates[]. Receipt email via send_maker_payout_sent(...,
+  sandbox_test=True) labeled "Sandbox test payout" sent to the acting admin.
+- UI: "⚗ Test payout ($0.01)" button (sandbox only, data-testid pp-test-payout-btn) → modal with
+  recipient+amount confirmation → API response JSON shown; runs list shows TEST badge, recipient,
+  item status chip, last webhook. Verified via screenshot.
+- Tests: tests/test_iter443_test_payout.py — 8 tests (live-mode block, recipient/confirm/authz
+  guards, isolation from balances, idempotency, webhook paid/failed). 55/55 PayPal+chat pass.
+
+
 ## 2026-07-11 — iter441+442: PayPal Payouts (admin-triggered) + Chat WebSocket security overhaul
 
 ### iter441 — PayPal Payouts Phase 1 (sandbox)
