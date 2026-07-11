@@ -4,12 +4,8 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 
 ## P0 (next up)
 
-- **The Workshop Floor — Community Knowledge Hub refactor** (approved 2026-07-11, next epic):
-  1. Overview dashboard as DEFAULT community tab (Featured Maker module, Trending Discussions, Featured Projects, Latest Videos, New Journal Articles, Popular Design Files, Trending Tags, New Members, Community Stats, "Coming to The Workshop Floor" roadmap strip w/ optional Notify-Me).
-  2. Discussions: 10 top-level categories (Marketplace, Getting Started, Woodworking, Laser, Plasma & Metal, 3D Printing, Handmade Crafts, Design Software, Selling Your Work, Community incl. General Discussion default catch-all) with **followable tags** as subcategories (personalized feed from followed tags).
-  3. Thread migration: confidence-based classifier — ≥80% auto-categorize, 50–80% best category + tags, <50% → Community › General Discussion. Preserve authors/timestamps/replies/reactions/attachments + URL compat. Admin migration report (auto-categorized / general / needs-review counts).
-  4. Architecture must accommodate later: reputation/badges, challenges, events, regional groups, leaderboards, marketplace tie-ins (listing↔discussion, showcase "Buy this" links) WITHOUT structural changes. Skip functional Coming-Soon nav links.
-- **Featured Maker captions backfill**: after user tops up Emergent LLM key balance, hit Retry generation (or POST /regenerate) on promo 7fbbd532… to fill instagram/facebook/x captions with the real product reference image.
+- **Workshop Floor Phase 2 — community engagement features** (per user's approved roadmap): reputation & badges, like/save/follow on content, featured projects curation, weekly/monthly challenges, contributor leaderboard, "Maker of the Week", AI moderation. Then Phase 3 growth tie-ins: listing↔discussion links, buyer product Q&A, build logs, showcase "Buy this item" links, journal→product links.
+- **Featured Maker captions backfill**: after user tops up Emergent LLM key balance, hit Retry generation (or POST /regenerate) on promo 7fbbd532… to fill instagram/facebook/x captions with the real product reference image. Production: admin must Generate + Activate a promotion in the prod DB to light up the spotlight there.
 
 - ~~**Founder Tier Phase 4** (Plus benefits expansion)~~ → SHIPPED in iter171 (3-month Stripe trial, advanced analytics, priority placement boost, custom shop URL picker).
 - ~~**Plus trial referral program** (+30 days for 3 referrals)~~ → SHIPPED in iter172.

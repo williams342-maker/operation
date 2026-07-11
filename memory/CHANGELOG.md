@@ -11252,3 +11252,22 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
 - E2E verified live: iron-and-oak featured through 2026-07-18; both R2 assets downloadable (200 image/png, ~660KB each); spotlight/ribbons/banner/admin tab all render; auto-expiry via ends_at checks on every read path.
 - ⚠️ KNOWN LIMITATION: **Emergent LLM key budget exhausted** during caption generation → per-platform captions (instagram/facebook/x) fell back to empty strings; fallback headline/hashtags written correctly. After top-up: hit "Retry generation" on the promo. Images generated fine before budget hit.
 - Test artifacts: `/app/backend/tests/test_iter455_featured_maker.py`, `/app/test_reports/iteration_118.json`.
+
+## 2026-07-11 — iter457: Production deploy verified + The Workshop Floor knowledge-hub refactor SHIPPED
+### Production smoke test (read-only — user deployed to craftersmarket.org)
+- Prod live with the new build: homepage 200, "Workshop Floor" nav visible, `/api/featured-maker` responding (`featured:null` — prod DB has no activated promotion yet; spotlight/ribbons correctly self-hide). To go live in prod: admin → Featured Maker tab → Generate → Activate (top up Emergent LLM balance first).
+- Preview state confirmed intact post-deploy: promo active through 2026-07-18, congrats email sent exactly once (dedupe flag verified), both R2 assets downloadable (200 image/png).
+
+### The Workshop Floor refactor (iteration_119: 17/17 backend pytest + full frontend pass)
+- **Backend** `routers/workshop_floor.py` (registered in server.py):
+  - `WORKSHOP_CATEGORIES` — 10 top-level categories (marketplace, getting-started, woodworking, laser, plasma-metal, 3d-printing, handmade-crafts, design-software, selling, community), each with followable tag list. Single source of truth imported by `community_forum.py`.
+  - Deterministic keyword classifier (no LLM) + `POST /admin/forum/migrate` — conservative confidence-based migration. Result on 74 legacy threads: 24 high, 9 medium, 41 → community/general-discussion fallback (by design), 0 review. Safeguards: authors/timestamps/replies/attachments untouched; original id stored as `legacy_category`; idempotent (skips migrated unless `force=true`); report persisted to `forum_migration_reports`; `GET /admin/forum/migration-report`.
+  - `GET /community/overview` — trending discussions, featured projects (showcase), latest videos (clips), latest journal (blog_posts), popular design files, trending tags agg, stats, static coming_soon strip.
+  - Followable tags (buyer auth): `GET /community/tags/following`, `POST/DELETE /community/tags/{tag}/follow` (400 on unknown tag), `GET /community/forum-feed/followed` (path avoids `/community/forum/{thread_id}` collision), `GET /community/tags/trending`.
+- **community_forum.py**: categories endpoint now returns taxonomy + live thread counts; `?tag=` filters thread tags array (legacy category-alias values still honored); create-thread accepts `tags` (validated ⊆ category tags, max 5) and maps legacy category ids (general/machine-help/… → new homes).
+- **Frontend**:
+  - `/community` default tab is now **Overview** (`WorkshopFloorOverview.jsx`): Featured Maker module, stats bar, trending discussions (deep-jump to thread), featured projects, latest videos/journal, popular files, trending-tag chips (jump to filtered Discussions), "Coming to The Workshop Floor" roadmap strip (no dead nav links). Deep links `?tab=forum|files|showcase|chat|overview` all work.
+  - ForumTab: 10-category strip w/ counts, per-category followable tag chips (☆/★), "★ Following" personalized pseudo-category, global tag pill for trending-tag jumps, tags shown on thread rows; NewThreadForm has a per-category tag picker (max 5).
+  - Admin: new "Workshop Floor" tab (`WorkshopFloorTab.jsx`, deep-link `?tab=workshop-floor`) — Run migration (+force checkbox), report stat cards, by-category chips, needs-review list.
+- Scaling: new categories/tags = data changes in one list; heavily-used tags can be promoted to categories later without schema changes. Reputation/challenges/events modules slot into Overview grid.
+- Test artifacts: `/app/backend/tests/test_iter457_workshop_floor.py`, `/app/test_reports/iteration_119.json`.
