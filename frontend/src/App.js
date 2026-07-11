@@ -263,6 +263,8 @@ function App() {
                 <Route path="/shop/:slug" element={<ProductDetail />} />
                 <Route path="/makers" element={<MakersPage />} />
                 <Route path="/makers/:slug" element={<MakerDetail />} />
+                {/* iter450 — Store Section landing pages (SEO-indexable) */}
+                <Route path="/makers/:slug/:sectionSlug" element={<MakerDetail />} />
                 <Route path="/clips" element={<ClipFeedPage />} />
                 <Route path="/clips/:slug" element={<ClipFeedPage />} />
                 {/* Short, shareable maker URL (iter153 Phase 2). Plus

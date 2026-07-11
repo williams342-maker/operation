@@ -334,6 +334,8 @@ from routers.beta_program import router as beta_program_router
 api.include_router(beta_program_router)
 from routers.finance_ledger import router as finance_ledger_router
 api.include_router(finance_ledger_router)
+from routers.store_sections import router as store_sections_router
+api.include_router(store_sections_router)
 
 app.include_router(api)
 

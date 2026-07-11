@@ -156,6 +156,23 @@ const authHeaders = () => {
 };
 export const fetchMakerMe = () =>
   http.get("/maker/me", { headers: authHeaders() }).then((r) => r.data);
+// iter450 — Store Sections (maker storefront departments)
+export const fetchMakerSections = () =>
+  http.get("/maker/sections", { headers: authHeaders() }).then((r) => r.data);
+export const createStoreSection = (payload) =>
+  http.post("/maker/sections", payload, { headers: authHeaders() }).then((r) => r.data);
+export const updateStoreSection = (id, payload) =>
+  http.patch(`/maker/sections/${id}`, payload, { headers: authHeaders() }).then((r) => r.data);
+export const deleteStoreSection = (id) =>
+  http.delete(`/maker/sections/${id}`, { headers: authHeaders() }).then((r) => r.data);
+export const reorderStoreSections = (order) =>
+  http.post("/maker/sections/reorder", { order }, { headers: authHeaders() }).then((r) => r.data);
+export const setSectionProducts = (id, product_slugs) =>
+  http.put(`/maker/sections/${id}/products`, { product_slugs }, { headers: authHeaders() }).then((r) => r.data);
+export const assignProductSections = (product_slug, section_slugs) =>
+  http.post("/maker/sections/assign", { product_slug, section_slugs }, { headers: authHeaders() }).then((r) => r.data);
+export const fetchPublicSections = (makerSlug) =>
+  http.get(`/makers/${makerSlug}/sections`).then((r) => r.data);
 export const fetchMakerOrders = () =>
   http.get("/maker/orders", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerOrderDetail = (sessionId) =>

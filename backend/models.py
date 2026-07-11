@@ -89,6 +89,10 @@ class Product(BaseModel):
     # gallery renders this as an additional slot with a ▶ overlay.
     listing_video: Optional[dict] = None
     maker_slug: str
+    # iter450 — Store Sections (maker storefront departments). Slugs of
+    # db.store_sections owned by the same maker. Missing/empty = listing
+    # simply appears under "All Products" only.
+    section_slugs: List[str] = []
     in_stock: int = 4
     featured: bool = False
     variants: List[ProductVariant] = []

@@ -4,7 +4,7 @@ import {
   Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
   LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock, Rocket,
-  Award, Compass,
+  Award, Compass, FolderTree,
 } from "lucide-react";
 import TrialBanner from "./TrialBanner";
 import { isFounder, effectiveTier, TIER_LABELS } from "../../lib/founderTier";
@@ -14,6 +14,7 @@ const NAV = [
   { id: "founder",     label: "Founder",     icon: Award, founderOnly: true },
   { id: "coach",       label: "Coach",       icon: Compass, badge: "Beta" },
   { id: "listings",    label: "Listings",    icon: Box },
+  { id: "sections",    label: "Sections",    icon: FolderTree }, // iter450 — Store Sections
   { id: "renewals",    label: "Renewals",    icon: CalendarClock },
   { id: "orders",      label: "Orders",      icon: ShoppingBag },
   { id: "briefs",      label: "Briefs",      icon: Inbox },

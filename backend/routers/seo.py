@@ -257,6 +257,28 @@ async def sitemap_xml(http_request: Request):
             f"/makers/{m['slug']}", m.get("created_at"),
             "weekly", "0.7", imgs,
         ))
+
+    # iter450 — Store Section landing pages. Only PUBLIC sections with at
+    # least one active (published) listing are indexable; hidden or empty
+    # sections stay out of the sitemap. Counts come from one aggregation.
+    section_counts: dict[tuple, int] = {}
+    async for g in db.products.aggregate([
+            {"$match": {"status": "published", "section_slugs.0": {"$exists": True}}},
+            {"$unwind": "$section_slugs"},
+            {"$group": {"_id": {"m": "$maker_slug", "s": "$section_slugs"},
+                        "n": {"$sum": 1}}}]):
+        section_counts[(g["_id"]["m"], g["_id"]["s"])] = g["n"]
+    maker_slugs_public = {m.get("slug") for m in makers}
+    async for sec in db.store_sections.find(
+            {"visible": True}, {"_id": 0, "maker_slug": 1, "slug": 1, "updated_at": 1}):
+        if sec["maker_slug"] not in maker_slugs_public:
+            continue
+        if section_counts.get((sec["maker_slug"], sec["slug"]), 0) < 1:
+            continue
+        urls.append(_u(
+            f"/makers/{sec['maker_slug']}/{sec['slug']}", sec.get("updated_at"),
+            "weekly", "0.65",
+        ))
     for b in posts:
         if _is_test_slug(b.get("slug", "")):
             continue

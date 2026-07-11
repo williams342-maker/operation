@@ -11,6 +11,7 @@ import ShopManagerLayout from "./MakerDashboard/ShopManagerLayout";
 import DashboardTab from "./MakerDashboard/DashboardTab";
 import SettingsTab from "./MakerDashboard/SettingsTab";
 import ProductsList from "./MakerDashboard/ProductsList";
+import StoreSectionsTab from "./MakerDashboard/StoreSectionsTab"; // iter450 — Store Sections
 import RenewalsTab from "./MakerDashboard/RenewalsTab";
 import FounderBenefitsTab from "./MakerDashboard/FounderBenefitsTab";
 import CoachTab from "./MakerDashboard/CoachTab"; // iter413dg — Seller Success Dashboard
@@ -44,7 +45,7 @@ function normalizeTab(id) {
 // Valid top-level tab ids. Used to guard against `?tab=<anything>` junk
 // (e.g. rewriter-mangled links) — unknown ids fall back to "dashboard".
 const KNOWN_TABS = new Set([
-  "dashboard", "founder", "coach", "listings", "renewals", "orders", "messages", "briefs", "reviews", "stats",
+  "dashboard", "founder", "coach", "listings", "sections", "renewals", "orders", "messages", "briefs", "reviews", "stats",
   "violations", "marketing", "promote", "financials", "help", "settings",
 ]);
 
@@ -461,6 +462,7 @@ export default function MakerDashboard() {
           </>
         )}
         {tab === "listings"   && <ProductsList products={products} onRefresh={refreshProducts} />}
+        {tab === "sections"   && <StoreSectionsTab maker={maker} />}
         {tab === "renewals"   && <RenewalsTab />}
         {tab === "founder"    && <FounderBenefitsTab />}
         {tab === "coach"      && <CoachTab maker={maker} />}

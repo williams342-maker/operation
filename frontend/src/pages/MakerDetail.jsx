@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { fetchMaker, fetchProducts, fetchMakerJournalPosts, http } from "../lib/api";
+import { useParams, Link, Navigate } from "react-router-dom";
+import { fetchMaker, fetchProducts, fetchMakerJournalPosts, fetchPublicSections, http } from "../lib/api";
 import { useStructuredData } from "../lib/seo";
 import ProductCard from "../components/ProductCard";
 import MakerReviews from "../components/MakerReviews";
@@ -23,10 +23,12 @@ import Breadcrumbs from "../components/Breadcrumbs";
 const SITE_URL = "https://craftersmarket.org";
 
 export default function MakerDetail() {
-  const { slug } = useParams();
+  const { slug, sectionSlug } = useParams();
   const [m, setM] = useState(null);
   const [products, setProducts] = useState([]);
   const [posts, setPosts] = useState([]);
+  // iter450 — Store Sections nav ("Browse Sections" buyer-facing)
+  const [sectionsData, setSectionsData] = useState(null);
   const [contactOpen, setContactOpen] = useState(false);
   // iter302 — real review aggregate; replaces the legacy `listings_count`
   // hack which mis-counted reviewCount as the number of products listed.
@@ -35,6 +37,11 @@ export default function MakerDetail() {
   useEffect(() => {
     fetchMaker(slug).then(setM);
     fetchProducts({ maker: slug }).then(setProducts);
+    // iter450 — sections nav; empty payload keeps the classic all-products
+    // layout for makers who haven't configured sections.
+    fetchPublicSections(slug)
+      .then(setSectionsData)
+      .catch(() => setSectionsData({ sections: [], all_count: 0, redirects: {} }));
     // Maker-authored posts only — falls back to empty array on 404 /
     // network error so the rail just hides itself.
     fetchMakerJournalPosts(slug, 3).then(setPosts).catch(() => setPosts([]));
@@ -46,11 +53,21 @@ export default function MakerDetail() {
       .catch(() => {});
   }, [slug]);
 
+  // iter450 — resolve the active section from the URL.
+  const sections = sectionsData?.sections || [];
+  const activeSection = sectionSlug ? sections.find((s) => s.slug === sectionSlug) : null;
+  const redirectTo = sectionSlug && sectionsData ? sectionsData.redirects?.[sectionSlug] : null;
+  const sectionMissing = !!(sectionSlug && sectionsData && !activeSection && !redirectTo);
+  const shownProducts = activeSection
+    ? products.filter((p) => (p.section_slugs || []).includes(activeSection.slug))
+    : products;
+  const pageUrl = `${SITE_URL}/makers/${slug}${activeSection ? `/${activeSection.slug}` : ""}`;
+
   useStructuredData(m ? {
-    title: `${m.name}${m.location ? ` · ${m.location}` : ""} · Crafters Market`,
-    description: m.bio,
+    title: `${activeSection ? `${activeSection.name} · ` : ""}${m.name}${m.location ? ` · ${m.location}` : ""} · Crafters Market`,
+    description: activeSection?.description || m.bio,
     image: m.cover || m.portrait,
-    url: `${SITE_URL}/makers/${m.slug}`,
+    url: pageUrl,
     imageAlt: `${m.name} — ${m.location || ""}`.trim(),
     ogType: "profile",
     jsonLd: {
@@ -83,11 +100,17 @@ export default function MakerDetail() {
             { "@type": "ListItem", "position": 1, "name": "Home", "item": `${SITE_URL}/` },
             { "@type": "ListItem", "position": 2, "name": "Makers", "item": `${SITE_URL}/makers` },
             { "@type": "ListItem", "position": 3, "name": m.name, "item": `${SITE_URL}/makers/${m.slug}` },
+            ...(activeSection ? [{ "@type": "ListItem", "position": 4, "name": activeSection.name, "item": pageUrl }] : []),
           ],
         },
       ],
     },
   } : { jsonLd: null });
+
+  // iter450 — old section slug → permanent-style client redirect; unknown
+  // slug (hidden/deleted) falls back to the storefront root.
+  if (redirectTo) return <Navigate to={`/makers/${slug}/${redirectTo}`} replace />;
+  if (sectionMissing) return <Navigate to={`/makers/${slug}`} replace />;
 
   if (!m) return <div className="pt-40 text-center font-mono text-sm text-ink-muted">Loading…</div>;
 
@@ -98,7 +121,9 @@ export default function MakerDetail() {
           items={[
             { name: "Home", to: "/" },
             { name: "Makers", to: "/makers" },
-            { name: m.name },
+            ...(activeSection
+              ? [{ name: m.name, to: `/makers/${m.slug}` }, { name: activeSection.name }]
+              : [{ name: m.name }]),
           ]}
           testId="maker-breadcrumbs"
         />
@@ -377,14 +402,80 @@ export default function MakerDetail() {
           </div>
         </div>
 
-        <h2 className="font-display text-4xl md:text-6xl mb-8">From the workshop</h2>
-        {/* iter281 — Doubled the column count at lg+ so each card lands
-            at ~half its previous width on desktop. Mobile keeps 2-col
-            (was 1-col — felt sparse at the request to shrink). The
-            ProductCard's `aspect-[4/5]` portrait ratio is preserved so
-            photos still feel like product hero shots, just smaller. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
-          {products.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
+        <h2 className="font-display text-4xl md:text-6xl mb-8">
+          {activeSection ? activeSection.name : "From the workshop"}
+        </h2>
+        {activeSection?.description && (
+          <p className="font-mono text-xs text-ink-muted -mt-4 mb-8 max-w-xl leading-relaxed" data-testid="section-description">
+            {activeSection.description}
+          </p>
+        )}
+
+        {/* iter450 — Browse Sections nav. Renders ONLY when the maker has
+            configured sections; classic single-grid layout otherwise. Mobile:
+            horizontal swipe tabs. Desktop (lg+): sticky left sidebar. Links
+            are client-side routes — filtering is instant, no reload. */}
+        {sections.length > 0 && (
+          <div className="lg:hidden -mx-4 px-4 mb-6 overflow-x-auto" data-testid="sections-tabs-mobile">
+            <div className="flex gap-2 w-max pb-1">
+              <Link to={`/makers/${m.slug}`}
+                    className={`shrink-0 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.16em] transition ${
+                      !activeSection ? "border-brand text-brand" : "border-line text-ink-muted hover:border-brand"}`}
+                    data-testid="section-tab-all">
+                All ({sectionsData.all_count})
+              </Link>
+              {sections.map((s) => (
+                <Link key={s.id} to={`/makers/${m.slug}/${s.slug}`}
+                      className={`shrink-0 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.16em] transition ${
+                        activeSection?.slug === s.slug ? "border-brand text-brand" : "border-line text-ink-muted hover:border-brand"}`}
+                      data-testid={`section-tab-${s.slug}`}>
+                  {s.name} ({s.count})
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={sections.length > 0 ? "lg:grid lg:grid-cols-[230px_1fr] lg:gap-8" : ""}>
+          {sections.length > 0 && (
+            <aside className="hidden lg:block self-start sticky top-28" data-testid="sections-sidebar">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
+                ◆ Browse sections
+              </div>
+              <nav className="border border-line divide-y divide-line/60">
+                <Link to={`/makers/${m.slug}`}
+                      className={`block px-3 py-2 font-mono text-xs transition ${
+                        !activeSection ? "text-brand bg-brand/[0.06] border-l-2 border-l-brand" : "text-ink hover:text-brand"}`}
+                      data-testid="section-nav-all">
+                  All Products <span className="text-ink-muted">({sectionsData.all_count})</span>
+                </Link>
+                {sections.map((s) => (
+                  <Link key={s.id} to={`/makers/${m.slug}/${s.slug}`}
+                        className={`block px-3 py-2 font-mono text-xs transition ${
+                          activeSection?.slug === s.slug ? "text-brand bg-brand/[0.06] border-l-2 border-l-brand" : "text-ink hover:text-brand"}`}
+                        data-testid={`section-nav-${s.slug}`}>
+                    {s.name} <span className="text-ink-muted">({s.count})</span>
+                  </Link>
+                ))}
+              </nav>
+            </aside>
+          )}
+          <div>
+            {shownProducts.length === 0 ? (
+              <div className="border border-dashed border-line p-10 text-center" data-testid="section-empty-state">
+                <p className="font-mono text-xs text-ink-muted">
+                  Nothing in this section yet —{" "}
+                  <Link to={`/makers/${m.slug}`} className="text-brand hover:underline">browse all products</Link>.
+                </p>
+              </div>
+            ) : (
+              <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 ${
+                sections.length > 0 ? "lg:grid-cols-5" : "lg:grid-cols-6"} gap-4 md:gap-5`}
+                   data-testid="storefront-product-grid">
+                {shownProducts.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Showcase carousel — `strict` ensures we only show posts

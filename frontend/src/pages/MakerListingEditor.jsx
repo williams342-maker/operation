@@ -10,6 +10,8 @@ import {
   duplicateMakerProduct, uploadMakerVideo, uploadMakerListingImage,
   downloadProductStoryCard, fetchPresetShippingRates,
 } from "../lib/api";
+import { assignProductSections } from "../lib/api"; // iter450
+import StoreSectionsField from "../components/StoreSectionsField"; // iter450
 import ImageCropModal from "../components/ImageCropModal";
 import ProcessingProfilePicker from "../components/ProcessingProfilePicker";
 import { useConfirm } from "../hooks/useConfirm";
@@ -80,6 +82,9 @@ export default function MakerListingEditor() {
   const navigate = useNavigate();
   const { slug } = useParams();   // present when editing
   const isEdit = !!slug;
+  // iter450 — Store Section membership for this listing (separate from
+  // Marketplace Categories; saved via /maker/sections/assign after save).
+  const [sectionSlugs, setSectionSlugs] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [maker, setMaker] = useState(null);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -170,6 +175,7 @@ export default function MakerListingEditor() {
             return;
           }
           dirtyRef.current = false;  // hydration is not a user edit
+          setSectionSlugs(found.section_slugs || []); // iter450
           setForm({
             ...emptyForm(),
             ...found,
@@ -802,6 +808,12 @@ export default function MakerListingEditor() {
         res = await createMakerProduct(payload);
         toast.success(statusOverride === "published" ? "Listing published." : "Draft saved.");
       }
+      // iter450 — persist Store Section membership (separate collection
+      // reference; never blocks the save if it hiccups).
+      const savedSlug = res?.slug || targetSlug;
+      if (savedSlug) {
+        try { await assignProductSections(savedSlug, sectionSlugs); } catch { /* non-fatal */ }
+      }
       navigate("/maker/dashboard#listings", { replace: true });
       return res;
     } catch (e) {
@@ -1252,6 +1264,14 @@ export default function MakerListingEditor() {
                 How was it made? Powers technique-based discovery in search.
               </p>
             </div>
+          </div>
+
+          {/* iter450 — Store Sections: the maker's OWN shop departments.
+              Separate from Marketplace Categories above (those control
+              where the listing appears across Crafters Market). */}
+          <div className="mt-4" data-testid="editor-store-sections">
+            <Label>Store Sections <span className="text-ink-muted normal-case">(your shop's own departments — optional)</span></Label>
+            <StoreSectionsField value={sectionSlugs} onChange={setSectionSlugs} />
           </div>
 
           <div className="mt-4">
