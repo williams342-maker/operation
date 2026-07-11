@@ -56,12 +56,24 @@ const cols = [
       { label: "Custom Orders", href: "/custom-order" },
     ],
   },
+  // iter456 — Community rebranded "The Workshop Floor". Add future areas
+  // (Events, Challenges, Regional Groups…) as new links here.
+  {
+    title: "The Workshop Floor",
+    links: [
+      { label: "Discussions", href: "/community?tab=forum" },
+      { label: "Workshop Videos", href: "/clips" },
+      { label: "Maker Journal", href: "/journal" },
+      { label: "Project Showcase", href: "/community?tab=showcase" },
+      { label: "Design Library", href: "/community?tab=files" },
+      { label: "Maker Chat", href: "/community?tab=chat" },
+    ],
+  },
   {
     title: "Company",
     links: [
       { label: "What's New", href: "/updates" },
       { label: "Where We're Going", href: "/grow" },
-      { label: "Journal", href: "/journal" },
       { label: "Makers", href: "/makers" },
       { label: "Custom Orders", href: "/custom-order" },
       { label: "Contact", href: "mailto:team@craftersmarket.org" },
@@ -313,7 +325,7 @@ export default function Footer() {
               className="hover:text-brand cursor-pointer"
               data-testid="footer-live-chat"
             >
-              Live chat
+              Maker Chat
             </button>
             <Link to="/updates" className="hover:text-brand" data-testid="footer-updates">What's New</Link>
             <a

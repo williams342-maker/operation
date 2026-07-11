@@ -42,7 +42,7 @@ export default function TrendingForumStrip({
         <div className="flex items-end justify-between mb-10 flex-wrap gap-3">
           <div>
             <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand">
-              ◆ From the forum
+              ◆ From the Workshop Floor
             </div>
             <h2 className="font-display text-3xl sm:text-5xl text-ink mt-3 leading-[0.9]">
               Open questions worth your two cents.

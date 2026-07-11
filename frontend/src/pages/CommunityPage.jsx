@@ -27,10 +27,18 @@ import ReportButton from "../components/ReportButton";
 import { useConfirm } from "../hooks/useConfirm";
 
 const TABS = [
-  { id: "showcase", label: "Showcase" },
-  { id: "files", label: "Design Files" },
-  { id: "forum", label: "Forum" },
-  { id: "chat", label: "Live Chat" },
+  { id: "forum", label: "Discussions" },
+  { id: "showcase", label: "Project Showcase" },
+  { id: "files", label: "Design Library" },
+  { id: "chat", label: "Maker Chat" },
+];
+
+// iter456 — Workshop Floor surfaces that live on their own routes.
+// Future areas (Events, Challenges, Regional Groups, Classes…) slot in
+// here or in TABS without a redesign.
+const LINK_TABS = [
+  { label: "Workshop Videos", href: "/clips" },
+  { label: "Maker Journal", href: "/journal" },
 ];
 
 const CHANNELS = [
@@ -127,13 +135,13 @@ export default function CommunityPage() {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-6 border-b border-line mb-10">
           <div>
             <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3">
-              ◆ The Workshop Floor
+              ◆ Community Hub
             </div>
-            <h1 className="font-display text-[44px] md:text-[80px] leading-[0.9] uppercase">
-              Community.
+            <h1 className="font-display text-[40px] md:text-[72px] leading-[0.9] uppercase">
+              The Workshop Floor.
             </h1>
             <p className="font-mono text-xs text-ink-muted mt-2 max-w-lg">
-              Buyers, makers, and the workshop crew — sharing pieces, swapping design files, and talking shop.
+              Where makers gather — every craft welcome. Ask questions, share projects, swap design files, and talk shop.
             </p>
           </div>
           {me ? (
@@ -173,6 +181,16 @@ export default function CommunityPage() {
             >
               {t.label}
             </button>
+          ))}
+          {LINK_TABS.map((t) => (
+            <Link
+              key={t.href}
+              to={t.href}
+              className="px-5 py-3 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 border-transparent text-ink-muted hover:text-ink transition whitespace-nowrap inline-flex items-center gap-1.5"
+              data-testid={`community-link-tab-${t.label.toLowerCase().replace(/\s/g, "-")}`}
+            >
+              {t.label} <span aria-hidden="true" className="text-[9px]">↗</span>
+            </Link>
           ))}
         </div>
 

@@ -29,12 +29,14 @@ const communityMenu = [
   // iter455 — "Studio · AI" (/studio) and "Design kits" (/kits) hidden from
   // nav per product decision (site outgrew the original concept). Routes
   // remain live for existing bookmarks/SEO.
-  { label: "Forum",        href: "/community?tab=forum",    blurb: "Threads · Q&A · help" },
-  { label: "Clips",        href: "/clips",                  blurb: "Short workshop videos" },
-  { label: "Journal",      href: "/journal",                blurb: "Long-form articles" },
-  { label: "Showcase",     href: "/community?tab=showcase", blurb: "Buyer + maker photos" },
-  { label: "Design files", href: "/community?tab=files",    blurb: "Community SVG · DXF uploads" },
-  { label: "Live chat",    href: "/community?tab=chat",     blurb: "Real-time maker chat" },
+  // iter456 — Community rebranded "The Workshop Floor". Structure scales:
+  // add future areas (Events, Challenges, Regional Groups…) as new rows.
+  { label: "Discussions",      href: "/community?tab=forum",    blurb: "Questions • Advice • Community" },
+  { label: "Workshop Videos",  href: "/clips",                  blurb: "Quick tips & project videos" },
+  { label: "Maker Journal",    href: "/journal",                blurb: "Tutorials • Guides • Maker Stories" },
+  { label: "Project Showcase", href: "/community?tab=showcase", blurb: "Projects from our community" },
+  { label: "Design Library",   href: "/community?tab=files",    blurb: "Free and shared design resources" },
+  { label: "Maker Chat",       href: "/community?tab=chat",     blurb: "Live conversations" },
 ];
 
 // Tertiary surfaces — kept out of the desktop bar but still reachable
@@ -293,12 +295,12 @@ export default function Nav() {
                   (still in the footer's Build Log band). */}
               {[
                 ...primaryLinks,
-                { label: "Forum",        href: "/community?tab=forum" },
-                { label: "Clips",        href: "/clips" },
-                { label: "Journal",      href: "/journal" },
-                { label: "Showcase",     href: "/community?tab=showcase" },
-                { label: "Design files", href: "/community?tab=files" },
-                { label: "Live chat",    href: "/community?tab=chat" },
+                { label: "Discussions",      href: "/community?tab=forum" },
+                { label: "Workshop Videos",  href: "/clips" },
+                { label: "Maker Journal",    href: "/journal" },
+                { label: "Project Showcase", href: "/community?tab=showcase" },
+                { label: "Design Library",   href: "/community?tab=files" },
+                { label: "Maker Chat",       href: "/community?tab=chat" },
                 ...tertiaryLinks,
               ].map((l, i) => (
                 <motion.li
@@ -383,7 +385,7 @@ function DesktopNav() {
           data-testid="nav-link-community"
           onFocus={handleOpen}
         >
-          Community
+          Workshop Floor
           <ChevronDown size={12} className={`transition-transform ${openMenu ? "rotate-180" : ""}`} aria-hidden="true" />
         </Link>
 
@@ -407,7 +409,7 @@ function DesktopNav() {
                 {/* LEFT — navigation links */}
                 <div className="p-3">
                   <div className="font-mono text-[9px] uppercase tracking-[0.32em] text-ink-muted px-3 pt-1 pb-2">
-                    ◆ Browse
+                    ◆ The Workshop Floor
                   </div>
                   <ul>
                     {communityMenu.map((item) => (
