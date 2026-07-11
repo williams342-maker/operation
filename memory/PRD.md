@@ -34,6 +34,30 @@ Feature: maker storefront departments ("Store Sections" maker-facing / "Browse S
 NEXT (user roadmap): Phase 2 Store Search + SEO ("Search this store" scoped box on storefront)
 → Phase 3 Smart Sections & Analytics → Digital Products.
 
+## 2026-07-11 — iter451: Phase 2 Store Search COMPLETE + VERIFIED
+
+- Backend routers/store_search.py: GET /api/makers/{slug}/search (scoped to one maker;
+  scoring exact-title 100 > title 80 > tags/materials 60 > description 40; section
+  name/description hits surfaced separately with product counts; by_section jump chips;
+  zero-result suggestions = store's sections; limit default 12 max 24; regex-escaped q,
+  80-char cap; fire-and-forget log to store_search_logs) and /search/meta (popular queries,
+  30-day window, max 6; counts BOTH product-result and section-only-hit queries — $or fix
+  applied post-test per reviewer note).
+- Frontend components/StoreSearch.jsx on MakerDetail (line 412): 220ms debounced
+  autocomplete, section hits on top w/ "Section" badge + counts, <mark> highlight, product
+  rows w/ thumbnail+price → /shop/{slug}, section rows → /makers/{slug}/{section-slug},
+  recent searches (localStorage cm_store_recent_{slug}, max 5), popular from meta, keyboard
+  nav (Arrows/Enter/Escape), combobox/listbox ARIA, click-outside close, zero-result
+  branches (suggestions if store has sections, empty panel otherwise).
+- TESTED: iteration_114.json — backend 24/24 (6 unit + 18 live E2E incl. cross-maker
+  scoping, special regex chars, meta isolation), frontend 16/16 checklist items, 0 issues.
+  Desktop 1920px + mobile 390px screenshots verified (dropdown fits, no clipping/shift).
+- Known limitations (non-blocking): Highlight marks first occurrence only; ArrowDown won't
+  reopen a closed dropdown (typing does); search log insert is awaited not create_task.
+
+NEXT: Phase 3 Smart Sections & Analytics (auto collections New Arrivals / Best Sellers /
+Sale Items + per-section views/clicks/orders/conversion tracking) → Phase 4 Digital Products.
+
 ## 2026-07-11 — iter449: Cookie Preference Center (P1 compliance) COMPLETE
 
 - NEW /cookie-preferences page (pages/CookiePreferences.jsx): 3 categories — Strictly

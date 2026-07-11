@@ -147,7 +147,8 @@ async def store_search_meta(maker_slug: str):
     since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     rows = [g async for g in db.store_search_logs.aggregate([
         {"$match": {"maker_slug": maker_slug, "at": {"$gte": since},
-                    "results": {"$gt": 0}}},
+                    "$or": [{"results": {"$gt": 0}},
+                            {"section_hits": {"$gt": 0}}]}},
         {"$group": {"_id": "$q", "n": {"$sum": 1}}},
         {"$sort": {"n": -1}}, {"$limit": 6}])]
     return {"popular": [r["_id"] for r in rows]}
