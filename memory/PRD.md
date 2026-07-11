@@ -1,3 +1,39 @@
+## 2026-07-11 — iter450: Store Sections Phase 1 COMPLETE (tested: 9 pytests + full testing-agent frontend pass, 0 issues)
+
+Feature: maker storefront departments ("Store Sections" maker-facing / "Browse Sections" buyer-facing).
+- Backend /app/backend/routers/store_sections.py: db.store_sections {id, maker_slug, name, slug,
+  previous_slugs[], description, image, position, visible}. Products carry `section_slugs: [str]`
+  (models.py Product — missing field = classic behavior, no migration needed).
+  Maker endpoints (JWT): GET/POST /maker/sections, PATCH/DELETE /maker/sections/{id},
+  POST /maker/sections/reorder, PUT /maker/sections/{id}/products (bulk membership),
+  POST /maker/sections/assign (per-product full list). Public: GET /makers/{slug}/sections
+  → visible sections + counts (single aggregation, no N+1) + all_count + redirects{old→new}.
+- Slug rules: auto-slugify, RESERVED_SLUGS guard (products, product, reviews, about, contact,
+  settings, shop, followers, following, orders, collections, section(s), edit, admin, api, blog,
+  journal, new, all, search, state) → suffix "-1"; renames NEVER change slug; explicit
+  regenerate_slug=true migrates product refs + records previous_slugs for redirect.
+- SEO: sitemap (seo.py) emits /makers/{slug}/{section} ONLY for visible sections with ≥1
+  published listing; canonical + og per section; BreadcrumbList JSON-LD includes section.
+- Frontend: StoreSectionsTab.jsx (manager: create/rename/describe/image/hide/delete/drag-reorder
+  + per-section product checklist), ShopManagerLayout nav "Sections" (FolderTree icon),
+  MakerDashboard tab "sections". StoreSectionsField.jsx pills in listing editor (saved via
+  assign after product save — never blocks save). MakerDetail.jsx: desktop sticky sidebar /
+  mobile swipe tabs, All Products first with counts, client-side instant filter (SPA state
+  survives nav — verified), empty-section state, old-slug + unknown-slug <Navigate replace>.
+  Route /makers/:slug/:sectionSlug (static /makers/state/:code still wins ranking).
+- Fixed during build: SectionEditor mounted before products fetch → memberships showed
+  unchecked; editor now renders only after products load.
+- Tests: tests/test_iter450_store_sections.py (9: CRUD, reserved/duplicate slugs, rename vs
+  regenerate+redirect+product-ref migration, reorder, delete detaches, membership+assign,
+  permissions incl. cross-maker 403s, public visibility+counts, backwards compat, sitemap).
+  Testing agent iteration_113.json: all 9 frontend flows PASS, 0 issues. Non-blocking review
+  notes: drag-drop could use a drop indicator; window.confirm for delete; jsonLd could skip
+  render pre-redirect.
+- Demo data: iron-and-oak has sections bottle-openers(1), wall-art(3), fire-pits-outdoor(0).
+
+NEXT (user roadmap): Phase 2 Store Search + SEO ("Search this store" scoped box on storefront)
+→ Phase 3 Smart Sections & Analytics → Digital Products.
+
 ## 2026-07-11 — iter449: Cookie Preference Center (P1 compliance) COMPLETE
 
 - NEW /cookie-preferences page (pages/CookiePreferences.jsx): 3 categories — Strictly
