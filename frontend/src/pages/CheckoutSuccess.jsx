@@ -234,7 +234,9 @@ function StripeCheckoutSuccess() {
           </div>
           <p className="font-mono text-xs text-ink-muted leading-relaxed mb-4">
             Files are ready right now. Links also went to your email — they stay
-            valid for 30 days. Save them locally; all digital sales are final.
+            valid for 30 days. Even after they expire, you can always re-download
+            from your <a href="/purchases" className="text-brand hover:underline">Purchases page</a> by
+            signing in with this email. All digital sales are final.
           </p>
           <ul className="space-y-2">
             {state.digital_downloads.map((d) => {

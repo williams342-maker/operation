@@ -1,7 +1,9 @@
 import React, { useRef, useState } from "react";
 import { toast } from "sonner";
-import { FileText, X, Upload, AlertCircle, Loader2 } from "lucide-react";
+import { FileText, X, Upload, AlertCircle, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Section } from "./FormControls";
+import { uploadDigitalFile } from "../../lib/chunkedUpload"; // iter453
+import { updateDigitalSettings } from "../../lib/api"; // iter453
 
 /**
  * iter327 — Listing type selector + digital file uploader.
@@ -41,9 +43,10 @@ const TYPE_OPTIONS = [
   },
 ];
 
-const ALLOWED_EXTS = ["svg", "dxf", "dwg", "ai", "eps", "stl", "step", "stp", "pdf", "zip"];
-const MAX_BYTES = 25 * 1024 * 1024;
-const MAX_FILES = 10;
+const ALLOWED_EXTS = ["pdf", "svg", "dxf", "dwg", "ai", "eps", "stl", "step", "stp",
+  "3mf", "zip", "png", "jpg", "jpeg", "epub", "mp3", "mp4"];
+const MAX_BYTES = 100 * 1024 * 1024; // iter453 — 100MB via chunked uploads
+const MAX_FILES = 5;                 // iter453 — new cap (legacy 10-file listings grandfathered)
 
 function formatBytes(n) {
   if (!n) return "0 KB";
@@ -54,14 +57,15 @@ function formatBytes(n) {
 
 export default function ListingTypeSection({ form, set, productSlug, api }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const inputRef = useRef(null);
 
   const isDigital = form.listing_type === "digital" || form.listing_type === "both";
   const files = form.digital_files || [];
-  const atCap = files.length >= MAX_FILES;
+  const atCap = files.length >= Math.max(MAX_FILES, Math.min(files.length, 10));
   const needsSave = isDigital && !productSlug;
 
-  const uploadFile = async (file) => {
+  const uploadFile = async (file, replaceFileId = null, releaseNotes = null) => {
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     if (!ALLOWED_EXTS.includes(ext)) {
       toast.error(`File type ".${ext}" not allowed`, {
@@ -76,26 +80,39 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
       return;
     }
     setUploading(true);
+    setProgress(0);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const token = localStorage.getItem("cm_maker_jwt");
-      const res = await fetch(
-        `${api}/api/maker/listings/${encodeURIComponent(productSlug)}/digital-files`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
-      );
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || `HTTP ${res.status}`);
+      const entry = await uploadDigitalFile({
+        productSlug, file, replaceFileId, releaseNotes,
+        onProgress: setProgress,
+      });
+      if (replaceFileId) {
+        set({ digital_files: files.map((f) => (f.id === replaceFileId ? entry : f)) });
+        toast.success(`New version uploaded (v${entry.version})`, { description: entry.filename });
+      } else {
+        set({ digital_files: [...files, entry] });
+        toast.success("File uploaded & scanned", { description: entry.filename });
       }
-      const entry = await res.json();
-      set({ digital_files: [...files, entry] });
-      toast.success("File uploaded", { description: entry.filename });
     } catch (e) {
       toast.error("Upload failed", { description: e.message || "Try again." });
     } finally {
       setUploading(false);
+      setProgress(0);
     }
+  };
+
+  const handleReplace = (entry) => {
+    const notes = window.prompt(
+      `Uploading a new version of "${entry.filename}".\nOptional release notes for buyers (leave blank to skip):`, "");
+    if (notes === null) return;
+    const picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = ALLOWED_EXTS.map((e) => "." + e).join(",");
+    picker.onchange = () => {
+      const f = picker.files?.[0];
+      if (f) uploadFile(f, entry.id, notes.trim() || null);
+    };
+    picker.click();
   };
 
   const handlePick = (e) => {
@@ -211,7 +228,7 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
                   <>
                     <Loader2 size={20} className="text-brand animate-spin" />
                     <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
-                      Uploading…
+                      Uploading… {progress}%
                     </span>
                   </>
                 ) : (
@@ -221,7 +238,7 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
                       Click to upload digital files
                     </span>
                     <span className="font-mono text-[9.5px] text-ink-muted">
-                      {ALLOWED_EXTS.map((e) => "." + e).join(" · ")} · ≤ 25 MB each
+                      {ALLOWED_EXTS.map((e) => "." + e).join(" · ")} · ≤ 100 MB each
                     </span>
                   </>
                 )}
@@ -248,11 +265,31 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
                   <div className="min-w-0 flex-1">
                     <div className="font-mono text-[11px] text-ink truncate">
                       {f.filename}
+                      {(f.version || 1) > 1 && (
+                        <span className="ml-2 border border-brand/40 text-brand px-1 py-0.5 text-[8px] uppercase tracking-[0.1em]">
+                          v{f.version}
+                        </span>
+                      )}
                     </div>
-                    <div className="font-mono text-[9.5px] text-ink-muted mt-0.5">
+                    <div className="font-mono text-[9.5px] text-ink-muted mt-0.5 flex items-center gap-1.5">
                       {f.ext} · {formatBytes(f.size_bytes)}
+                      {f.scan?.status === "clean" && (
+                        <span className="inline-flex items-center gap-0.5 text-green-500" title="Passed security scan">
+                          <ShieldCheck size={9} /> scanned
+                        </span>
+                      )}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleReplace(f)}
+                    disabled={uploading}
+                    className="p-1.5 text-ink-muted hover:text-brand transition disabled:opacity-40"
+                    title="Upload a new version (buyers get the latest)"
+                    data-testid={`editor-digital-file-replace-${f.id}`}
+                  >
+                    <RefreshCw size={13} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleRemove(f)}
@@ -267,6 +304,11 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
             </ul>
           )}
 
+          {/* iter453 — delivery settings (optional limit / expiry override) */}
+          {!needsSave && (
+            <DeliverySettings form={form} productSlug={productSlug} />
+          )}
+
           {/* Buyer-facing reminder */}
           <p
             className="font-mono text-[10px] text-ink-muted mt-4 leading-relaxed"
@@ -274,10 +316,70 @@ export default function ListingTypeSection({ form, set, productSlug, api }) {
           >
             ◆ Buyers see the file list (names + types) on the listing page. They get
             secure download links by email + on the order confirmation page the
-            moment payment clears. All digital sales are final — no refunds.
+            moment payment clears — and can re-download anytime from their
+            Purchases page. All digital sales are final — no refunds.
           </p>
         </div>
       )}
     </Section>
+  );
+}
+
+/** iter453 — optional per-listing download limit + link expiry override. */
+function DeliverySettings({ form, productSlug }) {
+  const [limit, setLimit] = useState(form.download_limit ?? "");
+  const [ttl, setTtl] = useState(form.download_ttl_days ?? 30);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await updateDigitalSettings(productSlug, {
+        download_limit: limit === "" ? null : Number(limit),
+        clear_limit: limit === "",
+        download_ttl_days: Number(ttl) || 30,
+      });
+      toast.success("Delivery settings saved");
+    } catch (e) {
+      toast.error("Could not save settings", { description: e?.response?.data?.detail });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="mt-4 border border-line/70 p-3" data-testid="editor-delivery-settings">
+      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted mb-2">
+        Delivery settings (optional)
+      </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="block">
+          <span className="font-mono text-[9.5px] text-ink-muted block mb-1">
+            Download limit per purchase
+          </span>
+          <input type="number" min="1" max="1000" value={limit}
+                 onChange={(e) => setLimit(e.target.value)}
+                 placeholder="Unlimited"
+                 className="w-32 bg-paper border border-line px-2 py-1.5 font-mono text-xs text-ink focus:border-brand outline-none"
+                 data-testid="editor-download-limit" />
+        </label>
+        <label className="block">
+          <span className="font-mono text-[9.5px] text-ink-muted block mb-1">
+            Link expiry (days)
+          </span>
+          <input type="number" min="1" max="365" value={ttl}
+                 onChange={(e) => setTtl(e.target.value)}
+                 className="w-24 bg-paper border border-line px-2 py-1.5 font-mono text-xs text-ink focus:border-brand outline-none"
+                 data-testid="editor-download-ttl" />
+        </label>
+        <button type="button" onClick={save} disabled={saving}
+                className="border border-brand text-brand hover:bg-brand hover:text-paper px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition disabled:opacity-40"
+                data-testid="editor-delivery-settings-save">
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <p className="font-mono text-[9px] text-ink-muted mt-2 leading-relaxed">
+        Default: unlimited downloads, links valid 30 days. Buyers can always
+        mint fresh links from their Purchases page, so they never lose access.
+      </p>
+    </div>
   );
 }

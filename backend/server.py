@@ -344,6 +344,10 @@ from routers.store_events import router as store_events_router  # iter452
 api.include_router(store_events_router)
 from routers.store_analytics import router as store_analytics_router  # iter452
 api.include_router(store_analytics_router)
+from routers.digital_products import router as digital_products_router  # iter453
+api.include_router(digital_products_router)
+from routers.maker_agreement import router as maker_agreement_router  # iter453
+api.include_router(maker_agreement_router)
 
 app.include_router(api)
 

@@ -185,6 +185,13 @@ export const fetchStoreAnalytics = (endpoint, params) =>
   http.get(`/maker/analytics/${endpoint}`, { params, headers: authHeaders() }).then((r) => r.data);
 export const fetchMarketplaceTrends = (params) =>
   http.get("/admin/marketplace-trends", { params, headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ──────────── Digital Products + Maker Agreement (iter453) ────────────
+export { authHeaders };
+export const updateDigitalSettings = (productSlug, payload) =>
+  http.patch(`/maker/listings/${productSlug}/digital-settings`, payload, { headers: authHeaders() }).then((r) => r.data);
+export const fetchAgreementAcceptances = (params) =>
+  http.get("/admin/agreement/acceptances", { params, headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchMakerOrders = () =>
   http.get("/maker/orders", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerOrderDetail = (sessionId) =>

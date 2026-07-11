@@ -45,6 +45,7 @@ import PayPalPayoutsTab from "../components/admin/PayPalPayoutsTab"; // iter441 
 import MarketplaceLedgerTab from "../components/admin/MarketplaceLedgerTab"; // iter445 — ledger + reconciliation
 import FinancialOpsTab from "../components/admin/FinancialOpsTab"; // iter446 — fin ops dashboard
 import MarketplaceTrendsTab from "../components/admin/MarketplaceTrendsTab"; // iter452 — marketplace trends
+import MakerAgreementTab from "../components/admin/MakerAgreementTab"; // iter453 — agreement audit
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
 import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
@@ -138,6 +139,8 @@ const TABS = [
   { id: "finops", label: "Fin Ops", caps: ["finance"] },
   // iter452 — anonymous cross-store search/section/category trends (read-only)
   { id: "marketplace-trends", label: "Marketplace Trends" },
+  // iter453 — maker agreement acceptance audit trail
+  { id: "maker-agreement", label: "Maker Agreement" },
   { id: "secrets", label: "Secrets", superOnly: true },
   // iter412 — AI SEO Growth Agent. Visible to admins with the "content"
   // capability since it generates content rewrites that need approval.
@@ -620,6 +623,7 @@ export default function AdminDashboard() {
             {tab === "ledger" && <MarketplaceLedgerTab />}
             {tab === "finops" && <FinancialOpsTab />}
             {tab === "marketplace-trends" && <MarketplaceTrendsTab />}
+            {tab === "maker-agreement" && <MakerAgreementTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}

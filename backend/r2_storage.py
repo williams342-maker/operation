@@ -93,6 +93,16 @@ def public_url(key: str) -> str:
     return f"{R2_PUBLIC_URL}/{key.lstrip('/')}"
 
 
+def presigned_get_url(key: str, expires_seconds: int = 300) -> str:
+    """Short-lived signed GET URL — used for digital-product delivery so
+    buyers never receive a long-lived direct storage path."""
+    return client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": R2_BUCKET, "Key": key},
+        ExpiresIn=expires_seconds,
+    )
+
+
 def upload_bytes(data: bytes, key: str, content_type: str,
                  cache_control: str = "public, max-age=31536000, immutable",
                  max_bytes: int = MAX_BYTES) -> str:

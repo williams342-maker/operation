@@ -1219,16 +1219,25 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
                     p = await db.products.find_one(
                         {"id": ci["product_id"]},
                         {"_id": 0, "slug": 1, "title": 1,
-                         "listing_type": 1, "digital_files": 1},
+                         "listing_type": 1, "digital_files": 1,
+                         "download_ttl_days": 1},
                     ) or await db.products.find_one(
                         {"slug": ci["product_id"]},
                         {"_id": 0, "slug": 1, "title": 1,
-                         "listing_type": 1, "digital_files": 1},
+                         "listing_type": 1, "digital_files": 1,
+                         "download_ttl_days": 1},
                     )
                     if not p or p.get("listing_type") not in ("digital", "both"):
                         continue
+                    # iter453 — per-listing link TTL override (default 30d).
+                    import time as _time
+                    ttl_days = int(p.get("download_ttl_days") or 30)
+                    exp_unix = int(_time.time() + ttl_days * 24 * 3600)
                     for f in (p.get("digital_files") or []):
-                        token, exp = mint_download_token(session_id, f["id"])
+                        if (f.get("scan") or {}).get("status") == "blocked":
+                            continue  # iter453 — never deliver blocked files
+                        token, exp = mint_download_token(
+                            session_id, f["id"], expires_at_unix=exp_unix)
                         digital_downloads.append({
                             "file_id": f["id"],
                             "filename": f.get("filename") or "file",
@@ -1293,7 +1302,7 @@ async def checkout_status(session_id: str, http_request: Request, bg: Background
 
 
 @router.get("/checkout/downloads/{token}")
-async def checkout_download(token: str):
+async def checkout_download(token: str, request: Request = None):
     """Token-gated digital file download (iter328).
 
     Verifies the HMAC token, increments a `downloads` counter, and
@@ -1340,7 +1349,7 @@ async def checkout_download(token: str):
     # corrected version on next download — no token reminting needed.
     prod = await db.products.find_one(
         {"slug": entry.get("product_slug")},
-        {"_id": 0, "digital_files": 1},
+        {"_id": 0, "digital_files": 1, "download_limit": 1},
     ) or {}
     product_file = next(
         (f for f in (prod.get("digital_files") or []) if f.get("id") == file_id),
@@ -1353,6 +1362,17 @@ async def checkout_download(token: str):
             "Contact them via the order page.",
         )
 
+    # iter453 — security-scan gate + optional maker-set download limit.
+    if (product_file.get("scan") or {}).get("status") == "blocked":
+        raise HTTPException(410, "This file is unavailable pending a security review.")
+    limit = prod.get("download_limit")
+    if limit and int(entry.get("downloads") or 0) >= int(limit):
+        raise HTTPException(
+            403,
+            "The maker's download limit for this file has been reached. "
+            "Contact the maker via the order page if you need access restored.",
+        )
+
     # Atomic counter bump.
     await db.payment_transactions.update_one(
         {"session_id": session_id, "digital_downloads.file_id": file_id},
@@ -1360,7 +1380,32 @@ async def checkout_download(token: str):
          "$set": {"digital_downloads.$.last_downloaded_at": now_iso()}},
     )
 
+    # iter453 — purchase download history (audit + buyer-visible).
+    try:
+        fwd = request.headers.get("x-forwarded-for") if request else None
+        await db.download_history.insert_one({
+            "session_id": session_id, "file_id": file_id,
+            "product_slug": entry.get("product_slug"),
+            "filename": product_file.get("filename") or entry.get("filename"),
+            "version": product_file.get("version") or 1,
+            "ip": (fwd.split(",")[0].strip() if fwd else
+                   (request.client.host if request and request.client else ""))[:64],
+            "user_agent": ((request.headers.get("user-agent") if request else "") or "")[:300],
+            "at": now_iso(),
+        })
+    except Exception:
+        pass
+
+    # iter453 — serve a short-lived SIGNED URL instead of the long-lived
+    # public path whenever we can resolve the storage key.
     from fastapi.responses import RedirectResponse
+    try:
+        from r2_storage import key_from_public_url, presigned_get_url
+        key = key_from_public_url(product_file["url"])
+        if key:
+            return RedirectResponse(url=presigned_get_url(key, 300), status_code=302)
+    except Exception as e:
+        logger.warning("[digital-delivery] presign failed, using public url: %s", e)
     return RedirectResponse(url=product_file["url"], status_code=302)
 
 

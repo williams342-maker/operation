@@ -1,0 +1,44 @@
+{
+  "summary": "iter453 Phase 4 Digital Products + Maker Agreement — thorough backend + frontend live testing. All 19/19 live-API pytest cases pass end-to-end against the deployed preview: chunked upload w/ real R2 PUT (init → PUT chunk → complete → clean scan → v2 versioned replace w/ release notes preserved in versions[]), rejections (bad-ext 400, other-maker 403, MZ payload 422 'security scan'), delivery settings PATCH round-trip (limit=5, ttl=45; clear_limit resets), buyer purchases scoped-to-email, mint download-links, non-owner 404, download 302 → PRESIGNED r2.cloudflarestorage.com URL with X-Amz-Algorithm (never the CDN path), download_history grows +1 after each download, maker agreement status (v1.0 requires_acceptance), accept 201 with IP=x-forwarded-for first hop + user_agent recorded, wrong-version 409, append-only re-accept bumps count, admin audit returns rows+makers_by_version+pending_current, both /maker + /admin endpoints reject unauthenticated. FRONTEND: (1) Iron-and-oak login → /maker/dashboard → maker-agreement-modal appears with v1.0 badge + 'Read the full agreement' link, agreement-checkbox gates agreement-accept-btn (disabled=True before, disabled=False after tick), Accept dismisses modal + toast 'Agreement accepted — thank you' + does NOT reappear on reload. (2) /maker/listings/mountain-range-silhouette/edit → 'Click to upload digital files … ≤ 100 MB each' copy present, file row shows 'mountain-plans-replacement.pdf v2' + green '✓ scanned' visual indicator, editor-digital-file-replace-{id} button present, editor-delivery-settings block with editor-download-limit + editor-download-ttl number inputs, editor-delivery-settings-save click → 'Delivery settings saved' toast. (3) /purchases logged-out → purchases-signin-gate visible with correct copy; after localStorage cm_buyer_jwt set → Mountain Range Silhouette (digital plans) order card, purchase-links-btn-seed-digital-demo-1 reveals purchase-download-* anchor pointing to /api/checkout/downloads/{token}, purchase-history-btn-* expands 3 download-history rows (v1 + 2× v2 from our backend replace tests). (4) /admin/dashboard → maker-agreement-tab renders 'Current version v1.0 · 2/9 makers accepted · 7 pending' summary + acceptances table with IP + user-agent columns (203.0.113.55 + iter116-test-UA + 104.198.214.223 + Mozilla/python-requests all present), agreement-version-filter input works. Screenshots: iter116_dashboard_after_accept.jpg, iter116_listing_editor_digital.jpg, iter116_purchases_gate.jpg, iter116_purchases_page.jpg, iter116_admin_agreement_tab.jpg. No blockers found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter453_live_digital_phase4.py",
+    "/app/test_reports/pytest/iter116_live.xml",
+    "/app/backend/tests/test_iter453_digital_phase4.py (pre-existing 14/14 unit — not re-run)"
+  ],
+  "action_items": [
+    "Optional testability polish: file-row 'scanned' badge in ListingTypeSection.jsx is visually correct but has no data-testid (data-testid*='scan' returned 0). Suggest data-testid=`editor-digital-file-scan-${f.id}` so future regressions can be automated cheaply. Not blocking — visual works.",
+    "Minor: agreement modal 'Read the full agreement' link opens what appears to be an in-app anchor/scroll; consider a data-testid=`agreement-full-link` for automation."
+  ],
+  "critical_code_review_comments": [
+    "digital_products.py chunked upload: init returns upload_id and complete does the real R2 PUT with scan gate — verified end-to-end against the live R2 bucket. Good.",
+    "digital_products.py scan_digital_file() heuristics: covers MZ (PE), shebang in SVG, GIF-in-PDF, ZIP nested .exe, empty payload. Adequate as a gate given ClamAV is not available in this env; if this ever ships to prod at scale consider layering true AV.",
+    "checkout.py download endpoint: enforces per-maker download_limit BEFORE minting the presigned URL — good; response 403 with 'limit' text (verified). scan_status='blocked' → 410 (verified in unit). Presigned URL correctly avoids leaking R2_PUBLIC_URL/CDN path — 302 Location contains r2.cloudflarestorage.com + X-Amz-Algorithm (verified live).",
+    "maker_agreement.py: append-only insert (verified — 2 accepts of same maker → 2 rows, count increments). Wrong version → 409 (verified). IP correctly parses x-forwarded-for first hop (verified 203.0.113.55 in admin table).",
+    "PurchasesPage.jsx: history endpoint response shape aligns with backend (list of rows w/ v1/v2 metadata). LGTM.",
+    "MakerAgreementModal.jsx: correct disabled-state on Accept button until checkbox is ticked. LGTM. NOTE: 'Read the full agreement' link is not data-testid'd — see action item.",
+    "ListingTypeSection.jsx: 'scanned' status shield lacks a data-testid — a minor testability gap (see action items).",
+    "One console 404 seen on /purchases page load (probably an image or asset lookup) and 2 admin dashboard 403s on unrelated sidebar widgets — both pre-existing per iter115 context and unrelated to Phase 4."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter453_live_digital_phase4.py (new — 19 live-API tests, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 live pytest + 14/14 pre-existing unit still passing)",
+    "frontend": "100% (all 4 UI surfaces render + interact correctly with the expected data-testids present)"
+  },
+  "test_credentials": "See /app/memory/test_credentials.md — magic tokens minted on demand via issue_magic_token / issue_admin_magic_token. Buyer JWT via issue_session_jwt('buyer', 'buyer-demo@craftersmarket.org', role='buyer').",
+  "seed_data_creation": "iron-and-oak accepted maker agreement v1.0 (expected/desired per instructions). metalart-pro also has 2 acceptance rows from live tests (append-only). No listings mutated in DB except mountain-plans-v1.pdf → mountain-plans-replacement.pdf (v2, replacing the seed file id 4a111a8c-a878-40cb-9ae3-c1133d64a7e9). The versioning history is preserved (versions[0]=v1 + versions[1]=v2 with release_notes='iter116 test — replaced with kerf corrections'). download_history for seed-digital-demo-1 now shows 3 rows (1× v1 + 2× v2) — buyer re-download history verified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter453 Phase 4 is production-ready. Chunked upload works end-to-end with real R2 (no mocks in the transport layer). Presigned URL contract is enforced (loc header contains r2.cloudflarestorage.com + X-Amz-Algorithm). Scan heuristics work as a gate but are NOT real AV (ClamAV unavailable). Seed data mutation: mountain-range-silhouette's digital_files[0] is now version 2 (mountain-plans-replacement.pdf) — if a future test needs a v1-only starting state, restore via API replace or re-seed. metalart-pro is now agreement-accepted (was pending before iter116). If a future test needs a pending maker, use a fresh throwaway email that has an approved makers row.",
+  "rca of the issue": "N/A — no bugs found in this iteration."
+}

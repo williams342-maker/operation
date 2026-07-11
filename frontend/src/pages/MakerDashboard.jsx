@@ -13,6 +13,7 @@ import SettingsTab from "./MakerDashboard/SettingsTab";
 import ProductsList from "./MakerDashboard/ProductsList";
 import StoreSectionsTab from "./MakerDashboard/StoreSectionsTab"; // iter450 — Store Sections
 import AnalyticsTab from "./MakerDashboard/AnalyticsTab"; // iter452 — Store Analytics
+import MakerAgreementModal from "../components/MakerAgreementModal"; // iter453
 import RenewalsTab from "./MakerDashboard/RenewalsTab";
 import FounderBenefitsTab from "./MakerDashboard/FounderBenefitsTab";
 import CoachTab from "./MakerDashboard/CoachTab"; // iter413dg — Seller Success Dashboard
@@ -438,6 +439,8 @@ export default function MakerDashboard() {
         maker={maker}
         onSeen={() => setMaker((m) => m ? { ...m, founder_welcome_seen: true } : m)}
       />
+      {/* iter453 — blocking Maker Agreement acceptance (versioned audit trail) */}
+      <MakerAgreementModal />
       <ShopManagerLayout
         maker={maker}
         tab={tab}
