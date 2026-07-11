@@ -14,7 +14,7 @@ import {
   createForumThread, replyForumThread, adminTeamReplyForumThread, uploadForumAttachment,
   uploadShowcaseImage, uploadShowcaseVideo, aiDescribeShowcase,
   deleteChatMessage, deleteForumThread, deleteForumReply,
-  fetchChatHistory, wsChatUrl,
+  fetchChatHistory, openChatSocket,
   communityMe, uploadAvatar,
   fetchProducts, fetchMakers,
 } from "../lib/api";
@@ -35,6 +35,8 @@ const TABS = [
 
 const CHANNELS = [
   "general",
+  "help",
+  "showcase",
   "machine-help",
   "finishing-tips",
   "beginners",
@@ -45,6 +47,8 @@ const CHANNELS = [
 
 const CHANNEL_LABEL = {
   "general": "General",
+  "help": "Help Desk",
+  "showcase": "Showcase",
   "machine-help": "Machine Help",
   "finishing-tips": "Finishing Tips",
   "beginners": "Beginners",
@@ -3459,19 +3463,33 @@ function ChatTab({ me }) {
   useEffect(() => {
     const eligible = CHANNELS.filter((c) => !!tokenForChannel(c));
     eligible.forEach((c) => {
-      if (shadowSocketsRef.current[c]) return; // already connected
+      if (shadowSocketsRef.current[c]) return; // already connected / connecting
       const tok = tokenForChannel(c);
       if (!tok) return;
-      const ws = new WebSocket(wsChatUrl(c, tok));
-      ws.onmessage = (e) => onWsMessage(c, e);
-      ws.onerror = () => {};
-      ws.onclose = () => {
-        // Drop reference so a future channel switch can recreate it on retry.
-        if (shadowSocketsRef.current[c] === ws) {
+      shadowSocketsRef.current[c] = "connecting"; // placeholder blocks duplicates
+      // iter442 — ticket handshake keeps the JWT out of the WS URL.
+      openChatSocket(c, tok)
+        .then((ws) => {
+          if (shadowSocketsRef.current[c] !== "connecting") {
+            // Effect tore down (or superseded) while the ticket was in
+            // flight — don't leak a live socket.
+            try { ws.close(); } catch { /* ignore */ }
+            return;
+          }
+          ws.onmessage = (e) => onWsMessage(c, e);
+          ws.onerror = () => {};
+          ws.onclose = () => {
+            // Drop reference so a future channel switch can recreate it on retry.
+            if (shadowSocketsRef.current[c] === ws) {
+              delete shadowSocketsRef.current[c];
+            }
+          };
+          shadowSocketsRef.current[c] = ws;
+          if (activeChannelRef.current === c) sendWsRef.current = ws;
+        })
+        .catch(() => {
           delete shadowSocketsRef.current[c];
-        }
-      };
-      shadowSocketsRef.current[c] = ws;
+        });
     });
     // Load history for the active channel from REST so we don't depend on shadow socket timing.
     if (tokenForChannel(channel)) {
@@ -3495,7 +3513,8 @@ function ChatTab({ me }) {
     fetchChatHistory(channel).then((hist) =>
       setMessagesByCh((m) => ({ ...m, [channel]: hist }))
     );
-    sendWsRef.current = shadowSocketsRef.current[channel] || null;
+    const active = shadowSocketsRef.current[channel];
+    sendWsRef.current = active && active !== "connecting" ? active : null;
   }, [channel]);
 
   const isMention = (text) =>

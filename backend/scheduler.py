@@ -59,6 +59,15 @@ async def _job_expire_listings() -> None:
         logger.exception("[scheduler] listing-expiry failed: %s", e)
 
 
+async def _job_paypal_email_reminders() -> None:
+    """Daily: remind makers with deferred PayPal balances to add a PayPal email."""
+    from routers.paypal_payouts import job_paypal_email_reminders
+    try:
+        await job_paypal_email_reminders()
+    except Exception as e:
+        logger.exception("[scheduler] paypal-email reminders failed: %s", e)
+
+
 async def _job_listing_renewal_reminders() -> None:
     """Daily: email makers whose manual-renewal listings expire in 7 days."""
     from revenue import send_listing_expiry_reminders
@@ -1606,6 +1615,10 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched = AsyncIOScheduler(timezone="UTC")
     sched.add_job(_job_expire_listings, CronTrigger(hour=3, minute=10),
                   id="expire_listings", replace_existing=True)
+    # iter441 — PayPal payout-email reminders (3/7/14 days) for makers with
+    # deferred PayPal balances and no PayPal email on file. 10:15 UTC daily.
+    sched.add_job(_job_paypal_email_reminders, CronTrigger(hour=10, minute=15),
+                  id="paypal_email_reminders", replace_existing=True)
     # Listing renewal reminders — runs 09:30 UTC daily, emails makers
     # whose manual-renewal listings expire in 7 days. Auto-renew listings
     # skip this nudge (they're handled silently by expire_listings).

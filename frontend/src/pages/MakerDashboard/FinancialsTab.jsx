@@ -7,7 +7,7 @@ import {
 import CreditPacksCard from "./CreditPacksCard";
 
 import {
-  fetchMakerPayouts, fetchMakerTransactions,
+  fetchMakerPayouts, fetchMakerTransactions, fetchMakerMe, updateMakerProfile,
   stripeConnectOnboard, stripeConnectStatus, stripeConnectDashboardLink,
   fetchMakerShippingLedger, setMakerShippingCadence, setMakerShippingCap,
   fetchShippingAnalytics,
@@ -195,7 +195,7 @@ export default function FinancialsTab() {
                 <PaymentAccount payouts={payouts} status={status} txns={txns} onRefresh={refresh} query={query} />
               )}
               {section === "monthly-statements" && <MonthlyStatements txns={txns} query={query} />}
-              {section === "payment-settings" && <PaymentSettings status={status} query={query} />}
+              {section === "payment-settings" && <PaymentSettings status={status} payouts={payouts} query={query} />}
               {section === "quickbooks" && <ExportPanel format="quickbooks" txns={txns} query={query} />}
               {section === "xero" && <ExportPanel format="xero" txns={txns} query={query} />}
               {section === "turbotax" && <ExportPanel format="turbotax" txns={txns} query={query} />}
@@ -602,7 +602,98 @@ function MonthlyStatements({ txns, query }) {
 // ============================================================================
 // Section: Payment settings (Stripe-managed)
 // ============================================================================
-function PaymentSettings({ status, query }) {
+// ============================================================================
+// iter441 — PayPal payout destination + deferred balance banner
+// ============================================================================
+function PayPalPayoutCard({ payouts }) {
+  const [me, setMe] = useState(null);
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchMakerMe().then((m) => {
+      setMe(m);
+      setEmail(m?.paypal_email || "");
+    }).catch(() => {});
+  }, []);
+
+  const rows = payouts?.payouts || payouts || [];
+  const deferredCents = (Array.isArray(rows) ? rows : [])
+    .filter((p) => p.provider === "paypal" && ["deferred", "failed"].includes(p.status))
+    .reduce((sum, p) => sum + (Number(p.amount_cents) || 0), 0);
+
+  const save = async () => {
+    const v = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      toast.error("Please enter a valid PayPal email address.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const m = await updateMakerProfile({ paypal_email: v });
+      setMe(m);
+      toast.success("PayPal payout email saved.");
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      toast.error((typeof detail === "string" && detail) || "Could not save your PayPal email.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mb-6" data-testid="paypal-payout-card">
+      {deferredCents > 0 && !me?.paypal_email && (
+        <div className="border border-amber-400/60 bg-amber-400/5 p-4 mb-3" data-testid="paypal-email-banner">
+          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-600 mb-1">
+            ⚠ PayPal payout information required
+          </div>
+          <p className="font-mono text-xs text-ink">
+            Deferred balance: <strong className="text-brand">${(deferredCents / 100).toFixed(2)}</strong>
+            {" "}— a buyer paid with PayPal. Add your PayPal email below to receive these funds;
+            your balance is held safely until you do.
+          </p>
+        </div>
+      )}
+      <div className="border border-line bg-paper p-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
+          ◆ PayPal payouts
+        </div>
+        <p className="font-mono text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
+          When a buyer pays with PayPal, your share accrues here and is paid to your PayPal
+          account. Add the PayPal email you'd like to be paid at.
+        </p>
+        {me?.paypal_email && (
+          <p className="font-mono text-xs mb-3" data-testid="paypal-email-current">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-2" />
+            Payout email on file: <span className="text-ink">{me.paypal_email}</span>
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@paypal-email.com"
+            className="border border-line bg-paper px-3 py-2 font-mono text-xs w-72"
+            data-testid="paypal-email-input"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !email.trim()}
+            className="border border-brand text-brand px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-brand hover:text-paper disabled:opacity-50 transition"
+            data-testid="paypal-email-save-btn"
+          >
+            {saving ? "Saving…" : me?.paypal_email ? "Update email" : "Save email"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentSettings({ status, payouts, query }) {
   const [schedule, setSchedule] = useState(null);
   const [billing, setBilling] = useState(null);
   const [sub, setSub] = useState(null);
@@ -653,6 +744,11 @@ function PaymentSettings({ status, query }) {
 
   return (
     <Section title="Payment settings" testId="payment-settings">
+      {/* iter441 — PayPal payout destination. PayPal-paid orders accrue as
+          deferred balances until the maker adds the PayPal email they want
+          to be paid at. */}
+      <PayPalPayoutCard payouts={payouts} />
+
       {/* Live payout schedule — pulled from Stripe Account.settings.payouts.schedule
           on every load so the maker sees their actual configured cadence
           (not the platform default). Falls back to env defaults when Stripe

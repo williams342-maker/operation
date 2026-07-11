@@ -271,6 +271,15 @@ async def finalize_paypal_order(internal_id: str, trigger: str = "unknown",
     except Exception as e:
         logger.exception("[paypal-finalize] commission recording failed · %s", e)
 
+    # 3b. Makers without a PayPal email get an immediate "add your PayPal
+    #     email" heads-up (once; the daily cron sends 3/7/14-day reminders).
+    try:
+        from .paypal_payouts import nudge_paypal_email_needed
+        for maker_slug in by_maker:
+            await nudge_paypal_email_needed(maker_slug)
+    except Exception as e:
+        logger.warning("[paypal-finalize] payout-email nudge skipped · %s", e)
+
     # 4. Inventory — exactly once (we're inside the atomic claim).
     low_by_maker: dict = {}
     try:

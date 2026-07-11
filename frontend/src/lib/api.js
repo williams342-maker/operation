@@ -1866,9 +1866,19 @@ export const deleteForumReply = (id) =>
 export const fetchChatHistory = (channel) =>
   http.get(`/community/chat/${channel}/history`).then((r) => r.data);
 
-export const wsChatUrl = (channel, token) => {
+export const wsChatUrl = (channel, ticket) => {
   const wsBase = BASE.replace(/^http/, "ws");
-  return `${wsBase}/api/ws/chat/${channel}?token=${encodeURIComponent(token || "")}`;
+  return `${wsBase}/api/ws/chat/${channel}?ticket=${encodeURIComponent(ticket || "")}`;
+};
+
+// iter442 — never put the JWT in the WebSocket URL. Exchange it for a
+// short-lived (60s) single-use ticket over an authed POST, then connect
+// with the opaque ticket only.
+export const openChatSocket = async (channel, token) => {
+  const { data } = await http.post("/community/chat/ws-ticket", {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return new WebSocket(wsChatUrl(channel, data.ticket));
 };
 
 

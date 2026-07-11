@@ -309,6 +309,8 @@ class Maker(BaseModel):
     initials: str
     location: str
     bio: str
+    # iter441 — PayPal Payouts destination email (None until the maker adds it).
+    paypal_email: Optional[str] = None
     techniques: List[str] = []
     # "Meet the Makers" upgrade (iter178) — story-building fields that
     # buyers use to vet a maker before committing to a custom order.
@@ -899,6 +901,8 @@ class MakerProfileUpdate(BaseModel):
     email: Optional[EmailStr] = None
     banner_image_url: Optional[str] = None       # Plus-only: custom shop banner
     external_ads_opt_out: Optional[bool] = None
+    # iter441 — PayPal Payouts destination (validated email format).
+    paypal_email: Optional[EmailStr] = None
     # ---- Settings tab patchable fields ----
     vacation_mode: Optional[bool] = None
     vacation_message: Optional[str] = None

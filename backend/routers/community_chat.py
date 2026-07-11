@@ -11,9 +11,12 @@ WebSocket handler also enforces:
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect,
+)
 
 from core import db, logger, now_iso
 from maker_auth import decode_session_jwt
@@ -24,7 +27,48 @@ CHANNELS = {
     "general", "machine-help", "finishing-tips",
     "beginners", "advanced-cnc", "off-topic",
     "makers-only",
+    # iter442 — the floating LiveChatWidget's channels. `help` was never in
+    # this set, so every /api/ws/chat/help handshake was rejected pre-accept
+    # (browser saw a 403 upgrade failure and retried forever).
+    "help", "showcase",
 }
+
+# ── iter442: short-lived single-use WebSocket tickets ────────────────────────
+# The JWT must never ride in the WebSocket query string (it lands in proxy /
+# access logs and the browser console). Clients POST here with their normal
+# Authorization header, get an opaque 60-second single-use ticket, and connect
+# with ?ticket=… instead.
+WS_TICKET_TTL_SECONDS = 60
+
+
+@router.post("/community/chat/ws-ticket")
+async def chat_ws_ticket(request: Request):
+    auth = request.headers.get("authorization") or ""
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not token:
+        raise HTTPException(401, "Sign in to join chat.")
+    claims = decode_session_jwt(token)  # raises 401 on bad/expired token
+    ticket = uuid.uuid4().hex + uuid.uuid4().hex
+    await db.chat_ws_tickets.insert_one({
+        "ticket": ticket,
+        "claims": {"sub": claims.get("sub"), "email": claims.get("email"),
+                   "role": claims.get("role")},
+        "created_at": now_iso(),
+        "expires_at_unix": time.time() + WS_TICKET_TTL_SECONDS,
+        "used": False,
+    })
+    # Opportunistic cleanup — tickets are tiny, keep the collection lean.
+    await db.chat_ws_tickets.delete_many({"expires_at_unix": {"$lt": time.time() - 3600}})
+    return {"ticket": ticket, "expires_in": WS_TICKET_TTL_SECONDS}
+
+
+async def _redeem_ws_ticket(ticket: str) -> dict | None:
+    """Atomically consume a ticket — a replayed/expired ticket returns None."""
+    doc = await db.chat_ws_tickets.find_one_and_update(
+        {"ticket": ticket, "used": False, "expires_at_unix": {"$gt": time.time()}},
+        {"$set": {"used": True, "used_at": now_iso()}},
+    )
+    return (doc or {}).get("claims")
 
 
 class ChatRoom:
@@ -87,7 +131,8 @@ async def chat_buddies(channel: str):
 
 
 @router.websocket("/ws/chat/{channel}")
-async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
+async def ws_chat(websocket: WebSocket, channel: str,
+                  ticket: str = Query(""), token: str = Query("")):
     if channel not in CHANNELS:
         await websocket.close(code=4404)
         return
@@ -96,11 +141,20 @@ async def ws_chat(websocket: WebSocket, channel: str, token: str = Query("")):
     if not await get_setting("live_chat_enabled", True):
         await websocket.close(code=4503)  # service unavailable
         return
-    try:
-        claims = decode_session_jwt(token) if token else None
-    except HTTPException:
-        await websocket.close(code=4401)
-        return
+    # iter442 — preferred auth: short-lived single-use ticket (no JWT in the
+    # URL). Legacy ?token= is still honoured for cached bundles mid-rollout.
+    claims = None
+    if ticket:
+        claims = await _redeem_ws_ticket(ticket)
+        if not claims:
+            await websocket.close(code=4401)
+            return
+    elif token:
+        try:
+            claims = decode_session_jwt(token)
+        except HTTPException:
+            await websocket.close(code=4401)
+            return
     if channel == "makers-only":
         if not claims or claims.get("role") != "maker":
             await websocket.close(code=4403)

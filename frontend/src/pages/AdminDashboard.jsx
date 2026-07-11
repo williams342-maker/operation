@@ -41,6 +41,7 @@ import ModerationQueueTab from "../components/admin/ModerationQueueTab"; // iter
 import GrowthAnalyticsTab from "../components/admin/GrowthAnalyticsTab"; // iter427 — Growth analytics
 import BetaProgramTab from "../components/admin/BetaProgramTab"; // iter428 — Beta app testing
 import PayPalEventsTab from "../components/admin/PayPalEventsTab"; // iter437 — PayPal webhook viewer
+import PayPalPayoutsTab from "../components/admin/PayPalPayoutsTab"; // iter441 — PayPal maker payouts
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
 import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
@@ -127,6 +128,7 @@ const TABS = [
   { id: "beta-program", label: "Beta Program" },
   // iter437 — Read-only PayPal webhook event viewer (finance)
   { id: "paypal-events", label: "PayPal Events", caps: ["finance"] },
+  { id: "paypal-payouts", label: "PayPal Payouts", caps: ["finance"] },
   { id: "secrets", label: "Secrets", superOnly: true },
   // iter412 — AI SEO Growth Agent. Visible to admins with the "content"
   // capability since it generates content rewrites that need approval.
@@ -605,6 +607,7 @@ export default function AdminDashboard() {
             {tab === "growth-analytics" && <GrowthAnalyticsTab />}
             {tab === "beta-program" && <BetaProgramTab />}
             {tab === "paypal-events" && <PayPalEventsTab />}
+            {tab === "paypal-payouts" && <PayPalPayoutsTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}

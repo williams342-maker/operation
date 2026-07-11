@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchChatHistory, wsChatUrl } from "../lib/api";
+import { fetchChatHistory, openChatSocket } from "../lib/api";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 
 // Floating live-chat popup → community #help channel.
@@ -36,7 +36,17 @@ function recentlyDismissed() {
   }
 }
 
-export default function LiveChatWidget() {
+// iter442 — hard isolation: a crash anywhere inside the chat widget renders
+// nothing instead of unmounting the app tree. Checkout can never be taken
+// down by chat.
+class ChatErrorBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { /* silent — chat is strictly optional */ }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
+function LiveChatWidgetInner() {
   const settings = useSiteSettings();
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem(STORAGE_OPEN) === "1"; } catch { return false; }
@@ -51,6 +61,7 @@ export default function LiveChatWidget() {
   const [draft, setDraft] = useState("");
   const [unread, setUnread] = useState(0);
   const [connected, setConnected] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const [buddies, setBuddies] = useState([]);
   const wsRef = useRef(null);
   const scrollRef = useRef(null);
@@ -94,32 +105,56 @@ export default function LiveChatWidget() {
   }, [messages, open]);
 
   // Connect WebSocket — reconnects when channel or token changes.
+  // iter442 — auth is a short-lived single-use ticket fetched over an authed
+  // POST (JWT never appears in the URL). Reconnects use exponential backoff
+  // with jitter, give up after MAX_RETRIES, and never retry fatal closes
+  // (bad auth 4401, forbidden 4403, unknown channel 4404, disabled 4503).
   useEffect(() => {
     if (!enabled || onChatPage || !token) return;
     let alive = true;
     let ws = null;
-    let backoff = 1000;
+    let attempts = 0;
+    let timer = null;
+    const MAX_RETRIES = 8;
+    const FATAL_CODES = [4401, 4403, 4404, 4503];
 
-    // Reset state when channel changes so we don't show old room's messages.
     setMessages([]);
     setBuddies([]);
     setConnected(false);
+    setUnavailable(false);
 
-    const connect = () => {
+    const scheduleRetry = () => {
       if (!alive) return;
-      try {
-        ws = new WebSocket(wsChatUrl(channel, token));
-      } catch {
-        setConnected(false);
+      attempts += 1;
+      if (attempts > MAX_RETRIES) {
+        setUnavailable(true); // stop hammering the server — chat goes quiet, nothing else breaks
         return;
       }
+      const base = Math.min(1000 * 2 ** attempts, 30000);
+      const jitter = Math.random() * 0.3 * base;
+      timer = setTimeout(connect, base + jitter);
+    };
+
+    const connect = async () => {
+      if (!alive) return;
+      let sock;
+      try {
+        sock = await openChatSocket(channel, token);
+      } catch {
+        scheduleRetry(); // ticket fetch failed (offline / expired session)
+        return;
+      }
+      if (!alive) { try { sock.close(); } catch { /* ignore */ } return; }
+      ws = sock;
       wsRef.current = ws;
-      ws.onopen = () => { setConnected(true); backoff = 1000; };
-      ws.onclose = () => {
+      ws.onopen = () => { setConnected(true); setUnavailable(false); attempts = 0; };
+      ws.onclose = (e) => {
         setConnected(false);
-        if (alive) setTimeout(connect, Math.min(backoff *= 2, 15000));
+        if (!alive) return;
+        if (FATAL_CODES.includes(e?.code)) { setUnavailable(true); return; }
+        scheduleRetry();
       };
-      ws.onerror = () => { /* close handler will retry */ };
+      ws.onerror = () => { /* close handler decides retry */ };
       ws.onmessage = (e) => {
         let msg;
         try { msg = JSON.parse(e.data); } catch { return; }
@@ -147,6 +182,7 @@ export default function LiveChatWidget() {
 
     return () => {
       alive = false;
+      clearTimeout(timer);
       try { ws && ws.close(); } catch { /* ignore */ }
     };
   }, [enabled, onChatPage, token, channel]);
@@ -208,7 +244,9 @@ export default function LiveChatWidget() {
             <div className="font-mono text-[10px] text-ink-muted mt-0.5">
               {connected
                 ? `${buddies.length || 0} online`
-                : token ? "Connecting…" : "Sign in to join"}
+                : unavailable
+                  ? "Chat is offline right now"
+                  : token ? "Connecting…" : "Sign in to join"}
             </div>
           </div>
           {token && (
@@ -318,7 +356,7 @@ export default function LiveChatWidget() {
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={connected ? "Type a message…" : "Reconnecting…"}
+              placeholder={connected ? "Type a message…" : unavailable ? "Chat is offline" : "Reconnecting…"}
               disabled={!connected}
               maxLength={500}
               data-testid="live-chat-input"
@@ -336,5 +374,13 @@ export default function LiveChatWidget() {
         </>
       )}
     </div>
+  );
+}
+
+export default function LiveChatWidget() {
+  return (
+    <ChatErrorBoundary>
+      <LiveChatWidgetInner />
+    </ChatErrorBoundary>
   );
 }

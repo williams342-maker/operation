@@ -242,6 +242,14 @@ async def _process_event(event: dict) -> str:
             {"session_id": f"pp_{doc['id']}"}, {"$set": dispute})
         return f"dispute:{doc['id']}"
 
+    if etype.startswith("PAYMENT.PAYOUTS-ITEM."):
+        from .paypal_payouts import apply_payout_item_event
+        return await apply_payout_item_event(event)
+
+    if etype.startswith("PAYMENT.PAYOUTSBATCH."):
+        from .paypal_payouts import apply_payout_batch_event
+        return await apply_payout_batch_event(event)
+
     return "recorded"
 
 

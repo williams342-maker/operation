@@ -3735,3 +3735,55 @@ async def send_ops_webhook(*, title: str, text: str, url: str | None = None,
     except Exception as e:
         logger.warning("[ops-webhook] dispatch failed (%s): %s", kind, e)
         return False
+
+
+# ── iter441 — PayPal Payouts emails ─────────────────────────────────────────
+
+async def send_maker_paypal_email_needed(maker_email: str, maker_name: str,
+                                         deferred_total: float, reminder: bool = False):
+    """Maker earned a PayPal-paid sale but has no PayPal email on file."""
+    if not maker_email:
+        return None
+    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+            or "https://craftersmarket.org").rstrip("/")
+    body = (
+        f"<p style='font-size:14px;line-height:1.7;color:#e5e5e5'>You've earned a payout on "
+        f"Crafters Market! A buyer paid with PayPal, and your share is waiting:</p>"
+        f"<div style='border:1px solid #262626;padding:16px;margin:18px 0;text-align:center'>"
+        f"<div style='color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>Deferred balance</div>"
+        f"<div style='color:#ff4500;font-family:Impact,sans-serif;font-size:34px'>${deferred_total:.2f}</div></div>"
+        "<p style='font-size:13px;line-height:1.7;color:#a3a3a3'>To receive your funds, add the "
+        "PayPal email you'd like to be paid at in your payout settings. Your balance is held "
+        "safely until then — nothing is lost.</p>"
+        f"<div style='margin-top:22px'><a href='{site}/maker/dashboard?tab=payouts' "
+        "style='display:inline-block;background:#ff4500;color:#0a0a0a;padding:12px 22px;"
+        "font-family:Impact,Arial Black,sans-serif;font-size:13px;letter-spacing:0.18em;"
+        "text-transform:uppercase;text-decoration:none;border:1px solid #ff4500'>"
+        "Add PayPal email →</a></div>"
+    )
+    prefix = "Reminder: " if reminder else ""
+    html = _shell(f"{prefix}Payout waiting for {maker_name}.",
+                  "Add your PayPal email to get paid.", body, "PayPal payout setup")
+    return await _send(maker_email, f"{prefix}${deferred_total:.2f} payout waiting — add your PayPal email", html)
+
+
+async def send_maker_payout_sent(maker_email: str, maker_name: str, amount: float,
+                                 paypal_email: str, batch_id: str | None):
+    """Payout receipt — a PayPal Payouts batch just paid this maker."""
+    if not maker_email:
+        return None
+    body = (
+        f"<p style='font-size:14px;line-height:1.7;color:#e5e5e5'>We've sent your Crafters "
+        f"Market payout via PayPal:</p>"
+        f"<div style='border:1px solid #262626;padding:16px;margin:18px 0;text-align:center'>"
+        f"<div style='color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>Payout amount</div>"
+        f"<div style='color:#ff4500;font-family:Impact,sans-serif;font-size:34px'>${amount:.2f}</div></div>"
+        f"<p style='font-size:13px;color:#a3a3a3;line-height:1.7'>Sent to: "
+        f"<span style='color:#e5e5e5'>{paypal_email}</span>"
+        + (f"<br/>PayPal batch: <span style='color:#e5e5e5'>{batch_id}</span>" if batch_id else "")
+        + "<br/>Funds typically appear in your PayPal account within minutes.</p>"
+    )
+    html = _shell(f"Payout sent, {maker_name}.", "Your PayPal payout is on its way.",
+                  body, "Payout receipt")
+    return await _send(maker_email, f"Payout sent · ${amount:.2f} → {paypal_email}", html)
+

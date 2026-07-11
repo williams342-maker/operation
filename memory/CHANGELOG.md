@@ -1,3 +1,47 @@
+## 2026-07-11 — iter441+442: PayPal Payouts (admin-triggered) + Chat WebSocket security overhaul
+
+### iter441 — PayPal Payouts Phase 1 (sandbox)
+- NEW routers/paypal_payouts.py: GET /admin/paypal/payouts/summary (per-maker available /
+  missing-email / on-hold(dispute/refund) / processing / lifetime-paid buckets), POST
+  /admin/paypal/payouts/run (dry_run preview → execute PayPal Payouts v1 batch,
+  sender_batch_id=run_id idempotent, rows claimed deferred→processing BEFORE the API call,
+  rolled back on failure), GET runs history, GET export.csv. Receipt email per maker + audit_log.
+- Webhooks: PAYMENT.PAYOUTS-ITEM.SUCCEEDED→paid / FAILED etc→failed (retryable — failed rows
+  re-surface as available); PAYMENT.PAYOUTSBATCH.DENIED fails the whole run.
+- Maker: paypal_email on Maker model + MakerProfileUpdate (EmailStr validated); UI card in
+  Financials → Payment settings (FinancialsTab PayPalPayoutCard, data-testid paypal-payout-card,
+  paypal-email-input/save-btn) with deferred-balance banner. NOTE: pages/MakerDashboard/PayoutsTab.jsx
+  is ORPHANED dead code (not imported anywhere) — real payouts UI is FinancialsTab.jsx.
+- Nudges: finalize sends "add your PayPal email" once (paypal_email_nudged_at); daily cron
+  10:15 UTC (scheduler job paypal_email_reminders) reminds at 3/7/14 days, stops when email added.
+- Admin UI: components/admin/PayPalPayoutsTab.jsx (tab id "paypal-payouts", caps finance) —
+  summary cards, maker table w/ ready/deferred badges, Pay Now/Selected/All with dry-run modal,
+  runs history, CSV export. VERIFIED via screenshot (modal shows per-maker breakdown).
+- Tests: tests/test_iter441_paypal_payouts.py — 9 tests, all pass.
+
+### iter442 — LiveChat WS: prod failure root-caused + JWT removed from URL
+- ROOT CAUSE of prod "failing to connect to /api/ws/chat/help": widget channels help/showcase
+  were NOT in community_chat.CHANNELS → close pre-accept → HTTP 403 upgrade rejection → infinite
+  retry with JWT visible in URL. Fixed: help+showcase added (backend + CommunityPage labels).
+- Ticket auth: POST /api/community/chat/ws-ticket (Authorization header) → 60s SINGLE-USE ticket
+  (db.chat_ws_tickets, atomic redeem); WS accepts ?ticket= (preferred) + legacy ?token= for cached
+  bundles. lib/api openChatSocket(channel, jwt) does the exchange; wsChatUrl now takes ticket.
+- Log redaction: server.py _RedactSensitiveQuery filter on uvicorn loggers — token/ticket/jwt/key
+  query values logged as [redacted]. VERIFIED in live logs.
+- Widget: exponential backoff w/ jitter, cap 30s, max 8 retries, NO retry on fatal closes
+  (4401/4403/4404/4503) → "Chat is offline" state; ChatErrorBoundary wraps the widget so a chat
+  crash renders null and can never affect checkout. CommunityPage shadow sockets use tickets with
+  "connecting" placeholder guard.
+- Tests: tests/test_iter442_chat_ws_ticket.py — 9 tests (ticket auth, single-use, replay/forge
+  rejection, help/showcase connect, legacy token, broadcast roundtrip). E2E verified over wss://
+  through the preview ingress (proxy upgrade works). 47/47 PayPal+chat tests pass.
+
+### ⚠ Agent lesson (recurring this session)
+- PARALLEL search_replace calls on the SAME file corrupt it / silently drop edits
+  (seen on paypal_checkout.py, AdminDashboard.jsx, LiveChatWidget.jsx). Always edit one file
+  sequentially; parallelize only across different files.
+
+
 ## 2026-07-11 — iter440: PayPal order-pipeline parity (Stripe-equivalent downstream)
 
 - NEW `routers/paypal_finalize.py`: finalize_paypal_order() runs the full paid-order pipeline for

@@ -1,17 +1,46 @@
 """Crafters Market FastAPI app — wire-up only.
 Routers live under /app/backend/routers/.
 """
+import logging
 import os
+import re
+
 from fastapi import APIRouter, FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from core import client, db, logger
+
+
+# iter442 — never let bearer material leak into access logs. WebSocket
+# handshakes (and any URL) with ?token= / ?ticket= / ?jwt= get their query
+# values redacted before uvicorn writes the access line.
+class _RedactSensitiveQuery(logging.Filter):
+    _pat = re.compile(r"((?:token|ticket|jwt|key)=)[^\s&\"']+", re.IGNORECASE)
+
+    def filter(self, record):  # noqa: A003
+        try:
+            if record.args:
+                record.args = tuple(
+                    self._pat.sub(r"\1[redacted]", a) if isinstance(a, str) else a
+                    for a in record.args
+                )
+            if isinstance(record.msg, str):
+                record.msg = self._pat.sub(r"\1[redacted]", record.msg)
+        except Exception:
+            pass
+        return True
+
+
+for _name in ("uvicorn.access", "uvicorn.error", "uvicorn"):
+    logging.getLogger(_name).addFilter(_RedactSensitiveQuery())
+
 from routers.admin import router as admin_router
 from routers.ai import router as ai_router
 from routers.ai_marketing import router as ai_marketing_router
 from routers.auth_password import router as auth_password_router
 from routers.paypal_webhooks import router as paypal_webhooks_router
 from routers.paypal_checkout import router as paypal_checkout_router
+from routers.paypal_payouts import router as paypal_payouts_router
 from routers.catalog import router as catalog_router
 from routers.applications_verify import router as applications_verify_router
 from routers.csv_import import router as csv_import_router
@@ -156,6 +185,7 @@ api.include_router(chat_mod_router)
 api.include_router(auth_password_router)
 api.include_router(paypal_webhooks_router)
 api.include_router(paypal_checkout_router)
+api.include_router(paypal_payouts_router)
 api.include_router(ai_marketing_router)
 api.include_router(discount_codes_router)
 api.include_router(csv_import_router)
