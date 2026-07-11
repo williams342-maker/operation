@@ -1,3 +1,12 @@
+## 2026-07-11 — iter438d: PayPal verification RESOLVED in production
+
+- Users latest redeploy fixed it: production Admin -> PayPal Events shows CHECKOUT.ORDER.APPROVED
+  verification SUCCESS / recorded (6:17 PM). Prior ERROR rows were pre-deploy builds.
+- Cleanup DONE: preview PAYPAL_WEBHOOK_ID_SANDBOX restored to 9XT72327E2740625K; debug webhook
+  9B09609557224982L deleted from PayPal app (204). Only production webhook remains.
+- Remaining: user should run one more full sandbox purchase to confirm PAYMENT.CAPTURE.COMPLETED
+  verifies SUCCESS and shows processing_result reconciled:<internal-id>.
+
 ## 2026-07-11 — iter438c: PayPal verification field-by-field audit + verify_debug
 
 - Audit (all preview-verified): webhook id sent = 9XT72327E2740625K exactly; belongs to same app as
