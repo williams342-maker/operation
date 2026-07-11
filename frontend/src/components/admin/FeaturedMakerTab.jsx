@@ -173,6 +173,13 @@ export default function FeaturedMakerTab() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-line/60">
+              {(!p.assets?.square_url || !p.assets?.landscape_url) && (
+                <button onClick={() => regenerate(p.id)} disabled={!!busy}
+                        className="border border-amber-500/60 text-amber-400 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] transition disabled:opacity-40 inline-flex items-center gap-1"
+                        data-testid={`promo-regenerate-${p.id}`}>
+                  <RefreshCw size={10} />{busy === p.id ? "Regenerating…" : "Retry generation"}
+                </button>
+              )}
               {!p.activated && (
                 <button onClick={() => activate(p.id)}
                         className="bg-brand hover:bg-brand-hover text-[#0a0a0a] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] font-bold transition"

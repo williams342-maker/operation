@@ -19,6 +19,7 @@ import WorkshopVideoGrid from "../components/WorkshopVideoGrid";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 import Breadcrumbs from "../components/Breadcrumbs";
 import StoreSearch from "../components/StoreSearch"; // iter451 — store-scoped search
+import FeaturedMakerRibbon from "../components/FeaturedMakerRibbon"; // iter456
 import { trackStoreEvent, setStoreContext } from "../lib/storeEvents"; // iter452 — first-party analytics
 
 // Always emit the canonical apex URL — never the preview hostname.
@@ -184,6 +185,7 @@ export default function MakerDetail() {
         <div className="absolute bottom-10 left-4 md:left-8 xl:left-12 right-4 text-white [text-shadow:_0_2px_10px_rgba(0,0,0,0.55)]">
           <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-brand mb-3 flex items-center gap-3">
             <span>◆ Approved Maker</span>
+            <FeaturedMakerRibbon makerSlug={m.slug} testId="maker-featured-ribbon" />
             {m.subscription_status === "active" && (
               <span
                 className="text-emerald-700 border border-emerald-400/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em]"

@@ -23,6 +23,7 @@ import RecentShowcaseStrip from "../components/RecentShowcaseStrip";
 import SimilarProductsRail from "../components/SimilarProductsRail";
 import CustomOrderCTA from "../components/CustomOrderCTA";
 import Breadcrumbs from "../components/Breadcrumbs";
+import FeaturedMakerRibbon from "../components/FeaturedMakerRibbon"; // iter456
 import GuideCrossLinkCard from "../components/GuideCrossLinkCard";
 import ContactMakerModal from "../components/ContactMakerModal";
 import { DetailSkeleton } from "../components/Skeleton";
@@ -536,6 +537,7 @@ export default function ProductDetail() {
           <div className="md:col-span-7">
             <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand mb-2">{p.category}</div>
             <h1 className="font-display text-2xl md:text-3xl mb-3 leading-tight">{p.title}</h1>
+            <FeaturedMakerRibbon makerSlug={p.maker_slug} testId="product-featured-ribbon" className="mb-3" />
             {p.featured_example && (
               <div
                 className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 border border-amber-400/60 bg-amber-950/30 text-brand font-mono text-[10px] uppercase tracking-[0.22em]"

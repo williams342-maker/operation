@@ -30,6 +30,7 @@ import BriefsTab from "./MakerDashboard/BriefsTab";
 import ReviewsTab from "./MakerDashboard/ReviewsTab";
 import ProfileForm from "./MakerDashboard/ProfileForm";
 import BrandKitCard from "../components/maker/BrandKitCard"; // iter413bw
+import FeaturedMakerBanner from "../components/FeaturedMakerBanner"; // iter456
 import FounderWelcomeModal from "../components/maker/FounderWelcomeModal"; // iter413dd
 import useModalA11y from "../hooks/useModalA11y";
 
@@ -450,6 +451,8 @@ export default function MakerDashboard() {
       >
         {tab === "dashboard"  && (
           <>
+            {/* iter456 — Featured Maker congratulations banner + promo kit */}
+            <FeaturedMakerBanner />
             {/* iter413bw — Maker Brand Kit (Garage Builders identity).
                 Renders for approved sellers only; auto-hides on permanent dismissal. */}
             <BrandKitCard maker={maker} onMakerChange={setMaker} />

@@ -514,6 +514,7 @@ const adminAuthHeaders = () => {
   const t = localStorage.getItem("cm_admin_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
+export { adminAuthHeaders };
 export const fetchAdminAnalytics = () =>
   http.get("/admin/analytics", { headers: adminAuthHeaders() }).then((r) => r.data);
 

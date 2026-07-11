@@ -189,6 +189,61 @@ async def _gen_captions(maker: dict, product: dict, theme: str) -> dict:
     return _json.loads(txt)
 
 
+async def _generate_all(maker: dict, product: dict, theme: str) -> tuple:
+    """Generate square + landscape promo images and captions; upload to R2."""
+    img_b64 = None
+    img_url = (product.get("images") or [None])[0]
+    if img_url and img_url.startswith("/"):
+        img_url = os.environ.get("PUBLIC_SITE_URL", "").rstrip("/") + img_url
+    if img_url:
+        try:
+            async with httpx.AsyncClient(timeout=30) as hc:
+                r = await hc.get(img_url)
+                if r.status_code == 200:
+                    img_b64 = base64.b64encode(r.content).decode()
+        except Exception as e:
+            logger.warning("[featured] reference image fetch failed: %s", e)
+
+    backdrop = THEME_BACKDROPS.get(theme, THEME_BACKDROPS["spotlight"])
+    base_prompt = (
+        f"Create a polished square 1080x1080 social media promotional graphic. "
+        f"Keep the handmade product from the reference image UNCHANGED as the focal point, "
+        f"placed on {backdrop}. Add subtle, tasteful 'CRAFTERS MARKET' branding text and a "
+        f"small 'Featured Maker' badge. Professional product-marketing quality, no watermarks, "
+        f"no extra invented products.")
+    land_prompt = base_prompt.replace("square 1080x1080", "wide landscape 1200x630 banner")
+
+    sid = uuid.uuid4().hex[:10]
+    sq, ld, caps = await asyncio.gather(
+        _gen_promo_image(img_b64, base_prompt, f"fm-sq-{sid}"),
+        _gen_promo_image(img_b64, land_prompt, f"fm-ld-{sid}"),
+        _gen_captions(maker, product, theme),
+        return_exceptions=True)
+    for name, val in (("square", sq), ("landscape", ld)):
+        if isinstance(val, Exception):
+            logger.warning("[featured] %s image failed: %s", name, val)
+    if isinstance(caps, Exception):
+        logger.warning("[featured] captions failed: %s", caps)
+        caps = {"headline": f"Featured Maker: {maker.get('name')}",
+                "description": product.get("title"), "alt_text": product.get("title"),
+                "cta": "Shop Now", "hashtags": ["#handmade", "#craftersmarket"],
+                "captions": {"instagram": "", "facebook": "", "x": ""}}
+
+    from r2_storage import is_configured as r2_ok, upload_bytes
+    assets = {"square_url": None, "landscape_url": None,
+              "alt_text": caps.get("alt_text")}
+    if r2_ok():
+        for key_name, img in (("square_url", sq), ("landscape_url", ld)):
+            if isinstance(img, (bytes, bytearray)) and img:
+                try:
+                    assets[key_name] = upload_bytes(
+                        bytes(img), f"featured-promos/{maker.get('slug')}/{uuid.uuid4().hex}.png",
+                        "image/png", max_bytes=20 * 1024 * 1024)
+                except Exception as e:
+                    logger.warning("[featured] asset upload failed: %s", e)
+    return assets, caps
+
+
 class PromoCreate(BaseModel):
     maker_slug: str
     product_slug: Optional[str] = None
@@ -210,51 +265,7 @@ async def create_promotion(body: PromoCreate, _: dict = Depends(current_admin)):
     if not product:
         raise HTTPException(404, "No published product to feature.")
 
-    img_b64 = None
-    img_url = (product.get("images") or [None])[0]
-    if img_url:
-        try:
-            async with httpx.AsyncClient(timeout=30) as hc:
-                r = await hc.get(img_url)
-                if r.status_code == 200:
-                    img_b64 = base64.b64encode(r.content).decode()
-        except Exception as e:
-            logger.warning("[featured] reference image fetch failed: %s", e)
-
-    backdrop = THEME_BACKDROPS.get(body.theme, THEME_BACKDROPS["spotlight"])
-    base_prompt = (
-        f"Create a polished square 1080x1080 social media promotional graphic. "
-        f"Keep the handmade product from the reference image UNCHANGED as the focal point, "
-        f"placed on {backdrop}. Add subtle, tasteful 'CRAFTERS MARKET' branding text and a "
-        f"small 'Featured Maker' badge. Professional product-marketing quality, no watermarks, "
-        f"no extra invented products.")
-    land_prompt = base_prompt.replace("square 1080x1080", "wide landscape 1200x630 banner")
-
-    sid = uuid.uuid4().hex[:10]
-    sq_task = _gen_promo_image(img_b64, base_prompt, f"fm-sq-{sid}")
-    ld_task = _gen_promo_image(img_b64, land_prompt, f"fm-ld-{sid}")
-    cap_task = _gen_captions(maker, product, body.theme)
-    sq, ld, caps = await asyncio.gather(sq_task, ld_task, cap_task,
-                                        return_exceptions=True)
-    if isinstance(caps, Exception):
-        logger.warning("[featured] captions failed: %s", caps)
-        caps = {"headline": f"Featured Maker: {maker.get('name')}",
-                "description": product.get("title"), "alt_text": product.get("title"),
-                "cta": "Shop Now", "hashtags": ["#handmade", "#craftersmarket"],
-                "captions": {"instagram": "", "facebook": "", "x": ""}}
-
-    from r2_storage import is_configured as r2_ok, upload_bytes
-    assets = {"square_url": None, "landscape_url": None,
-              "alt_text": caps.get("alt_text")}
-    if r2_ok():
-        for key_name, img in (("square_url", sq), ("landscape_url", ld)):
-            if isinstance(img, (bytes, bytearray)) and img:
-                try:
-                    assets[key_name] = upload_bytes(
-                        bytes(img), f"featured-promos/{body.maker_slug}/{uuid.uuid4().hex}.png",
-                        "image/png", max_bytes=20 * 1024 * 1024)
-                except Exception as e:
-                    logger.warning("[featured] asset upload failed: %s", e)
+    assets, caps = await _generate_all(maker, product, body.theme)
 
     doc = {
         "id": str(uuid.uuid4()), "maker_slug": body.maker_slug,
@@ -300,12 +311,57 @@ async def update_promotion(promo_id: str, body: PromoUpdate,
         {"id": promo_id}, {"_id": 0})}
 
 
+@router.post("/admin/featured/promotions/{promo_id}/regenerate")
+async def regenerate_promotion(promo_id: str, _: dict = Depends(current_admin)):
+    """Retry failed image/caption generation on an existing promotion."""
+    promo = await db.featured_promotions.find_one({"id": promo_id}, {"_id": 0})
+    if not promo:
+        raise HTTPException(404, "Promotion not found.")
+    maker = await db.makers.find_one({"slug": promo["maker_slug"]}, {"_id": 0})
+    if not maker:
+        raise HTTPException(404, "Maker not found.")
+    proj = {"_id": 0, "slug": 1, "title": 1, "price": 1, "images": 1}
+    product = await db.products.find_one(
+        {"maker_slug": promo["maker_slug"], "slug": promo.get("product_slug"),
+         "status": "published"}, proj) or await db.products.find_one(
+        {"maker_slug": promo["maker_slug"], "status": "published"}, proj)
+    if not product:
+        raise HTTPException(404, "No published product to feature.")
+
+    assets, caps = await _generate_all(maker, product, promo.get("theme") or "spotlight")
+    prev = promo.get("assets") or {}
+    merged = {
+        "square_url": assets.get("square_url") or prev.get("square_url"),
+        "landscape_url": assets.get("landscape_url") or prev.get("landscape_url"),
+        "alt_text": assets.get("alt_text") or prev.get("alt_text"),
+    }
+    has_assets = bool(merged["square_url"] or merged["landscape_url"])
+    updates = {
+        "assets": merged, "captions": caps, "regenerated_at": now_iso(),
+        "status": promo["status"] if promo.get("status") == "posted"
+                  else ("ready" if has_assets else "draft"),
+    }
+    await db.featured_promotions.update_one({"id": promo_id}, {"$set": updates})
+    return await db.featured_promotions.find_one({"id": promo_id}, {"_id": 0})
+
+
 @router.post("/admin/featured/promotions/{promo_id}/activate")
 async def activate_promotion(promo_id: str, days: int = FEATURE_DAYS_DEFAULT,
+                             replace: bool = False,
                              _: dict = Depends(current_admin)):
     promo = await db.featured_promotions.find_one({"id": promo_id}, {"_id": 0})
     if not promo:
         raise HTTPException(404, "Promotion not found.")
+    p_assets = promo.get("assets") or {}
+    if not (p_assets.get("square_url") or p_assets.get("landscape_url")):
+        raise HTTPException(
+            409, "Asset generation failed for this promotion — retry generation before activating.")
+    cur = await db.featured_current.find_one({}, {"_id": 0})
+    if (cur and cur.get("ends_at", "") > now_iso()
+            and cur.get("promotion_id") != promo_id and not replace):
+        raise HTTPException(
+            409, f"{cur['maker_slug']} is already featured through "
+                 f"{cur.get('ends_at', '')[:10]}. Pass replace=true to swap it.")
     days = max(1, min(days, 30))
     starts, ends = now_iso(), (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
     await db.featured_current.delete_many({})
@@ -322,7 +378,7 @@ async def activate_promotion(promo_id: str, days: int = FEATURE_DAYS_DEFAULT,
 
     maker = await db.makers.find_one({"slug": promo["maker_slug"]},
                                      {"_id": 0, "email": 1, "name": 1})
-    if maker and maker.get("email"):
+    if maker and maker.get("email") and not promo.get("congrats_email_sent"):
         try:
             from email_service import _send
             reasons_html = "".join(f"<li>{r}</li>" for r in promo.get("reasons") or [])
@@ -338,6 +394,8 @@ async def activate_promotion(promo_id: str, days: int = FEATURE_DAYS_DEFAULT,
                 f"<a href='https://craftersmarket.org/maker/dashboard'>Download your promotion kit</a></p>"
                 f"<p>Share the news with your audience — your promotion kit "
                 f"(ready-made images + captions) is waiting on your dashboard.</p>")
+            await db.featured_promotions.update_one(
+                {"id": promo_id}, {"$set": {"congrats_email_sent": True}})
         except Exception as e:
             logger.warning("[featured] congrats email failed: %s", e)
     return {"ok": True, "starts_at": starts, "ends_at": ends}

@@ -105,6 +105,7 @@ import BuiltInRealWorkshops from "./components/sections/BuiltInRealWorkshops";
 import TrendingForumStrip from "./components/TrendingForumStrip";
 import TrendingJournalRail from "./components/TrendingJournalRail";
 import FeaturedBuildsRail from "./components/FeaturedBuildsRail";
+import { FeaturedMakerSpotlight } from "./components/sections/FeaturedMakerSpotlight"; // iter456
 import TrendingMosaicStrip from "./components/TrendingMosaicStrip";
 import CinematicMomentsStrip from "./components/CinematicMomentsStrip";
 import MeetTheMakers from "./components/MeetTheMakers";
@@ -132,6 +133,7 @@ const Home = () => {
       <SitePromo placement="home_hero" />
       <Hero />
       <div className="cm-glow-divider" aria-hidden="true" />
+      <FeaturedMakerSpotlight />
       <FeaturedBuildsRail testId="home-featured-builds" />
       <div className="cm-glow-divider" aria-hidden="true" />
       <TrendingMosaicStrip testId="home-trending-mosaic" />
