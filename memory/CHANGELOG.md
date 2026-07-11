@@ -11227,3 +11227,28 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
 **Fix (`core.py`):** introduced `_LoopAwareMotor` — a registry keeping one Motor client per *living* event loop, resolved at attribute-access time via `_DBProxy`/`_ClientProxy` drop-ins for the module-level `db`/`client`. Closed-loop clients are pruned; `client.close()` (server shutdown hook) closes all. Production fast path = one dict hit + `is_closed()` check; behavior under uvicorn's single loop is unchanged. No call-site changes needed (`from core import db` keeps working everywhere).
 **Result:** full 288-file suite now runs end-to-end in one `pytest tests/` invocation (~15 min): **1866 passed, 0 event-loop errors** (previously instant cascade failures).
 **Known remainder (pre-existing, NOT caused by this fix — verified by re-running with the fix stashed):** 165 failures + 24 errors are stale tests written against older API behavior (e.g. `test_marketplace.py` predates the policy-acceptance requirement on custom orders; `test_buffer_sender.py` fails identically solo). Triage tracked in ROADMAP as "stale test rot cleanup".
+
+## 2026-07-11 — iter456: Workshop Floor rebrand + Featured Maker Promotion Engine SHIPPED (P0)
+### Community → "The Workshop Floor" rebrand (quick UI pass)
+- `Nav.jsx`: dropdown trigger now "Workshop Floor"; menu items renamed — Discussions ("Questions • Advice • Community"), Workshop Videos, Maker Journal, Project Showcase, Design Library, Maker Chat. Dropdown header "◆ The Workshop Floor". Mobile drawer list matches.
+- `CommunityPage.jsx`: h1 "The Workshop Floor." + "◆ Community Hub" eyebrow; TABS relabeled (forum→Discussions first, showcase→Project Showcase, files→Design Library, chat→Maker Chat) — **tab ids unchanged** so all deep links (`?tab=forum` etc.) keep working; added LINK_TABS (Workshop Videos → /clips, Maker Journal → /journal) rendered as link-out tabs.
+- `Footer.jsx`: new "The Workshop Floor" column (6 links); Journal removed from Company; bottom "Live chat" → "Maker Chat".
+- `TrendingForumStrip.jsx`: eyebrow "◆ From the Workshop Floor".
+- NOTE: full category-driven knowledge-hub refactor (10 categories + followable tags + Overview dashboard + confidence-based thread migration) is the NEXT approved epic — see ROADMAP.
+
+### Featured Maker Promotion Engine — fully integrated + tested (iteration_118: 13/13 backend, 100% frontend)
+- Backend `routers/featured_maker.py` (registered in server.py since iter455) hardened:
+  - Extracted `_generate_all()` (Nano Banana square 1080 + landscape 1200x630 w/ product reference image + Claude captions → R2 upload).
+  - **Fixed relative product-image URLs** (prefix `PUBLIC_SITE_URL`) so the maker's real product photo is used as the visual reference.
+  - `POST /admin/featured/promotions/{id}/regenerate` — admin retry for failed image/caption generation (keeps prior assets if a retry leg fails; never downgrades "posted").
+  - Activate guards: 409 if promo has no assets ("retry generation first"); 409 on overlapping live feature unless `?replace=true`.
+  - Congrats-email dedupe via `congrats_email_sent` flag (verified: single Mailgun send across repeated activations).
+- Frontend wiring (all previously-orphaned components mounted):
+  - `AdminDashboard.jsx`: new "Featured Maker" tab (id `featured-maker`, caps marketplace/content) → `FeaturedMakerTab` (candidates table w/ weighted Featured Score, theme select, generate, promotion queue w/ image downloads + per-platform caption copy, Mark posted, Archive, Activate w/ replace-confirm, Retry generation button).
+  - `App.js` Home: `<FeaturedMakerSpotlight />` after Hero (self-hides when no live feature; countdown, banner asset, product rail, Visit CTA).
+  - New `FeaturedMakerRibbon.jsx` (shared, cached fetch): mounted on `MakerDetail.jsx` hero badge strip (`maker-featured-ribbon`) and `ProductDetail.jsx` under h1 (`product-featured-ribbon`).
+  - `MakerDashboard.jsx` dashboard tab: `<FeaturedMakerBanner />` congrats banner + promo kit (downloads, caption copy, live stats).
+  - `lib/api.js`: exported `adminAuthHeaders` (was module-private — would have broken the tab build).
+- E2E verified live: iron-and-oak featured through 2026-07-18; both R2 assets downloadable (200 image/png, ~660KB each); spotlight/ribbons/banner/admin tab all render; auto-expiry via ends_at checks on every read path.
+- ⚠️ KNOWN LIMITATION: **Emergent LLM key budget exhausted** during caption generation → per-platform captions (instagram/facebook/x) fell back to empty strings; fallback headline/hashtags written correctly. After top-up: hit "Retry generation" on the promo. Images generated fine before budget hit.
+- Test artifacts: `/app/backend/tests/test_iter455_featured_maker.py`, `/app/test_reports/iteration_118.json`.
