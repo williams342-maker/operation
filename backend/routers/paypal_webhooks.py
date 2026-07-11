@@ -61,6 +61,20 @@ def paypal_configured() -> bool:
     return bool(c["client_id"] and c["client_secret"] and c["webhook_id"])
 
 
+def _payout_config() -> dict:
+    """Config for the dedicated payout-status webhook path. PayPal assigns a
+    NEW webhook id to every registered URL, so signature verification for
+    /webhooks/paypal/payout-status must use PAYPAL_PAYOUT_WEBHOOK_ID_{ENV}.
+    Falls back to the primary webhook id when the var is unset (covers the
+    setup where payout events are simply added to the existing webhook)."""
+    cfg = _config()
+    suffix = "LIVE" if cfg["env"] == "live" else "SANDBOX"
+    dedicated = (os.environ.get(f"PAYPAL_PAYOUT_WEBHOOK_ID_{suffix}") or "").strip()
+    if dedicated:
+        cfg = {**cfg, "webhook_id": dedicated}
+    return cfg
+
+
 # ── OAuth token cache (per environment) ─────────────────────────────────────
 _token_cache: dict = {}
 
@@ -255,7 +269,18 @@ async def _process_event(event: dict) -> str:
 
 @router.post("/webhooks/paypal")
 async def paypal_webhook(request: Request):
-    cfg = _config()
+    return await _ingest_webhook(request, _config(), ingress="primary")
+
+
+@router.post("/webhooks/paypal/payout-status")
+async def paypal_payout_status_webhook(request: Request):
+    """Dedicated ingress for PAYMENT.PAYOUTSBATCH.* / PAYMENT.PAYOUTS-ITEM.*
+    (register this URL as its own webhook in the PayPal dashboard and set
+    PAYPAL_PAYOUT_WEBHOOK_ID_{SANDBOX|LIVE} to its webhook id)."""
+    return await _ingest_webhook(request, _payout_config(), ingress="payout-status")
+
+
+async def _ingest_webhook(request: Request, cfg: dict, ingress: str):
     if not paypal_configured():
         logger.warning("[paypal] webhook received but PayPal env vars are not configured")
         return JSONResponse({"error": "PayPal webhooks not configured"}, status_code=503)
@@ -303,6 +328,7 @@ async def paypal_webhook(request: Request):
         "summary": event.get("summary"),
         "event_time": event.get("create_time"),
         "environment": cfg["env"],
+        "ingress": ingress,
         "verification_status": status,
         "processing_result": None,
         "http_outcome": None,

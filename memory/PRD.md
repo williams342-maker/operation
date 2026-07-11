@@ -1,3 +1,19 @@
+## 2026-07-11 — iter447: Dedicated payout-status webhook path
+
+- NEW: POST /api/webhooks/paypal/payout-status — same hardened pipeline as the primary
+  webhook (raw-byte signature verification, dedupe, persist, process) but verifies against
+  PAYPAL_PAYOUT_WEBHOOK_ID_{SANDBOX|LIVE} (falls back to the primary webhook id when unset,
+  since a webhook registered at a new URL gets its own id from PayPal).
+- Events land in paypal_webhook_events with ingress:"payout-status" (primary = "primary").
+- Refactor: shared _ingest_webhook(request, cfg, ingress); _payout_config() in
+  routers/paypal_webhooks.py.
+- Tests: test_iter447_payout_webhook_path.py (4) — path exists/records, dedicated-id vs
+  fallback verification, cross-path dedupe. Full paypal suite still green.
+- USER ACTION when registering in PayPal dashboard: add webhook URL
+  https://craftersmarket.org/api/webhooks/paypal/payout-status subscribed to
+  PAYMENT.PAYOUTSBATCH.* + PAYMENT.PAYOUTS-ITEM.*, then set env
+  PAYPAL_PAYOUT_WEBHOOK_ID_SANDBOX=<new webhook id> (and _LIVE later) and redeploy.
+
 ## 2026-07-11 — iter446: Nightly Reconciliation Engine + Ledger Health Score + Fin Ops Dashboard
 
 - NEW /app/backend/recon_engine.py: 9-check nightly suite — Stripe synced, PayPal synced
