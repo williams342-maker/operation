@@ -129,9 +129,21 @@ async def _verify_signature(cfg: dict, headers, raw_body: bytes) -> str:
     # Response bodies contain no credentials — safe to log verbatim.
     logger.info("[paypal] verify-webhook-signature · status=%s · body=%s",
                 r.status_code, r.text[:500])
+    global _last_verify_debug
+    _last_verify_debug = {
+        "webhook_id_last4": _mask(cfg["webhook_id"]),
+        "environment": cfg["env"],
+        "verify_endpoint": f"{cfg['base']}/v1/notifications/verify-webhook-signature",
+        "response_status": r.status_code,
+        "response_body": r.text[:500],
+        "headers_forwarded": [h for h in hdr_names if forwarded[h]],
+    }
     if r.status_code != 200:
         return "ERROR"
     return (r.json().get("verification_status") or "FAILURE").upper()
+
+
+_last_verify_debug: dict = {}
 
 
 async def _process_event(event: dict) -> str:
@@ -215,6 +227,7 @@ async def paypal_webhook(request: Request):
     if status != "SUCCESS":
         doc["processing_result"] = "rejected_unverified"
         doc["http_outcome"] = "400 signature verification failed"
+        doc["verify_debug"] = dict(_last_verify_debug)
         await db.paypal_webhook_events.update_one(
             {"event_id": event_id}, {"$setOnInsert": doc}, upsert=True,
         )

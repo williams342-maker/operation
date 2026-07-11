@@ -1,3 +1,24 @@
+## 2026-07-11 — iter438c: PayPal verification field-by-field audit + verify_debug
+
+- Audit (all preview-verified): webhook id sent = 9XT72327E2740625K exactly; belongs to same app as
+  checkout client id (API-listed); OAuth from same creds; request schema ACCEPTED by PayPal (200 +
+  FAILURE for forged data, no INVALID_REQUEST); webhook_event = raw bytes spliced as JSON object;
+  5 transmission headers forwarded unchanged; endpoint = api-m.sandbox.paypal.com (proven via httpx
+  log). Preview code is correct — production failures remain unexplained from here.
+- NEW: verify_debug persisted onto rejected events {webhook_id_last4, environment, verify_endpoint,
+  response_status, response_body, headers_forwarded} — visible in Admin → PayPal Events detail
+  drawer payload → lets the user read PRODUCTION's exact verify context (suspicion: production env
+  vars may be overridden/stale — verify_debug will reveal env/endpoint/id mismatches).
+- IN-FLIGHT DEBUG SETUP: second sandbox webhook 9B09609557224982L points at the PREVIEW URL;
+  preview .env PAYPAL_WEBHOOK_ID_SANDBOX temporarily = 9B09609557224982L. A real signed event
+  (WH-7NU37593DL7124802-2WM59751V56802632, PAYMENT.CAPTURE.COMPLETED) was resent (202) but the
+  preview public ingress was ASLEEP (all external requests 404) so PayPal couldn't deliver.
+  TO RESUME: wake preview (user opens preview URL, clicks Wake), re-run resend
+  (POST /v1/notifications/webhooks-events/{id}/resend {webhook_ids:[9B09609557224982L]}), watch
+  db.paypal_webhook_events. CLEANUP LATER: delete webhook 9B09609557224982L via API and restore
+  PAYPAL_WEBHOOK_ID_SANDBOX=9XT72327E2740625K in preview .env before any production deploy!
+- 14/14 tests pass.
+
 ## 2026-07-10 — iter438b: PayPal signature verification FIX (raw-body) + diagnostics
 
 - ROOT CAUSE of real-event FAILURE: verify-webhook-signature was sent a re-serialized
