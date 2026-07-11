@@ -591,19 +591,45 @@ export default function ProductDetail() {
                   {p.digital_files.map((f) => (
                     <li
                       key={f.id}
-                      className="flex items-baseline gap-3 font-mono text-[11px]"
+                      className="font-mono text-[11px]"
                       data-testid={`product-detail-digital-file-${f.id}`}
                     >
-                      <span className="text-brand shrink-0">▸</span>
-                      <span className="text-ink truncate">{f.filename}</span>
-                      <span className="text-ink-muted shrink-0 ml-auto">
-                        {f.ext} · {f.size_bytes >= 1024 * 1024
-                          ? (f.size_bytes / 1024 / 1024).toFixed(1) + " MB"
-                          : Math.max(1, Math.round(f.size_bytes / 1024)) + " KB"}
-                      </span>
+                      <div className="flex items-baseline gap-3">
+                        <span className="text-brand shrink-0">▸</span>
+                        <span className="text-ink truncate">{f.filename}</span>
+                        {(f.version || 1) > 1 && (
+                          <span className="text-brand shrink-0 text-[9px] border border-brand/40 px-1"
+                                data-testid={`product-detail-file-version-${f.id}`}>v{f.version}</span>
+                        )}
+                        <span className="text-ink-muted shrink-0 ml-auto">
+                          {f.ext} · {f.size_bytes >= 1024 * 1024
+                            ? (f.size_bytes / 1024 / 1024).toFixed(1) + " MB"
+                            : Math.max(1, Math.round(f.size_bytes / 1024)) + " KB"}
+                        </span>
+                      </div>
+                      {f.release_notes && (
+                        <div className="pl-6 text-[10px] text-ink-muted mt-0.5"
+                             data-testid={`product-detail-file-notes-${f.id}`}>
+                          ↳ {f.release_notes}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
+                {/* iter454 — manifest summary: types · total size · last updated */}
+                <div className="font-mono text-[9.5px] text-ink-muted mt-3 pt-2 border-t border-cyan-900/40"
+                     data-testid="product-detail-digital-summary">
+                  {[...new Set(p.digital_files.map((f) => (f.ext || "").toUpperCase()))].join(" · ")}
+                  {" · "}
+                  {(() => {
+                    const t = p.digital_files.reduce((a, f) => a + (f.size_bytes || 0), 0);
+                    return t >= 1024 * 1024 ? (t / 1024 / 1024).toFixed(1) + " MB total" : Math.max(1, Math.round(t / 1024)) + " KB total";
+                  })()}
+                  {(() => {
+                    const last = p.digital_files.map((f) => f.uploaded_at || "").sort().pop();
+                    return last ? ` · updated ${last.slice(0, 10)}` : "";
+                  })()}
+                </div>
                 <div className="font-mono text-[10px] text-brand mt-3 leading-relaxed">
                   Files are sent the moment payment clears — via email + on the order
                   confirmation page. All digital sales are final.

@@ -112,6 +112,11 @@ export default function PurchasesPage() {
                             data-testid={`purchase-history-btn-${p.session_id}`}>
                       <Clock size={11} /> History
                     </button>
+                    <Link to={`/contact?topic=download-issue&order=${p.session_id.slice(-8)}`}
+                          className="border border-line text-ink-muted hover:text-red-400 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition"
+                          data-testid={`purchase-report-btn-${p.session_id}`}>
+                      Report issue
+                    </Link>
                   </div>
                 </div>
 
@@ -123,11 +128,28 @@ export default function PurchasesPage() {
                           data-testid={`purchase-file-${f.file_id}`}>
                         <FileText size={13} className="text-brand shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <div className="font-mono text-xs text-ink truncate">{f.filename}</div>
+                          <div className="font-mono text-xs text-ink truncate">
+                            {f.filename}
+                            {(f.version || 1) > 1 && (
+                              <span className="ml-2 border border-brand/40 text-brand px-1 py-0.5 text-[8px] uppercase"
+                                    data-testid={`purchase-file-version-${f.file_id}`}>v{f.version}</span>
+                            )}
+                          </div>
                           <div className="font-mono text-[9.5px] text-ink-muted">
                             {f.product_title} · {f.ext} {fmtBytes(f.size_bytes)} ·
                             downloaded {f.downloads || 0}×
+                            {f.updated_at && ` · updated ${f.updated_at.slice(0, 10)}`}
                           </div>
+                          {/* iter454 — release-notes / version history */}
+                          {(f.versions || []).filter((v) => v.release_notes).length > 0 && (
+                            <ul className="mt-1 space-y-0.5" data-testid={`purchase-file-history-${f.file_id}`}>
+                              {f.versions.filter((v) => v.release_notes).slice(-3).reverse().map((v) => (
+                                <li key={v.version} className="font-mono text-[9px] text-ink-muted">
+                                  v{v.version} ({(v.uploaded_at || "").slice(0, 10)}): {v.release_notes}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                         {link ? (
                           <a href={`${API}/checkout/downloads/${link.token}`}

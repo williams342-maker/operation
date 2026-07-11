@@ -16,7 +16,6 @@ import io
 import os
 import shutil
 import uuid
-import zipfile
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -44,52 +43,9 @@ MIME_BY_EXT = {
     "epub": "application/epub+zip", "mp3": "audio/mpeg", "mp4": "video/mp4",
 }
 
-# ── Heuristic malware / integrity scan ───────────────────────────────────────
+# ── Security scan (pluggable — see file_scanning.py) ─────────────────────────
 
-_EXEC_SIGNATURES = (b"MZ", b"\x7fELF", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa")
-_DANGEROUS_MEMBER_EXTS = {"exe", "dll", "bat", "cmd", "sh", "msi", "scr", "com",
-                          "pif", "vbs", "js", "jse", "wsf", "ps1", "jar", "apk"}
-_MAGIC = {
-    "pdf": (b"%PDF",), "png": (b"\x89PNG",), "jpg": (b"\xff\xd8\xff",),
-    "jpeg": (b"\xff\xd8\xff",), "zip": (b"PK\x03\x04", b"PK\x05\x06"),
-    "epub": (b"PK\x03\x04",), "3mf": (b"PK\x03\x04",),
-    "mp3": (b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"),
-}
-
-
-def scan_digital_file(data: bytes, ext: str) -> tuple[str, str]:
-    """Return ("clean", "") or ("blocked", reason). Deterministic heuristics."""
-    if not data:
-        return "blocked", "Empty file."
-    head = data[:16]
-    if any(head.startswith(sig) for sig in _EXEC_SIGNATURES):
-        return "blocked", "Executable binaries are not allowed."
-    if head.startswith(b"#!"):
-        return "blocked", "Script files are not allowed."
-    magics = _MAGIC.get(ext)
-    if magics and not any(head.startswith(m) for m in magics):
-        return "blocked", f"File content does not match .{ext} format."
-    if ext == "mp4" and data[4:8] not in (b"ftyp", b"moov", b"mdat"):
-        return "blocked", "File content does not match .mp4 format."
-    if ext in ("zip", "epub", "3mf"):
-        try:
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                total_uncompressed = 0
-                for info in z.infolist():
-                    member_ext = info.filename.rsplit(".", 1)[-1].lower() \
-                        if "." in info.filename else ""
-                    if member_ext in _DANGEROUS_MEMBER_EXTS:
-                        return "blocked", f"Archive contains a blocked file type (.{member_ext})."
-                    total_uncompressed += info.file_size
-                if total_uncompressed > 2 * 1024 * 1024 * 1024:
-                    return "blocked", "Archive expands beyond the 2GB safety limit."
-                if len(data) > 0 and total_uncompressed / max(len(data), 1) > 300:
-                    return "blocked", "Archive compression ratio is suspicious (zip bomb)."
-        except zipfile.BadZipFile:
-            return "blocked", "Corrupt or invalid archive."
-        except Exception:
-            return "blocked", "Archive could not be inspected."
-    return "clean", ""
+from file_scanning import scan_digital_file, engine_label  # noqa: E402
 
 
 # ── Chunked upload flow ───────────────────────────────────────────────────────
@@ -206,7 +162,7 @@ async def digital_upload_complete(product_slug: str, upload_id: str,
         logger.exception("[digital-uploads] storage put failed: %s", e)
         raise HTTPException(502, "Could not store the file.")
 
-    scan = {"status": "clean", "engine": "heuristic-v1", "scanned_at": now_iso()}
+    scan = {"status": "clean", "engine": engine_label(), "scanned_at": now_iso()}
     if sess.get("replace_file_id"):
         files = prod.get("digital_files") or []
         entry = next((f for f in files if f.get("id") == sess["replace_file_id"]), None)
@@ -311,6 +267,30 @@ async def buyer_purchases(claims: dict = Depends(current_buyer)):
                 "last_downloaded_at": f.get("last_downloaded_at"),
             } for f in tx.get("digital_downloads") or []],
         })
+    # iter454 — enrich with current version + release-notes history so the
+    # Buyer Library can show "what changed" (no storage URLs exposed).
+    slugs = {f["product_slug"] for p in mine for f in p["files"] if f.get("product_slug")}
+    vmap: dict[tuple, dict] = {}
+    if slugs:
+        async for prod in db.products.find(
+                {"slug": {"$in": list(slugs)}},
+                {"_id": 0, "slug": 1, "digital_files.id": 1,
+                 "digital_files.version": 1, "digital_files.uploaded_at": 1,
+                 "digital_files.versions.version": 1,
+                 "digital_files.versions.uploaded_at": 1,
+                 "digital_files.versions.release_notes": 1}):
+            for f in prod.get("digital_files") or []:
+                vmap[(prod["slug"], f.get("id"))] = {
+                    "version": f.get("version") or 1,
+                    "updated_at": f.get("uploaded_at"),
+                    "versions": f.get("versions") or [],
+                }
+    for p in mine:
+        for f in p["files"]:
+            info = vmap.get((f.get("product_slug"), f.get("file_id"))) or {}
+            f["version"] = info.get("version") or 1
+            f["updated_at"] = info.get("updated_at")
+            f["versions"] = info.get("versions") or []
     return {"purchases": mine}
 
 

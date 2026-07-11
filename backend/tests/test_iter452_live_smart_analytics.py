@@ -57,10 +57,10 @@ class TestSmartSections:
         assert r.status_code == 200, r.text
         body = r.json()
         assert "sections" in body
-        assert len(body["sections"]) == 9
+        assert len(body["sections"]) == 10  # iter454 adds digital-downloads
         keys = {s["key"] for s in body["sections"]}
         expected = {"new-arrivals", "best-sellers", "on-sale", "recently-updated",
-                    "customer-favorites", "low-inventory", "nearly-sold-out",
+                    "customer-favorites", "low-inventory", "nearly-sold-out", "digital-downloads",
                     "staff-picks", "featured"}
         assert keys == expected
         for s in body["sections"]:

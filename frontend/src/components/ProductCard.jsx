@@ -95,6 +95,16 @@ export default function ProductCard({ p, i = 0 }) {
               ✦ FEATURED EXAMPLE
             </span>
           )}
+          {/* iter454 — digital discovery: Instant Download badge */}
+          {(p.listing_type === "digital" || p.listing_type === "both") && !p.featured_example && (
+            <span
+              className="tag absolute bottom-4 left-4 text-cyan-300 border-cyan-500/60 bg-paper/80 text-[9px] inline-flex items-center gap-1"
+              data-testid={`product-card-digital-${p.slug}`}
+              title={p.listing_type === "digital" ? "Digital download — instant delivery" : "Ships + includes digital files"}
+            >
+              ⬇ {p.listing_type === "digital" ? "INSTANT DOWNLOAD" : "+ DIGITAL FILES"}
+            </span>
+          )}
           <div className="absolute bottom-4 right-4 flex items-end justify-end gap-3">
             <div
               className="font-display text-3xl text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]"
@@ -109,6 +119,17 @@ export default function ProductCard({ p, i = 0 }) {
         </div>
         <div className="p-4 md:p-5 border-t border-line">
           <h3 className="font-display text-lg md:text-xl lg:text-2xl mb-2 line-clamp-2">{p.title}</h3>
+          {/* iter454 — file-type chips for digital listings */}
+          {(p.listing_type === "digital" || p.listing_type === "both")
+            && Array.isArray(p.digital_files) && p.digital_files.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2" data-testid={`product-card-filetypes-${p.slug}`}>
+              {[...new Set(p.digital_files.map((f) => (f.ext || "").toUpperCase()))].slice(0, 5).map((ext) => (
+                <span key={ext} className="border border-cyan-500/40 text-cyan-600 dark:text-cyan-300/90 px-1.5 py-0.5 font-mono text-[8px] tracking-[0.12em]">
+                  {ext}
+                </span>
+              ))}
+            </div>
+          )}
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-muted">
             {p.dimensions || "Made to order"}
           </p>

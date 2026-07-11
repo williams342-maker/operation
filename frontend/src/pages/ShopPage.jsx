@@ -42,6 +42,8 @@ export default function ShopPage() {
   // PDP occasion chips can deep-link (?occasion=Birthday).
   const [colorF, setColorF] = useState(params.get("color") || "All");
   const [occF, setOccF] = useState(params.get("occasion") || "All");
+  // iter454 — Digital vs Physical filter (URL-driven: ?type=digital|physical)
+  const typeF = params.get("type") || "All";
   // iter284 — Honor `cm_shop_scroll_memory` on first mount so a buyer
   // who clicks into a listing and hits "back" lands exactly where they
   // left. We only consume the entry once; subsequent route entries
@@ -197,7 +199,8 @@ export default function ShopPage() {
     },
   });
 
-  const filtered = useMemo(() => (products || []).filter((p) => {
+  const filtered = useMemo(() => {
+    const out = (products || []).filter((p) => {
     if (cat !== "All" && p.category !== cat) return false;
     if (tech !== "All" && p.technique !== tech) return false;
     if (q && !(p.title.toLowerCase().includes(q.toLowerCase()) || p.description.toLowerCase().includes(q.toLowerCase()))) return false;
@@ -206,8 +209,21 @@ export default function ShopPage() {
     // docs vary in casing ('natural' vs 'Natural') → compare lowered.
     if (colorF !== "All" && !(p.colors || []).some((c) => String(c).toLowerCase() === colorF.toLowerCase())) return false;
     if (occF !== "All" && !(p.occasions || []).some((o) => String(o).toLowerCase() === occF.toLowerCase())) return false;
+    // iter454 — digital / physical type filter
+    if (typeF === "digital" && !(p.listing_type === "digital" || p.listing_type === "both")) return false;
+    if (typeF === "physical" && p.listing_type === "digital") return false;
     return true;
-  }), [products, cat, tech, q, onlyExamples, colorF, occF]);
+    });
+    // iter454 — when Digital is selected with a query, boost exact digital
+    // matches: exact-title first, then pure-digital listings above hybrids.
+    if (typeF === "digital" && q) {
+      const ql = q.toLowerCase();
+      const score = (p) => (p.title.toLowerCase() === ql ? 2 : 0)
+        + (p.listing_type === "digital" ? 1 : 0);
+      return [...out].sort((a, b) => score(b) - score(a));
+    }
+    return out;
+  }, [products, cat, tech, q, onlyExamples, colorF, occF, typeF]);
 
   // iter283 — Infinite-scroll pagination. The catalog is already
   // client-cached after `fetchProducts()`, so this is purely a render-
@@ -374,8 +390,8 @@ export default function ShopPage() {
           q={q} setQ={setQ}
           cat={cat} setCat={setCat}
           tech={tech} setTech={setTech}
-          activeCount={(cat !== "All" ? 1 : 0) + (tech !== "All" ? 1 : 0) + (q ? 1 : 0) + (colorF !== "All" ? 1 : 0) + (occF !== "All" ? 1 : 0)}
-          onReset={() => { setCat("All"); setTech("All"); setQ(""); onChangeFilterParam("color", "All"); onChangeFilterParam("occasion", "All"); }}
+          activeCount={(cat !== "All" ? 1 : 0) + (tech !== "All" ? 1 : 0) + (q ? 1 : 0) + (colorF !== "All" ? 1 : 0) + (occF !== "All" ? 1 : 0) + (typeF !== "All" ? 1 : 0)}
+          onReset={() => { setCat("All"); setTech("All"); setQ(""); onChangeFilterParam("color", "All"); onChangeFilterParam("occasion", "All"); onChangeFilterParam("type", "All"); }}
         />
 
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
@@ -390,6 +406,20 @@ export default function ShopPage() {
               ranker; the rest are deterministic overrides. iter368b —
               Color/Occasion selects surface the maker's editor picks. */}
           <div className="flex items-center gap-3 flex-wrap">
+            {/* iter454 — Digital / Physical type filter */}
+            <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
+              <span>Type</span>
+              <select
+                value={typeF}
+                onChange={(e) => onChangeFilterParam("type", e.target.value)}
+                className="bg-paper border border-line text-ink font-mono text-[11px] uppercase tracking-[0.18em] px-2.5 py-1.5 focus:border-brand outline-none"
+                data-testid="shop-type-select"
+              >
+                <option value="All">All</option>
+                <option value="digital">Digital Downloads</option>
+                <option value="physical">Physical Products</option>
+              </select>
+            </label>
             <label className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-muted">
               <span>Color</span>
               <select

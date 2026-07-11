@@ -348,6 +348,8 @@ from routers.digital_products import router as digital_products_router  # iter45
 api.include_router(digital_products_router)
 from routers.maker_agreement import router as maker_agreement_router  # iter453
 api.include_router(maker_agreement_router)
+from routers.digital_landing import router as digital_landing_router  # iter454
+api.include_router(digital_landing_router)
 
 app.include_router(api)
 

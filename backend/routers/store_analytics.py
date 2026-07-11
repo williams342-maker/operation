@@ -546,6 +546,106 @@ async def analytics_recommendations(days: int = 30, tz: str = "UTC", ai: int = 1
             "recommendations": recs, "ai_summary": summary}
 
 
+# ── Digital product analytics (iter454) ─────────────────────────────────────
+
+@router.get("/maker/analytics/digital")
+async def analytics_digital(days: int = 30, tz: str = "UTC",
+                            slug: str = Depends(current_maker_slug)):
+    r = _ranges(days, tz)
+    prods = await db.products.find(
+        {"maker_slug": slug, "listing_type": {"$in": ["digital", "both"]},
+         "status": "published"},
+        {"_id": 0, "slug": 1, "title": 1, "digital_files": 1}).to_list(1000)
+    dslugs = [p["slug"] for p in prods]
+    titles = {p["slug"]: p.get("title") for p in prods}
+    file_info = {}
+    sizes = []
+    for p in prods:
+        for f in p.get("digital_files") or []:
+            file_info[f.get("id")] = {
+                "filename": f.get("filename"), "product_slug": p["slug"],
+                "version": f.get("version") or 1,
+                "last_updated": f.get("uploaded_at")}
+            if f.get("size_bytes"):
+                sizes.append(f["size_bytes"])
+
+    # Download rows for this maker's products in the period
+    rows = await db.download_history.find(
+        {"product_slug": {"$in": dslugs}, "at": _between(r["cur"])},
+        {"_id": 0, "file_id": 1, "session_id": 1, "version": 1,
+         "product_slug": 1}).to_list(50000) if dslugs else []
+    downloads = len(rows)
+    per_key: dict[tuple, int] = {}
+    per_file: dict[str, int] = {}
+    version_hits: dict[str, dict] = {}
+    for row in rows:
+        per_key[(row.get("session_id"), row.get("file_id"))] = \
+            per_key.get((row.get("session_id"), row.get("file_id")), 0) + 1
+        per_file[row.get("file_id")] = per_file.get(row.get("file_id"), 0) + 1
+        vh = version_hits.setdefault(row.get("file_id"), {})
+        v = str(row.get("version") or 1)
+        vh[v] = vh.get(v, 0) + 1
+    repeat_downloads = sum(n - 1 for n in per_key.values() if n > 1)
+
+    # Views + orders on digital listings
+    views = 0
+    async for g in db.store_events.aggregate([
+            {"$match": {"maker_slug": slug, "type": "product_click",
+                        "at": _between(r["cur"]),
+                        "product_slug": {"$in": dslugs}}},
+            {"$group": {"_id": None, "n": {"$sum": 1}}}]):
+        views = g["n"]
+    view_counts: dict[str, int] = {}
+    async for g in db.store_events.aggregate([
+            {"$match": {"maker_slug": slug, "type": "product_click",
+                        "at": _between(r["cur"]),
+                        "product_slug": {"$in": dslugs}}},
+            {"$group": {"_id": "$product_slug", "n": {"$sum": 1}}}]):
+        view_counts[g["_id"]] = g["n"]
+    _, _, items = await _orders_revenue(slug, r["cur"])
+    digital_orders = len({li["tx_id"] for li in items if li["slug"] in set(dslugs)})
+
+    most_downloaded = sorted(
+        ({"file_id": fid, "downloads": n,
+          "filename": file_info.get(fid, {}).get("filename") or fid,
+          "product_title": titles.get(file_info.get(fid, {}).get("product_slug")),
+          } for fid, n in per_file.items()), key=lambda x: -x["downloads"])[:10]
+    most_viewed = sorted(
+        ({"slug": s, "title": titles.get(s) or s, "views": n}
+         for s, n in view_counts.items()), key=lambda x: -x["views"])[:10]
+
+    # Version adoption: for files updated past v1, share of period downloads
+    # that hit the latest version.
+    adoption = []
+    for fid, info in file_info.items():
+        if info["version"] > 1 and version_hits.get(fid):
+            hits = version_hits[fid]
+            total = sum(hits.values())
+            latest = hits.get(str(info["version"]), 0)
+            adoption.append({
+                "file_id": fid, "filename": info["filename"],
+                "current_version": info["version"],
+                "last_updated": info["last_updated"],
+                "downloads": total,
+                "latest_version_share": _rate(latest, total)})
+    adoption.sort(key=lambda x: -x["downloads"])
+
+    return {
+        "range": {"days": r["days"], "tz": r["tz"], **r["label"]},
+        "digital_listings": len(prods),
+        "digital_files": len(file_info),
+        "downloads": downloads,
+        "repeat_downloads": repeat_downloads,
+        "digital_views": views,
+        "digital_orders": digital_orders,
+        "conversion_rate": _rate(digital_orders, views),
+        "avg_file_size_mb": round(sum(sizes) / len(sizes) / 1024 / 1024, 2) if sizes else 0,
+        "most_downloaded_files": most_downloaded,
+        "most_viewed_digital": most_viewed,
+        "version_adoption": adoption[:10],
+    }
+
+
 # ── Admin marketplace trends ──────────────────────────────────────────────────
 
 @router.get("/admin/marketplace-trends")

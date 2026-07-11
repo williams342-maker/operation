@@ -62,6 +62,7 @@ export default function AnalyticsTab() {
   const [sections, setSections] = useState(null);
   const [products, setProducts] = useState(null);
   const [search, setSearch] = useState(null);
+  const [digital, setDigital] = useState(null);
   const [recos, setRecos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [perfList, setPerfList] = useState("most_viewed");
@@ -76,9 +77,10 @@ export default function AnalyticsTab() {
       fetchStoreAnalytics("sections", params),
       fetchStoreAnalytics("products", params),
       fetchStoreAnalytics("search-insights", params),
-    ]).then(([o, s, p, si]) => {
+      fetchStoreAnalytics("digital", params),
+    ]).then(([o, s, p, si, dg]) => {
       if (cancelled) return;
-      setOverview(o); setSections(s); setProducts(p); setSearch(si);
+      setOverview(o); setSections(s); setProducts(p); setSearch(si); setDigital(dg);
       setLoading(false);
     }).catch(() => { if (!cancelled) { setLoading(false); toast.error("Could not load analytics."); } });
     // recommendations may take a few seconds (AI summary) — load separately
@@ -264,6 +266,32 @@ export default function AnalyticsTab() {
               </div>
             )}
           </div>
+
+          {/* Digital product analytics (iter454) */}
+          {digital && digital.digital_listings > 0 && (
+            <div className="border border-line bg-paper p-5" data-testid="analytics-digital">
+              <SectionHead>Digital products</SectionHead>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+                <StatCard label="Downloads" value={fmtNum(digital.downloads)} testId="stat-dg-downloads" />
+                <StatCard label="Repeat Downloads" value={fmtNum(digital.repeat_downloads)} testId="stat-dg-repeat" />
+                <StatCard label="Digital Views" value={fmtNum(digital.digital_views)} testId="stat-dg-views" />
+                <StatCard label="Digital Orders" value={fmtNum(digital.digital_orders)} testId="stat-dg-orders" />
+                <StatCard label="Conversion" value={`${digital.conversion_rate ?? 0}%`} testId="stat-dg-conversion" />
+                <StatCard label="Avg File Size" value={`${digital.avg_file_size_mb} MB`} testId="stat-dg-filesize" />
+              </div>
+              <div className="grid md:grid-cols-3 gap-6">
+                <TermList title="Most downloaded files" testId="dg-top-files"
+                          rows={digital.most_downloaded_files}
+                          render={(t) => `${t.filename} · ${t.downloads}×`} />
+                <TermList title="Most viewed digital listings" testId="dg-top-views"
+                          rows={digital.most_viewed_digital}
+                          render={(t) => `${t.title} · ${t.views} views`} />
+                <TermList title="Version adoption (after updates)" testId="dg-adoption"
+                          rows={digital.version_adoption}
+                          render={(t) => `${t.filename} v${t.current_version} · ${t.latest_version_share}% on latest`} />
+              </div>
+            </div>
+          )}
 
           {/* Customer Search Insights */}
           <div className="border border-line bg-paper p-5" data-testid="search-insights">

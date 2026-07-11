@@ -1,7 +1,7 @@
 """Pydantic models shared across routers."""
 import uuid
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer
 
 from core import now_iso
 
@@ -235,6 +235,25 @@ class Product(BaseModel):
     # the buyer side we serve a token-gated download endpoint after
     # purchase. Skip ObjectIds; this is just a thin manifest.
     digital_files: List[dict] = []
+
+    @field_serializer("digital_files")
+    def _sanitize_digital_files(self, files):
+        """iter454 — NEVER expose storage URLs / raw version history in API
+        responses. Buyers get files only via the token-gated presigned
+        download endpoint; the editor needs id/filename/ext/size/version."""
+        out = []
+        for f in files or []:
+            latest = (f.get("versions") or [{}])[-1]
+            out.append({
+                "id": f.get("id"), "filename": f.get("filename"),
+                "ext": f.get("ext"), "size_bytes": f.get("size_bytes"),
+                "version": f.get("version") or 1,
+                "uploaded_at": f.get("uploaded_at"),
+                "release_notes": latest.get("release_notes"),
+                "scan": {"status": (f.get("scan") or {}).get("status")},
+            })
+        return out
+
     created_at: str = Field(default_factory=now_iso)
 
 

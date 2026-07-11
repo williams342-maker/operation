@@ -32,6 +32,7 @@ import { JournalPage, JournalDetail } from "./pages/JournalPage";
 import CartPage from "./pages/CartPage";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import PurchasesPage from "./pages/PurchasesPage"; // iter453 — buyer re-downloads
+import DigitalDownloadsPage from "./pages/DigitalDownloadsPage"; // iter454 — SEO landing
 import MakerLogin from "./pages/MakerLogin";
 import MakerVerify from "./pages/MakerVerify";
 import MakerDashboard from "./pages/MakerDashboard";
@@ -358,6 +359,7 @@ function App() {
                 <Route path="/community/showcase/:postId" element={<ShowcaseDeeplinkRedirect />} />
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/purchases" element={<PurchasesPage />} /> {/* iter453 */}
+                <Route path="/digital-downloads" element={<DigitalDownloadsPage />} /> {/* iter454 */}
                 <Route path="/community/verify" element={<CommunityVerify />} />
                 <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
                 <Route path="/messages" element={<BuyerMessagesPage />} />

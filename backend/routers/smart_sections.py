@@ -28,6 +28,7 @@ SMART_DEFS = [
     ("customer-favorites","Customer Favorites", "Highest-rated by buyers", True),
     ("low-inventory",     "Low Inventory",      "5 or fewer left in stock", True),
     ("nearly-sold-out",   "Nearly Sold Out",    "Only 1–2 left — almost gone", True),
+    ("digital-downloads", "Digital Downloads",  "Instant-download files from this shop", True),
     ("staff-picks",       "Staff Picks",        "Hand-picked by the shop", False),
     ("featured",          "Featured Products",  "The shop's featured items", False),
 ]
@@ -53,7 +54,7 @@ async def compute_smart_members(maker_slug: str) -> dict:
         {"maker_slug": maker_slug, "status": "published"},
         {"_id": 0, "slug": 1, "price": 1, "compare_at_price": 1, "on_sale": 1,
          "in_stock": 1, "variants.in_stock": 1, "published_at": 1,
-         "updated_at": 1, "created_at": 1}).to_list(2000)
+         "updated_at": 1, "created_at": 1, "listing_type": 1}).to_list(2000)
     slugs = {p["slug"] for p in prods}
 
     # Units sold per product (paid transactions, last 30d)
@@ -99,6 +100,8 @@ async def compute_smart_members(maker_slug: str) -> dict:
             low.append((st, p["slug"]))
     out["low-inventory"] = [s for _, s in sorted(low)]
     out["nearly-sold-out"] = [s for _, s in sorted(nearly)]
+    out["digital-downloads"] = [
+        p["slug"] for p in prods if p.get("listing_type") in ("digital", "both")]
 
     # Manual pick lists from settings (only keep still-published slugs)
     rows = await db.smart_section_settings.find(

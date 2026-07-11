@@ -81,7 +81,7 @@ async def test_smart_sections_default_disabled_and_computed_counts(client):
     r = await client.get("/api/maker/smart-sections", headers=AUTH)
     assert r.status_code == 200
     by_key = {s["key"]: s for s in r.json()["sections"]}
-    assert len(by_key) == 9
+    assert len(by_key) == 10  # iter454 adds digital-downloads
     assert all(not s["enabled"] for s in by_key.values())
     assert by_key["new-arrivals"]["count"] == 1
     assert by_key["low-inventory"]["count"] == 2   # 3 + 1 stock

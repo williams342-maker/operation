@@ -191,6 +191,16 @@ export default function Nav() {
               <User size={14} /> {signedInRole ? "Account" : "Sign in"}
             </Link>
           )}
+          {/* iter454 — Buyer Library entry point */}
+          {signedInRole === "buyer" && (
+            <Link
+              to="/purchases"
+              className="hidden md:inline-flex relative items-center gap-2 px-4 py-2 border border-line hover:border-brand font-mono text-[11px] uppercase tracking-[0.22em] transition"
+              data-testid="nav-my-downloads"
+            >
+              ⬇ My Downloads
+            </Link>
+          )}
           <ThemeToggle className="hidden sm:inline-flex" />
           <Link
             to="/cart"
@@ -261,6 +271,19 @@ export default function Nav() {
                   {signedInRole ? "Account" : "Sign in"}
                 </Link>
               </motion.li>
+              {/* iter454 — Buyer Library in the mobile drawer */}
+              {signedInRole === "buyer" && (
+                <motion.li initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.03 }}>
+                  <Link
+                    to="/purchases"
+                    onClick={() => setOpen(false)}
+                    className="font-display text-3xl sm:text-4xl block hover:text-brand transition flex items-center gap-3"
+                    data-testid="mobile-nav-my-downloads"
+                  >
+                    <span className="text-brand">⬇</span> My Downloads
+                  </Link>
+                </motion.li>
+              )}
               {/* Primary mobile nav — single flat list including the
                   community dropdown items + the tertiary surfaces.
                   Mobile users get everything in one tap-friendly column.
