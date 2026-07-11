@@ -59,7 +59,7 @@ async def compute_reconciliation() -> dict:
     """Core ledger-vs-books math shared by the admin endpoint + nightly job."""
     today = datetime.now(timezone.utc).date().isoformat()
 
-    led = {"sale": {}, "refund": {}, "payout": {}}
+    led = {"sale": {}, "refund": {}, "payout": {}, "payout_reversal": {}}
     async for g in db.marketplace_ledger.aggregate([{"$group": {
             "_id": "$kind",
             "gross_cents": {"$sum": "$gross_cents"},
@@ -70,20 +70,31 @@ async def compute_reconciliation() -> dict:
         led[g.pop("_id")] = g
     sales_net = int(led["sale"].get("net_cents") or 0)
     payouts_net = int(led["payout"].get("net_cents") or 0)
+    reversals_net = int(led["payout_reversal"].get("net_cents") or 0)
     refunds_net = int(led["refund"].get("net_cents") or 0) or int(led["refund"].get("gross_cents") or 0)
-    ledger_outstanding = sales_net - refunds_net - payouts_net
+    ledger_outstanding = sales_net - refunds_net - payouts_net + reversals_net
 
     book_outstanding = pending = paid_today = 0
+    flags = {"unclaimed": {"count": 0, "cents": 0}, "returned": {"count": 0, "cents": 0},
+             "refunded": {"count": 0, "cents": 0}, "canceled": {"count": 0, "cents": 0}}
     async for r in db.maker_payouts.find(
-            {}, {"_id": 0, "status": 1, "amount_cents": 1, "paid_at": 1, "failure_permanent": 1}):
+            {}, {"_id": 0, "status": 1, "amount_cents": 1, "paid_at": 1,
+                 "failure_permanent": 1, "payout_returned_reason": 1}):
         cents = int(r.get("amount_cents") or 0)
         st = r.get("status")
         if st in ("deferred", "failed") and not r.get("failure_permanent"):
             book_outstanding += cents
         elif st == "processing":
             pending += cents
+        elif st == "unclaimed":
+            flags["unclaimed"]["count"] += 1
+            flags["unclaimed"]["cents"] += cents
         elif st == "paid" and (r.get("paid_at") or "").startswith(today):
             paid_today += cents
+        reason = (r.get("payout_returned_reason") or "").lower()
+        if reason in ("returned", "refunded", "canceled"):
+            flags[reason]["count"] += 1
+            flags[reason]["cents"] += cents
 
     disputes = 0
     async for t in db.payment_transactions.find(
@@ -101,6 +112,7 @@ async def compute_reconciliation() -> dict:
             "sales_net_cents": sales_net,
             "refunds_cents": refunds_net,
             "payouts_net_cents": payouts_net,
+            "payout_reversals_cents": reversals_net,
             "outstanding_cents": ledger_outstanding,
             "gross_cents": int(led["sale"].get("gross_cents") or 0),
             "commission_cents": int(led["sale"].get("commission_cents") or 0),
@@ -109,6 +121,7 @@ async def compute_reconciliation() -> dict:
         "maker_outstanding_cents": book_outstanding,
         "pending_payouts_cents": pending,
         "paid_today_cents": paid_today,
+        "payout_flags": flags,
         "refunds_cents": refunds_net,
         "disputes_cents": disputes,
         "diff_cents": diff,
@@ -240,6 +253,18 @@ async def run_nightly_reconciliation(trigger: str = "cron") -> dict:
         not dup_rows and not dup_batches,
         "None" if not (dup_rows or dup_batches)
         else f"{len(dup_rows)} duplicated commission row(s) · {len(dup_batches)} duplicated batch id(s)", 15)
+
+    # 11. Payout status flags — unclaimed is a warning (money in limbo at
+    #     PayPal); returned/refunded/canceled are informational (auto-reversed
+    #     back into maker balances by the webhook handler).
+    fl = recon["payout_flags"]
+    handled = " · ".join(
+        f"{k}: {v['count']}" for k, v in fl.items() if k != "unclaimed" and v["count"])
+    add("payout_status_flags", "No unclaimed payouts",
+        fl["unclaimed"]["count"] == 0,
+        ("None" if not handled else f"reversed → {handled}") if fl["unclaimed"]["count"] == 0
+        else f"{fl['unclaimed']['count']} unclaimed · ${fl['unclaimed']['cents'] / 100:,.2f} in limbo at PayPal"
+        + (f" · reversed → {handled}" if handled else ""), 3)
 
     score = round(max(0.0, 100.0 - penalty), 1)
     status = "balanced" if diff == 0 and all(

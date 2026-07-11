@@ -64,12 +64,15 @@ def paypal_configured() -> bool:
 def _payout_config() -> dict:
     """Config for the dedicated payout-status webhook path. PayPal assigns a
     NEW webhook id to every registered URL, so signature verification for
-    /webhooks/paypal/payout-status must use PAYPAL_PAYOUT_WEBHOOK_ID_{ENV}.
-    Falls back to the primary webhook id when the var is unset (covers the
-    setup where payout events are simply added to the existing webhook)."""
+    /webhooks/paypal/payout-status must use its own id. Lookup order:
+      1. PAYPAL_PAYOUT_STATUS_WEBHOOK_ID           (environment-agnostic)
+      2. PAYPAL_PAYOUT_WEBHOOK_ID_{SANDBOX|LIVE}
+      3. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}  (payout events added to
+         the existing webhook instead of a dedicated one)"""
     cfg = _config()
     suffix = "LIVE" if cfg["env"] == "live" else "SANDBOX"
-    dedicated = (os.environ.get(f"PAYPAL_PAYOUT_WEBHOOK_ID_{suffix}") or "").strip()
+    dedicated = ((os.environ.get("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID") or "").strip()
+                 or (os.environ.get(f"PAYPAL_PAYOUT_WEBHOOK_ID_{suffix}") or "").strip())
     if dedicated:
         cfg = {**cfg, "webhook_id": dedicated}
     return cfg

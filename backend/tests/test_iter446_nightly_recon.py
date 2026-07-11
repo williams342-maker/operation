@@ -89,7 +89,7 @@ async def test_report_persisted_and_email_sent(_no_external):
     r = await recon_engine.run_nightly_reconciliation(trigger="test446")
     assert r["status"] in ("balanced", "alert")
     assert 0 <= r["score"] <= 100
-    assert len(r["checks"]) == 9
+    assert len(r["checks"]) == 10
     stored = await db.recon_reports.find_one({"id": r["id"]}, {"_id": 0})
     assert stored and stored["trigger"] == "test446"
     assert len(_no_external["emails"]) == 1
@@ -171,7 +171,7 @@ async def test_endpoints(client, _no_external):
     r = await client.post("/api/admin/finance/reconciliation/run", headers=ADMIN)
     assert r.status_code == 200
     rep = r.json()
-    assert rep["trigger"].startswith("admin:") and len(rep["checks"]) == 9
+    assert rep["trigger"].startswith("admin:") and len(rep["checks"]) == 10
 
     r = await client.get("/api/admin/finance/recon-reports", headers=ADMIN)
     assert r.status_code == 200

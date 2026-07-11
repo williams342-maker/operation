@@ -68,7 +68,7 @@ async def test_falls_back_to_primary_webhook_id(client, capture_verify, monkeypa
     monkeypatch.delenv("PAYPAL_PAYOUT_WEBHOOK_ID_SANDBOX", raising=False)
     await client.post("/api/webhooks/paypal/payout-status",
                       content=_event("WH-PST-2"), headers=SIG)
-    assert capture_verify["webhook_id"] == "primary-webhook-id"
+    assert capture_verify["webhook_id"] == os.environ["PAYPAL_WEBHOOK_ID_SANDBOX"]
 
 
 @pytest.mark.asyncio
@@ -80,7 +80,7 @@ async def test_uses_dedicated_webhook_id_when_set(client, capture_verify, monkey
     # primary path still verifies against the primary id
     await client.post("/api/webhooks/paypal",
                       content=_event("WH-PST-4"), headers=SIG)
-    assert capture_verify["webhook_id"] == "primary-webhook-id"
+    assert capture_verify["webhook_id"] == os.environ["PAYPAL_WEBHOOK_ID_SANDBOX"]
 
 
 @pytest.mark.asyncio

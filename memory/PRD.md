@@ -1,3 +1,28 @@
+## 2026-07-11 — iter448: Payout-status event semantics + PAYPAL_PAYOUT_STATUS_WEBHOOK_ID
+
+- Env: /webhooks/paypal/payout-status now verifies against (in order)
+  PAYPAL_PAYOUT_STATUS_WEBHOOK_ID → PAYPAL_PAYOUT_WEBHOOK_ID_{SANDBOX|LIVE} → primary id.
+- apply_payout_item_event REWRITTEN (routers/paypal_payouts.py) with correct terminal semantics:
+  · UNCLAIMED  → status "unclaimed" (recoverable, keeps payout_run_id so the eventual
+                 RETURNED still matches). NOT failed. Recon warning.
+  · RETURNED / REFUNDED / CANCELED → REVERSE: rows back to `deferred` (balance restored),
+    payout_run_id → returned_from_run_id (natural idempotency — redelivery matches nothing),
+    `payout_reversal` marketplace_ledger entry (idempotent by kind+session+maker),
+    audit_log {kind: paypal_payout_reversed, reason, amount, run, event}.
+  · FAILED/BLOCKED/DENIED/REVERSED → failed (BLOCKED/DENIED/REVERSED permanent) — unchanged.
+- recon_engine: ledger outstanding = sales − refunds − payouts + payout_reversals;
+  payout_flags {unclaimed/returned/refunded/canceled: count+cents} in reconciliation response;
+  10th nightly check "payout_status_flags" (warns on unclaimed, informational for reversals).
+- UI: Ledger·Recon shows 4 payout-status flag cards (Unclaimed highlighted amber when >0)
+  + payout_reversal kind badge/filter. Fin Ops checklist picks up the 10th check automatically.
+- ARCHITECTURE NOTE (user asked to verify): there are exactly TWO webhook ingresses —
+  /api/webhooks/paypal (primary: checkout, captures, refunds, disputes, payout events) and
+  /api/webhooks/paypal/payout-status (dedicated). `/api/paypal/webhook` DOES NOT exist and
+  never did. Both routes share _ingest_webhook → _process_event → ledger; events tagged
+  with `ingress` in paypal_webhook_events for the audit trail.
+- Tests: test_iter448_payout_status_events.py (10) — full suite 74/74. Fixed env-ordering
+  flake in iter447/448 (assert against live PAYPAL_WEBHOOK_ID_SANDBOX, not setdefault value).
+
 ## 2026-07-11 — iter447: Dedicated payout-status webhook path
 
 - NEW: POST /api/webhooks/paypal/payout-status — same hardened pipeline as the primary

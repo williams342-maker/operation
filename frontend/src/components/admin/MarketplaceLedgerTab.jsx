@@ -18,6 +18,7 @@ const KIND_BADGE = {
   sale: "text-green-600 border-green-500/40",
   refund: "text-red-400 border-red-400/40",
   payout: "text-sky-600 border-sky-500/40",
+  payout_reversal: "text-amber-500 border-amber-400/40",
 };
 
 export default function MarketplaceLedgerTab() {
@@ -88,6 +89,33 @@ export default function MarketplaceLedgerTab() {
         ))}
       </div>
 
+      {/* iter448 — payout status flags from the payout-status webhook */}
+      {recon?.payout_flags && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="recon-payout-flags">
+          {[
+            ["Unclaimed payouts", recon.payout_flags.unclaimed, true],
+            ["Returned payouts", recon.payout_flags.returned, false],
+            ["Refunded payouts", recon.payout_flags.refunded, false],
+            ["Canceled payouts", recon.payout_flags.canceled, false],
+          ].map(([label, f, warn]) => (
+            <div key={label}
+                 className={`border p-3 ${warn && f?.count ? "border-amber-400/60 bg-amber-400/5" : "border-line"}`}
+                 data-testid={`recon-flag-${label}`}>
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-ink-muted">
+                {warn && f?.count ? "⚠ " : ""}{label}
+              </div>
+              <div className={`font-display text-2xl mt-1 ${
+                f?.count ? (warn ? "text-amber-500" : "text-ink") : "text-ink-muted"}`}>
+                {f?.count ?? 0}
+              </div>
+              <div className="font-mono text-[9px] text-ink-muted mt-0.5">
+                {usd(f?.cents)}{warn && f?.count ? " in limbo at PayPal — recoverable" : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
         <span className="text-ink-muted">Filter:</span>
         {["", "stripe", "paypal"].map((p) => (
@@ -98,7 +126,7 @@ export default function MarketplaceLedgerTab() {
           </button>
         ))}
         <span className="text-ink-muted ml-2">·</span>
-        {["", "sale", "refund", "payout"].map((k) => (
+        {["", "sale", "refund", "payout", "payout_reversal"].map((k) => (
           <button key={k || "all"} onClick={() => setKind(k)}
                   className={`border px-2 py-1 transition ${kind === k ? "border-brand text-brand" : "border-line hover:border-brand"}`}
                   data-testid={`ledger-filter-kind-${k || "all"}`}>

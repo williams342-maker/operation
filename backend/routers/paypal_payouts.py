@@ -449,12 +449,43 @@ async def payouts_export(status: str = "", date_from: str = "", date_to: str = "
 
 # ── Webhook hooks (called from paypal_webhooks._process_event) ──────────────
 
-_ITEM_FAIL_STATUSES = ("FAILED", "RETURNED", "BLOCKED", "DENIED", "CANCELED",
-                       "CANCELLED", "REVERSED", "REFUNDED", "UNCLAIMED")
+_ITEM_FAIL_STATUSES = ("FAILED", "BLOCKED", "DENIED", "REVERSED")
+# iter448 — reversal statuses restore the maker's balance instead of failing:
+_ITEM_REVERSAL_STATUSES = {"RETURNED": "returned", "REFUNDED": "refunded",
+                           "CANCELED": "canceled", "CANCELLED": "canceled"}
+
+
+def _item_outcome_kind(status: str, etype: str) -> str:
+    """Canonical outcome bucket for a PAYOUTS-ITEM event."""
+    if status == "SUCCESS" or etype.endswith("SUCCEEDED"):
+        return "paid"
+    if status == "UNCLAIMED" or etype.endswith("UNCLAIMED"):
+        return "unclaimed"
+    for st, reason in _ITEM_REVERSAL_STATUSES.items():
+        if status == st or etype.endswith(st):
+            return f"reversal:{reason}"
+    if status in _ITEM_FAIL_STATUSES or any(
+            etype.endswith(s) for s in ("FAILED", "BLOCKED", "DENIED")):
+        return "failed"
+    return "status_updated"
 
 
 async def apply_payout_item_event(event: dict) -> str:
-    """PAYMENT.PAYOUTS-ITEM.* — resolve sender_item_id run:maker → stamp rows."""
+    """PAYMENT.PAYOUTS-ITEM.* — resolve sender_item_id run:maker → stamp rows.
+
+    Terminal semantics (iter448):
+      SUCCEEDED            → paid
+      UNCLAIMED            → status "unclaimed" (recoverable — PayPal auto-returns
+                             after 30 days, then RETURNED restores the balance)
+      RETURNED / REFUNDED /
+      CANCELED             → REVERSE the payout: rows back to `deferred`
+                             (available again), `payout_reversal` ledger entry,
+                             audit_log trail. Idempotent — the reversal moves
+                             payout_run_id → returned_from_run_id so redelivery
+                             matches nothing.
+      FAILED / BLOCKED /
+      DENIED / REVERSED    → failed (BLOCKED/DENIED/REVERSED permanent)
+    """
     res = event.get("resource") or {}
     item = res.get("payout_item") or {}
     sender_item_id = item.get("sender_item_id") or res.get("sender_item_id") or ""
@@ -462,13 +493,14 @@ async def apply_payout_item_event(event: dict) -> str:
         return "recorded_no_matching_payout"
     run_id, maker_slug = sender_item_id.split(":", 1)
     status = (res.get("transaction_status") or "").upper()
+    etype = event.get("event_type", "")
     item_id = res.get("payout_item_id")
+    kind = _item_outcome_kind(status, etype)
     if maker_slug == "__test__":
         # iter443 — sandbox test payout: stamp the test run only, never
         # maker balances.
-        etype = event.get("event_type", "")
-        outcome = ("paid" if status == "SUCCESS" or etype.endswith("SUCCEEDED")
-                   else "failed" if status in _ITEM_FAIL_STATUSES
+        outcome = ("paid" if kind == "paid"
+                   else "failed" if kind == "failed"
                    else (status or "updated").lower())
         upd = await db.paypal_payout_runs.update_one(
             {"id": run_id, "kind": "test"},
@@ -483,19 +515,48 @@ async def apply_payout_item_event(event: dict) -> str:
     flt = {"payout_run_id": run_id, "maker_slug": maker_slug}
     if not await db.maker_payouts.count_documents(flt):
         return "recorded_no_matching_payout"
-    if status == "SUCCESS" or event.get("event_type", "").endswith("SUCCEEDED"):
+    if kind == "paid":
         await db.maker_payouts.update_many(flt, {"$set": {
             "status": "paid", "payout_status": status or "SUCCESS",
             "payout_item_id": item_id, "paid_at": now_iso(), "updated_at": now_iso()}})
         outcome = "paid"
-    elif status in _ITEM_FAIL_STATUSES or any(
-            event.get("event_type", "").endswith(s) for s in
-            ("FAILED", "RETURNED", "BLOCKED", "DENIED", "CANCELED", "UNCLAIMED")):
+    elif kind == "unclaimed":
+        # Money is in limbo at PayPal — recoverable, NOT failed. Keep
+        # payout_run_id so the eventual RETURNED event still matches.
+        await db.maker_payouts.update_many(flt, {"$set": {
+            "status": "unclaimed", "payout_status": "UNCLAIMED",
+            "payout_item_id": item_id, "unclaimed_at": now_iso(),
+            "updated_at": now_iso()}})
+        outcome = "unclaimed"
+    elif kind.startswith("reversal:"):
+        reason = kind.split(":", 1)[1]
+        rows = await db.maker_payouts.find(flt, {"_id": 0}).to_list(500)
+        total = sum(int(r.get("amount_cents") or 0) for r in rows)
+        batch_id = rows[0].get("payout_batch_id") if rows else None
+        await db.maker_payouts.update_many(flt, {
+            "$set": {"status": "deferred", "payout_status": status or reason.upper(),
+                     "payout_returned_reason": reason.upper(),
+                     "payout_returned_at": now_iso(),
+                     "returned_from_run_id": run_id, "updated_at": now_iso()},
+            "$unset": {"payout_run_id": 1, "paid_at": 1}})
+        from ledger import ledger_record
+        await ledger_record(
+            "payout_reversal", "paypal", f"run:{run_id}", maker_slug,
+            net_cents=total, payout_run_id=run_id, payout_batch_id=batch_id,
+            meta={"reason": reason, "event_type": etype,
+                  "event_id": event.get("id"), "payout_item_id": item_id})
+        await db.audit_log.insert_one({
+            "kind": "paypal_payout_reversed", "reason": reason,
+            "event_type": etype, "event_id": event.get("id"),
+            "payout_run_id": run_id, "maker_slug": maker_slug,
+            "amount_cents": total, "created_at": now_iso()})
+        outcome = f"reversed_{reason}"
+    elif kind == "failed":
         errors = (res.get("errors") or {})
         await db.maker_payouts.update_many(flt, {"$set": {
             "status": "failed", "payout_status": status or "FAILED",
             "payout_item_id": item_id,
-            "failure_permanent": status in ("BLOCKED", "DENIED", "REVERSED", "REFUNDED"),
+            "failure_permanent": status in ("BLOCKED", "DENIED", "REVERSED"),
             "failure_reason": errors.get("message") or status or "payout failed",
             "updated_at": now_iso()}})
         outcome = "failed"
