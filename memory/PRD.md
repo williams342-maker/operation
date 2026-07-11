@@ -1,3 +1,30 @@
+## 2026-07-11 — iter449: Cookie Preference Center (P1 compliance) COMPLETE
+
+- NEW /cookie-preferences page (pages/CookiePreferences.jsx): 3 categories — Strictly
+  necessary (always-on), Analytics (GA4), Advertising (Google Ads + Microsoft UET + TikTok) —
+  each with a per-cookie details table (name/provider/purpose/duration), Save / Accept all /
+  Reject non-essential, and a "current choice" strip showing the saved record + timestamp.
+- COMPLIANCE FIX: TikTok Pixel was firing regardless of consent. public/tiktok-pixel.js now
+  boots with ttq.holdConsent(); applies stored cm_consent on load (grant→page(), deny→revoke,
+  undecided→queue held). lib/consent.js pushVendorConsent extended with ttq grant/revoke.
+  TikTok's literal `ttq.load("D8UP6SJC77UCR7H8US60")` verification snippet preserved.
+- consent.js: new CHANGED_EVENT dispatched by writeConsent → open banner closes itself when
+  the user saves from the preference page (fixed the double-UI bug found during testing).
+- Footer: added "Cookie settings" link (route) alongside the existing banner-reopen button.
+  Banner Customize panel links to the full center; Advertising copy now lists all 3 vendors.
+- Same cm_consent record/schema as before — no migration; existing consents keep working.
+- Tested via 2 screenshot flows: fresh-visit banner, save-from-page closes banner, record
+  persisted correctly (analytics/ads independently), page renders on desktop.
+
+NEXT UP (user-approved roadmap): Store Sections Phase 1 → Store Search+SEO → Smart Sections
+& Analytics → Digital Products. Store Sections spec captured 2026-07-11 (see conversation):
+sections CRUD w/ drag reorder + hide, multi-section listing assignment, storefront sidebar
+(desktop) / swipe tabs (mobile), instant filter, All Products, /maker/{slug}/{section-slug}
+URLs w/ reserved-word collision guards (products, product, reviews, about, contact, settings,
+shop, followers, following, orders, collections, section, edit, admin, api), slug preserved on
+rename, 301 on explicit slug change, breadcrumbs, canonical+sitemap for public sections with
+≥1 active product. Naming: "Store Sections" (maker) / "Browse Sections" (buyer).
+
 ## 2026-07-11 — iter448c: Env-scoped webhook ID vars (user registered 3 webhooks in PayPal LIVE)
 
 - User's 3 webhook registrations are in the LIVE PayPal app → dormant until PAYPAL_ENVIRONMENT=live.

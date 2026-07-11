@@ -46,5 +46,25 @@
   };
 
   ttq.load('D8UP6SJC77UCR7H8US60');
-  ttq.page();
+
+  /* iter449 — GDPR: boot in held-consent mode so nothing fires until the
+     visitor has decided. If they already granted ad consent on a prior
+     visit (cm_consent in localStorage), release immediately so the first
+     pageview is attributed; if they denied, revoke; otherwise events queue
+     until the cookie banner / preference center calls grantConsent(). */
+  ttq.holdConsent();
+  try {
+    var raw = w.localStorage.getItem('cm_consent');
+    var c = raw ? JSON.parse(raw) : null;
+    if (c && c.ad_storage === 'granted') {
+      ttq.grantConsent();
+      ttq.page();
+    } else if (c && c.ad_storage === 'denied') {
+      ttq.revokeConsent();
+    } else {
+      ttq.page(); /* queued while consent is held */
+    }
+  } catch (e) {
+    /* localStorage unavailable — stay held (most restrictive). */
+  }
 }(window, document, 'ttq');

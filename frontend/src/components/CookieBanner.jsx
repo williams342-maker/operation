@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { X, ChevronDown } from "lucide-react";
-import { readConsent, acceptAll, rejectAll, writeConsent, REOPEN_EVENT } from "../lib/consent";
+import { readConsent, acceptAll, rejectAll, writeConsent, REOPEN_EVENT, CHANGED_EVENT } from "../lib/consent";
 
 /**
  * iter334e — GDPR cookie consent banner.
@@ -45,7 +45,13 @@ export default function CookieBanner() {
       setOpen(true);
     };
     window.addEventListener(REOPEN_EVENT, handler);
-    return () => window.removeEventListener(REOPEN_EVENT, handler);
+    // iter449 — close if the user saves a choice from /cookie-preferences.
+    const closer = () => setOpen(false);
+    window.addEventListener(CHANGED_EVENT, closer);
+    return () => {
+      window.removeEventListener(REOPEN_EVENT, handler);
+      window.removeEventListener(CHANGED_EVENT, closer);
+    };
   }, []);
 
   if (!open) return null;
@@ -166,7 +172,7 @@ export default function CookieBanner() {
                 <div className="min-w-0">
                   <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink">Advertising</div>
                   <div className="font-mono text-[10px] text-ink-muted leading-snug">
-                    Microsoft Ads (Bing). Conversion tracking + remarketing.
+                    Google Ads, Microsoft Ads, TikTok. Conversion tracking + remarketing.
                   </div>
                 </div>
               </label>
@@ -179,6 +185,17 @@ export default function CookieBanner() {
             >
               Save selection
             </button>
+          </div>
+          {/* iter449 — full preference center with per-vendor cookie details */}
+          <div className="max-w-[1300px] mx-auto px-3 md:px-6 pb-2">
+            <Link
+              to="/cookie-preferences"
+              onClick={() => setOpen(false)}
+              className="font-mono text-[10px] text-brand hover:underline"
+              data-testid="cookie-banner-full-center-link"
+            >
+              Open the full Cookie Preference Center →
+            </Link>
           </div>
         </div>
       )}

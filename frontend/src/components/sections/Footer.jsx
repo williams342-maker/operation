@@ -344,6 +344,10 @@ export default function Footer() {
             >
               Cookie preferences
             </button>
+            {/* iter449 — full-page granular preference center */}
+            <Link to="/cookie-preferences" className="hover:text-brand" data-testid="footer-cookie-settings">
+              Cookie settings
+            </Link>
           </div>
         </div>
       </div>

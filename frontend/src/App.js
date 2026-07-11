@@ -46,6 +46,7 @@ import LegacyPolicyRedirect from "./pages/LegacyPolicyRedirect";
 import TrustCenterPage from "./pages/TrustCenterPage";
 import TrustVendorsPage from "./pages/TrustVendorsPage";
 import PoliciesIndexPage from "./pages/PoliciesIndexPage";
+import CookiePreferences from "./pages/CookiePreferences";
 import PolicyDetailPage from "./pages/PolicyDetailPage";
 import PrintBundlePage from "./pages/PrintBundlePage";
 import CommunityPage from "./pages/CommunityPage";
@@ -338,6 +339,7 @@ function App() {
                 <Route path="/trust" element={<TrustCenterPage />} />
                 <Route path="/trust/vendors" element={<TrustVendorsPage />} />
                 <Route path="/policies" element={<PoliciesIndexPage />} />
+                <Route path="/cookie-preferences" element={<CookiePreferences />} />
                 <Route path="/policies/:slug" element={<PolicyDetailPage />} />
                 <Route path="/counsel-packet" element={<PrintBundlePage />} />
                 <Route path="/attorney-packet" element={<PrintBundlePage />} />

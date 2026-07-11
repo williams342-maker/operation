@@ -42,6 +42,8 @@ export function writeConsent(adStorage, analyticsStorage) {
     /* Storage disabled — push consent anyway so this session works. */
   }
   pushVendorConsent(adStorage, analyticsStorage);
+  // iter449 — let any open banner/UI know the choice changed elsewhere.
+  try { window.dispatchEvent(new CustomEvent(CHANGED_EVENT)); } catch { /* noop */ }
   return record;
 }
 
@@ -61,6 +63,18 @@ export function pushVendorConsent(adStorage, analyticsStorage) {
   try {
     if (window.uetq && typeof window.uetq.push === "function") {
       window.uetq.push("consent", "update", { ad_storage: adStorage });
+    }
+  } catch { /* same */ }
+  // iter449 — TikTok Pixel Consent API. The pixel boots in holdConsent
+  // (see public/tiktok-pixel.js); grant releases the queue, revoke drops it.
+  try {
+    if (window.ttq) {
+      if (adStorage === "granted") {
+        window.ttq.grantConsent?.();
+        window.ttq.page?.();
+      } else {
+        window.ttq.revokeConsent?.();
+      }
     }
   } catch { /* same */ }
 }
@@ -149,6 +163,9 @@ export const rejectAll = () => writeConsent("denied", "denied");
 /** Custom event the Footer "Cookie preferences" link can dispatch to
  *  re-open the banner. CookieBanner.jsx listens for this. */
 export const REOPEN_EVENT = "cm:reopen-cookie-banner";
+// iter449 — fired by writeConsent so an open banner closes when the choice
+// is saved from the /cookie-preferences page.
+export const CHANGED_EVENT = "cm:consent-changed";
 export const reopenBanner = () => {
   try {
     window.dispatchEvent(new CustomEvent(REOPEN_EVENT));
