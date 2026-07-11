@@ -198,6 +198,14 @@ function OrderRow({ order, onChange }) {
           <div className="flex-1 min-w-0">
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
               ◆ Paid · {formatDate(order.created_at)}
+              {order.payment_provider === "paypal" && (
+                <span
+                  className="ml-2 px-2 py-0.5 border border-sky-500/40 text-sky-600"
+                  data-testid={`order-provider-paypal-${order.session_id}`}
+                >
+                  PayPal
+                </span>
+              )}
               {isFulfilled && (
                 <span className="ml-2 px-2 py-0.5 border border-emerald-400/40 text-emerald-700">
                   shipped

@@ -20,7 +20,13 @@ export default function PayPalCheckoutButton({ buildPayload, disabled, onPaid })
   useEffect(() => {
     fetch(`${API}/api/paypal/checkout/config`)
       .then((r) => r.json())
-      .then((c) => { if (c.enabled && c.client_id) setCfg(c); })
+      .then((c) => {
+        // iter440 — hidden from normal buyers until parity sign-off.
+        // Testers force-show with localStorage cm_pp_test=1.
+        let tester = false;
+        try { tester = localStorage.getItem("cm_pp_test") === "1"; } catch { /* noop */ }
+        if ((c.enabled || (c.tester_enabled && tester)) && c.client_id) setCfg(c);
+      })
       .catch(() => {});
   }, []);
 

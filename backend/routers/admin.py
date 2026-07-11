@@ -1148,10 +1148,11 @@ async def admin_refund_order(
     `approval_id` once a different admin has approved.
     """
     threshold = float(os.environ.get("REFUND_DUAL_APPROVAL_USD") or 500)
-    tx = await db.transactions.find_one({"session_id": session_id}, {"_id": 0})
+    tx = await db.transactions.find_one({"session_id": session_id}, {"_id": 0}) \
+        or await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if not tx:
         raise HTTPException(404, "Order not found.")
-    refund_amount = float(tx.get("total") or 0)
+    refund_amount = float(tx.get("total") or tx.get("amount") or 0)
 
     # If above threshold and no approval, create / require one.
     if refund_amount >= threshold and not approval_id:
@@ -1199,8 +1200,14 @@ async def admin_refund_order(
             raise HTTPException(403, "The approving admin must be different from the executor.")
         # Mark executed below after the actual refund succeeds.
 
-    from routers.stripe_connect import refund_session
-    result = await refund_session(session_id)
+    # iter440 — PayPal orders (session_id pp_<id>) refund via PayPal's
+    # Captures API; Stripe sessions keep the original path.
+    if session_id.startswith("pp_"):
+        from routers.paypal_finalize import refund_paypal_session
+        result = await refund_paypal_session(session_id)
+    else:
+        from routers.stripe_connect import refund_session
+        result = await refund_session(session_id)
     if approval_id:
         await db.refund_approvals.update_one(
             {"id": approval_id}, {"$set": {"status": "executed", "executed_at": now_iso()}},

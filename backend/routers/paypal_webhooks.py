@@ -161,21 +161,87 @@ async def _verify_signature(cfg: dict, headers, raw_body: bytes) -> tuple:
 
 
 async def _process_event(event: dict) -> str:
-    """Business-logic hook. iter438: reconcile PayPal checkout captures."""
+    """Business-logic hook. iter440: full Stripe-parity order pipeline."""
+    from .paypal_finalize import (
+        apply_paypal_refund, finalize_paypal_order, record_paypal_fees,
+    )
     etype = event.get("event_type") or ""
+    res = event.get("resource") or {}
+    rtype = (event.get("resource_type") or "").lower()
+
+    async def _find_order():
+        cid = res.get("custom_id")
+        doc = await db.paypal_orders.find_one({"id": cid}, {"_id": 0}) if cid else None
+        if not doc and rtype == "capture":
+            doc = await db.paypal_orders.find_one({"capture_id": res.get("id")}, {"_id": 0})
+        return doc
+
     if etype in ("PAYMENT.CAPTURE.COMPLETED", "CHECKOUT.ORDER.COMPLETED"):
-        res = event.get("resource") or {}
-        internal_id = res.get("custom_id")
-        capture_id = res.get("id")
-        flt = {"id": internal_id} if internal_id else {"capture_id": capture_id}
-        upd = await db.paypal_orders.update_one(
-            flt,
-            {"$set": {"reconciled": True, "reconciled_at": now_iso(),
-                      "reconciled_by_event": event.get("id")}},
-        )
-        if upd.matched_count:
-            return f"reconciled:{internal_id or capture_id}"
-        return "recorded_no_matching_order"
+        doc = await _find_order()
+        if not doc:
+            return "recorded_no_matching_order"
+        sets = {"reconciled": True, "reconciled_at": now_iso(),
+                "reconciled_by_event": event.get("id")}
+        captured_cents = None
+        if rtype == "capture":
+            try:
+                captured_cents = int(round(float((res.get("amount") or {}).get("value")) * 100))
+            except (TypeError, ValueError):
+                captured_cents = None
+            if not doc.get("capture_id"):
+                sets.update({"capture_id": res.get("id"),
+                             "capture_status": res.get("status"), "status": "captured",
+                             "captured_at": now_iso()})
+        await db.paypal_orders.update_one({"id": doc["id"]}, {"$set": sets})
+        srb = res.get("seller_receivable_breakdown")
+        if srb:
+            await record_paypal_fees(doc["id"], srb)
+        result = await finalize_paypal_order(
+            doc["id"], trigger=f"webhook:{etype}", captured_amount_cents=captured_cents)
+        return f"reconciled:{doc['id']}:{result}"
+
+    if etype in ("PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED"):
+        doc = await _find_order()
+        if not doc:
+            return "recorded_no_matching_order"
+        kind = "refunded" if etype.endswith("REFUNDED") else "reversed"
+        try:
+            amount = float((res.get("amount") or {}).get("value") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        await apply_paypal_refund(
+            doc["id"], res.get("id"),
+            amount or doc["amounts_cents"]["total"] / 100.0, kind=kind)
+        return f"{kind}:{doc['id']}"
+
+    if etype in ("PAYMENT.CAPTURE.DENIED", "PAYMENT.CAPTURE.DECLINED", "CHECKOUT.ORDER.VOIDED"):
+        doc = await _find_order()
+        if not doc:
+            return "recorded_no_matching_order"
+        status = "cancelled" if etype == "CHECKOUT.ORDER.VOIDED" else "capture_denied"
+        await db.paypal_orders.update_one(
+            {"id": doc["id"]},
+            {"$set": {"status": status, "status_event": event.get("id"),
+                      "status_updated_at": now_iso()}})
+        return f"{status}:{doc['id']}"
+
+    if etype.startswith("CUSTOMER.DISPUTE."):
+        cap_ids = [d.get("seller_transaction_id")
+                   for d in (res.get("disputed_transactions") or [])
+                   if d.get("seller_transaction_id")]
+        doc = await db.paypal_orders.find_one(
+            {"capture_id": {"$in": cap_ids}}, {"_id": 0}) if cap_ids else None
+        if not doc:
+            return "recorded_no_matching_order"
+        dispute = {"dispute_id": res.get("dispute_id") or res.get("id"),
+                   "dispute_status": res.get("status"),
+                   "dispute_reason": res.get("reason"),
+                   "dispute_updated_at": now_iso()}
+        await db.paypal_orders.update_one({"id": doc["id"]}, {"$set": dispute})
+        await db.payment_transactions.update_one(
+            {"session_id": f"pp_{doc['id']}"}, {"$set": dispute})
+        return f"dispute:{doc['id']}"
+
     return "recorded"
 
 

@@ -2210,6 +2210,7 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             continue
         out.append({
             "session_id": tx.get("session_id"),
+            "payment_provider": tx.get("payment_provider") or "stripe",
             "buyer_email": tx.get("customer_email"),
             "buyer_name": tx.get("customer_name") or tx.get("buyer_name"),
             "created_at": tx.get("created_at"),
@@ -2346,6 +2347,8 @@ async def maker_order_detail(session_id: str, slug: str = Depends(current_maker_
 
     return {
         "session_id": session_id,
+        "payment_provider": tx.get("payment_provider") or "stripe",
+        "paypal_order_id": tx.get("paypal_order_id"),
         "buyer_email": tx.get("customer_email"),
         "buyer_name": tx.get("customer_name") or tx.get("buyer_name"),
         "created_at": tx.get("created_at"),

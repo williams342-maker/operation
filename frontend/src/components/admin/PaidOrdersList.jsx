@@ -106,12 +106,34 @@ export default function PaidOrdersList({ items }) {
             <div className="flex-1 min-w-0">
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
                 ◆ {isRefunded ? "Refunded" : "Paid"} · {formatDate(o.created_at)}
+                {o.payment_provider === "paypal" && (
+                  <span
+                    className="ml-2 px-1.5 py-0.5 border border-sky-500/40 text-sky-600 normal-case tracking-normal"
+                    data-testid={`order-provider-paypal-${o.session_id}`}
+                  >
+                    PayPal
+                  </span>
+                )}
               </div>
               <div className="font-mono text-xs text-ink mt-1 truncate">{o.summary}</div>
               <div className="font-mono text-[10px] text-ink-muted mt-1">
                 {o.customer_email || "no buyer email"} ·{" "}
                 <span className="text-ink-muted">{o.session_id?.slice(0, 16)}…</span>
               </div>
+              {o.payment_provider === "paypal" && (
+                <div
+                  className="font-mono text-[10px] text-ink-muted mt-1"
+                  data-testid={`order-paypal-ids-${o.session_id}`}
+                >
+                  PP order {o.paypal_order_id || "—"} · capture {o.paypal_capture_id || "—"}
+                  {o.paypal_fees && (
+                    <span>
+                      {" "}· fee ${((o.paypal_fees.paypal_fee_cents || 0) / 100).toFixed(2)} · net $
+                      {((o.paypal_fees.net_cents || 0) / 100).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
               {err[o.session_id] && (
                 <p className="font-mono text-[10px] text-red-400 mt-1">{err[o.session_id]}</p>
               )}

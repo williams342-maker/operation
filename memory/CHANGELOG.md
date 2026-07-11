@@ -1,3 +1,38 @@
+## 2026-07-11 — iter440: PayPal order-pipeline parity (Stripe-equivalent downstream)
+
+- NEW `routers/paypal_finalize.py`: finalize_paypal_order() runs the full paid-order pipeline for
+  captured PayPal orders — payment_transactions record (session_id pp_<internal_id>,
+  payment_provider="paypal", paypal_order_id/capture_id/fees), stock decrement, per-maker
+  commission ledger (db.maker_payouts, provider=paypal, status=deferred reason=paypal-manual-payout),
+  buyer receipt + maker new-order + ops + low-stock emails, activity ticker + admin push, discount
+  bookkeeping, digital delivery. IDEMPOTENT via atomic finalized:False→True claim on
+  db.paypal_orders — webhook retries / duplicate capture callbacks can never duplicate stock,
+  emails, commissions, or orders.
+- ACCOUNTING POLICY (answering the $16.95/$1.08/$15.87 question): marketplace commission is
+  calculated from the GROSS sale amount (fee_breakdown_cents — identical policy to Stripe, honors
+  Plus tier bps), NOT from PayPal's net. PayPal's actual gross/fee/net (seller_receivable_breakdown)
+  is recorded separately on paypal_orders.paypal_fees + tx.paypal_fees for platform accounting.
+- Webhooks (_process_event): CAPTURE.COMPLETED/ORDER.COMPLETED → record fees + finalize (amount
+  check against amounts_cents.total; mismatch → status=amount_mismatch, pipeline blocked);
+  CAPTURE.REFUNDED/REVERSED → tx refund_status + paypal_orders status + payouts cancelled;
+  CAPTURE.DENIED/ORDER.VOIDED → status; CUSTOMER.DISPUTE.* → dispute_id/status on order + tx.
+- Capture callback now records fees + finalizes; repeat callbacks self-heal idempotently; 409 on
+  amount mismatch.
+- Admin refund: /admin/orders/{sid}/refund branches — pp_ sessions refund via PayPal Captures API
+  (refund_paypal_session, PayPal-Request-Id idempotent); Stripe path unchanged. Amount lookup falls
+  back to payment_transactions.
+- Views: maker /maker/orders + detail expose payment_provider (+paypal_order_id in detail); admin
+  PaidOrdersList + maker OrdersList show a PayPal badge; admin shows PP order/capture IDs + fee/net.
+- GATING: PayPal hidden from normal buyers — /paypal/checkout/config returns enabled=false unless
+  PAYPAL_PUBLIC_ENABLED=true (backend .env, currently false); testers force-show the cart button
+  with localStorage cm_pp_test=1 (tester_enabled flag).
+- Tests: tests/test_iter440_paypal_parity.py — 12 tests (success pipeline, fees, idempotency,
+  duplicate webhook, duplicate capture callback, amount mismatch, missing internal order, refund,
+  reversal, dispute, multi-item, multi-maker). 29/29 PayPal tests pass + order-detail regression.
+- E2E verified in preview: finalize fired real Mailgun emails (buyer/ops/maker), stock 4→3,
+  commission 300bps from gross, admin+maker order APIs return provider fields. Demo data cleaned.
+
+
 ## 2026-07-11 — iter439: PAYMENT.CAPTURE.COMPLETED ERROR — hardening + observability
 
 - DIAGNOSIS: verification_status ERROR ≠ signature failure. ERROR is set ONLY when PayPal's

@@ -11,6 +11,7 @@ Reconciliation: PAYMENT.CAPTURE.COMPLETED webhooks (routers/paypal_webhooks)
 match db.paypal_orders via custom_id and stamp `reconciled=True`.
 Stripe checkout is untouched — PayPal is an additive second option.
 """
+import os
 import uuid
 
 import httpx
@@ -19,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 from core import db, logger, now_iso
 
 from .checkout import CheckoutRequest, _quote_for, _resolve_cart, _resolve_discount
+from .paypal_finalize import finalize_paypal_order, record_paypal_fees
 from .paypal_webhooks import _access_token, _config, paypal_configured
 
 router = APIRouter()
@@ -35,8 +37,13 @@ def _usd(cents: int) -> str:
 @router.get("/paypal/checkout/config")
 async def paypal_checkout_config():
     cfg = _config()
+    # iter440 — PayPal stays hidden from normal buyers until parity is
+    # signed off. Testers force-show via localStorage cm_pp_test=1
+    # (checked client-side against `tester_enabled`).
+    public = (os.environ.get("PAYPAL_PUBLIC_ENABLED") or "false").strip().lower() == "true"
     return {
-        "enabled": paypal_configured(),
+        "enabled": paypal_configured() and public,
+        "tester_enabled": paypal_configured(),
         "environment": cfg["env"],
         "client_id": cfg["client_id"],  # public identifier, safe for the browser
         "currency": "USD",
@@ -132,6 +139,11 @@ async def create_paypal_order(req: CheckoutRequest):
             }
             for r in resolved
         ],
+        # iter440 — raw cart lines (variant/personalization/custom options)
+        # in the exact shape Stripe stores on payment_transactions, so the
+        # finalize pipeline can create an identical order record.
+        "cart_items": [ci.model_dump() for ci in req.items],
+        "summary": " | ".join(f"{r['product']['title']} × {r['quantity']}" for r in resolved),
         "quote": {k: quote.get(k) for k in ("subtotal", "shipping", "total_before_tax", "digital_only")},
         "discount_code": (req.discount_code or "").strip() or None,
         "amounts_cents": {"item_total": item_total_c, "shipping": shipping_c,
@@ -156,6 +168,10 @@ async def capture_paypal_order(paypal_order_id: str):
     if not doc:
         raise HTTPException(404, "Unknown PayPal order.")
     if doc["status"] == "captured":
+        # Duplicate capture callback — finalize is idempotent (atomic claim),
+        # so this self-heals a first callback that captured but crashed
+        # before finalizing, without ever duplicating side effects.
+        await finalize_paypal_order(doc["id"], trigger="capture_callback_repeat")
         return {"status": "captured", "internal_id": doc["id"], "capture_id": doc.get("capture_id"),
                 "total": _usd(doc["amounts_cents"]["total"])}
 
@@ -195,5 +211,20 @@ async def capture_paypal_order(paypal_order_id: str):
     }
     await db.paypal_orders.update_one({"paypal_order_id": paypal_order_id}, {"$set": update})
     logger.info("[paypal-checkout] captured · internal=%s · capture=%s", doc["id"], cap.get("id"))
+
+    # iter440 — record PayPal's actual fee breakdown + run the full paid-order
+    # pipeline (order record, stock, commission, emails). Idempotent.
+    srb = cap.get("seller_receivable_breakdown")
+    if srb:
+        await record_paypal_fees(doc["id"], srb)
+    captured_cents = None
+    try:
+        captured_cents = int(round(float((cap.get("amount") or {}).get("value")) * 100))
+    except (TypeError, ValueError):
+        pass
+    fin = await finalize_paypal_order(doc["id"], trigger="capture_callback",
+                                      captured_amount_cents=captured_cents)
+    if fin.startswith("amount_mismatch"):
+        raise HTTPException(409, "Payment amount did not match the order total — contact support.")
     return {"status": "captured", "internal_id": doc["id"], "capture_id": cap.get("id"),
             "total": _usd(doc["amounts_cents"]["total"])}
