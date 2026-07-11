@@ -173,6 +173,18 @@ export const assignProductSections = (product_slug, section_slugs) =>
   http.post("/maker/sections/assign", { product_slug, section_slugs }, { headers: authHeaders() }).then((r) => r.data);
 export const fetchPublicSections = (makerSlug) =>
   http.get(`/makers/${makerSlug}/sections`).then((r) => r.data);
+
+// ──────────── Smart Sections + Store Analytics (iter452) ────────────
+export const fetchMakerSmartSections = () =>
+  http.get("/maker/smart-sections", { headers: authHeaders() }).then((r) => r.data);
+export const updateSmartSection = (key, payload) =>
+  http.patch(`/maker/smart-sections/${key}`, payload, { headers: authHeaders() }).then((r) => r.data);
+export const fetchPublicSmartSections = (makerSlug) =>
+  http.get(`/makers/${makerSlug}/smart-sections`).then((r) => r.data);
+export const fetchStoreAnalytics = (endpoint, params) =>
+  http.get(`/maker/analytics/${endpoint}`, { params, headers: authHeaders() }).then((r) => r.data);
+export const fetchMarketplaceTrends = (params) =>
+  http.get("/admin/marketplace-trends", { params, headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchMakerOrders = () =>
   http.get("/maker/orders", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerOrderDetail = (sessionId) =>

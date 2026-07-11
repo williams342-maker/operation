@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { Search, Folder, Clock, TrendingUp } from "lucide-react";
 import { http } from "../lib/api";
+import { trackStoreEvent } from "../lib/storeEvents"; // iter452 — search_click analytics
 
 const RECENT_KEY = (slug) => `cm_store_recent_${slug}`;
 
@@ -95,10 +96,17 @@ export default function StoreSearch({ makerSlug, makerName }) {
     if (row.kind === "section" || row.kind === "suggestion") {
       pushRecent(makerSlug, row.name.toLowerCase());
       setRecent(readRecent(makerSlug));
+      trackStoreEvent("search_click", {
+        maker_slug: makerSlug, query: q.trim().toLowerCase() || row.name.toLowerCase(),
+        section_slug: row.slug,
+      });
       navigate(`/makers/${makerSlug}/${row.slug}`);
     } else if (row.kind === "product") {
       pushRecent(makerSlug, q.trim().toLowerCase());
       setRecent(readRecent(makerSlug));
+      trackStoreEvent("search_click", {
+        maker_slug: makerSlug, query: q.trim().toLowerCase(), product_slug: row.slug,
+      });
       navigate(`/shop/${row.slug}`);
     } else {
       onInput(row.term);

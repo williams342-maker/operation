@@ -5,6 +5,7 @@ import { fetchProduct, fetchMaker, fetchBackorderPolicy, http } from "../lib/api
 import { useCart } from "../lib/cart";
 import { etaRange } from "../lib/eta";
 import { uetTrack } from "../lib/consent";
+import { trackStoreEvent, getStoreContext } from "../lib/storeEvents"; // iter452
 import { trackConversion } from "../lib/googleAdsConversions";
 import { trackMeta } from "../lib/metaPixel";
 import { tiktokTrack } from "../lib/tiktokPixel";
@@ -356,6 +357,14 @@ export default function ProductDetail() {
       })));
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
+    // iter452 — first-party store analytics (consent-gated in the lib).
+    try {
+      const ctx = getStoreContext(p.maker_slug);
+      trackStoreEvent("add_to_cart", {
+        maker_slug: p.maker_slug, product_slug: p.slug,
+        section_slug: ctx?.section_slug || null,
+      });
+    } catch { /* never break add-to-cart */ }
     // iter334i — Fire Microsoft Ads `add_to_cart` conversion event so
     // Bing Ads can build a full GA4-style ecommerce funnel
     // (add_to_cart → begin_checkout → purchase). Uses the effective

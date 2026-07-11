@@ -27,6 +27,10 @@ RESERVED_SLUGS = {
     "followers", "following", "orders", "collections", "collection",
     "section", "sections", "edit", "admin", "api", "blog", "journal", "new",
     "all", "search", "state",
+    # iter452 — Smart Section slugs are reserved so manual sections can't clash
+    "new-arrivals", "best-sellers", "on-sale", "recently-updated",
+    "customer-favorites", "low-inventory", "nearly-sold-out",
+    "staff-picks", "featured",
 }
 MAX_SECTIONS = 50
 

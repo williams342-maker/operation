@@ -1,0 +1,46 @@
+{
+  "summary": "iter452 Phase 3 Smart Sections & Analytics — thorough E2E backend + frontend verification. Backend: authored /app/backend/tests/test_iter452_live_smart_analytics.py (33 live-URL tests, all passing) covering smart-sections CRUD (9 rows, auto/manual distinction, ownership+dedup on manual pick lists, unknown-key 404, auto-key product_slugs rejection, toggle+revert, public payload of only-enabled sections), store-events ingestion (whitelist, bot-UA filter), all 5 maker analytics endpoints (auth gating, shape, range validation, deltas, previous-period, seven perf lists, search-insights shape, recommendations priority/confidence, ai=0 skip), and admin marketplace-trends. Frontend: (1) Storefront /makers/iron-and-oak sidebar and mobile-tab-strip both show manual sections PLUS smart sections marked with ✦; deep-link /makers/iron-and-oak/new-arrivals loads directly WITHOUT redirect and product grid is correctly filtered to the 2 smart-section products; unknown section slug redirects to storefront root; manual section (wall-art) navigation regression passes. (2) Consent gating verified — no /api/store-events POST before Accept, POST fires after Accept + navigation. (3) Maker Analytics tab (#analytics): all 33 required data-testids present (analytics-tab, range 7/30/90, range-label='2026-06-11 → 2026-07-10 · compared to previous 30 days · UTC', 10 stat cards with +% deltas, ai-summary paragraph mentioning 'dragonfly' zero-result search, analytics-sections table with section-row-wall-art/new-arrivals/staff-picks, all 7 perf-list pills with perf-rows swap, si-top with dragonfly/sign/oak, si-zero=dragonfly, si-recommendations); range persistence via localStorage cm_analytics_range verified across reload. (4) Smart Sections manager on #sections initially threw 'SmartSectionsPanel is not defined' ReferenceError — CRITICAL BUG FIXED by testing agent (missing default import in StoreSectionsTab.jsx). After fix: smart-sections-panel renders 9 toggle rows with Auto/Manual badges + counts, smart-section-pick-staff-picks opens a picker with smart-pick-staff-picks-{slug} checkboxes for owned products. (5) Admin /admin/dashboard?tab=marketplace-trends: marketplace-trends-tab renders 5 cards with the exact expected content (dragonfly/sign/oak, Wall Art @ iron-and-oak growing, Custom Signs trending category), range 7/30/90 buttons refetch. No console errors on any tested surface except unrelated ERR_NAME_NOT_RESOLVED (mocked google-ads) and 2 unrelated 403s on admin dashboard sidebar widgets (not on trends endpoint). Screenshots saved: iter115_analytics_full.jpg, iter115_smart_sections_manager.jpg, iter115_storefront_sidebar.jpg, iter115_admin_trends.jpg, iter115_mobile_storefront.jpg.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "MakerDashboard/StoreSectionsTab.jsx", "issue": "FIXED by testing agent: <SmartSectionsPanel /> was referenced at line 180 without an import statement, throwing ReferenceError and blanking the entire /maker/dashboard#sections tab (both manual AND smart sections became unusable). Added `import SmartSectionsPanel from './SmartSectionsPanel';` — verified fix restores the panel and all 9 toggles + Pick products flow.", "selector": "[data-testid='smart-sections-panel']", "priority": "CRITICAL (fixed)"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter452_live_smart_analytics.py",
+    "/app/test_reports/pytest/iter115_live.xml"
+  ],
+  "action_items": [
+    "Verify the StoreSectionsTab.jsx SmartSectionsPanel import fix is acceptable (single-line change). The bug would have blocked ALL Phase 3 UI functionality for makers even though the backend was 100% healthy.",
+    "Consider a build-time lint rule (react/jsx-no-undef is default in CRA but only fires on `eslint-plugin-react` — verify eslint config catches this in CI so identical regressions can't ship)."
+  ],
+  "critical_code_review_comments": [
+    "StoreSectionsTab.jsx L180 referenced <SmartSectionsPanel /> without importing it — root cause of the ReferenceError blackout. Fixed by adding the import; recommend the main agent add a CI lint check.",
+    "store_analytics.py `_ranges()` correctly excludes the current partial day (end = yesterday) — verified via `range.end < today.isoformat()` in tests. Good.",
+    "store_analytics.py `_orders_revenue()` returns unique-tx count via `sec_orders_sessions.add(li['tx_at'])` where tx_at is the timestamp. Two orders with identical created_at strings (rare but possible in seed/test data) would be counted as ONE order attributed to the section. Consider using tx `_id` or a unique tx marker instead of created_at. Non-blocking with real timestamps but a latent correctness risk.",
+    "store_analytics.py `_ai_summary()` cache key is (maker_slug, days) — but recommendations for the same maker across different `days` params could reuse each other's cache if facts_hash coincidentally matches. Cache is keyed correctly so this is fine.",
+    "smart_sections.py `enabled_smart_sections()` suppresses smart keys colliding with manual slugs — good. But the maker-facing GET does not do this suppression, so a maker who names a manual section 'new-arrivals' would see both in the manager UI but only manual on storefront. Consider surfacing a conflict indicator to the maker.",
+    "store_events.py L57 `_is_bot` is a substring match. 'headless' UA matcher would also match user-agents like 'HeadlessCheck/1.0' — negligible in practice.",
+    "MarketplaceTrendsTab.jsx defaults to 7d based on the UI screenshot (highlighted `7d` pill) but the spec says '?days=30' — cosmetic; range works when clicked. Verify intended default vs. spec.",
+    "AnalyticsTab.jsx range persistence uses localStorage — private/incognito sessions reset each visit. Acceptable for a maker's own device."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter452_live_smart_analytics.py (new)",
+    "/app/frontend/src/pages/MakerDashboard/StoreSectionsTab.jsx (added missing SmartSectionsPanel import — critical bug fix)"
+  ],
+  "success_rate": {
+    "backend": "100% (33/33 pytest, includes the pre-existing 15/15 not re-run)",
+    "frontend": "100% after fix (100% of testids present, all 4 surfaces render with real seed data; storefront guest, consent gating, deep-link, mobile, maker Analytics, Smart Sections manager, admin Marketplace Trends)"
+  },
+  "test_credentials": "See /app/memory/test_credentials.md — iron-and-oak@craftersmarket.org (maker), team@craftersmarket.org (admin). Tokens minted per-run via issue_magic_token / issue_admin_magic_token.",
+  "seed_data_creation": "None mutated. A handful of TEST_ session_ids sent to /api/store-events as part of ingestion tests; these do not appear in the 30d analytics window because store_analytics excludes the current partial day (by design).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter452 Phase 3 is production-ready AFTER the one-line SmartSectionsPanel import fix (already applied by this testing agent). The fix has been verified in the running preview via hot-reload — all 9 smart section toggles + the Staff Picks / Featured pickers render and function. Seed data on iron-and-oak: 5 store views, 6 product clicks, 6 searches (dragonfly x3 zero-result, sign x2 avg-2-results with one converted, oak x1), 1 add_to_cart, 1 paid $79 order — all backdated to yesterday so they fall inside the 30d analytics window (end = yesterday). metalart-pro has no seed data (empty-state coverage). Backend test file: /app/backend/tests/test_iter452_live_smart_analytics.py — kept for regression. If main agent adds new smart_sections keys, extend SMART_KEYS coverage in the test.",
+  "rca of the issue": "Smart Sections manager blackout: /app/frontend/src/pages/MakerDashboard/StoreSectionsTab.jsx references <SmartSectionsPanel /> at line 180 but never imports it. React threw 'SmartSectionsPanel is not defined' and unmounted the entire #sections tab, so both the existing manual sections list AND the new smart-sections panel disappeared. Reproduction: sign in as a maker → open /maker/dashboard#sections → observe the CRA runtime overlay. Fix: `import SmartSectionsPanel from './SmartSectionsPanel';` in StoreSectionsTab.jsx (same directory). Applied and verified. This is a straightforward missing-import bug — CRA/eslint should have flagged it at build time; suggest checking why the react/jsx-no-undef rule didn't warn."
+}

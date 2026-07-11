@@ -338,6 +338,12 @@ from routers.store_sections import router as store_sections_router
 api.include_router(store_sections_router)
 from routers.store_search import router as store_search_router
 api.include_router(store_search_router)
+from routers.smart_sections import router as smart_sections_router  # iter452
+api.include_router(smart_sections_router)
+from routers.store_events import router as store_events_router  # iter452
+api.include_router(store_events_router)
+from routers.store_analytics import router as store_analytics_router  # iter452
+api.include_router(store_analytics_router)
 
 app.include_router(api)
 

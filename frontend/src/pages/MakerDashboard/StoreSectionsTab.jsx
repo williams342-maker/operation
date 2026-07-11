@@ -13,6 +13,7 @@ import {
   deleteStoreSection, reorderStoreSections, setSectionProducts,
   fetchMakerProducts,
 } from "../../lib/api";
+import SmartSectionsPanel from "./SmartSectionsPanel";
 
 export default function StoreSectionsTab({ maker }) {
   const [sections, setSections] = useState([]);
@@ -175,6 +176,9 @@ export default function StoreSectionsTab({ maker }) {
       {editing && products === null && (
         <p className="font-mono text-[11px] text-ink-muted">Loading listings…</p>
       )}
+
+      {/* iter452 — Smart Sections (Phase 3) */}
+      <SmartSectionsPanel />
     </div>
   );
 }
@@ -262,3 +266,4 @@ function SectionEditor({ section, products, onClose, onSaved }) {
     </div>
   );
 }
+

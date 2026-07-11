@@ -19,6 +19,7 @@ import WorkshopVideoGrid from "../components/WorkshopVideoGrid";
 import { Mail, Facebook, Instagram, Twitter, Youtube, Globe, BookOpen, ArrowUpRight } from "lucide-react";
 import Breadcrumbs from "../components/Breadcrumbs";
 import StoreSearch from "../components/StoreSearch"; // iter451 — store-scoped search
+import { trackStoreEvent, setStoreContext } from "../lib/storeEvents"; // iter452 — first-party analytics
 
 // Always emit the canonical apex URL — never the preview hostname.
 const SITE_URL = "https://craftersmarket.org";
@@ -30,6 +31,8 @@ export default function MakerDetail() {
   const [posts, setPosts] = useState([]);
   // iter450 — Store Sections nav ("Browse Sections" buyer-facing)
   const [sectionsData, setSectionsData] = useState(null);
+  // iter452 — Smart Sections (null until loaded so deep links don't 404 early)
+  const [smartSections, setSmartSections] = useState(null);
   const [contactOpen, setContactOpen] = useState(false);
   // iter302 — real review aggregate; replaces the legacy `listings_count`
   // hack which mis-counted reviewCount as the number of products listed.
@@ -43,6 +46,12 @@ export default function MakerDetail() {
     fetchPublicSections(slug)
       .then(setSectionsData)
       .catch(() => setSectionsData({ sections: [], all_count: 0, redirects: {} }));
+    // iter452 — enabled Smart Sections (auto collections) for this store
+    http.get(`/makers/${slug}/smart-sections`)
+      .then((r) => setSmartSections(r.data.sections || []))
+      .catch(() => setSmartSections([]));
+    // iter452 — first-party analytics: one store_view per visit
+    trackStoreEvent("store_view", { maker_slug: slug });
     // Maker-authored posts only — falls back to empty array on 404 /
     // network error so the rail just hides itself.
     fetchMakerJournalPosts(slug, 3).then(setPosts).catch(() => setPosts([]));
@@ -56,12 +65,22 @@ export default function MakerDetail() {
 
   // iter450 — resolve the active section from the URL.
   const sections = sectionsData?.sections || [];
-  const activeSection = sectionSlug ? sections.find((s) => s.slug === sectionSlug) : null;
+  // iter452 — smart sections join the same URL space; manual sections win.
+  const smartNav = (smartSections || []).filter((s) => s.count > 0);
+  const smartActive = sectionSlug ? (smartSections || []).find((s) => s.slug === sectionSlug) : null;
+  const activeSection = sectionSlug
+    ? (sections.find((s) => s.slug === sectionSlug) || smartActive)
+    : null;
   const redirectTo = sectionSlug && sectionsData ? sectionsData.redirects?.[sectionSlug] : null;
-  const sectionMissing = !!(sectionSlug && sectionsData && !activeSection && !redirectTo);
+  const sectionMissing = !!(sectionSlug && sectionsData && smartSections !== null
+    && !activeSection && !redirectTo);
   const shownProducts = activeSection
-    ? products.filter((p) => (p.section_slugs || []).includes(activeSection.slug))
+    ? (activeSection.product_slugs
+        ? activeSection.product_slugs
+            .map((s) => products.find((p) => p.slug === s)).filter(Boolean)
+        : products.filter((p) => (p.section_slugs || []).includes(activeSection.slug)))
     : products;
+  const hasSectionNav = sections.length > 0 || smartNav.length > 0;
   const pageUrl = `${SITE_URL}/makers/${slug}${activeSection ? `/${activeSection.slug}` : ""}`;
 
   useStructuredData(m ? {
@@ -107,6 +126,22 @@ export default function MakerDetail() {
       ],
     },
   } : { jsonLd: null });
+
+  // iter452 — section_view + browse-dwell events; also keeps the PDP
+  // add-to-cart attribution context up to date.
+  const activeSecSlug = activeSection?.slug || null;
+  useEffect(() => {
+    setStoreContext(slug, activeSecSlug);
+    if (!activeSecSlug) return;
+    trackStoreEvent("section_view", { maker_slug: slug, section_slug: activeSecSlug });
+    const started = Date.now();
+    return () => {
+      trackStoreEvent("section_dwell", {
+        maker_slug: slug, section_slug: activeSecSlug,
+        dwell_ms: Date.now() - started,
+      });
+    };
+  }, [slug, activeSecSlug]);
 
   // iter450 — old section slug → permanent-style client redirect; unknown
   // slug (hidden/deleted) falls back to the storefront root.
@@ -421,7 +456,7 @@ export default function MakerDetail() {
             configured sections; classic single-grid layout otherwise. Mobile:
             horizontal swipe tabs. Desktop (lg+): sticky left sidebar. Links
             are client-side routes — filtering is instant, no reload. */}
-        {sections.length > 0 && (
+        {hasSectionNav && (
           <div className="lg:hidden -mx-4 px-4 mb-6 overflow-x-auto" data-testid="sections-tabs-mobile">
             <div className="flex gap-2 w-max pb-1">
               <Link to={`/makers/${m.slug}`}
@@ -438,12 +473,20 @@ export default function MakerDetail() {
                   {s.name} ({s.count})
                 </Link>
               ))}
+              {smartNav.map((s) => (
+                <Link key={`smart-${s.slug}`} to={`/makers/${m.slug}/${s.slug}`}
+                      className={`shrink-0 px-3 py-1.5 border font-mono text-[10px] uppercase tracking-[0.16em] transition ${
+                        activeSection?.slug === s.slug ? "border-brand text-brand" : "border-line text-ink-muted hover:border-brand"}`}
+                      data-testid={`section-tab-${s.slug}`}>
+                  ✦ {s.name} ({s.count})
+                </Link>
+              ))}
             </div>
           </div>
         )}
 
-        <div className={sections.length > 0 ? "lg:grid lg:grid-cols-[230px_1fr] lg:gap-8" : ""}>
-          {sections.length > 0 && (
+        <div className={hasSectionNav ? "lg:grid lg:grid-cols-[230px_1fr] lg:gap-8" : ""}>
+          {hasSectionNav && (
             <aside className="hidden lg:block self-start sticky top-28" data-testid="sections-sidebar">
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">
                 ◆ Browse sections
@@ -463,6 +506,15 @@ export default function MakerDetail() {
                     {s.name} <span className="text-ink-muted">({s.count})</span>
                   </Link>
                 ))}
+                {smartNav.map((s) => (
+                  <Link key={`smart-${s.slug}`} to={`/makers/${m.slug}/${s.slug}`}
+                        title={s.description}
+                        className={`block px-3 py-2 font-mono text-xs transition ${
+                          activeSection?.slug === s.slug ? "text-brand bg-brand/[0.06] border-l-2 border-l-brand" : "text-ink hover:text-brand"}`}
+                        data-testid={`section-nav-${s.slug}`}>
+                    <span className="text-brand/70">✦</span> {s.name} <span className="text-ink-muted">({s.count})</span>
+                  </Link>
+                ))}
               </nav>
             </aside>
           )}
@@ -476,9 +528,18 @@ export default function MakerDetail() {
               </div>
             ) : (
               <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 ${
-                sections.length > 0 ? "lg:grid-cols-5" : "lg:grid-cols-6"} gap-4 md:gap-5`}
+                hasSectionNav ? "lg:grid-cols-5" : "lg:grid-cols-6"} gap-4 md:gap-5`}
                    data-testid="storefront-product-grid">
-                {shownProducts.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
+                {shownProducts.map((p, i) => (
+                  <div key={p.id} onClickCapture={() => {
+                    trackStoreEvent("product_click", {
+                      maker_slug: slug, section_slug: activeSecSlug, product_slug: p.slug,
+                    });
+                    setStoreContext(slug, activeSecSlug);
+                  }}>
+                    <ProductCard p={p} i={i} />
+                  </div>
+                ))}
               </div>
             )}
           </div>

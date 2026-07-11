@@ -21,6 +21,7 @@ const NAV = [
   { id: "messages",    label: "Messages",    icon: MessageSquare },
   { id: "reviews",     label: "Reviews",     icon: Star },
   { id: "stats",       label: "Stats",       icon: BarChart3 },
+  { id: "analytics",   label: "Analytics",   icon: BarChart3 }, // iter452 — Store Analytics
   { id: "violations",  label: "Violations",  icon: AlertTriangle },
   { id: "marketing",   label: "Marketing",   icon: Megaphone },
   { id: "promote",     label: "Promote",     icon: Rocket, badge: "Preview" },
