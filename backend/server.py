@@ -350,6 +350,8 @@ from routers.maker_agreement import router as maker_agreement_router  # iter453
 api.include_router(maker_agreement_router)
 from routers.digital_landing import router as digital_landing_router  # iter454
 api.include_router(digital_landing_router)
+from routers.featured_maker import router as featured_maker_router  # iter455
+api.include_router(featured_maker_router)
 
 app.include_router(api)
 
