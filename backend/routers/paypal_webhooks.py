@@ -65,10 +65,13 @@ def _checkout_config() -> dict:
     """Config for the dedicated checkout-events webhook path /paypal/webhook
     (checkout order approved, capture completed/declined/reversed/pending/
     refunded, refund failed/pending). Lookup order:
-      1. PAYPAL_CHECKOUT_WEBHOOK_ID                (environment-agnostic)
-      2. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}"""
+      1. PAYPAL_CHECKOUT_WEBHOOK_ID_{SANDBOX|LIVE}  (environment-scoped)
+      2. PAYPAL_CHECKOUT_WEBHOOK_ID                 (environment-agnostic)
+      3. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}"""
     cfg = _config()
-    dedicated = (os.environ.get("PAYPAL_CHECKOUT_WEBHOOK_ID") or "").strip()
+    suffix = "LIVE" if cfg["env"] == "live" else "SANDBOX"
+    dedicated = ((os.environ.get(f"PAYPAL_CHECKOUT_WEBHOOK_ID_{suffix}") or "").strip()
+                 or (os.environ.get("PAYPAL_CHECKOUT_WEBHOOK_ID") or "").strip())
     if dedicated:
         cfg = {**cfg, "webhook_id": dedicated}
     return cfg
@@ -78,13 +81,15 @@ def _payout_config() -> dict:
     """Config for the dedicated payout-status webhook path. PayPal assigns a
     NEW webhook id to every registered URL, so signature verification for
     /webhooks/paypal/payout-status must use its own id. Lookup order:
-      1. PAYPAL_PAYOUT_STATUS_WEBHOOK_ID           (environment-agnostic)
-      2. PAYPAL_PAYOUT_WEBHOOK_ID_{SANDBOX|LIVE}
-      3. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}  (payout events added to
+      1. PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_{SANDBOX|LIVE}  (environment-scoped)
+      2. PAYPAL_PAYOUT_STATUS_WEBHOOK_ID                 (environment-agnostic)
+      3. PAYPAL_PAYOUT_WEBHOOK_ID_{SANDBOX|LIVE}
+      4. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}  (payout events added to
          the existing webhook instead of a dedicated one)"""
     cfg = _config()
     suffix = "LIVE" if cfg["env"] == "live" else "SANDBOX"
-    dedicated = ((os.environ.get("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID") or "").strip()
+    dedicated = ((os.environ.get(f"PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_{suffix}") or "").strip()
+                 or (os.environ.get("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID") or "").strip()
                  or (os.environ.get(f"PAYPAL_PAYOUT_WEBHOOK_ID_{suffix}") or "").strip())
     if dedicated:
         cfg = {**cfg, "webhook_id": dedicated}

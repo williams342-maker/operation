@@ -1,3 +1,21 @@
+## 2026-07-11 — iter448c: Env-scoped webhook ID vars (user registered 3 webhooks in PayPal LIVE)
+
+- User's 3 webhook registrations are in the LIVE PayPal app → dormant until PAYPAL_ENVIRONMENT=live.
+- Code now supports env-scoped ids so live values can be pre-staged safely while running sandbox:
+  checkout:      PAYPAL_CHECKOUT_WEBHOOK_ID_{SANDBOX|LIVE} > PAYPAL_CHECKOUT_WEBHOOK_ID > primary
+  payout-status: PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_{SANDBOX|LIVE} > PAYPAL_PAYOUT_STATUS_WEBHOOK_ID
+                 > PAYPAL_PAYOUT_WEBHOOK_ID_{suffix} > primary
+- .env gained empty keys: PAYPAL_CHECKOUT_WEBHOOK_ID[_SANDBOX|_LIVE], PAYPAL_PAYOUT_STATUS_WEBHOOK_ID[_SANDBOX|_LIVE].
+- PRODUCTION ENV PLAN (stay sandbox for testing):
+  now:   PAYPAL_CHECKOUT_WEBHOOK_ID_LIVE=682704233P629433F,
+         PAYPAL_WEBHOOK_ID_LIVE=52475674DX0564514,
+         PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_LIVE=5RA57991ES0012142
+  to test now: register same 3 URLs in the SANDBOX app → put those ids in
+         PAYPAL_WEBHOOK_ID_SANDBOX / PAYPAL_CHECKOUT_WEBHOOK_ID_SANDBOX /
+         PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_SANDBOX, keep PAYPAL_ENVIRONMENT=sandbox.
+  go-live: flip PAYPAL_ENVIRONMENT=live + live client id/secret. No code changes.
+- Suite: 78/78 (added env-scoped priority test).
+
 ## 2026-07-11 — iter448b: Third webhook route /api/paypal/webhook + final 3-webhook architecture
 
 User registered THREE production webhooks in the PayPal dashboard. Final architecture

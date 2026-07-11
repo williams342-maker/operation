@@ -114,3 +114,18 @@ async def test_checkout_webhook_id_env_var(client, capture_verify, monkeypatch):
     await client.post("/api/paypal/webhook",
                       content=_event("WH-PST-8"), headers=SIG)
     assert capture_verify["webhook_id"] == os.environ["PAYPAL_WEBHOOK_ID_SANDBOX"]
+
+
+@pytest.mark.asyncio
+async def test_env_scoped_ids_take_priority(client, capture_verify, monkeypatch):
+    # env-scoped sandbox id wins over the agnostic one while env=sandbox
+    monkeypatch.setenv("PAYPAL_CHECKOUT_WEBHOOK_ID", "agnostic-checkout-id")
+    monkeypatch.setenv("PAYPAL_CHECKOUT_WEBHOOK_ID_SANDBOX", "sandbox-checkout-id")
+    monkeypatch.setenv("PAYPAL_CHECKOUT_WEBHOOK_ID_LIVE", "live-checkout-id")
+    await client.post("/api/paypal/webhook", content=_event("WH-PST-9"), headers=SIG)
+    assert capture_verify["webhook_id"] == "sandbox-checkout-id"
+    monkeypatch.setenv("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID", "agnostic-ps-id")
+    monkeypatch.setenv("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_SANDBOX", "sandbox-ps-id")
+    await client.post("/api/webhooks/paypal/payout-status",
+                      content=_event("WH-PST-10"), headers=SIG)
+    assert capture_verify["webhook_id"] == "sandbox-ps-id"
