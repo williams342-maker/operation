@@ -51,14 +51,14 @@ async def _clean():
 @pytest.fixture
 def verify_success(monkeypatch):
     async def fake(cfg, headers, event):
-        return "SUCCESS"
+        return "SUCCESS", {"response_status": 200}
     monkeypatch.setattr(paypal_webhooks, "_verify_signature", fake)
 
 
 @pytest.fixture
 def verify_failure(monkeypatch):
     async def fake(cfg, headers, event):
-        return "FAILURE"
+        return "FAILURE", {"response_status": 200, "response_body": '{"verification_status":"FAILURE"}'}
     monkeypatch.setattr(paypal_webhooks, "_verify_signature", fake)
 
 
@@ -115,6 +115,66 @@ async def test_unverified_event_rejected_but_recorded(client, verify_failure):
     doc = await db.paypal_webhook_events.find_one({"event_id": ev["id"]})
     assert doc["verification_status"] == "FAILURE"
     assert doc["processing_result"] == "rejected_unverified"
+
+
+@pytest.mark.asyncio
+async def test_verified_event_stores_verify_debug(client, verify_success):
+    ev = _event()
+    await client.post("/api/webhooks/paypal", json=ev, headers=SIG_HEADERS)
+    doc = await db.paypal_webhook_events.find_one({"event_id": ev["id"]})
+    assert doc["verify_debug"] == {"response_status": 200}
+
+
+@pytest.mark.asyncio
+async def test_error_status_recorded_with_debug(client, monkeypatch):
+    async def fake(cfg, headers, event):
+        return "ERROR", {"response_status": 401, "response_body": '{"error":"invalid_token"}',
+                         "attempts": [{"attempt": 1, "response_status": 401},
+                                      {"attempt": 2, "response_status": 401}]}
+    monkeypatch.setattr(paypal_webhooks, "_verify_signature", fake)
+    ev = _event()
+    r = await client.post("/api/webhooks/paypal", json=ev, headers=SIG_HEADERS)
+    assert r.status_code == 400
+    doc = await db.paypal_webhook_events.find_one({"event_id": ev["id"]})
+    assert doc["verification_status"] == "ERROR"
+    assert doc["verify_debug"]["response_status"] == 401
+    assert len(doc["verify_debug"]["attempts"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_verify_signature_retries_on_401(monkeypatch):
+    """A stale OAuth token (401) must force a token refresh + one retry."""
+    calls = {"post": 0, "token": 0}
+
+    async def fake_token(cfg):
+        calls["token"] += 1
+        return f"tok-{calls['token']}"
+    monkeypatch.setattr(paypal_webhooks, "_access_token", fake_token)
+
+    class FakeResp:
+        def __init__(self, status, body):
+            self.status_code, self.text = status, body
+        def json(self):
+            import json as _j
+            return _j.loads(self.text)
+
+    class FakeClient:
+        def __init__(self, **kw): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, **kw):
+            calls["post"] += 1
+            if calls["post"] == 1:
+                return FakeResp(401, '{"error":"invalid_token"}')
+            return FakeResp(200, '{"verification_status":"SUCCESS"}')
+
+    monkeypatch.setattr(paypal_webhooks.httpx, "AsyncClient", FakeClient)
+    cfg = paypal_webhooks._config()
+    status, debug = await paypal_webhooks._verify_signature(cfg, SIG_HEADERS, b'{"id":"WH-TEST-retry"}')
+    assert status == "SUCCESS"
+    assert calls["post"] == 2 and calls["token"] == 2
+    assert debug["attempts"][0]["response_status"] == 401
+    assert debug["attempts"][1]["response_status"] == 200
 
 
 @pytest.mark.asyncio

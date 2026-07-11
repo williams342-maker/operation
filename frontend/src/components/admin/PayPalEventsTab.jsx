@@ -209,6 +209,15 @@ export default function PayPalEventsTab() {
                 ))}
               </tbody>
             </table>
+            {detail.verify_debug && Object.keys(detail.verify_debug).length > 0 && (
+              <>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-2">Verify debug</div>
+                <pre className="text-[10px] leading-relaxed border border-amber-400/40 p-3 mb-5 overflow-x-auto whitespace-pre-wrap break-all bg-black/5"
+                     data-testid="pp-detail-verify-debug">
+                  {JSON.stringify(detail.verify_debug, null, 2)}
+                </pre>
+              </>
+            )}
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted mb-2">Sanitized payload</div>
             <pre className="text-[10px] leading-relaxed border border-line p-3 overflow-x-auto whitespace-pre-wrap break-all bg-black/5"
                  data-testid="pp-detail-payload">

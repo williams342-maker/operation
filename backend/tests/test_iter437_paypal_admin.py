@@ -58,14 +58,14 @@ async def _clean():
 @pytest.fixture
 def verify_success(monkeypatch):
     async def fake(cfg, headers, event):
-        return "SUCCESS"
+        return "SUCCESS", {"response_status": 200}
     monkeypatch.setattr(paypal_webhooks, "_verify_signature", fake)
 
 
 @pytest.fixture
 def verify_failure(monkeypatch):
     async def fake(cfg, headers, event):
-        return "FAILURE"
+        return "FAILURE", {"response_status": 200}
     monkeypatch.setattr(paypal_webhooks, "_verify_signature", fake)
 
 

@@ -1,3 +1,24 @@
+## 2026-07-11 — iter439: PAYMENT.CAPTURE.COMPLETED ERROR — hardening + observability
+
+- DIAGNOSIS: verification_status ERROR ≠ signature failure. ERROR is set ONLY when PayPal's
+  verify-webhook-signature API returns non-200 HTTP (401 stale token / 429 / 5xx / 400).
+  CHECKOUT.ORDER.APPROVED verified SUCCESS seconds earlier with the identical code path, so the
+  strongest hypothesis is a transient non-200 (stale cached OAuth token or PayPal 5xx) on the
+  CAPTURE call.
+- FIX 1 (resilience): _verify_signature now retries once on 401/429/5xx, force-minting a fresh
+  OAuth token (clears _token_cache) before the retry. Removes the global _last_verify_debug race;
+  returns (status, debug) tuple.
+- FIX 2 (observability): verify_debug now persisted on ALL events (SUCCESS included) with
+  per-attempt {response_status, response_body} + body_bytes — enables SUCCESS-vs-ERROR comparison.
+- FIX 3 (UI): Admin → PayPal Events detail drawer now renders a "Verify debug" panel
+  (data-testid pp-detail-verify-debug) — previously verify_debug was stored but never displayed.
+- Tests: 17/17 pass (added retry-on-401 unit test, ERROR-with-debug persistence test,
+  SUCCESS-stores-debug test; updated fixtures to tuple signature in iter436+iter437 suites).
+- USER NEXT STEP: redeploy → click the failed CAPTURE.COMPLETED row in Admin → PayPal Events →
+  read the Verify debug panel (old failed prod events already carry verify_debug in DB) → run one
+  sandbox checkout to confirm both events verify SUCCESS with reconciled:<internal-id>.
+
+
 ## 2026-07-11 — iter438d: PayPal verification RESOLVED in production
 
 - Users latest redeploy fixed it: production Admin -> PayPal Events shows CHECKOUT.ORDER.APPROVED

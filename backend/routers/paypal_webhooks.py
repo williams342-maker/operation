@@ -93,16 +93,18 @@ def _mask(v: str) -> str:
     return ("…" + v[-4:]) if v and len(v) > 4 else "…"
 
 
-async def _verify_signature(cfg: dict, headers, raw_body: bytes) -> str:
-    """Returns PayPal's verification_status: SUCCESS | FAILURE (or ERROR on
-    transport issues).
+async def _verify_signature(cfg: dict, headers, raw_body: bytes) -> tuple:
+    """Returns (verification_status, verify_debug).
+    Status: SUCCESS | FAILURE | ERROR (non-200 from PayPal's verify API).
 
     CRITICAL: `webhook_event` must be the EXACT raw bytes PayPal sent — any
     re-serialization (key order, whitespace, unicode escapes, float formatting)
     changes the CRC and PayPal returns FAILURE. We therefore splice the raw
     body into the request string instead of letting the JSON encoder touch it.
+
+    Resilience: a stale/invalidated OAuth token (401) or transient PayPal
+    hiccup (429/5xx) is retried once with a freshly minted token.
     """
-    token = await _access_token(cfg)
     hdr_names = ["paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id",
                  "paypal-transmission-sig", "paypal-transmission-time"]
     forwarded = {h: headers.get(h) for h in hdr_names}
@@ -120,30 +122,42 @@ async def _verify_signature(cfg: dict, headers, raw_body: bytes) -> str:
         ",".join(h for h in hdr_names if forwarded[h]),
     )
     body = json.dumps(meta)[:-1] + ',"webhook_event":' + raw_body.decode("utf-8") + "}"
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.post(
-            f"{cfg['base']}/v1/notifications/verify-webhook-signature",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            content=body,
-        )
-    # Response bodies contain no credentials — safe to log verbatim.
-    logger.info("[paypal] verify-webhook-signature · status=%s · body=%s",
-                r.status_code, r.text[:500])
-    global _last_verify_debug
-    _last_verify_debug = {
+    url = f"{cfg['base']}/v1/notifications/verify-webhook-signature"
+    attempts = []
+    r = None
+    for attempt in (1, 2):
+        token = await _access_token(cfg)
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                content=body,
+            )
+        # Response bodies contain no credentials — safe to log verbatim.
+        logger.info("[paypal] verify-webhook-signature · attempt=%s · status=%s · body=%s",
+                    attempt, r.status_code, r.text[:500])
+        attempts.append({"attempt": attempt, "response_status": r.status_code,
+                         "response_body": r.text[:500]})
+        if r.status_code == 200:
+            break
+        if attempt == 1 and (r.status_code in (401, 429) or r.status_code >= 500):
+            # 401: token stale/invalidated → force-mint a fresh one and retry.
+            _token_cache.pop(cfg["env"], None)
+            continue
+        break
+    debug = {
         "webhook_id_last4": _mask(cfg["webhook_id"]),
         "environment": cfg["env"],
-        "verify_endpoint": f"{cfg['base']}/v1/notifications/verify-webhook-signature",
+        "verify_endpoint": url,
         "response_status": r.status_code,
         "response_body": r.text[:500],
+        "attempts": attempts,
         "headers_forwarded": [h for h in hdr_names if forwarded[h]],
+        "body_bytes": len(raw_body),
     }
     if r.status_code != 200:
-        return "ERROR"
-    return (r.json().get("verification_status") or "FAILURE").upper()
-
-
-_last_verify_debug: dict = {}
+        return "ERROR", debug
+    return (r.json().get("verification_status") or "FAILURE").upper(), debug
 
 
 async def _process_event(event: dict) -> str:
@@ -201,7 +215,7 @@ async def paypal_webhook(request: Request):
 
     # 3. Verify with PayPal — pass the RAW bytes, never the re-parsed event.
     try:
-        status = await _verify_signature(cfg, request.headers, raw)
+        status, verify_debug = await _verify_signature(cfg, request.headers, raw)
     except Exception as e:
         logger.error("[paypal] verification error · id=%s · %s", event_id, type(e).__name__)
         return JSONResponse({"error": "verification unavailable"}, status_code=503)
@@ -220,6 +234,7 @@ async def paypal_webhook(request: Request):
         "http_outcome": None,
         "duplicate_count": 0,
         "received_at": now_iso(),
+        "verify_debug": verify_debug,
         **_extract_ids(event),
         "payload": _sanitize(event),
     }
@@ -227,7 +242,6 @@ async def paypal_webhook(request: Request):
     if status != "SUCCESS":
         doc["processing_result"] = "rejected_unverified"
         doc["http_outcome"] = "400 signature verification failed"
-        doc["verify_debug"] = dict(_last_verify_debug)
         await db.paypal_webhook_events.update_one(
             {"event_id": event_id}, {"$setOnInsert": doc}, upsert=True,
         )
