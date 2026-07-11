@@ -45,6 +45,9 @@ async def _clean():
         await db.maker_payouts.delete_many({"maker_slug": {"$regex": f"^{PFX}-"}})
         await db.payment_transactions.delete_many({"session_id": {"$regex": f"^pp_{PFX}"}})
         await db.paypal_payout_runs.delete_many({"created_by": "team@craftersmarket.org"})
+        await db.marketplace_ledger.delete_many({"$or": [
+            {"session_id": {"$regex": f"^pp_{PFX}"}},
+            {"maker_slug": {"$regex": f"^{PFX}-"}}]})
         await db.paypal_webhook_events.delete_many({"event_id": {"$regex": "^WH-PYT-"}})
     await wipe()
     yield

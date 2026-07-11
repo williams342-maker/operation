@@ -68,6 +68,17 @@ async def _job_paypal_email_reminders() -> None:
         logger.exception("[scheduler] paypal-email reminders failed: %s", e)
 
 
+async def _job_nightly_recon() -> None:
+    """iter446 — nightly marketplace reconciliation + health score. Always
+    runs (read-only); emails OPS_EMAIL and fires team webhooks on alert."""
+    from recon_engine import run_nightly_reconciliation
+    try:
+        r = await run_nightly_reconciliation(trigger="cron")
+        logger.info("[scheduler] nightly recon: status=%s score=%s", r["status"], r["score"])
+    except Exception as e:
+        logger.exception("[scheduler] nightly recon failed: %s", e)
+
+
 async def _job_automated_payouts() -> None:
     """iter444 — automated payout engine. Runs only when BOTH the
     PAYPAL_AUTOPAYOUT_ENABLED env flag and the admin toggle are on."""
@@ -1637,6 +1648,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched.add_job(_job_automated_payouts,
                   CronTrigger(hour=3, minute=0, timezone="America/Los_Angeles"),
                   id="automated_payouts", replace_existing=True)
+    # iter446 — nightly reconciliation at 2:07 AM Pacific (before the 3:00 AM
+    # payout run, so the morning report reflects pre-payout books).
+    sched.add_job(_job_nightly_recon,
+                  CronTrigger(hour=2, minute=7, timezone="America/Los_Angeles"),
+                  id="nightly_recon", replace_existing=True)
     # Listing renewal reminders — runs 09:30 UTC daily, emails makers
     # whose manual-renewal listings expire in 7 days. Auto-renew listings
     # skip this nudge (they're handled silently by expire_listings).

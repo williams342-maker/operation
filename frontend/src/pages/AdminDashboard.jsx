@@ -43,6 +43,7 @@ import BetaProgramTab from "../components/admin/BetaProgramTab"; // iter428 — 
 import PayPalEventsTab from "../components/admin/PayPalEventsTab"; // iter437 — PayPal webhook viewer
 import PayPalPayoutsTab from "../components/admin/PayPalPayoutsTab"; // iter441 — PayPal maker payouts
 import MarketplaceLedgerTab from "../components/admin/MarketplaceLedgerTab"; // iter445 — ledger + reconciliation
+import FinancialOpsTab from "../components/admin/FinancialOpsTab"; // iter446 — fin ops dashboard
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
 import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
@@ -132,6 +133,8 @@ const TABS = [
   { id: "paypal-payouts", label: "PayPal Payouts", caps: ["finance"] },
   // iter445 — Marketplace Ledger journal + finance reconciliation dashboard
   { id: "ledger", label: "Ledger · Recon", caps: ["finance"] },
+  // iter446 — executive financial operations dashboard + nightly recon reports
+  { id: "finops", label: "Fin Ops", caps: ["finance"] },
   { id: "secrets", label: "Secrets", superOnly: true },
   // iter412 — AI SEO Growth Agent. Visible to admins with the "content"
   // capability since it generates content rewrites that need approval.
@@ -612,6 +615,7 @@ export default function AdminDashboard() {
             {tab === "paypal-events" && <PayPalEventsTab />}
             {tab === "paypal-payouts" && <PayPalPayoutsTab />}
             {tab === "ledger" && <MarketplaceLedgerTab />}
+            {tab === "finops" && <FinancialOpsTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}

@@ -1,21 +1,26 @@
-"""iter445 — Marketplace Ledger viewer + Finance Reconciliation.
+"""iter445/446 — Marketplace Ledger viewer, Finance Reconciliation +
+Financial Operations dashboard.
 
-  GET /api/admin/ledger                    journal entries (filter provider/kind)
-  GET /api/admin/finance/reconciliation    provider balances vs ledger vs books
+  GET  /api/admin/ledger                         journal entries (filter provider/kind)
+  GET  /api/admin/finance/reconciliation         provider balances vs ledger vs books
+  POST /api/admin/finance/reconciliation/run     run the full nightly check suite now
+  GET  /api/admin/finance/recon-reports          nightly report history
+  GET  /api/admin/finance/ops-dashboard          executive morning dashboard
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-import httpx
 from fastapi import APIRouter, Depends
 
-from core import STRIPE_API_KEY, db, logger
+from core import db
 from maker_auth import current_admin
-
-from .paypal_webhooks import _access_token, _config, paypal_configured
+from recon_engine import (
+    _paypal_balance_cents, _stripe_balance_cents, compute_reconciliation,
+    run_nightly_reconciliation,
+)
 
 router = APIRouter()
-
-_OPEN_DISPUTE_EXCLUDE = ("RESOLVED", "CLOSED", "CANCELLED")
+_PT = ZoneInfo("America/Los_Angeles")
 
 
 @router.get("/admin/ledger")
@@ -36,104 +41,106 @@ async def admin_ledger(provider: str | None = None, kind: str | None = None,
     return {"entries": rows, "count": len(rows)}
 
 
-async def _stripe_balance_cents() -> int | None:
-    if not STRIPE_API_KEY:
-        return None
-    try:
-        import stripe as stripe_sdk
-        stripe_sdk.api_key = STRIPE_API_KEY
-        bal = stripe_sdk.Balance.retrieve()
-        cents = 0
-        for bucket in list(bal.get("available") or []) + list(bal.get("pending") or []):
-            if bucket.get("currency") == "usd":
-                cents += int(bucket.get("amount") or 0)
-        return cents
-    except Exception as e:
-        logger.warning("[recon] stripe balance fetch failed · %s", e)
-        return None
-
-
-async def _paypal_balance_cents() -> int | None:
-    if not paypal_configured():
-        return None
-    try:
-        cfg = _config()
-        token = await _access_token(cfg)
-        async with httpx.AsyncClient(timeout=15) as cx:
-            r = await cx.get(f"{cfg['base']}/v1/reporting/balances",
-                             headers={"Authorization": f"Bearer {token}"})
-        if r.status_code != 200:
-            logger.warning("[recon] paypal balance HTTP %s · %s", r.status_code, r.text[:200])
-            return None
-        for b in r.json().get("balances") or []:
-            if b.get("currency") == "USD":
-                v = (b.get("available_balance") or b.get("total_balance") or {}).get("value")
-                return int(round(float(v) * 100)) if v is not None else None
-        return None
-    except Exception as e:
-        logger.warning("[recon] paypal balance fetch failed · %s", e)
-        return None
-
-
 @router.get("/admin/finance/reconciliation")
 async def finance_reconciliation(_: dict = Depends(current_admin)):
-    today = datetime.now(timezone.utc).date().isoformat()
+    return await compute_reconciliation()
 
-    # Ledger side (journal is the source of truth)
-    led = {"sale": {}, "refund": {}, "payout": {}}
-    async for g in db.marketplace_ledger.aggregate([{"$group": {
-            "_id": "$kind",
-            "gross_cents": {"$sum": "$gross_cents"},
-            "fee_cents": {"$sum": "$fee_cents"},
-            "commission_cents": {"$sum": "$commission_cents"},
-            "net_cents": {"$sum": "$net_cents"},
-            "entries": {"$sum": 1}}}]):
-        led[g.pop("_id")] = g
-    sales_net = int(led["sale"].get("net_cents") or 0)
-    payouts_net = int(led["payout"].get("net_cents") or 0)
-    refunds_net = int(led["refund"].get("net_cents") or 0) or int(led["refund"].get("gross_cents") or 0)
-    ledger_outstanding = sales_net - refunds_net - payouts_net
 
-    # Book side (maker_payouts operational rows)
-    book_outstanding = pending = paid_today = 0
-    async for r in db.maker_payouts.find(
-            {}, {"_id": 0, "status": 1, "amount_cents": 1, "paid_at": 1, "failure_permanent": 1}):
-        cents = int(r.get("amount_cents") or 0)
-        st = r.get("status")
-        if st in ("deferred", "failed") and not r.get("failure_permanent"):
-            book_outstanding += cents
-        elif st == "processing":
-            pending += cents
-        elif st == "paid" and (r.get("paid_at") or "").startswith(today):
-            paid_today += cents
+@router.post("/admin/finance/reconciliation/run")
+async def finance_reconciliation_run(claims: dict = Depends(current_admin)):
+    return await run_nightly_reconciliation(trigger=f"admin:{claims.get('email')}")
 
-    # Open disputes (both providers share payment_transactions)
-    disputes = 0
+
+@router.get("/admin/finance/recon-reports")
+async def finance_recon_reports(limit: int = 30, _: dict = Depends(current_admin)):
+    rows = await db.recon_reports.find({}, {"_id": 0}).sort(
+        "at", -1).to_list(min(max(limit, 1), 100))
+    return {"reports": rows, "count": len(rows)}
+
+
+def _next_payout_run_at(now_utc: datetime) -> str:
+    """Next 3:00 AM Pacific — the automated payout engine's cron slot."""
+    now_pt = now_utc.astimezone(_PT)
+    nxt = now_pt.replace(hour=3, minute=0, second=0, microsecond=0)
+    if nxt <= now_pt:
+        nxt += timedelta(days=1)
+    return nxt.astimezone(timezone.utc).isoformat()
+
+
+@router.get("/admin/finance/ops-dashboard")
+async def finance_ops_dashboard(_: dict = Depends(current_admin)):
+    from routers.payout_engine import compute_overview
+    now = datetime.now(timezone.utc)
+    today = now.date().isoformat()
+
+    gmv_today = 0.0
+    orders_today = 0
     async for t in db.payment_transactions.find(
-            {"dispute_id": {"$exists": True, "$nin": [None, ""]}},
-            {"_id": 0, "dispute_status": 1, "amount": 1, "total": 1}):
-        if (t.get("dispute_status") or "").upper() not in _OPEN_DISPUTE_EXCLUDE:
-            disputes += int(round(float(t.get("amount") or t.get("total") or 0) * 100))
+            {"payment_status": "paid", "created_at": {"$regex": f"^{today}"}},
+            {"_id": 0, "amount": 1, "total": 1}):
+        orders_today += 1
+        gmv_today += float(t.get("amount") or t.get("total") or 0)
 
-    diff = ledger_outstanding - book_outstanding
+    commission_today = refunds_today = 0
+    async for e in db.marketplace_ledger.find(
+            {"created_at": {"$regex": f"^{today}"}},
+            {"_id": 0, "kind": 1, "commission_cents": 1, "net_cents": 1, "gross_cents": 1}):
+        if e["kind"] == "sale":
+            commission_today += int(e.get("commission_cents") or 0)
+        elif e["kind"] == "refund":
+            refunds_today += int(e.get("net_cents") or 0) or int(e.get("gross_cents") or 0)
+
+    failed_count = failed_cents = 0
+    async for r in db.maker_payouts.find(
+            {"status": "failed"}, {"_id": 0, "amount_cents": 1}):
+        failed_count += 1
+        failed_cents += int(r.get("amount_cents") or 0)
+
+    ov = await compute_overview()
+    totals = ov["totals"]
+    makers = ov["makers"]
+    largest = None
+    missing_email = below_min = 0
+    forecast = 0
+    for m in makers:
+        outstanding = (m["eligible_cents"] + m["waiting_hold_cents"] + m["missing_email_cents"]
+                       + m["disputed_cents"] + m["refund_hold_cents"])
+        if outstanding > 0 and (largest is None or outstanding > largest["cents"]):
+            largest = {"maker_slug": m["maker_slug"], "maker_name": m["maker_name"],
+                       "cents": outstanding}
+        if m["missing_email_cents"] > 0:
+            missing_email += 1
+        if m["waiting_minimum"]:
+            below_min += 1
+        if m["paypal_email"] and m["payout_method"] == "paypal" and not m["payouts_on_hold"]:
+            forecast += m["eligible_cents"] + m["waiting_hold_cents"]
+
+    recon = await compute_reconciliation()
+    last = await db.recon_reports.find({}, {"_id": 0, "recon": 0}).sort(
+        "at", -1).limit(1).to_list(1)
+
     return {
-        "checked_at": datetime.now(timezone.utc).isoformat(),
-        "stripe_balance_cents": await _stripe_balance_cents(),
-        "paypal_balance_cents": await _paypal_balance_cents(),
-        "ledger": {
-            "sales_net_cents": sales_net,
-            "refunds_cents": refunds_net,
-            "payouts_net_cents": payouts_net,
-            "outstanding_cents": ledger_outstanding,
-            "gross_cents": int(led["sale"].get("gross_cents") or 0),
-            "commission_cents": int(led["sale"].get("commission_cents") or 0),
-            "entries": sum(int(v.get("entries") or 0) for v in led.values()),
-        },
-        "maker_outstanding_cents": book_outstanding,
-        "pending_payouts_cents": pending,
-        "paid_today_cents": paid_today,
-        "refunds_cents": refunds_net,
-        "disputes_cents": disputes,
-        "diff_cents": diff,
-        "balanced": diff == 0,
+        "at": now.isoformat(),
+        "gmv_today_cents": int(round(gmv_today * 100)),
+        "orders_today": orders_today,
+        "commission_today_cents": commission_today,
+        "refunds_today_cents": refunds_today,
+        "stripe_balance_cents": recon["stripe_balance_cents"],
+        "paypal_balance_cents": recon["paypal_balance_cents"],
+        "deferred_maker_balances_cents": recon["maker_outstanding_cents"],
+        "pending_payouts_cents": recon["pending_payouts_cents"],
+        "paid_today_cents": recon["paid_today_cents"],
+        "upcoming_payouts_cents": totals["eligible_today_cents"],
+        "failed_payouts": {"count": failed_count, "cents": failed_cents},
+        "disputes_cents": recon["disputes_cents"],
+        "ledger_outstanding_cents": recon["ledger"]["outstanding_cents"],
+        "diff_cents": recon["diff_cents"],
+        "balanced": recon["balanced"],
+        "health": (last[0] if last else None),
+        "automation": ov["automation"],
+        "next_payout_run_at": _next_payout_run_at(now),
+        "largest_outstanding": largest,
+        "makers_missing_paypal_email": missing_email,
+        "makers_below_minimum": below_min,
+        "weekly_payout_forecast_cents": forecast,
     }

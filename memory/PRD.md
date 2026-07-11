@@ -1,3 +1,28 @@
+## 2026-07-11 — iter446: Nightly Reconciliation Engine + Ledger Health Score + Fin Ops Dashboard
+
+- NEW /app/backend/recon_engine.py: 9-check nightly suite — Stripe synced, PayPal synced
+  (balance must COVER paypal maker liabilities), Ledger vs books, payout batches verified
+  (runs unsettled >24h / rows processing >48h), orphan transactions (both directions),
+  negative balances, failed payouts (permanent vs retryable), duplicate payout attempts,
+  unreconciled legacy transactions (book rows without a sale ledger entry — auto-explains
+  the diff: "Legacy transaction(s) recorded before the ledger migration").
+- Health score 0-100 with weighted deductions; report persisted to db.recon_reports.
+- Nightly cron 2:07 AM Pacific (scheduler.py `nightly_recon`, before the 3:00 AM payout run).
+  Emails OPS_EMAIL every night (✓ BALANCED summary or ⚠ Ledger Alert with ledger/actual/diff/
+  possible-cause, email_service.send_recon_report) + Slack/Discord notify_team on alert.
+- NEW endpoints (finance_ledger.py): POST /api/admin/finance/reconciliation/run,
+  GET /api/admin/finance/recon-reports, GET /api/admin/finance/ops-dashboard.
+  compute_reconciliation() refactored out of finance_ledger into recon_engine (shared).
+- NEW Admin → "Fin Ops" tab (FinancialOpsTab.jsx, finance cap): health-score hero with 9-item
+  ✓/⚠ checklist + Run-checks-now, executive cards (GMV, revenue/commission, Stripe/PayPal
+  balances, deferred maker balances, upcoming/pending/failed payouts, refunds, disputes,
+  automation status, next payout run timer, weekly forecast, largest outstanding maker,
+  makers awaiting PayPal email, makers below minimum) + nightly report history.
+- Tests: test_iter446_nightly_recon.py (6) — suite now 60/60. Fixed ledger-residue leaks:
+  iter440/441 fixtures now wipe marketplace_ledger (was polluting preview recon numbers).
+- Live verify: health 97%, alert cause correctly identified as the $0.62 legacy row; PayPal
+  sandbox balance $5,000 covers $116.10 liability. Screenshots of Fin Ops tab confirmed.
+
 ## 2026-07-11 — iter445: Marketplace Ledger UI + Finance Reconciliation dashboard (Phase A verification complete)
 
 - USER-REQUESTED verification of Phase A UIs done (all 4 surfaces screenshot-verified):

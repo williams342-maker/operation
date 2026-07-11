@@ -3836,3 +3836,57 @@ async def send_admin_payout_report(report: dict):
                   body, "Automated payout engine")
     return await _send(to, f"Payout report · ${(report.get('total_paid_cents') or 0) / 100:.2f} "
                            f"to {report.get('paid_makers') or 0} maker(s)", html)
+
+
+async def send_recon_report(report: dict):
+    """iter446 — nightly marketplace reconciliation report (balanced or alert)."""
+    to = OPS_EMAIL
+    if not to:
+        return None
+    recon = report.get("recon") or {}
+    checks = report.get("checks") or []
+    balanced = report.get("status") == "balanced"
+    usd = lambda c: f"${(c or 0) / 100:,.2f}"  # noqa: E731
+
+    def row(label, value, color="#e5e5e5"):
+        return (f"<tr><td style='padding:4px 10px;color:#a3a3a3'>{label}</td>"
+                f"<td style='padding:4px 10px;color:{color};text-align:right'>{value}</td></tr>")
+
+    check_rows = "".join(
+        f"<div style='color:{'#4ade80' if c['ok'] else '#fbbf24'};font-size:12px;padding:2px 0'>"
+        f"{'✓' if c['ok'] else '⚠'} {c['label']} — <span style='color:#a3a3a3'>{c['detail']}</span></div>"
+        for c in checks)
+    body = (
+        f"<div style='border:1px solid #262626;padding:16px;margin:14px 0;text-align:center'>"
+        f"<div style='color:#a3a3a3;font-size:11px;letter-spacing:0.22em;text-transform:uppercase'>Marketplace health</div>"
+        f"<div style='color:{'#4ade80' if balanced else '#fbbf24'};font-family:Impact,sans-serif;font-size:34px'>"
+        f"{report.get('score')}%</div>"
+        f"<div style='color:#a3a3a3;font-size:12px'>status: {report.get('status', '').upper()}</div></div>"
+        f"<table style='width:100%;border:1px solid #262626;border-collapse:collapse;font-size:12px'>"
+        + row("Date", report.get("date"))
+        + row("Orders", report.get("orders_today"))
+        + row("Stripe balance", usd(recon.get("stripe_balance_cents")) if recon.get("stripe_balance_cents") is not None else "unavailable")
+        + row("PayPal balance", usd(recon.get("paypal_balance_cents")) if recon.get("paypal_balance_cents") is not None else "unavailable")
+        + row("Marketplace ledger", usd((recon.get("ledger") or {}).get("outstanding_cents")))
+        + row("Outstanding maker balances", usd(recon.get("maker_outstanding_cents")))
+        + row("Payouts today", report.get("payouts_today"))
+        + row("Failed", sum(1 for c in checks if c["id"] == "failed_payouts" and not c["ok"]))
+        + row("Disputes", usd(recon.get("disputes_cents")))
+        + row("Refunds", usd(recon.get("refunds_cents")))
+        + (row("Difference", usd(recon.get("diff_cents")), "#fbbf24") if not balanced else "")
+        + "</table>"
+        + (f"<p style='color:#fbbf24;font-size:12px'>Possible cause: {report.get('possible_cause')}</p>"
+           if report.get("possible_cause") else "")
+        + f"<div style='margin-top:12px'>{check_rows}</div>"
+        + "<p style='color:#a3a3a3;font-size:11px;margin-top:12px'>Review: Admin → Ledger · Recon / Fin Ops</p>"
+    )
+    if balanced:
+        subject = f"✓ Daily Marketplace Reconciliation · {report.get('date')} · BALANCED"
+        title = "Daily reconciliation — balanced."
+    else:
+        subject = (f"⚠ Marketplace Ledger Alert · difference "
+                   f"{usd(abs(recon.get('diff_cents') or 0))}")
+        title = "Marketplace ledger alert — difference detected."
+    html = _shell(title, f"Nightly check · trigger: {report.get('trigger')}", body,
+                  "Nightly reconciliation engine")
+    return await _send(to, subject, html)

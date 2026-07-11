@@ -16,7 +16,7 @@ from server import app  # noqa: E402
 from core import db, now_iso  # noqa: E402
 from ledger import ledger_record  # noqa: E402
 from maker_auth import issue_session_jwt  # noqa: E402
-from routers import finance_ledger  # noqa: E402
+import recon_engine  # noqa: E402
 
 PFX = "recontest"
 ADMIN = {"Authorization": f"Bearer {issue_session_jwt('admin-test', 'team@craftersmarket.org', role='admin')}"}
@@ -44,8 +44,8 @@ async def _clean():
 def _no_external(monkeypatch):
     async def none_bal():
         return None
-    monkeypatch.setattr(finance_ledger, "_stripe_balance_cents", none_bal)
-    monkeypatch.setattr(finance_ledger, "_paypal_balance_cents", none_bal)
+    monkeypatch.setattr(recon_engine, "_stripe_balance_cents", none_bal)
+    monkeypatch.setattr(recon_engine, "_paypal_balance_cents", none_bal)
 
 
 async def _seed_balanced():
