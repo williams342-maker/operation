@@ -162,3 +162,10 @@ After redeploy completes, in this order:
 5. (Optional) From the admin Settings tab, confirm the Beta Signup toggle works
 
 If anything looks off, share the badge tooltip text and I'll pinpoint the exact issue.
+
+## PayPal webhook IDs (3-webhook architecture · 2026-07-11)
+Set in the PRODUCTION deploy env (values = webhook IDs from the PayPal dashboard, live app):
+- `PAYPAL_WEBHOOK_ID_LIVE=52475674DX0564514` — /api/webhooks/paypal (disputes + primary payout events)
+- `PAYPAL_CHECKOUT_WEBHOOK_ID=682704233P629433F` — /api/paypal/webhook (checkout/captures/refunds)
+- `PAYPAL_PAYOUT_STATUS_WEBHOOK_ID=5RA57991ES0012142` — /api/webhooks/paypal/payout-status (rare payout statuses)
+Preview keeps these last two EMPTY (falls back to PAYPAL_WEBHOOK_ID_SANDBOX).
