@@ -16,6 +16,7 @@ import ThemeToggle from "../ThemeToggle";
 // and stop competing with the commerce CTAs.
 const primaryLinks = [
   { label: "Shop", href: "/shop" },
+  { label: "Digital", href: "/digital-downloads" }, // iter455 — SEO landing
   { label: "Makers", href: "/makers" },
   { label: "Custom", href: "/custom-order" },
 ];
@@ -25,14 +26,15 @@ const primaryLinks = [
 // intent. Surfacing them under one parent is cleaner + reflects user
 // behaviour (commerce links go to Shop, content links go here).
 const communityMenu = [
-  { label: "Studio · AI",  href: "/studio",                 blurb: "AI design tool · SVG + DXF", accent: "cyan" },
+  // iter455 — "Studio · AI" (/studio) and "Design kits" (/kits) hidden from
+  // nav per product decision (site outgrew the original concept). Routes
+  // remain live for existing bookmarks/SEO.
   { label: "Forum",        href: "/community?tab=forum",    blurb: "Threads · Q&A · help" },
   { label: "Clips",        href: "/clips",                  blurb: "Short workshop videos" },
   { label: "Journal",      href: "/journal",                blurb: "Long-form articles" },
   { label: "Showcase",     href: "/community?tab=showcase", blurb: "Buyer + maker photos" },
   { label: "Design files", href: "/community?tab=files",    blurb: "Community SVG · DXF uploads" },
   { label: "Live chat",    href: "/community?tab=chat",     blurb: "Real-time maker chat" },
-  { label: "Design kits",  href: "/kits",                   blurb: "Curated free bundles" },
 ];
 
 // Tertiary surfaces — kept out of the desktop bar but still reachable
@@ -291,14 +293,12 @@ export default function Nav() {
                   (still in the footer's Build Log band). */}
               {[
                 ...primaryLinks,
-                { label: "Studio · AI",  href: "/studio", highlight: true },
                 { label: "Forum",        href: "/community?tab=forum" },
                 { label: "Clips",        href: "/clips" },
                 { label: "Journal",      href: "/journal" },
                 { label: "Showcase",     href: "/community?tab=showcase" },
                 { label: "Design files", href: "/community?tab=files" },
                 { label: "Live chat",    href: "/community?tab=chat" },
-                { label: "Design kits",  href: "/kits" },
                 ...tertiaryLinks,
               ].map((l, i) => (
                 <motion.li

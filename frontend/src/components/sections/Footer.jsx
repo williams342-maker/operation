@@ -43,6 +43,7 @@ const cols = [
       { label: "Outdoor Art", href: "/shop?category=Outdoor%20Art" },
       { label: "Jewelry & Wearables", href: "/shop?category=Jewelry%20%26%20Wearables" },
       { label: "Home Fragrance & Wellness", href: "/shop?category=Home%20Fragrance%20%26%20Wellness" },
+      { label: "Digital Downloads", href: "/digital-downloads" },
       { label: "All Listings", href: "/shop" },
     ],
   },
