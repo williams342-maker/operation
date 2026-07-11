@@ -10,7 +10,7 @@ import {
   fetchDesignFiles, fetchDesignFilesLeaderboard, fetchTrendingDesignFiles, downloadDesignFile, unlockDownloadsCheckout, uploadDesignFile, uploadDesignFileDirect,
   addDesignFileVariants, deleteDesignFileVariant, updateDesignFile,
   reportDesignFile, convertDxfToSvg, renderStlThumbnail,
-  fetchForumThreads, fetchForumThread, fetchForumCategories,
+  fetchForumThread, fetchForumCategories,
   createForumThread, replyForumThread, adminTeamReplyForumThread, uploadForumAttachment,
   uploadShowcaseImage, uploadShowcaseVideo, aiDescribeShowcase,
   deleteChatMessage, deleteForumThread, deleteForumReply,
@@ -18,6 +18,8 @@ import {
   communityMe, uploadAvatar,
   fetchProducts, fetchMakers,
 } from "../lib/api";
+import { http } from "../lib/api";
+import WorkshopFloorOverview from "../components/community/WorkshopFloorOverview";
 import { useSiteSettings } from "../hooks/useSiteSettings";
 import { Film } from "lucide-react";
 import QualityBadge from "../components/QualityBadge";
@@ -27,6 +29,7 @@ import ReportButton from "../components/ReportButton";
 import { useConfirm } from "../hooks/useConfirm";
 
 const TABS = [
+  { id: "overview", label: "Overview" },
   { id: "forum", label: "Discussions" },
   { id: "showcase", label: "Project Showcase" },
   { id: "files", label: "Design Library" },
@@ -74,11 +77,12 @@ export default function CommunityPage() {
       // Honor `?tab=forum` (from homepage TrendingForumStrip) and any
       // explicit `?tab=` value pointing at a known tab.
       const t = sp.get("tab");
-      if (["showcase", "files", "forum", "chat"].includes(t)) return t;
+      if (["overview", "showcase", "files", "forum", "chat"].includes(t)) return t;
     }
-    return "showcase";
+    return "overview";
   });
   const [me, setMe] = useState(null);
+  const [forumJump, setForumJump] = useState(null); // iter457 — overview → forum deep-jump
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const settings = useSiteSettings();
@@ -92,7 +96,7 @@ export default function CommunityPage() {
     const ch = searchParams.get("channel");
     const t = searchParams.get("tab");
     if (ch) setTab("chat");
-    else if (["showcase", "files", "forum", "chat"].includes(t)) setTab(t);
+    else if (["overview", "showcase", "files", "forum", "chat"].includes(t)) setTab(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -194,9 +198,16 @@ export default function CommunityPage() {
           ))}
         </div>
 
+        {tab === "overview" && (
+          <WorkshopFloorOverview
+            onSwitchTab={switchTab}
+            onOpenForum={({ cat, tag }) => { setForumJump({ cat: cat || "", tag: tag || "", n: Date.now() }); switchTab("forum"); }}
+            onOpenThread={(id) => { setForumJump({ open: id, n: Date.now() }); switchTab("forum"); }}
+          />
+        )}
         {tab === "showcase" && <ShowcaseTab me={me} />}
         {tab === "files" && <FilesTab me={me} />}
-        {tab === "forum" && <ForumTab me={me} />}
+        {tab === "forum" && <ForumTab me={me} jump={forumJump} />}
         {tab === "chat" && liveChatEnabled && <ChatTab me={me} />}
         {tab === "chat" && !liveChatEnabled && (
           <div className="border border-line p-8 text-center" data-testid="chat-disabled">
@@ -2929,64 +2940,155 @@ function ReportFileModal({ file, onClose }) {
 }
 
 // ===================== FORUM =====================
-const FORUM_CATEGORY_FALLBACK = [
-  { id: "general", label: "General" },
-  { id: "machine-help", label: "Machine Help" },
-  { id: "techniques", label: "Techniques" },
-  { id: "finishing", label: "Finishing" },
-  { id: "resources", label: "Resources" },
-  { id: "show-tell", label: "Show & Tell" },
-];
+// iter457 — The Workshop Floor: 10-category taxonomy + followable tags.
+// Categories load from /community/forum/categories at runtime.
 
-function ForumTab({ me }) {
+function ForumTab({ me, jump }) {
   const [threads, setThreads] = useState([]);
-  const [active, setActive] = useState(null);
+  const [active, setActive] = useState(jump?.open || null);
   const [showNew, setShowNew] = useState(false);
-  const [categories, setCategories] = useState(FORUM_CATEGORY_FALLBACK);
-  const [activeCat, setActiveCat] = useState("");  // "" = all
-  const refresh = () => fetchForumThreads(activeCat).then(setThreads);
+  const [categories, setCategories] = useState([]);
+  const [activeCat, setActiveCat] = useState(jump?.cat || "");
+  const [activeTag, setActiveTag] = useState(jump?.tag || "");
+  const [following, setFollowing] = useState([]);
+  const [viewFollowed, setViewFollowed] = useState(false);
+
+  const buyerH = () => {
+    const t = localStorage.getItem("cm_buyer_jwt");
+    return t ? { headers: { Authorization: `Bearer ${t}` } } : null;
+  };
+
+  const refresh = () => {
+    if (viewFollowed) {
+      const h = buyerH();
+      if (!h) { setThreads([]); return Promise.resolve(); }
+      return http.get("/community/forum-feed/followed", h)
+        .then((r) => setThreads(r.data.threads || [])).catch(() => setThreads([]));
+    }
+    const params = {};
+    if (activeCat) params.category = activeCat;
+    if (activeTag) params.tag = activeTag;
+    return http.get("/community/forum", { params }).then((r) => setThreads(r.data || []));
+  };
   useEffect(() => {
-    fetchForumCategories()
-      .then((r) => setCategories(r.categories || FORUM_CATEGORY_FALLBACK))
-      .catch(() => {});
+    fetchForumCategories().then((r) => setCategories(r.categories || [])).catch(() => {});
+    const h = buyerH();
+    if (h) http.get("/community/tags/following", h)
+      .then((r) => setFollowing(r.data.tags || [])).catch(() => {});
   }, []);
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [activeCat]);
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [activeCat, activeTag, viewFollowed]);
+  useEffect(() => {
+    if (!jump) return;
+    if (jump.open) setActive(jump.open);
+    if (jump.cat !== undefined || jump.tag !== undefined) {
+      setActiveCat(jump.cat || "");
+      setActiveTag(jump.tag || "");
+      setViewFollowed(false);
+      setActive(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jump]);
+
+  async function toggleFollow(tg) {
+    const h = buyerH();
+    if (!h) { toast.info("Sign in to follow tags."); return; }
+    const isF = following.includes(tg);
+    try {
+      if (isF) {
+        await http.delete(`/community/tags/${tg}/follow`, h);
+        setFollowing((f) => f.filter((x) => x !== tg));
+      } else {
+        await http.post(`/community/tags/${tg}/follow`, {}, h);
+        setFollowing((f) => [...f, tg]);
+        toast.success(`Following #${tg} — see it under ★ Following.`);
+      }
+    } catch { toast.error("Could not update follow."); }
+  }
+
   if (active) return <ThreadDetail id={active} me={me} onBack={() => { setActive(null); refresh(); }} />;
 
-  // Pre-select the currently-active category for new threads
-  const newDefaultCat = activeCat || "general";
+  const curCat = categories.find((c) => c.id === activeCat);
+  const newDefaultCat = activeCat || "community";
 
   return (
     <div data-testid="forum-tab">
-      {/* Category tab strip */}
-      <div className="border-b border-line mb-5 flex gap-1 overflow-x-auto" data-testid="forum-categories">
+      {/* Category strip */}
+      <div className="border-b border-line mb-4 flex gap-1 overflow-x-auto" data-testid="forum-categories">
         <button
-          onClick={() => setActiveCat("")}
+          onClick={() => { setActiveCat(""); setActiveTag(""); setViewFollowed(false); }}
           className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
-            activeCat === "" ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
+            activeCat === "" && !viewFollowed ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
           }`}
           data-testid="forum-cat-all"
         >
           All
         </button>
+        {me && (
+          <button
+            onClick={() => { setViewFollowed(true); setActiveCat(""); setActiveTag(""); }}
+            className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
+              viewFollowed ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
+            }`}
+            data-testid="forum-cat-following"
+          >
+            ★ Following{following.length > 0 && ` (${following.length})`}
+          </button>
+        )}
         {categories.map((c) => (
           <button
             key={c.id}
-            onClick={() => setActiveCat(c.id)}
+            onClick={() => { setActiveCat(c.id); setActiveTag(""); setViewFollowed(false); }}
             className={`px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] border-b-2 transition whitespace-nowrap ${
               activeCat === c.id ? "border-brand text-brand" : "border-transparent text-ink-muted hover:text-ink"
             }`}
             data-testid={`forum-cat-${c.id}`}
+            title={c.blurb}
           >
             {c.label}
+            {(c.thread_count || 0) > 0 && <span className="ml-1.5 text-[9px] text-ink-muted">{c.thread_count}</span>}
           </button>
         ))}
       </div>
 
+      {/* Tag chips for the selected category (followable) */}
+      {curCat && (curCat.tags || []).length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-5" data-testid="forum-tag-chips">
+          {curCat.tags.map((tg) => (
+            <span key={tg}
+                  className={`inline-flex items-center border font-mono text-[10px] tracking-[0.1em] transition ${
+                    activeTag === tg ? "border-brand text-brand bg-brand/[0.06]" : "border-line text-ink-muted"
+                  }`}>
+              <button onClick={() => setActiveTag(activeTag === tg ? "" : tg)}
+                      className="px-2.5 py-1 hover:text-brand"
+                      data-testid={`forum-tag-${tg}`}>
+                #{tg}
+              </button>
+              <button onClick={() => toggleFollow(tg)}
+                      className={`pr-2 ${following.includes(tg) ? "text-brand" : "text-ink-muted/50 hover:text-brand"}`}
+                      title={following.includes(tg) ? "Unfollow tag" : "Follow tag"}
+                      data-testid={`forum-tag-follow-${tg}`}>
+                {following.includes(tg) ? "★" : "☆"}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* Global tag filter pill (arrived via trending-tag jump, no category) */}
+      {!curCat && activeTag && (
+        <div className="mb-5" data-testid="forum-global-tag-pill">
+          <button onClick={() => setActiveTag("")}
+                  className="border border-brand text-brand px-3 py-1 font-mono text-[10px] tracking-[0.12em]">
+            #{activeTag} ✕
+          </button>
+        </div>
+      )}
+
       <div className="mb-6 flex justify-between items-center">
         <p className="font-mono text-xs text-ink-muted">
           {threads.length} thread{threads.length === 1 ? "" : "s"}
-          {activeCat && ` in ${(categories.find((c) => c.id === activeCat) || {}).label}`}
+          {viewFollowed && " from tags you follow"}
+          {activeCat && ` in ${(curCat || {}).label}`}
+          {activeTag && ` · #${activeTag}`}
         </p>
         {me && (
           <button onClick={() => setShowNew((s) => !s)} className="btn-industrial btn-primary inline-flex items-center gap-2" data-testid="forum-new-btn">
@@ -3003,9 +3105,11 @@ function ForumTab({ me }) {
       )}
       {!threads.length ? (
         <p className="font-mono text-sm text-ink-muted" data-testid="forum-empty">
-          {activeCat
-            ? "Nothing here yet — be the first to start a thread."
-            : "No threads yet — start the first conversation."}
+          {viewFollowed
+            ? "Follow a few tags (☆ on any category's tag chips) and new threads will land here."
+            : activeCat || activeTag
+              ? "Nothing here yet — be the first to start a thread."
+              : "No threads yet — start the first conversation."}
         </p>
       ) : (
         <ul className="space-y-3" data-testid="forum-list">
@@ -3026,9 +3130,14 @@ function ForumTab({ me }) {
                   <div className="font-mono text-[10px] text-ink-muted uppercase tracking-[0.22em]">
                     started by {t.user_name || t.user_email}
                   </div>
-                  {(t.attachments?.length || 0) > 0 && (
-                    <span className="font-mono text-[10px] text-brand">📎 {t.attachments.length}</span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {(t.tags || []).slice(0, 3).map((tg) => (
+                      <span key={tg} className="font-mono text-[9px] text-brand/80">#{tg}</span>
+                    ))}
+                    {(t.attachments?.length || 0) > 0 && (
+                      <span className="font-mono text-[10px] text-brand">📎 {t.attachments.length}</span>
+                    )}
+                  </div>
                 </div>
               </li>
             );
@@ -3123,17 +3232,22 @@ function ForumAttachmentPicker({ value, onChange, busy, onBusy }) {
   );
 }
 
-function NewThreadForm({ onSaved, categories = FORUM_CATEGORY_FALLBACK, defaultCategory = "general" }) {
+function NewThreadForm({ onSaved, categories = [], defaultCategory = "community" }) {
   const [t, setT] = useState({ title: "", body: "", category: defaultCategory });
+  const [tags, setTags] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
+  const catTags = (categories.find((c) => c.id === t.category) || {}).tags || [];
+  const toggleTag = (tg) =>
+    setTags((cur) => cur.includes(tg) ? cur.filter((x) => x !== tg)
+      : cur.length >= 5 ? cur : [...cur, tg]);
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
     setErr("");
-    try { await createForumThread({ ...t, attachments }); onSaved(); }
+    try { await createForumThread({ ...t, tags, attachments }); onSaved(); }
     catch (e2) { setErr(e2?.response?.data?.detail || "Could not post thread."); }
     finally { setBusy(false); }
   };
@@ -3143,12 +3257,26 @@ function NewThreadForm({ onSaved, categories = FORUM_CATEGORY_FALLBACK, defaultC
         <input required placeholder="Title" value={t.title} onChange={(e) => setT({ ...t, title: e.target.value })}
                className="md:col-span-2 bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                data-testid="thread-title" />
-        <select value={t.category} onChange={(e) => setT({ ...t, category: e.target.value })}
+        <select value={t.category} onChange={(e) => { setT({ ...t, category: e.target.value }); setTags([]); }}
                 className="bg-paper border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs"
                 data-testid="thread-category">
           {categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
       </div>
+      {catTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5" data-testid="thread-tag-picker">
+          {catTags.map((tg) => (
+            <button key={tg} type="button" onClick={() => toggleTag(tg)}
+                    className={`px-2.5 py-1 border font-mono text-[10px] tracking-[0.1em] transition ${
+                      tags.includes(tg) ? "border-brand text-brand bg-brand/[0.06]" : "border-line text-ink-muted hover:text-ink"
+                    }`}
+                    data-testid={`thread-tag-${tg}`}>
+              #{tg}
+            </button>
+          ))}
+          <span className="font-mono text-[9px] text-ink-muted self-center ml-1">{tags.length}/5 tags</span>
+        </div>
+      )}
       <textarea required rows={4} placeholder="What do you want to talk about?" value={t.body}
                 onChange={(e) => setT({ ...t, body: e.target.value })}
                 className="w-full bg-transparent border border-line focus:border-brand outline-none px-3 py-2 font-mono text-xs resize-y"

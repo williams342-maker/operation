@@ -47,6 +47,7 @@ import FinancialOpsTab from "../components/admin/FinancialOpsTab"; // iter446 �
 import MarketplaceTrendsTab from "../components/admin/MarketplaceTrendsTab"; // iter452 — marketplace trends
 import MakerAgreementTab from "../components/admin/MakerAgreementTab"; // iter453 — agreement audit
 import FeaturedMakerTab from "../components/admin/FeaturedMakerTab"; // iter456 — Featured Maker promotion engine
+import WorkshopFloorTab from "../components/admin/WorkshopFloorTab"; // iter457 — forum taxonomy migration
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
 import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
@@ -144,6 +145,8 @@ const TABS = [
   { id: "maker-agreement", label: "Maker Agreement" },
   // iter456 — Featured Maker promotion engine (candidates, AI assets, queue)
   { id: "featured-maker", label: "Featured Maker", caps: ["marketplace", "content"] },
+  // iter457 — Workshop Floor thread-migration console + report
+  { id: "workshop-floor", label: "Workshop Floor", caps: ["content", "moderation"] },
   { id: "secrets", label: "Secrets", superOnly: true },
   // iter412 — AI SEO Growth Agent. Visible to admins with the "content"
   // capability since it generates content rewrites that need approval.
@@ -628,6 +631,7 @@ export default function AdminDashboard() {
             {tab === "marketplace-trends" && <MarketplaceTrendsTab />}
             {tab === "maker-agreement" && <MakerAgreementTab />}
             {tab === "featured-maker" && <FeaturedMakerTab />}
+            {tab === "workshop-floor" && <WorkshopFloorTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}

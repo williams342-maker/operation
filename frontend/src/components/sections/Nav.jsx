@@ -545,7 +545,7 @@ function MegaMenuHotPreview() {
               <div className="flex items-center gap-2 mb-1">
                 <MessageSquare size={12} className="text-brand" aria-hidden="true" />
                 <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-brand">
-                  Forum · {thread.reply_count} repl{thread.reply_count === 1 ? "y" : "ies"}
+                  Discussion · {thread.reply_count} repl{thread.reply_count === 1 ? "y" : "ies"}
                 </span>
               </div>
               <div className="font-mono text-[11px] text-ink group-hover:text-ink leading-snug line-clamp-2">

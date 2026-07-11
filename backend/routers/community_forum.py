@@ -19,21 +19,18 @@ from core import db, logger, now_iso
 from maker_auth import current_buyer, current_admin
 
 from .community_common import _ensure_user_can_post
+from .workshop_floor import (
+    WORKSHOP_CATEGORIES, WORKSHOP_CATEGORY_IDS, CATEGORY_TAGS,
+    LEGACY_CATEGORY_MAP, FALLBACK_CATEGORY,
+)
 
 router = APIRouter()
 
 
-# Adding a new category? Append it here — the frontend tabs read from
-# /community/forum/categories at runtime so no UI redeploy is needed.
-FORUM_CATEGORIES = [
-    {"id": "general",      "label": "General"},
-    {"id": "machine-help", "label": "Machine Help"},
-    {"id": "techniques",   "label": "Techniques"},
-    {"id": "finishing",    "label": "Finishing"},
-    {"id": "resources",    "label": "Resources"},
-    {"id": "show-tell",    "label": "Show & Tell"},
-]
-FORUM_CATEGORY_IDS = {c["id"] for c in FORUM_CATEGORIES}
+# iter457 — The Workshop Floor taxonomy (10 categories + followable tags).
+# Single source of truth lives in routers/workshop_floor.py.
+FORUM_CATEGORIES = WORKSHOP_CATEGORIES
+FORUM_CATEGORY_IDS = WORKSHOP_CATEGORY_IDS
 
 
 # ===================== MODELS =====================
@@ -48,7 +45,8 @@ class ForumAttachment(BaseModel):
 class ForumThreadCreate(BaseModel):
     title: str
     body: str
-    category: str = "general"
+    category: str = FALLBACK_CATEGORY
+    tags: List[str] = []
     attachments: List[ForumAttachment] = []
     # Legacy alias kept for backward compat with old clients.
     tag: Optional[str] = None
@@ -74,8 +72,15 @@ def _veil_if_removed(doc: dict) -> dict:
 # ===================== READ =====================
 @router.get("/community/forum/categories")
 async def list_forum_categories():
-    """Public category list — frontend renders these as tabs."""
-    return {"categories": FORUM_CATEGORIES}
+    """Public category list (+ live thread counts) — frontend renders these
+    as the Discussions category strip."""
+    counts = {}
+    async for g in db.forum_threads.aggregate([
+            {"$match": {"removed_by_mod": {"$ne": True}}},
+            {"$group": {"_id": "$category", "n": {"$sum": 1}}}]):
+        counts[g["_id"]] = g["n"]
+    cats = [{**c, "thread_count": counts.get(c["id"], 0)} for c in FORUM_CATEGORIES]
+    return {"categories": cats}
 
 
 @router.get("/community/forum/trending")
@@ -98,9 +103,16 @@ async def list_threads(
     category: Optional[str] = None, tag: Optional[str] = None, limit: int = 50,
 ):
     q: Dict = {}
-    cat = category or tag
-    if cat:
-        q["category"] = cat
+    if category:
+        q["category"] = LEGACY_CATEGORY_MAP.get(category, category)
+    if tag:
+        # Legacy clients passed `tag` as a category alias — honor that when
+        # the value is a known (old or new) category id; otherwise filter
+        # by the thread's tags array.
+        if tag in FORUM_CATEGORY_IDS or tag in LEGACY_CATEGORY_MAP:
+            q["category"] = LEGACY_CATEGORY_MAP.get(tag, tag)
+        else:
+            q["tags"] = tag
     return await db.forum_threads.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 
@@ -119,9 +131,12 @@ async def get_thread(thread_id: str):
 @router.post("/community/forum")
 async def create_thread(payload: ForumThreadCreate, claims: dict = Depends(current_buyer)):
     user = await _ensure_user_can_post(claims["sub"])
-    cat = (payload.category or payload.tag or "general").lower()
+    cat = (payload.category or payload.tag or FALLBACK_CATEGORY).lower()
+    cat = LEGACY_CATEGORY_MAP.get(cat, cat)
     if cat not in FORUM_CATEGORY_IDS:
         raise HTTPException(400, f"Unknown category '{cat}'.")
+    tags = [t.lower().strip() for t in (payload.tags or [])]
+    tags = [t for t in dict.fromkeys(tags) if t in CATEGORY_TAGS[cat]][:5]
     title = payload.title.strip()[:200]
     body = payload.body.strip()[:8000]
     try:
@@ -145,6 +160,7 @@ async def create_thread(payload: ForumThreadCreate, claims: dict = Depends(curre
         "title": title,
         "body": body,
         "category": cat,
+        "tags": tags,
         "attachments": [a.model_dump() for a in (payload.attachments or [])][:6],
         "tag": cat,
         "reply_count": 0,

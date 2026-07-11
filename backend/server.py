@@ -352,6 +352,8 @@ from routers.digital_landing import router as digital_landing_router  # iter454
 api.include_router(digital_landing_router)
 from routers.featured_maker import router as featured_maker_router  # iter455
 api.include_router(featured_maker_router)
+from routers.workshop_floor import router as workshop_floor_router  # iter457
+api.include_router(workshop_floor_router)
 
 app.include_router(api)
 
