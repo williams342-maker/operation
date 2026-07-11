@@ -61,6 +61,19 @@ def paypal_configured() -> bool:
     return bool(c["client_id"] and c["client_secret"] and c["webhook_id"])
 
 
+def _checkout_config() -> dict:
+    """Config for the dedicated checkout-events webhook path /paypal/webhook
+    (checkout order approved, capture completed/declined/reversed/pending/
+    refunded, refund failed/pending). Lookup order:
+      1. PAYPAL_CHECKOUT_WEBHOOK_ID                (environment-agnostic)
+      2. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}"""
+    cfg = _config()
+    dedicated = (os.environ.get("PAYPAL_CHECKOUT_WEBHOOK_ID") or "").strip()
+    if dedicated:
+        cfg = {**cfg, "webhook_id": dedicated}
+    return cfg
+
+
 def _payout_config() -> dict:
     """Config for the dedicated payout-status webhook path. PayPal assigns a
     NEW webhook id to every registered URL, so signature verification for
@@ -273,6 +286,14 @@ async def _process_event(event: dict) -> str:
 @router.post("/webhooks/paypal")
 async def paypal_webhook(request: Request):
     return await _ingest_webhook(request, _config(), ingress="primary")
+
+
+@router.post("/paypal/webhook")
+async def paypal_checkout_webhook(request: Request):
+    """Dedicated ingress for checkout / capture / refund events (registered
+    as its own webhook in the PayPal dashboard — set PAYPAL_CHECKOUT_WEBHOOK_ID
+    to its webhook id)."""
+    return await _ingest_webhook(request, _checkout_config(), ingress="checkout")
 
 
 @router.post("/webhooks/paypal/payout-status")

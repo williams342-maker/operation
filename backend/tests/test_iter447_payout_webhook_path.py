@@ -91,3 +91,26 @@ async def test_duplicate_across_both_paths(client, capture_verify):
     r2 = await client.post("/api/webhooks/paypal",
                            content=_event("WH-PST-5"), headers=SIG)
     assert r2.json()["status"] == "duplicate"
+
+
+@pytest.mark.asyncio
+async def test_checkout_webhook_path_exists_and_records(client, capture_verify):
+    r = await client.post("/api/paypal/webhook",
+                          content=_event("WH-PST-6", "PAYMENT.CAPTURE.PENDING"),
+                          headers=SIG)
+    assert r.status_code == 200 and r.json()["status"] == "ok"
+    doc = await db.paypal_webhook_events.find_one({"event_id": "WH-PST-6"}, {"_id": 0})
+    assert doc and doc["ingress"] == "checkout"
+
+
+@pytest.mark.asyncio
+async def test_checkout_webhook_id_env_var(client, capture_verify, monkeypatch):
+    monkeypatch.setenv("PAYPAL_CHECKOUT_WEBHOOK_ID", "checkout-webhook-id")
+    await client.post("/api/paypal/webhook",
+                      content=_event("WH-PST-7"), headers=SIG)
+    assert capture_verify["webhook_id"] == "checkout-webhook-id"
+    # falls back to primary when unset
+    monkeypatch.delenv("PAYPAL_CHECKOUT_WEBHOOK_ID")
+    await client.post("/api/paypal/webhook",
+                      content=_event("WH-PST-8"), headers=SIG)
+    assert capture_verify["webhook_id"] == os.environ["PAYPAL_WEBHOOK_ID_SANDBOX"]

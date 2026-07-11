@@ -1,3 +1,23 @@
+## 2026-07-11 — iter448b: Third webhook route /api/paypal/webhook + final 3-webhook architecture
+
+User registered THREE production webhooks in the PayPal dashboard. Final architecture
+(all share _ingest_webhook → _process_event → Marketplace Ledger, tagged by `ingress`):
+
+| URL | PayPal webhook id | Env var to set in PROD | ingress tag |
+|---|---|---|---|
+| /api/paypal/webhook | 682704233P629433F | PAYPAL_CHECKOUT_WEBHOOK_ID=682704233P629433F | checkout |
+| /api/webhooks/paypal | 52475674DX0564514 | PAYPAL_WEBHOOK_ID_LIVE=52475674DX0564514 | primary |
+| /api/webhooks/paypal/payout-status | 5RA57991ES0012142 | PAYPAL_PAYOUT_STATUS_WEBHOOK_ID=5RA57991ES0012142 | payout-status |
+
+- NEW route POST /api/paypal/webhook (paypal_webhooks.py::paypal_checkout_webhook) —
+  verifies against PAYPAL_CHECKOUT_WEBHOOK_ID, falls back to primary id when unset
+  (so preview/sandbox keeps working with just PAYPAL_WEBHOOK_ID_SANDBOX).
+- Unknown-but-subscribed event types (PAYMENT.CAPTURE.PENDING, PAYMENT.REFUND.FAILED/PENDING)
+  are verified + recorded ("recorded") in paypal_webhook_events — visible in Admin → PayPal Events.
+- Tests: +2 in test_iter447 (route exists/records, env var + fallback). Suite 76/76.
+- REMINDER FOR PROD DEPLOY: set the three env vars above (LIVE ids) and redeploy. Sandbox
+  ids unchanged (9XT72327E2740625K on PAYPAL_WEBHOOK_ID_SANDBOX).
+
 ## 2026-07-11 — iter448: Payout-status event semantics + PAYPAL_PAYOUT_STATUS_WEBHOOK_ID
 
 - Env: /webhooks/paypal/payout-status now verifies against (in order)
