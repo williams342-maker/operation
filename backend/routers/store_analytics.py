@@ -86,7 +86,7 @@ async def _orders_revenue(slug: str, pair) -> tuple[int, float, list]:
     async for tx in db.transactions.find(
             {"items.maker_slug": slug, "payment_status": "paid",
              "created_at": _between(pair)},
-            {"_id": 0, "items": 1, "created_at": 1}):
+            {"_id": 0, "items": 1, "created_at": 1, "session_id": 1}):
         mine = [li for li in (tx.get("items") or []) if li.get("maker_slug") == slug]
         if not mine:
             continue
@@ -97,7 +97,8 @@ async def _orders_revenue(slug: str, pair) -> tuple[int, float, list]:
             rev = float(li.get("price") or 0) * qty
             revenue += rev
             items.append({"slug": s, "qty": qty, "revenue": rev,
-                          "tx_at": tx.get("created_at")})
+                          "tx_at": tx.get("created_at"),
+                          "tx_id": tx.get("session_id") or tx.get("created_at")})
     return orders, round(revenue, 2), items
 
 
@@ -236,7 +237,7 @@ async def analytics_sections(days: int = 30, tz: str = "UTC",
         for li in items:
             if li["slug"] in sec["members"]:
                 sec_revenue += li["revenue"]
-                sec_orders_sessions.add(li["tx_at"])
+                sec_orders_sessions.add(li["tx_id"])
         orders_n = len(sec_orders_sessions)
         dwell_n = st.get("dwell_n", 0)
         rows.append({

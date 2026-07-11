@@ -58,6 +58,58 @@ NEXT (user roadmap): Phase 2 Store Search + SEO ("Search this store" scoped box 
 NEXT: Phase 3 Smart Sections & Analytics (auto collections New Arrivals / Best Sellers /
 Sale Items + per-section views/clicks/orders/conversion tracking) → Phase 4 Digital Products.
 
+## 2026-07-11 — iter452: Phase 3 Smart Sections & Analytics COMPLETE + VERIFIED
+
+User-approved architecture: HYBRID AI (deterministic rule engine generates insights w/
+priority+confidence; LLM only phrases the daily-cached "week's focus" summary); first-party
+events kept SEPARATE from GA4/pixels, category-tagged ("analytics") + gated on Analytics
+cookie consent so they can be reclassified later; 7/30/90-day selector (default 30,
+persisted in localStorage cm_analytics_range), compare-to-previous-period % deltas, exact
+date range shown, maker-browser timezone grouping, current partial day EXCLUDED everywhere.
+
+- Backend routers/smart_sections.py: 9 smart sections (new-arrivals, best-sellers, on-sale
+  [compare_at_price>price or on_sale flag — no sale field on products yet so usually 0],
+  recently-updated, customer-favorites [avg review ≥4.5], low-inventory [stock 1-5],
+  nearly-sold-out [stock 1-2], staff-picks + featured [manual pick lists]). Settings in
+  db.smart_section_settings (default disabled/opt-in). GET/PATCH /api/maker/smart-sections;
+  public GET /api/makers/{slug}/smart-sections. Manual-slug collisions suppressed; smart
+  slugs added to store_sections RESERVED_SLUGS. Cap 24 products/section.
+- Backend routers/store_events.py: POST /api/store-events (batch ≤20) — types store_view,
+  section_view, section_dwell, product_click, add_to_cart, search_click; bot-UA filter;
+  category metadata; db.store_events indexed (maker_slug, at).
+- Backend routers/store_analytics.py: /api/maker/analytics/{overview,sections,products,
+  search-insights,recommendations} + /api/admin/marketplace-trends. Overview: 10 metrics +
+  deltas + daily series. Sections: views/clicks/carts/orders/revenue/conversion/avg-dwell/
+  top-products per manual+enabled-smart section (orders attributed via product membership,
+  deduped by tx session_id). Products: 7 lists incl. fixed-window no_views_30d/no_sales_60d.
+  Search insights: top/zero-result/trending 7d+30d/converted-vs-not (session linkage via
+  search_click→add_to_cart) + actionable strings. Recommendations: 8 rule types (low_inventory,
+  zero_result_search, low_match_search, sparse_section, high/low_conversion_section,
+  feature_candidate, stale_products) + AI summary (claude-sonnet-4-5 via EMERGENT_LLM_KEY,
+  cached daily in db.maker_reco_ai_cache keyed maker+days+facts_hash; ai=0 skips).
+- Frontend lib/storeEvents.js: consent-gated queue (readConsent().analytics_storage),
+  sendBeacon/keepalive flush (4s / 10 events / pagehide), session+visitor ids,
+  setStoreContext(maker,section) → PDP add_to_cart section attribution (30-min TTL).
+- Frontend: MakerDetail renders ✦ smart sections in sidebar + mobile tabs (count>0 only),
+  smart deep links (/makers/{slug}/new-arrivals) resolve after async load (smartSections
+  null-until-loaded prevents premature redirect); emits store_view/section_view/
+  section_dwell/product_click. StoreSearch emits search_click. ProductDetail emits
+  add_to_cart. MakerDashboard: new "Analytics" tab (AnalyticsTab.jsx) + SmartSectionsPanel
+  at bottom of Sections tab. AdminDashboard: "Marketplace Trends" tab (no cap gate).
+- TESTED: 48/48 backend pytest (test_iter452_smart_analytics.py 15 + testing agent's
+  test_iter452_live_smart_analytics.py 33). Testing agent iteration_115.json: frontend 100%
+  after it fixed ONE bug (missing SmartSectionsPanel import in StoreSectionsTab — blanked
+  the #sections tab). Post-test fix applied: section order dedup now uses tx session_id
+  not created_at. Screenshots verified: analytics tab w/ AI summary, smart sections manager,
+  storefront ✦ nav, admin trends, mobile.
+- Seed/demo data left in preview for user verification: iron-and-oak has new-arrivals +
+  staff-picks ENABLED, backdated store_events (5 views etc), search logs (dragonfly zero-
+  result x3, sign, oak), one $79 paid tx — all session ids prefixed seed-*.
+- Known limitations: On Sale empty until a sale-price field exists on listings; analytics
+  exclude today by design (label says so); AI summary first load ~5s then cached.
+
+NEXT: Phase 4 Digital Products (product type, file upload, auto-delivery, download limits).
+
 ## 2026-07-11 — iter449: Cookie Preference Center (P1 compliance) COMPLETE
 
 - NEW /cookie-preferences page (pages/CookiePreferences.jsx): 3 categories — Strictly
