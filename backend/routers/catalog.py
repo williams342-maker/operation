@@ -149,6 +149,7 @@ async def list_products(request: Request, category: Optional[str] = None, techni
                         q: Optional[str] = None, featured: Optional[bool] = None,
                         featured_example: Optional[bool] = None,
                         maker: Optional[str] = None,
+                        type: Optional[str] = None,
                         sort: Optional[str] = None):
     # iter360 — Validate the optional `?sort=` override. Default is
     # "best" which uses the iter359 weighted relevance score. Other
@@ -169,7 +170,7 @@ async def list_products(request: Request, category: Optional[str] = None, techni
     # (homepage rails, hero pill teasers, /shop landing). Keyed by the
     # full param tuple. Cap at 32 entries; oldest evicted FIFO. Skipped
     # for `maker=` queries so the maker dashboard always sees fresh data.
-    cache_key = (category, technique, q, featured, featured_example, maker, sort_mode)
+    cache_key = (category, technique, q, featured, featured_example, maker, type, sort_mode)
     if maker is None:
         hit = _LIST_PRODUCTS_CACHE.get(cache_key)
         if hit and _time.monotonic() - hit[0] < _LIST_PRODUCTS_TTL_S:
@@ -215,6 +216,11 @@ async def list_products(request: Request, category: Optional[str] = None, techni
         query["featured_example"] = featured_example
     if maker:
         query["maker_slug"] = maker
+    # iter454 — server-side digital/physical filter (mirrors the shop UI).
+    if type == "digital":
+        query["listing_type"] = {"$in": ["digital", "both"]}
+    elif type == "physical":
+        query["listing_type"] = {"$ne": "digital"}
     if q:
         query["$or"] = [
             {"title": {"$regex": q, "$options": "i"}},

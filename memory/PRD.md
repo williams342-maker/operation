@@ -158,6 +158,50 @@ NEXT: per roadmap — Featured Maker Promotion Engine / INFORM Act automation /
 cart-recovery SMS / PolicyPage refactor. To bump agreement version later: set
 MAKER_AGREEMENT_VERSION env → all makers re-prompted automatically.
 
+## 2026-07-11 — iter454: Digital Product Discovery (P1-P4) COMPLETE + VERIFIED
+
+- P1 Discovery: Shop Type filter (?type=digital|physical — client UI + real
+  server-side catalog param w/ cache-key inclusion, "both" listings appear in
+  both filters); exact-digital boost when Digital selected + q; ProductCard
+  "INSTANT DOWNLOAD" / "+ DIGITAL FILES" badge (suppressed on featured_example
+  cards) + file-type chips; PDP manifest enriched (per-file version badge,
+  release notes, summary row: types · total size · last updated);
+  "digital-downloads" is now the 10th Smart Section (auto, listing_type
+  digital/both) — enabled for iron-and-oak.
+- P2 Buyer Library: "My Downloads" in desktop nav (buyers, md+) + mobile
+  drawer; /purchases shows per-file version, updated date, release-note
+  history (versions[] enriched server-side, NO storage urls), Report issue →
+  /contact?topic=download-issue&order={last8}.
+- P3 Maker digital analytics: GET /api/maker/analytics/digital (downloads,
+  repeat downloads, digital views/orders/conversion, avg file size MB, most
+  downloaded files, most viewed digital listings, version adoption % on
+  latest after updates) + "Digital products" panel in AnalyticsTab (renders
+  only when maker has digital listings).
+- P4 SEO landing: /digital-downloads (DigitalDownloadsPage) — hero, 9 curated
+  collections (SVG/Laser/CNC/3D-Print/Embroidery/Woodworking Plans/Printable
+  PDFs/eBooks/Audiobooks) with live counts + sample thumbs from GET
+  /api/digital-downloads/summary (routers/digital_landing.py), how-it-works,
+  deep links to /shop?type=digital(&q=group). Sets document.title + meta desc.
+- SECURITY FIX: Product model field_serializer now sanitizes digital_files in
+  ALL API responses (catalog + maker) — url/versions/content_type stripped;
+  only id/filename/ext/size/version/uploaded_at/release_notes/scan.status
+  exposed. Verified no leakage live.
+- Scanning abstracted into file_scanning.py: pluggable ENGINES list
+  (heuristic-v1 + ClamAV INSTREAM auto-activates when CLAMAV_HOST[/PORT] env
+  set) — upload pipeline untouched when adding engines.
+- TESTED: iteration_117.json — 10/10 new live tests + 29/29 regression,
+  frontend 100% (landing, shop filter+badges+chips, PDP manifest, buyer
+  library w/ version history, analytics panel, storefront ✦ Digital
+  Downloads). Post-test: added server-side ?type= filter (was client-only),
+  re-verified.
+- Seed notes: mountain plans PDF now at v4 (replace-tests each iteration);
+  assert >=2 in future tests. iron-and-oak smart sections enabled:
+  new-arrivals, staff-picks, digital-downloads.
+
+NEXT: Featured Maker Promotion Engine (user-stated next). Backlog: INFORM Act
+automation, cart-recovery SMS, tax verification, PolicyPage refactor, nav/footer
+link to /digital-downloads (currently reachable by URL + shop deep links).
+
 ## 2026-07-11 — iter449: Cookie Preference Center (P1 compliance) COMPLETE
 
 - NEW /cookie-preferences page (pages/CookiePreferences.jsx): 3 categories — Strictly
