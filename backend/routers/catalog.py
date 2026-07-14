@@ -624,16 +624,15 @@ async def list_makers():
 
 @router.get("/makers/{slug}", response_model=Maker)
 async def get_maker(slug: str):
-    """Resolves by canonical slug first, then by Plus `custom_url` so
-    vanity URLs (`/makers/<vanity>`) work without a second round-trip.
-    Vanity URLs only resolve while the maker is still on Plus —
-    otherwise the URL is taken-but-inactive (returns 404)."""
+    """iter460 — resolution order: vanity `custom_url` (canonical) →
+    internal `slug` → `previous_slugs` (retired vanity names). The
+    frontend redirects to the canonical public slug when the request
+    matched a non-canonical name, so old Google/Pinterest/bookmark links
+    keep working (SPA equivalent of a 301)."""
     norm = (slug or "").strip().lower()
-    doc = await db.makers.find_one({"slug": norm}, {"_id": 0})
-    if not doc:
-        doc = await db.makers.find_one({"custom_url": norm}, {"_id": 0})
-        if doc and (doc.get("subscription_status") or "free") != "active":
-            doc = None
+    doc = (await db.makers.find_one({"custom_url": norm}, {"_id": 0})
+           or await db.makers.find_one({"slug": norm}, {"_id": 0})
+           or await db.makers.find_one({"previous_slugs": norm}, {"_id": 0}))
     if not doc:
         raise HTTPException(404, "Maker not found")
     return doc

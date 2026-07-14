@@ -439,6 +439,8 @@ async def admin_approved_makers(_: dict = Depends(current_admin)):
         slug = m.get("slug")
         out.append({
             "slug": slug,
+            "custom_url": m.get("custom_url"),
+            "previous_slugs": m.get("previous_slugs") or [],
             "name": m.get("name") or m.get("studio_name"),
             "email": m.get("email"),
             "location": m.get("location"),

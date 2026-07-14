@@ -40,28 +40,32 @@ export default function MakerDetail() {
   const [reviewAgg, setReviewAgg] = useState(null);
 
   useEffect(() => {
-    fetchMaker(slug).then(setM);
-    fetchProducts({ maker: slug }).then(setProducts);
-    // iter450 — sections nav; empty payload keeps the classic all-products
-    // layout for makers who haven't configured sections.
-    fetchPublicSections(slug)
-      .then(setSectionsData)
-      .catch(() => setSectionsData({ sections: [], all_count: 0, redirects: {} }));
-    // iter452 — enabled Smart Sections (auto collections) for this store
-    http.get(`/makers/${slug}/smart-sections`)
-      .then((r) => setSmartSections(r.data.sections || []))
-      .catch(() => setSmartSections([]));
-    // iter452 — first-party analytics: one store_view per visit
-    trackStoreEvent("store_view", { maker_slug: slug });
-    // Maker-authored posts only — falls back to empty array on 404 /
-    // network error so the rail just hides itself.
-    fetchMakerJournalPosts(slug, 3).then(setPosts).catch(() => setPosts([]));
-    setReviewAgg(null);
-    // Public review aggregate for AggregateRating in JSON-LD. Silent
-    // on error — schema degrades gracefully to Organization-only.
-    http.get(`/reviews/aggregate?maker_slug=${slug}`)
-      .then((r) => { if (r?.data?.count > 0) setReviewAgg(r.data); })
-      .catch(() => {});
+    let alive = true;
+    // iter460 — resolve the maker FIRST: the URL may be a vanity
+    // custom_url or a retired slug. All data APIs are keyed by the
+    // canonical internal slug; when the URL isn't the canonical public
+    // address we skip sub-fetches — the <Navigate> below re-runs this
+    // effect once on the canonical URL.
+    fetchMaker(slug).then((mk) => {
+      if (!alive) return;
+      setM(mk);
+      if ((mk.custom_url || mk.slug) !== slug) return;
+      const s = mk.slug;
+      fetchProducts({ maker: s }).then((d) => alive && setProducts(d));
+      fetchPublicSections(s)
+        .then((d) => alive && setSectionsData(d))
+        .catch(() => alive && setSectionsData({ sections: [], all_count: 0, redirects: {} }));
+      http.get(`/makers/${s}/smart-sections`)
+        .then((r) => alive && setSmartSections(r.data.sections || []))
+        .catch(() => alive && setSmartSections([]));
+      trackStoreEvent("store_view", { maker_slug: s });
+      fetchMakerJournalPosts(s, 3).then((d) => alive && setPosts(d)).catch(() => alive && setPosts([]));
+      setReviewAgg(null);
+      http.get(`/reviews/aggregate?maker_slug=${s}`)
+        .then((r) => { if (alive && r?.data?.count > 0) setReviewAgg(r.data); })
+        .catch(() => {});
+    }).catch(() => {});
+    return () => { alive = false; };
   }, [slug]);
 
   // iter450 — resolve the active section from the URL.
@@ -82,7 +86,10 @@ export default function MakerDetail() {
         : products.filter((p) => (p.section_slugs || []).includes(activeSection.slug)))
     : products;
   const hasSectionNav = sections.length > 0 || smartNav.length > 0;
-  const pageUrl = `${SITE_URL}/makers/${slug}${activeSection ? `/${activeSection.slug}` : ""}`;
+  // iter460 — the vanity custom_url (when set) is the canonical public
+  // address used for canonical/OG tags, JSON-LD, and internal links.
+  const publicSlug = m ? (m.custom_url || m.slug) : slug;
+  const pageUrl = `${SITE_URL}/makers/${publicSlug}${activeSection ? `/${activeSection.slug}` : ""}`;
 
   useStructuredData(m ? {
     title: `${activeSection ? `${activeSection.name} · ` : ""}${m.name}${m.location ? ` · ${m.location}` : ""} · Crafters Market`,
@@ -99,7 +106,7 @@ export default function MakerDetail() {
           "name": m.name,
           "description": m.bio,
           "image": m.portrait,
-          "url": `${SITE_URL}/makers/${m.slug}`,
+          "url": `${SITE_URL}/makers/${publicSlug}`,
           "address": m.location ? { "@type": "PostalAddress", "addressLocality": m.location } : undefined,
           // iter302 — real review-based AggregateRating. We omit the
           // field when there are 0 public reviews (Schema.org rejects
@@ -120,7 +127,7 @@ export default function MakerDetail() {
           "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": `${SITE_URL}/` },
             { "@type": "ListItem", "position": 2, "name": "Makers", "item": `${SITE_URL}/makers` },
-            { "@type": "ListItem", "position": 3, "name": m.name, "item": `${SITE_URL}/makers/${m.slug}` },
+            { "@type": "ListItem", "position": 3, "name": m.name, "item": `${SITE_URL}/makers/${publicSlug}` },
             ...(activeSection ? [{ "@type": "ListItem", "position": 4, "name": activeSection.name, "item": pageUrl }] : []),
           ],
         },
@@ -131,23 +138,30 @@ export default function MakerDetail() {
   // iter452 — section_view + browse-dwell events; also keeps the PDP
   // add-to-cart attribution context up to date.
   const activeSecSlug = activeSection?.slug || null;
+  const internalSlug = m?.slug || slug; // analytics always key on internal id
   useEffect(() => {
-    setStoreContext(slug, activeSecSlug);
+    setStoreContext(internalSlug, activeSecSlug);
     if (!activeSecSlug) return;
-    trackStoreEvent("section_view", { maker_slug: slug, section_slug: activeSecSlug });
+    trackStoreEvent("section_view", { maker_slug: internalSlug, section_slug: activeSecSlug });
     const started = Date.now();
     return () => {
       trackStoreEvent("section_dwell", {
-        maker_slug: slug, section_slug: activeSecSlug,
+        maker_slug: internalSlug, section_slug: activeSecSlug,
         dwell_ms: Date.now() - started,
       });
     };
-  }, [slug, activeSecSlug]);
+  }, [internalSlug, activeSecSlug]);
 
   // iter450 — old section slug → permanent-style client redirect; unknown
   // slug (hidden/deleted) falls back to the storefront root.
   if (redirectTo) return <Navigate to={`/makers/${slug}/${redirectTo}`} replace />;
   if (sectionMissing) return <Navigate to={`/makers/${slug}`} replace />;
+
+  // iter460 — permanent-style redirect: internal slug or retired vanity →
+  // canonical vanity URL (keeps Google results, pins, and bookmarks alive).
+  if (m && publicSlug !== slug) {
+    return <Navigate to={`/makers/${publicSlug}${sectionSlug ? `/${sectionSlug}` : ""}`} replace />;
+  }
 
   if (!m) return <div className="pt-40 text-center font-mono text-sm text-ink-muted">Loading…</div>;
 

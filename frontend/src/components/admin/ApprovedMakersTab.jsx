@@ -7,8 +7,54 @@ import {
   adminImpersonateMaker, promoteToFounder,
 } from "../../lib/api";
 import { startImpersonation } from "../../lib/impersonate";
+import { http, adminAuthHeaders } from "../../lib/api"; // iter460 — vanity URL admin controls
 import { formatDate } from "./_shared";
 import PerMakerIndexationChart from "./PerMakerIndexationChart";
+
+/** iter460 — inline admin editor for a maker's vanity URL (set / reset / history). */
+function VanityUrlEditor({ row, onSaved }) {
+  const [draft, setDraft] = useState(row.custom_url || "");
+  const [busy, setBusy] = useState(false);
+  const H = () => ({ headers: adminAuthHeaders() });
+  const apply = async (value) => {
+    setBusy(true);
+    try {
+      const r = await http.post(`/admin/makers/${row.slug}/custom-url`,
+        { custom_url: value }, H());
+      toast.success(value ? `Vanity URL set to /makers/${r.data.custom_url}` : "Vanity URL reset.");
+      onSaved?.(r.data);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed to update vanity URL."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3 p-3" data-testid={`vanity-editor-${row.slug}`}>
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand">◆ Vanity URL</span>
+      <span className="font-mono text-[11px] text-ink-muted">/makers/</span>
+      <input value={draft}
+             onChange={(e) => setDraft(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+             placeholder={row.slug}
+             className="bg-transparent border border-line focus:border-brand outline-none px-2 py-1 font-mono text-[11px] w-48"
+             data-testid={`vanity-input-${row.slug}`} />
+      <button onClick={() => apply(draft)} disabled={busy || !draft}
+              className="px-2 py-1 border border-brand text-brand hover:bg-brand/10 font-mono text-[10px] uppercase tracking-[0.2em] transition disabled:opacity-40"
+              data-testid={`vanity-save-${row.slug}`}>
+        {busy ? "…" : "Save"}
+      </button>
+      {row.custom_url && (
+        <button onClick={() => apply("")} disabled={busy}
+                className="px-2 py-1 border border-line text-ink-muted hover:border-danger hover:text-danger font-mono text-[10px] uppercase tracking-[0.2em] transition disabled:opacity-40"
+                data-testid={`vanity-reset-${row.slug}`}>
+          Reset
+        </button>
+      )}
+      {(row.previous_slugs || []).length > 0 && (
+        <span className="font-mono text-[9px] text-ink-muted" data-testid={`vanity-history-${row.slug}`}>
+          history (redirecting): {row.previous_slugs.map((s) => `/${s}`).join(" · ")}
+        </span>
+      )}
+    </div>
+  );
+}
 
 // Directory of every approved maker. Separates the long-tail roster
 // from the daily Applications queue so admins can find / audit sellers
@@ -23,6 +69,7 @@ export default function ApprovedMakersTab() {
   // GSC indexation sparkline. Only one row expands at a time to keep
   // the table tidy and avoid simultaneous /snapshots-trend/maker fetches.
   const [expandedSlug, setExpandedSlug] = useState("");
+  const [urlSlug, setUrlSlug] = useState(""); // iter460 — vanity URL editor row
 
   const refresh = async () => {
     setLoading(true);
@@ -420,7 +467,10 @@ export default function ApprovedMakersTab() {
                 <tr className="border-b border-line hover:bg-surface" data-testid={`approved-row-${r.slug}`}>
                   <td className="py-3 pr-3">
                     <div className="text-ink">{r.name || r.slug}</div>
-                    <div className="text-[9px] text-ink-muted">/{r.slug}</div>
+                    <div className="text-[9px] text-ink-muted">
+                      /{r.custom_url || r.slug}
+                      {r.custom_url && <span className="ml-1 text-brand" title={`Vanity URL (internal: /${r.slug})`}>★</span>}
+                    </div>
                   </td>
                   <td className="py-3 pr-3 break-all">
                     <a href={`mailto:${r.email}`} className="text-ink-muted hover:text-brand">{r.email}</a>
@@ -483,6 +533,18 @@ export default function ApprovedMakersTab() {
                       {expandedSlug === r.slug ? "Hide" : "Chart"}
                     </button>
                     <button
+                      onClick={() => setUrlSlug((cur) => cur === r.slug ? "" : r.slug)}
+                      data-testid={`approved-url-toggle-${r.slug}`}
+                      title="Edit this maker's vanity storefront URL"
+                      className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
+                        urlSlug === r.slug
+                          ? "border-brand text-brand hover:bg-brand/10"
+                          : "border-line text-ink-muted hover:border-brand hover:text-brand"
+                      }`}
+                    >
+                      URL
+                    </button>
+                    <button
                       onClick={() => flipBeta(r.slug, !r.is_beta)}
                       data-testid={`approved-beta-toggle-${r.slug}`}
                       className={`px-2 py-1 border font-mono text-[10px] uppercase tracking-[0.22em] transition ${
@@ -504,6 +566,19 @@ export default function ApprovedMakersTab() {
                     </button>
                   </td>
                 </tr>
+                {urlSlug === r.slug && (
+                  <tr className="border-b border-line bg-paper" data-testid={`approved-url-row-${r.slug}`}>
+                    <td colSpan={7}>
+                      <VanityUrlEditor
+                        row={r}
+                        onSaved={(fresh) => setRows((cur) => cur.map((x) =>
+                          x.slug === r.slug
+                            ? { ...x, custom_url: fresh.custom_url, previous_slugs: fresh.previous_slugs }
+                            : x))}
+                      />
+                    </td>
+                  </tr>
+                )}
                 {expandedSlug === r.slug && (
                   <tr className="border-b border-line bg-paper" data-testid={`approved-chart-row-${r.slug}`}>
                     <td colSpan={7} className="p-3">

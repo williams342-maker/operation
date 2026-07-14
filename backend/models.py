@@ -332,6 +332,9 @@ class Maker(BaseModel):
     initials: str
     location: str
     bio: str
+    # iter460 — vanity storefront URL (available to every maker; old URLs
+    # redirect via previous_slugs).
+    custom_url: Optional[str] = None
     # iter441 — PayPal Payouts destination email (None until the maker adds it).
     paypal_email: Optional[str] = None
     # iter444 — Financial settings (payout engine).

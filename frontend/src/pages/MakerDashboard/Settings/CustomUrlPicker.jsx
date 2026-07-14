@@ -108,12 +108,14 @@ export default function CustomUrlPicker() {
         <Sparkles size={16} className="text-brand mt-1 shrink-0" />
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand">
-            ◆ Plus or Founder · custom shop URL
+            ◆ Custom store URL
           </div>
           <h3 className="font-display text-xl uppercase mt-1">Vanity URL.</h3>
           <p className="font-mono text-xs text-ink-muted mt-2 leading-relaxed max-w-md">
-            Claim a memorable URL like <span className="text-ink">craftersmarket.org/makers/iron-and-oak</span>.
-            Easier to share, easier to remember. Lapsing your Plus or Founder tier releases the URL.
+            Claim a memorable URL like <span className="text-ink">craftersmarket.org/makers/ugogold</span> —
+            easier to share, cleaner on business cards and social media. Your old
+            store links keep working: they permanently redirect to the new address,
+            so Google results, pins, and bookmarks are preserved.
           </p>
         </div>
       </div>

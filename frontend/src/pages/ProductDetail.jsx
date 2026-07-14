@@ -1088,7 +1088,7 @@ export default function ProductDetail() {
             })()}
 
             {maker && (
-              <Link to={`/makers/${maker.slug}`} className="block border border-line hover:border-brand p-5 transition">
+              <Link to={`/makers/${maker.custom_url || maker.slug}`} className="block border border-line hover:border-brand p-5 transition">
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-muted mb-2">Maker</div>
                 <div className="font-display text-2xl mb-1">{maker.name}</div>
                 <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted">{maker.location}</div>

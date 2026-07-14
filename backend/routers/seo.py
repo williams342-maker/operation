@@ -212,7 +212,7 @@ async def sitemap_xml(http_request: Request):
         {"_id": 0, "slug": 1, "created_at": 1, "images": 1, "title": 1},
     ).to_list(2000)
     makers = await db.makers.find(
-        {}, {"_id": 0, "slug": 1, "created_at": 1, "name": 1, "cover": 1, "banner_image_url": 1, "location": 1},
+        {}, {"_id": 0, "slug": 1, "custom_url": 1, "created_at": 1, "name": 1, "cover": 1, "banner_image_url": 1, "location": 1},
     ).to_list(2000)
     posts = await db.blog_posts.find(
         {}, {"_id": 0, "slug": 1, "created_at": 1, "cover": 1, "title": 1},
@@ -251,10 +251,12 @@ async def sitemap_xml(http_request: Request):
     for m in makers:
         if _is_test_slug(m.get("slug", "")):
             continue
+        # iter460 — vanity URL is the canonical public address when set.
+        pub = m.get("custom_url") or m["slug"]
         cover = m.get("banner_image_url") or m.get("cover")
         imgs = [(cover, m.get("name") or "")] if cover else []
         urls.append(_u(
-            f"/makers/{m['slug']}", m.get("created_at"),
+            f"/makers/{pub}", m.get("created_at"),
             "weekly", "0.7", imgs,
         ))
 
@@ -269,6 +271,8 @@ async def sitemap_xml(http_request: Request):
                         "n": {"$sum": 1}}}]):
         section_counts[(g["_id"]["m"], g["_id"]["s"])] = g["n"]
     maker_slugs_public = {m.get("slug") for m in makers}
+    # iter460 — section URLs also use the vanity address when set.
+    pub_of = {m["slug"]: (m.get("custom_url") or m["slug"]) for m in makers}
     async for sec in db.store_sections.find(
             {"visible": True}, {"_id": 0, "maker_slug": 1, "slug": 1, "updated_at": 1}):
         if sec["maker_slug"] not in maker_slugs_public:
@@ -276,7 +280,8 @@ async def sitemap_xml(http_request: Request):
         if section_counts.get((sec["maker_slug"], sec["slug"]), 0) < 1:
             continue
         urls.append(_u(
-            f"/makers/{sec['maker_slug']}/{sec['slug']}", sec.get("updated_at"),
+            f"/makers/{pub_of.get(sec['maker_slug'], sec['maker_slug'])}/{sec['slug']}",
+            sec.get("updated_at"),
             "weekly", "0.65",
         ))
     for b in posts:

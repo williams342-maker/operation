@@ -149,7 +149,7 @@ export default function MakersPage() {
             </div>
           ) : (
             filtered.map((m) => (
-            <Link key={m.id} to={`/makers/${m.slug}`} data-testid={`maker-card-${m.slug}`}
+            <Link key={m.id} to={`/makers/${m.custom_url || m.slug}`} data-testid={`maker-card-${m.slug}`}
               className="group bg-surface border border-line hover:border-brand transition overflow-hidden">
               <div className="aspect-[4/3] overflow-hidden relative">
                 <img src={m.cover} alt={m.name} className="w-full h-full object-cover media-img group-hover:scale-105 transition duration-700" />

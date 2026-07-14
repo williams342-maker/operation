@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core import db, logger, now_iso
-from maker_auth import current_maker_slug
+from maker_auth import current_maker_slug, current_admin
 
 router = APIRouter()
 
@@ -47,11 +47,15 @@ RESERVED_WORDS: frozenset[str] = frozenset({
     "crafters", "craftersmarket", "craftermarket", "etsy", "amazon",
     "ebay", "google", "facebook", "instagram", "tiktok", "pinterest",
     "twitter", "x",
-    # Reserved categories / techniques (avoid clobbering future taxonomy URLs)
+    # "Reserved categories / techniques (avoid clobbering future taxonomy URLs)
     "cnc", "laser", "wood", "metal", "ceramic", "leather", "resin",
     "category", "categories", "tag", "tags", "technique", "techniques",
     "founder", "founders", "veteran", "veterans", "plus", "free",
     "trial", "pro", "premium",
+    # iter460 — live route segments under /makers/* and misc system words
+    "state", "resolve", "digital-downloads", "journal", "clips",
+    "custom-order", "grow", "updates", "purchases", "kits", "studio",
+    "apply", "featured", "new",
     # Single-letter / two-letter (too noisy)
     "a", "b", "c", "x", "y", "z",
 })
@@ -63,6 +67,7 @@ SLUG_RE = re.compile(r"^(?!-)[a-z0-9-]{3,30}(?<!-)$")
 class CustomUrlState(BaseModel):
     custom_url: Optional[str] = None
     custom_url_changed_at: Optional[str] = None
+    previous_slugs: list = []
     min_length: int = 3
     max_length: int = 30
     rules: str = (
@@ -78,7 +83,8 @@ class CheckResp(BaseModel):
 
 
 class ClaimReq(BaseModel):
-    custom_url: str = Field(min_length=3, max_length=30)
+    # min_length 0 — empty string clears the vanity URL.
+    custom_url: str = Field(default="", max_length=30)
 
 
 def _normalize(raw: str) -> str:
@@ -103,39 +109,57 @@ def _validate_format(candidate: str) -> Optional[str]:
     return None
 
 
-async def _require_plus_or_founder(slug: str) -> dict:
-    """iter413cl — Custom shop URL is now a perk for BOTH paid Plus
-    subscribers AND Founders (any status). Founders already get a lower
-    commission + larger free quota than Plus, so gating this vanity-URL
-    feature behind a Plus subscription was contradicting the tier
-    philosophy and confusing founders in support tickets.
-
-    Resolution gate (revoke vanity URL on tier drop) handled in
-    `/api/makers/resolve/{custom_url}`."""
+async def _get_maker(slug: str) -> dict:
+    """iter460 — Vanity URLs are now available to EVERY maker (previously
+    a Plus/Founder perk). Short branded addresses help all sellers market
+    their store; old auto-slugs and retired vanity names permanently
+    redirect via `previous_slugs`, so SEO and existing links survive."""
     m = await db.makers.find_one({"slug": slug}, {"_id": 0})
     if not m:
         raise HTTPException(404, "Maker not found.")
-    is_active_plus = (m.get("subscription_status") or "free") == "active"
-    is_founder = (m.get("tier") or "") == "founder"
-    if not (is_active_plus or is_founder):
-        raise HTTPException(403, {
-            "code": "plus_required",
-            "message": "Custom shop URLs are a Crafters Plus or Founder perk.",
-        })
     return m
 
 
-# Backwards-compat alias so the rest of the file doesn't need to be touched.
-# (Public API surface unchanged — same endpoints, same error codes.)
-_require_plus = _require_plus_or_founder
+async def _collision(cand: str, own_slug: str) -> Optional[str]:
+    """Namespace check across canonical slugs, live vanity names, and
+    retired vanity names (previous_slugs stay reserved so their
+    redirects keep working)."""
+    if cand != own_slug and await db.makers.find_one({"slug": cand}, {"_id": 1}):
+        return "That name collides with an existing shop ID."
+    if await db.makers.find_one({"custom_url": cand, "slug": {"$ne": own_slug}}, {"_id": 1}):
+        return "Another maker already claimed that URL."
+    if await db.makers.find_one({"previous_slugs": cand, "slug": {"$ne": own_slug}}, {"_id": 1}):
+        return "That URL was recently used by another shop and is reserved."
+    return None
+
+
+async def _apply_change(m: dict, cand: Optional[str], actor: str) -> dict:
+    """Set (or clear when cand is None) a maker's vanity URL, keeping the
+    old value in `previous_slugs` so it 301-redirects forever."""
+    slug, old = m["slug"], m.get("custom_url")
+    ts = now_iso()
+    await db.makers.update_one(
+        {"slug": slug},
+        {"$set": {"custom_url": cand, "custom_url_changed_at": ts},
+         **({"$pull": {"previous_slugs": cand}} if cand else {})})
+    if old and old != cand:
+        await db.makers.update_one(
+            {"slug": slug}, {"$addToSet": {"previous_slugs": old}})
+    logger.info("vanity-url: maker=%s %s → %s (by %s)", slug, old, cand, actor)
+    fresh = await db.makers.find_one(
+        {"slug": slug},
+        {"_id": 0, "slug": 1, "custom_url": 1, "previous_slugs": 1,
+         "custom_url_changed_at": 1})
+    return fresh
 
 
 @router.get("/maker/custom-url", response_model=CustomUrlState)
 async def get_custom_url(slug: str = Depends(current_maker_slug)):
-    m = await _require_plus(slug)
+    m = await _get_maker(slug)
     return CustomUrlState(
         custom_url=m.get("custom_url"),
         custom_url_changed_at=m.get("custom_url_changed_at"),
+        previous_slugs=m.get("previous_slugs") or [],
     )
 
 
@@ -143,22 +167,16 @@ async def get_custom_url(slug: str = Depends(current_maker_slug)):
 async def check_custom_url(
     candidate: str, slug: str = Depends(current_maker_slug),
 ):
-    """Live availability check — used by the picker UI to give instant
-    feedback as the maker types. Plus gating still enforced server-side
-    so a free maker can't probe the namespace."""
-    await _require_plus(slug)
+    """Live availability check — instant feedback while the maker types."""
+    await _get_maker(slug)
     cand = _normalize(candidate)
     err = _validate_format(cand)
     if err:
         return CheckResp(candidate=cand, available=False, reason=err)
-    # Collide with any existing maker slug (canonical IDs are sacred)
-    if await db.makers.find_one({"slug": cand}, {"_id": 1}):
-        return CheckResp(candidate=cand, available=False, reason="Taken.")
-    # Collide with another maker's custom_url (excluding the caller)
-    if await db.makers.find_one(
-        {"custom_url": cand, "slug": {"$ne": slug}}, {"_id": 1},
-    ):
-        return CheckResp(candidate=cand, available=False, reason="Taken.")
+    err = await _collision(cand, slug)
+    if err:
+        return CheckResp(candidate=cand, available=False,
+                         reason="That URL is already taken.")
     return CheckResp(candidate=cand, available=True)
 
 
@@ -167,54 +185,88 @@ async def claim_custom_url(
     payload: ClaimReq, slug: str = Depends(current_maker_slug),
 ):
     """Idempotent claim — re-POSTing the same value is a no-op. Empty
-    string clears the vanity URL."""
-    await _require_plus(slug)
+    string clears the vanity URL (old one keeps redirecting)."""
+    m = await _get_maker(slug)
     cand = _normalize(payload.custom_url)
+    if not cand:
+        fresh = await _apply_change(m, None, f"maker:{slug}")
+        return CustomUrlState(custom_url=None,
+                              custom_url_changed_at=fresh.get("custom_url_changed_at"),
+                              previous_slugs=fresh.get("previous_slugs") or [])
     err = _validate_format(cand)
     if err:
         raise HTTPException(400, err)
-    if await db.makers.find_one({"slug": cand}, {"_id": 1}):
-        raise HTTPException(409, "That name collides with an existing shop ID.")
-    if await db.makers.find_one(
-        {"custom_url": cand, "slug": {"$ne": slug}}, {"_id": 1},
-    ):
-        raise HTTPException(409, "Another maker already claimed that URL.")
-    ts = now_iso()
-    await db.makers.update_one(
-        {"slug": slug},
-        {"$set": {"custom_url": cand, "custom_url_changed_at": ts}},
-    )
-    logger.info("plus: maker=%s claimed custom_url=%s", slug, cand)
-    return CustomUrlState(custom_url=cand, custom_url_changed_at=ts)
+    err = await _collision(cand, slug)
+    if err:
+        raise HTTPException(409, "That URL is already taken.")
+    fresh = await _apply_change(m, cand, f"maker:{slug}")
+    return CustomUrlState(custom_url=cand,
+                          custom_url_changed_at=fresh.get("custom_url_changed_at"),
+                          previous_slugs=fresh.get("previous_slugs") or [])
+
+
+# ---------------- Admin controls (iter460) ----------------
+
+class AdminVanityReq(BaseModel):
+    custom_url: Optional[str] = None  # None / "" = reset
+
+
+def _admin_view(m: dict) -> dict:
+    return {"slug": m["slug"], "custom_url": m.get("custom_url"),
+            "previous_slugs": m.get("previous_slugs") or [],
+            "custom_url_changed_at": m.get("custom_url_changed_at")}
+
+
+@router.get("/admin/makers/{maker_slug}/custom-url")
+async def admin_get_vanity(maker_slug: str, _: dict = Depends(current_admin)):
+    return _admin_view(await _get_maker(maker_slug))
+
+
+@router.post("/admin/makers/{maker_slug}/custom-url")
+async def admin_set_vanity(maker_slug: str, payload: AdminVanityReq,
+                           admin: dict = Depends(current_admin)):
+    m = await _get_maker(maker_slug)
+    cand = _normalize(payload.custom_url or "")
+    if not cand:
+        fresh = await _apply_change(m, None, f"admin:{admin.get('email')}")
+        return _admin_view({**m, **fresh})
+    err = _validate_format(cand)
+    if err:
+        raise HTTPException(400, err)
+    err = await _collision(cand, m["slug"])
+    if err:
+        raise HTTPException(409, err)
+    fresh = await _apply_change(m, cand, f"admin:{admin.get('email')}")
+    return _admin_view({**m, **fresh})
 
 
 # ---------------- Public resolver ----------------
 
 @router.get("/makers/resolve/{name}")
 async def resolve_maker(name: str):
-    """Resolve a name (canonical slug OR custom_url) to the maker's
-    canonical slug. Public — no auth required. Frontend can call this
-    from `/makers/:name` to handle vanity URLs without needing a second
-    routing pass.
+    """Resolve a name (vanity custom_url, canonical slug, or retired
+    vanity) to the maker. Public — no auth, no tier gate (iter460:
+    vanity URLs are a feature for every maker).
 
-    Returns {slug, matched_via} where matched_via is "slug" or "custom_url".
+    Returns {slug, public_slug, matched_via}. When matched_via is
+    "previous" the caller should permanent-redirect to public_slug.
     """
     norm = _normalize(name)
     if not norm:
         raise HTTPException(404, "Not found.")
-    by_slug = await db.makers.find_one({"slug": norm}, {"_id": 0, "slug": 1})
-    if by_slug:
-        return {"slug": by_slug["slug"], "matched_via": "slug"}
-    by_custom = await db.makers.find_one(
-        {"custom_url": norm}, {"_id": 0, "slug": 1, "subscription_status": 1, "tier": 1},
-    )
+    proj = {"_id": 0, "slug": 1, "custom_url": 1}
+    by_custom = await db.makers.find_one({"custom_url": norm}, proj)
     if by_custom:
-        # Defense in depth: a vanity URL only resolves while the maker
-        # is still on a tier that grants this perk. iter413cl — that's
-        # now BOTH active Plus AND any Founder.
-        is_active_plus = (by_custom.get("subscription_status") or "free") == "active"
-        is_founder = (by_custom.get("tier") or "") == "founder"
-        if not (is_active_plus or is_founder):
-            raise HTTPException(404, "Shop not found.")
-        return {"slug": by_custom["slug"], "matched_via": "custom_url"}
+        return {"slug": by_custom["slug"], "public_slug": norm,
+                "matched_via": "custom_url"}
+    by_slug = await db.makers.find_one({"slug": norm}, proj)
+    if by_slug:
+        return {"slug": norm,
+                "public_slug": by_slug.get("custom_url") or norm,
+                "matched_via": "slug"}
+    by_prev = await db.makers.find_one({"previous_slugs": norm}, proj)
+    if by_prev:
+        return {"slug": by_prev["slug"],
+                "public_slug": by_prev.get("custom_url") or by_prev["slug"],
+                "matched_via": "previous"}
     raise HTTPException(404, "Shop not found.")
