@@ -11271,3 +11271,18 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
   - Admin: new "Workshop Floor" tab (`WorkshopFloorTab.jsx`, deep-link `?tab=workshop-floor`) — Run migration (+force checkbox), report stat cards, by-category chips, needs-review list.
 - Scaling: new categories/tags = data changes in one list; heavily-used tags can be promoted to categories later without schema changes. Reputation/challenges/events modules slot into Overview grid.
 - Test artifacts: `/app/backend/tests/test_iter457_workshop_floor.py`, `/app/test_reports/iteration_119.json`.
+
+## 2026-07-14 — iter459: Order Cancellation & Resolution Workflow (P0) SHIPPED
+(iteration_120: 21/21 backend pytest + all frontend flows pass, zero defects)
+- **Backend** `routers/order_cancellation.py` (registered in server.py):
+  - 6 reason groups / 16 reasons (`GET /orders/cancel-reasons`), 'other' requires explanation.
+  - `POST /maker/orders/{sid}/cancel` — paid-only, blocks after shipment (409), ownership + single-maker guard (multi-maker orders → admin), atomic idempotency lock (`cancellation.status` $nin active), full refund via original provider (Stripe `refund_session` / PayPal `refund_paypal_session`); order marked canceled ONLY after provider accepts; stores provider refund id/amount/response; refund failure → `refund_failed` keeps order open + "Refund FAILED — action required" email to team@ + 409 to caller (409 not 502 — Cloudflare swallows 502 bodies).
+  - Inventory restored exactly once ($inc in_stock, variant-aware) with restore opt-out; buyer/maker/admin emails only after refund acceptance ("refund has been issued… processing time depends on your bank"), deduped by the lock; timeline events (cancel_requested → refund_issued → inventory_restored → buyer_notified → closed); audit_log entries.
+  - Admin: `POST /admin/orders/{sid}/cancel` (mode refund | no_refund w/ mandatory internal note), `PATCH .../cancellation` (edit reason), `POST .../cancellation/reopen` (only pre-refund; rolls back inventory), `GET /admin/orders/cancellation-stats` (rate, top reasons, refund total, avg hrs-to-cancel, initiator split incl. buyer_requested/mutual, per-maker counts).
+  - maker_orders rows now include `cancellation` + `order_total`.
+- **Frontend**:
+  - OrdersList: ⋮ Actions menu per order (View, Message buyer, Cancel order…, Report issue), status pills (cancel requested yellow / refund failed red / cancelled·refunded purple / cancelled red), Order Timeline block in expanded drawer.
+  - `CancelOrderModal.jsx`: contact-buyer-first nudge step → paid-warning w/ exact refund amount → grouped reason select → optional buyer note → "Do not restore inventory (damaged)" → Cancel & Refund confirm; failure panel keeps order open.
+  - Admin PaidOrdersList: cancellation stats strip, per-order cancellation badge (+internal note), edit-reason, reopen, admin-only "⊘ No-refund" (prompts internal note).
+- v1 skips buyer approval by design (architecture leaves room for it). Refund-SUCCESS provider call not exercisable against fake sessions; shares code with verified paths + pre-existing refund helpers.
+- Test artifacts: `/app/backend/tests/test_iter459_order_cancellation.py`, `/app/test_reports/iteration_120.json`.

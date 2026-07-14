@@ -4,6 +4,9 @@ _Prioritized backlog: P0 > P1 > P2. Blocked items flag the gating credential/dec
 
 ## P0 (next up)
 
+- **Custom Store URL / Vanity URL (P1 → next)**: per-maker vanity slug (/makers/ugogold). Scoped: extend existing `routers/custom_url.py` (currently Plus-gated — user wants it for EVERY maker), add previous_slugs history + permanent redirects (client Navigate + canonical tag; no SSR 301 available), canonical propagation (MakerDetail resolve-first fetch, sitemap in seo.py uses custom_url, makers directory + product-page links), reserved words (+ 'state', existing list), admin set/reset/history endpoints + controls in ApprovedMakersTab. NOTE: get_maker in catalog.py must resolve custom_url → slug → previous_slugs; MakerDetail must use internal slug for all data APIs.
+- **Post-cancellation ops features** (user's stated roadmap): return/refund requests, shipping exceptions, partial refunds, buyer/maker dispute center, order messaging thread, maker-only order notes.
+
 - **Workshop Floor Phase 2 — community engagement features** (per user's approved roadmap): reputation & badges, like/save/follow on content, featured projects curation, weekly/monthly challenges, contributor leaderboard, "Maker of the Week", AI moderation. Then Phase 3 growth tie-ins: listing↔discussion links, buyer product Q&A, build logs, showcase "Buy this item" links, journal→product links.
 - **Featured Maker captions backfill**: after user tops up Emergent LLM key balance, hit Retry generation (or POST /regenerate) on promo 7fbbd532… to fill instagram/facebook/x captions with the real product reference image. Production: admin must Generate + Activate a promotion in the prod DB to light up the spotlight there.
 
