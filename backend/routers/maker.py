@@ -2228,6 +2228,9 @@ async def maker_orders(slug: str = Depends(current_maker_slug)):
             "created_at": tx.get("created_at"),
             "payment_status": tx.get("payment_status"),
             "order_status": tx.get("order_status") or "pending",
+            # iter459 — cancellation state + full order total (refund amount)
+            "cancellation": tx.get("cancellation"),
+            "order_total": float(tx.get("amount") or tx.get("total") or 0),
             "items": my_lines,
             "maker_subtotal": round(sum(line["subtotal"] for line in my_lines), 2),
             "shipped_at": tx.get("shipped_at"),

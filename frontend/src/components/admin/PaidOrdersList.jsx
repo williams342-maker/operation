@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { adminRefundOrder, adminRefireOrderEmails } from "../../lib/api";
+import { http, adminAuthHeaders } from "../../lib/api";
 import { formatDate } from "./_shared";
 import { timeAgo } from "../../lib/timeAgo";
 import { useConfirm } from "../../hooks/useConfirm";
@@ -26,6 +27,62 @@ export default function PaidOrdersList({ items }) {
   const [err, setErr] = useState({});
   const [refireLog, setRefireLog] = useState(readRefireLog);
   const [confirm, confirmModal] = useConfirm();
+  // iter459 — cancellation stats + admin override actions
+  const [cxlStats, setCxlStats] = useState(null);
+  const [cxlBusy, setCxlBusy] = useState("");
+  const H = () => ({ headers: adminAuthHeaders() });
+  useEffect(() => {
+    http.get("/admin/orders/cancellation-stats", H())
+      .then((r) => setCxlStats(r.data)).catch(() => {});
+  }, []);
+
+  const cancelNoRefund = async (sid) => {
+    const note = window.prompt(
+      "Cancel WITHOUT refund (fraud / chargeback / abuse).\nInternal note (required):");
+    if (!note || note.trim().length < 5) {
+      if (note !== null) toast.error("Internal note (5+ chars) is required.");
+      return;
+    }
+    setCxlBusy(sid);
+    try {
+      await http.post(`/admin/orders/${sid}/cancel`, {
+        reason: "other", explanation: note.trim(), mode: "no_refund",
+        internal_note: note.trim(), restore_inventory: true,
+      }, H());
+      toast.success("Order canceled without refund — logged with internal note.");
+      window.location.reload();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Cancel failed."); }
+    finally { setCxlBusy(""); }
+  };
+
+  const reopenOrder = async (sid) => {
+    const ok = await confirm({
+      title: "Reopen this order?",
+      body: "Clears the cancellation and rolls back any inventory restoration. Only possible before a successful refund.",
+      confirmLabel: "Reopen", tone: "primary", testId: `confirm-reopen-${sid}`,
+    });
+    if (!ok) return;
+    setCxlBusy(sid);
+    try {
+      await http.post(`/admin/orders/${sid}/cancellation/reopen`, {}, H());
+      toast.success("Order reopened.");
+      window.location.reload();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Reopen failed."); }
+    finally { setCxlBusy(""); }
+  };
+
+  const editReason = async (sid, current) => {
+    const reason = window.prompt(
+      "New reason id (out-of-stock, inventory-error, damaged-before-shipment, unable-to-manufacture, equipment-failure, material-unavailable, production-delay, buyer-requested, incorrect-address, buyer-changed-mind, ordered-by-mistake, mutual-agreement, shipping-unavailable, shipping-cost-too-high, restricted-destination, other):",
+      current || "");
+    if (!reason) return;
+    const explanation = reason === "other" ? (window.prompt("Explanation (required for 'other'):") || "") : "";
+    try {
+      await http.patch(`/admin/orders/${sid}/cancellation`, { reason, explanation }, H());
+      toast.success("Reason updated.");
+      window.location.reload();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Update failed."); }
+  };
   // Tick once per minute so the timeAgo label refreshes without
   // forcing the admin to reload.
   const [, setNow] = useState(Date.now());
@@ -93,8 +150,24 @@ export default function PaidOrdersList({ items }) {
   return (
     <div className="space-y-3" data-testid="orders-list-admin">
       {confirmModal}
+      {/* iter459 — Cancellation analytics strip */}
+      {cxlStats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-line border border-line mb-4" data-testid="cancellation-stats">
+          {[["Cancellation rate", `${(cxlStats.cancellation_rate * 100).toFixed(1)}%`],
+            ["Cancelled orders", cxlStats.canceled_orders],
+            ["Refund total", `$${(cxlStats.refund_total || 0).toFixed(2)}`],
+            ["Avg hrs to cancel", cxlStats.avg_hours_to_cancel ?? "—"],
+            ["Top reason", cxlStats.top_reasons?.[0]?.label || "—"]].map(([l, v]) => (
+            <div key={l} className="bg-paper px-3 py-2">
+              <div className="font-display text-xl text-ink">{v}</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-ink-muted">{l}</div>
+            </div>
+          ))}
+        </div>
+      )}
       {items.map((o) => {
         const isRefunded = refunded.has(o.session_id) || o.refund_status === "refunded";
+        const cxl = o.cancellation;
         return (
           <div
             key={o.session_id}
@@ -163,6 +236,35 @@ export default function PaidOrdersList({ items }) {
               {err[o.session_id] && (
                 <p className="font-mono text-[10px] text-red-400 mt-1">{err[o.session_id]}</p>
               )}
+              {/* iter459 — cancellation record */}
+              {cxl && (
+                <div className="font-mono text-[10px] mt-1" data-testid={`order-cancellation-${o.session_id}`}>
+                  <span className={`border px-1.5 py-0.5 uppercase tracking-[0.12em] ${
+                    cxl.status === "canceled_refunded" ? "text-purple-500 border-purple-500/40"
+                    : cxl.status === "refund_failed" ? "text-red-400 border-red-400/50"
+                    : cxl.status === "refund_processing" ? "text-yellow-600 border-yellow-500/40"
+                    : "text-red-400 border-red-400/50"}`}>
+                    {cxl.status.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-ink-muted ml-2">
+                    {cxl.reason} · by {cxl.initiated_by}:{cxl.initiated_by_id}
+                    {cxl.internal_note && ` · note: ${cxl.internal_note}`}
+                  </span>
+                  <button onClick={() => editReason(o.session_id, cxl.reason)}
+                          className="ml-2 underline text-ink-muted hover:text-brand"
+                          data-testid={`order-edit-reason-${o.session_id}`}>
+                    edit reason
+                  </button>
+                  {cxl.status !== "canceled_refunded" && (
+                    <button onClick={() => reopenOrder(o.session_id)}
+                            disabled={cxlBusy === o.session_id}
+                            className="ml-2 underline text-ink-muted hover:text-brand disabled:opacity-50"
+                            data-testid={`order-reopen-${o.session_id}`}>
+                      reopen
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <div className="font-display text-3xl text-brand">
@@ -184,6 +286,17 @@ export default function PaidOrdersList({ items }) {
                 >
                   ✓ Refunded
                 </span>
+              )}
+              {!isRefunded && !cxl && (
+                <button
+                  onClick={() => cancelNoRefund(o.session_id)}
+                  disabled={cxlBusy === o.session_id}
+                  title="Admin-only: cancel WITHOUT refund (fraud / chargeback / abuse). Requires an internal note."
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] px-3 py-2 border border-line hover:border-red-400 hover:text-red-400 transition disabled:opacity-50"
+                  data-testid={`order-cancel-norefund-btn-${o.session_id}`}
+                >
+                  ⊘ No-refund
+                </button>
               )}
               <button
                 onClick={() => refire(o.session_id)}

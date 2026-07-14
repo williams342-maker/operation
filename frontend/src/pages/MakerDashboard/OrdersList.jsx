@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2, Download, Camera } from "lucide-react";
+import { ChevronDown, Truck, MapPin, Phone, Mail, User, Package, ExternalLink, Sparkles, RefreshCw, CheckCircle2, Download, Camera, MoreVertical } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import { formatDate } from "./_shared";
 import { fetchMakerOrderDetail, markOrderShipped, refreshShippingTracking, resendTrackingEmail } from "../../lib/api";
 import ShippingLabelModal from "./ShippingLabelModal";
+import CancelOrderModal from "./CancelOrderModal"; // iter459
 import { useConfirm } from "./useConfirm";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -179,13 +180,22 @@ function OrderRow({ order, onChange }) {
   };
 
   const isFulfilled = order.order_status === "fulfilled";
+  // iter459 — cancellation state + actions menu
+  const cxl = order.cancellation;
+  const cxlStatus = cxl?.status;
+  const isCanceled = cxlStatus === "canceled_refunded" || cxlStatus === "canceled_no_refund";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
 
   return (
     <div
-      className={`border transition ${open ? "border-brand" : "border-line hover:border-ink-muted"}`}
+      className={`relative border transition ${open ? "border-brand" : "border-line hover:border-ink-muted"} ${isCanceled ? "opacity-70" : ""}`}
       data-testid={`order-${order.session_id}`}
     >
       {confirmModal}
+      {showCancel && (
+        <CancelOrderModal order={order} onClose={() => setShowCancel(false)} onDone={onChange} />
+      )}
       {/* Summary row — the whole header is clickable */}
       <button
         type="button"
@@ -211,6 +221,26 @@ function OrderRow({ order, onChange }) {
                   shipped
                 </span>
               )}
+              {cxlStatus === "refund_processing" && (
+                <span className="ml-2 px-2 py-0.5 border border-yellow-500/50 text-yellow-600" data-testid={`order-status-cancel-requested-${order.session_id}`}>
+                  cancel requested
+                </span>
+              )}
+              {cxlStatus === "refund_failed" && (
+                <span className="ml-2 px-2 py-0.5 border border-red-500/60 text-red-500" data-testid={`order-status-refund-failed-${order.session_id}`}>
+                  refund failed
+                </span>
+              )}
+              {cxlStatus === "canceled_refunded" && (
+                <span className="ml-2 px-2 py-0.5 border border-purple-500/50 text-purple-500" data-testid={`order-status-refunded-${order.session_id}`}>
+                  cancelled · refunded
+                </span>
+              )}
+              {cxlStatus === "canceled_no_refund" && (
+                <span className="ml-2 px-2 py-0.5 border border-red-500/60 text-red-500" data-testid={`order-status-cancelled-${order.session_id}`}>
+                  cancelled
+                </span>
+              )}
             </div>
             <div className="font-mono text-xs text-ink-muted mt-1 flex items-center gap-2 flex-wrap">
               <User size={11} className="opacity-50" />
@@ -220,7 +250,7 @@ function OrderRow({ order, onChange }) {
               <span className="truncate">{order.buyer_email || "—"}</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 pr-10">
             <div className="font-display text-3xl text-brand">
               ${order.maker_subtotal.toFixed(2)}
             </div>
@@ -269,12 +299,84 @@ function OrderRow({ order, onChange }) {
         </ul>
       </button>
 
+      {/* iter459 — Actions menu (⋮, upper-right, outside the header button) */}
+      <div className="absolute top-5 right-4 z-10">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setMenuOpen((m) => !m); }}
+          className="p-1.5 border border-line hover:border-brand text-ink-muted hover:text-ink bg-paper transition"
+          data-testid={`order-actions-${order.session_id}`}
+          aria-label="Order actions"
+        >
+          <MoreVertical size={14} />
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 top-9 w-52 bg-paper border border-line shadow-xl flex flex-col"
+               data-testid={`order-actions-menu-${order.session_id}`}>
+            <button type="button" onClick={() => { setMenuOpen(false); toggle(); }}
+                    className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink hover:bg-surface text-left">
+              View order
+            </button>
+            <a href={`mailto:${order.buyer_email}?subject=${encodeURIComponent("About your Crafters Market order")}`}
+               onClick={() => setMenuOpen(false)}
+               className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink hover:bg-surface"
+               data-testid={`order-action-message-${order.session_id}`}>
+              Message buyer
+            </a>
+            {!isFulfilled && !isCanceled && cxlStatus !== "refund_processing" && (
+              <button type="button"
+                      onClick={() => { setMenuOpen(false); setShowCancel(true); }}
+                      className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-red-500 hover:bg-surface text-left"
+                      data-testid={`order-action-cancel-${order.session_id}`}>
+                Cancel order…
+              </button>
+            )}
+            <a href={`mailto:team@craftersmarket.org?subject=${encodeURIComponent(`Order issue — ${order.session_id}`)}`}
+               onClick={() => setMenuOpen(false)}
+               className="px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-muted hover:bg-surface"
+               data-testid={`order-action-report-${order.session_id}`}>
+              Report issue
+            </a>
+          </div>
+        )}
+      </div>
+
       {/* Expanded detail drawer */}
       {open && (
         <div
           className="border-t border-line p-5 space-y-4 bg-paper"
           data-testid={`order-detail-${order.session_id}`}
         >
+          {/* iter459 — Cancellation timeline */}
+          {cxl && (
+            <div className="border border-line p-4" data-testid={`order-timeline-${order.session_id}`}>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
+                ◆ Order timeline
+              </div>
+              <ol className="space-y-1 font-mono text-[11px] text-ink-muted">
+                <li>Order placed · {formatDate(order.created_at)}</li>
+                <li>Payment received</li>
+                {(cxl.timeline || []).map((ev, i) => (
+                  <li key={i} className={ev.event === "refund_failed" ? "text-red-500" : ""}>
+                    {{
+                      cancel_requested: "Cancellation requested",
+                      refund_issued: `Refund issued${ev.amount ? ` · $${Number(ev.amount).toFixed(2)}` : ""}`,
+                      refund_failed: `Refund failed — ${ev.error || "see admin"}`,
+                      inventory_restored: `Inventory restored${ev.units ? ` · ${ev.units} unit${ev.units === 1 ? "" : "s"}` : ""}`,
+                      inventory_not_restored: "Inventory not restored (damaged)",
+                      buyer_notified: "Buyer notified",
+                      reason_edited: "Reason edited by admin",
+                      closed: "Closed",
+                    }[ev.event] || ev.event} · {formatDate(ev.at)}
+                  </li>
+                ))}
+              </ol>
+              <p className="font-mono text-[10px] text-ink-muted mt-2">
+                Reason: <span className="text-ink">{cxl.reason}</span>
+                {cxl.explanation ? ` — ${cxl.explanation}` : ""}
+              </p>
+            </div>
+          )}
           {loadingDetail && (
             <div data-testid={`order-detail-skeleton-${order.session_id}`}>
               <div className="grid md:grid-cols-2 gap-6 animate-pulse">
