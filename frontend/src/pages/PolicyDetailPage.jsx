@@ -6,7 +6,7 @@ import {
   POLICIES,
 } from "../data/policies/manifest";
 import { POLICY_HIERARCHY } from "../data/policies/hierarchy";
-import { SECTIONS } from "./PolicyPage";
+import { SECTIONS } from "../data/policies/sections";
 import {
   PolicyTOC,
   PolicyMetaHeader,

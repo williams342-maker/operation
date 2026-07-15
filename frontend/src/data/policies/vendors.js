@@ -6,7 +6,7 @@
 //
 //  When you add, remove, or replace a production vendor,
 //  update THIS file AND the §4a bullet list in
-//  /app/frontend/src/pages/PolicyPage.jsx.
+//  /app/frontend/src/data/policies/sections.js.
 //
 //  Categories are display tags only — a vendor may carry more
 //  than one tag if it does multiple jobs.

@@ -12,7 +12,7 @@
 //   - Search keywords for the /trust search index
 //
 //  The full body text of each policy remains in
-//  src/pages/PolicyPage.jsx (SECTIONS array) and is referenced
+//  src/data/policies/sections.js (SECTIONS array) and is referenced
 //  here by section_id. This keeps the legacy /policy#anchor
 //  URLs working while enabling per-doc /policies/:slug pages.
 //

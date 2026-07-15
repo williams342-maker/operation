@@ -7,7 +7,7 @@ import {
   OPERATIONAL_POLICIES,
   TRUST_DOCUMENTS,
 } from "../data/policies/manifest";
-import { SECTIONS } from "./PolicyPage";
+import { SECTIONS } from "../data/policies/sections";
 import { useStructuredData } from "../lib/seo";
 
 // ============================================================

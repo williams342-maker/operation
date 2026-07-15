@@ -5,7 +5,7 @@ import {
 } from "../data/policies/manifest";
 import { POLICY_HIERARCHY } from "../data/policies/hierarchy";
 import { GLOSSARY } from "../data/policies/glossary";
-import { SECTIONS } from "./PolicyPage";
+import { SECTIONS } from "../data/policies/sections";
 
 // ============================================================
 //  /counsel-packet  — INTERNAL counsel packet (full):

@@ -11306,3 +11306,9 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
   - **LIVE ACCOUNT FINDING (2026-07-15)**: Stripe Tax settings ACTIVE (head office Oak Harbor, WA), automatic_tax ON for 9/10 recent sessions, BUT **0 tax registrations on file → Stripe currently calculates $0 tax in every state**. ACTION FOR OPERATOR: add state registrations (at minimum WA) at dashboard.stripe.com/tax/registrations, then re-run the card on production.
 - Cleanup: removed stale Plus-gating LockedCard + JSDoc from CustomUrlPicker.jsx; deleted stale /app/backend/tests/test_custom_url.py (superseded by test_iter460_custom_url.py).
 - Test artifacts: `/app/backend/tests/test_iter462_inform_act.py` (note: needs re-seed of 205 `{_inform_test:true}` kiln-and-clay transactions to re-run), `/app/test_reports/iteration_122.json`.
+
+## 2026-07-15 — iter462c: PolicyPage.jsx decoupling (refactor/cleanup)
+- Extracted the 2,880-line SECTIONS policy-content array (+ SUPPORT_EMAIL) out of `pages/PolicyPage.jsx` into `src/data/policies/sections.js` (lives beside manifest.js / vendors.js / effectiveDate.js).
+- PolicyPage.jsx shrank 3,143 → 253 lines (Callout + PolicySection + page component only).
+- Updated importers: TrustCenterPage.jsx, PolicyDetailPage.jsx, PrintBundlePage.jsx now import SECTIONS from the data module (no re-export shim left in PolicyPage).
+- Verified: /policies, /policies/terms, /trust all render full content; zero console errors; policy text unchanged (pure move).
