@@ -371,6 +371,8 @@ from routers.order_cancellation import router as order_cancellation_router  # it
 api.include_router(order_cancellation_router)
 from routers.inform_act import router as inform_act_router  # iter462
 api.include_router(inform_act_router)
+from routers.returns_cases import router as returns_cases_router
+api.include_router(returns_cases_router)
 
 app.include_router(api)
 
@@ -561,6 +563,8 @@ async def on_startup():
         await ensure_clip_product_indexes()
         from routers.policy_versions import ensure_policy_indexes
         await ensure_policy_indexes()
+        from routers.returns_cases import ensure_return_case_indexes
+        await ensure_return_case_indexes()
         from routers.digital_landing import ensure_digital_marketplace_indexes
         await ensure_digital_marketplace_indexes()
     except Exception:
@@ -573,4 +577,6 @@ async def shutdown_db():
     from scheduler import shutdown_scheduler
     shutdown_scheduler()
     client.close()
+
+
 

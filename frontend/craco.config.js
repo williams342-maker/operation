@@ -61,6 +61,7 @@ let webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
+  devServerConfig.historyApiFallback = true;
   // Add health check endpoints if enabled
   if (config.enableHealthCheck && setupHealthEndpoints && healthPluginInstance) {
     const originalSetupMiddlewares = devServerConfig.setupMiddlewares;
@@ -97,4 +98,13 @@ if (isDevServer) {
   }
 }
 
+const finalDevServer = webpackConfig.devServer;
+webpackConfig.devServer = (devServerConfig) => {
+  const next = typeof finalDevServer === "function" ? finalDevServer(devServerConfig) : { ...devServerConfig, ...(finalDevServer || {}) };
+  next.historyApiFallback = true;
+  return next;
+};
 module.exports = webpackConfig;
+
+
+

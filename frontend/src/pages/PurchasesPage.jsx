@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Download, Clock, FileText, RefreshCw } from "lucide-react";
 import { API, http } from "../lib/api";
+import BuyerOrderHelp from "../components/BuyerOrderHelp";
 
 const buyerAuth = () => {
   const t = localStorage.getItem("cm_buyer_jwt");
@@ -166,6 +167,7 @@ export default function PurchasesPage() {
                     );
                   })}
                 </ul>
+                <BuyerOrderHelp sessionId={p.session_id} />
 
                 {hist && (
                   <div className="mt-3 border-t border-line pt-3" data-testid={`purchase-history-${p.session_id}`}>

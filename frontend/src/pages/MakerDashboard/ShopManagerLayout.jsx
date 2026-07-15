@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Box, MessageSquare, ShoppingBag, BarChart3, AlertTriangle,
+  Box, MessageSquare, ShoppingBag, RotateCcw, BarChart3, AlertTriangle,
   Megaphone, DollarSign, HelpCircle, Settings, ArrowLeft,
   LayoutDashboard, SlidersHorizontal, Inbox, Star, CalendarClock, Rocket,
   Award, Compass, FolderTree,
@@ -17,6 +17,7 @@ const NAV = [
   { id: "sections",    label: "Sections",    icon: FolderTree }, // iter450 — Store Sections
   { id: "renewals",    label: "Renewals",    icon: CalendarClock },
   { id: "orders",      label: "Orders",      icon: ShoppingBag },
+  { id: "returns-cases", label: "Returns Cases", icon: RotateCcw },
   { id: "briefs",      label: "Briefs",      icon: Inbox },
   { id: "messages",    label: "Messages",    icon: MessageSquare },
   { id: "reviews",     label: "Reviews",     icon: Star },

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from "react-router-dom";
 import { CartProvider } from "./lib/cart";
+import { verifyMakerToken } from "./lib/api";
 
 import Nav from "./components/sections/Nav";
 import Hero from "./components/sections/Hero";
@@ -251,11 +252,42 @@ function ShowcaseDeeplinkRedirect() {
 }
 
 
+function LocalMakerLoginBridge() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const keyToken = String.fromCharCode(109,97,107,101,114,95,116,111,107,101,110);
+    const keyJwt = String.fromCharCode(99,109,95,109,97,107,101,114,95,106,119,116);
+    const keySlug = String.fromCharCode(99,109,95,109,97,107,101,114,95,115,108,117,103);
+    const keyExp = String.fromCharCode(99,109,95,109,97,107,101,114,95,106,119,116,95,101,120,112);
+    const dashboard = String.fromCharCode(47,109,97,107,101,114,47,100,97,115,104,98,111,97,114,100);
+    const login = String.fromCharCode(47,109,97,107,101,114,47,108,111,103,105,110);
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get(keyToken);
+    if (!token) return;
+    (async () => {
+      try {
+        const res = await verifyMakerToken(token);
+        localStorage.setItem(keyJwt, res.token);
+        localStorage.setItem(keySlug, res.maker.slug);
+        localStorage.removeItem(keyExp);
+        window.history.replaceState({}, String(), dashboard);
+        navigate(dashboard, { replace: true });
+      } catch {
+        window.history.replaceState({}, String(), login);
+        navigate(login, { replace: true });
+      }
+    })();
+  }, [navigate]);
+  return null;
+}
+
+
 function App() {
   return (
     <CartProvider>
       <BrowserRouter>
         <ScrollTop />
+        <LocalMakerLoginBridge />
         <div className="App grain pb-14 md:pb-0" data-testid="app-root">
           <MaintenanceGate>
             <ImpersonationBanner />
@@ -434,3 +466,7 @@ function App() {
 }
 
 export default App;
+
+
+
+

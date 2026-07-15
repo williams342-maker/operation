@@ -37,6 +37,7 @@ import AdminTabBoundary from "../components/admin/AdminTabBoundary";
 import GrowthStatsBar from "../components/admin/GrowthStatsBar";
 import CustomOrdersList from "../components/admin/CustomOrdersList";
 import PaidOrdersList from "../components/admin/PaidOrdersList";
+import ReturnsDisputesTab from "../components/admin/ReturnsDisputesTab";
 import FounderFunnelTab from "../components/admin/FounderFunnelTab";
 import FounderReviewTab from "../components/admin/FounderReviewTab"; // iter418
 import ModerationQueueTab from "../components/admin/ModerationQueueTab"; // iter426 — Play UGC compliance
@@ -130,6 +131,7 @@ const TABS = [
   { id: "rejected-apps", label: "Rejected", caps: ["marketplace"] },
   { id: "retention", label: "Retention", caps: ["content", "finance"] },
   { id: "reviews", label: "Reviews", caps: ["moderation"] },
+  { id: "returns-disputes", label: "Returns Disputes", caps: ["support", "finance"] },
   { id: "review-disputes", label: "Review Disputes", caps: ["moderation"] },
   // iter426 — Google Play UGC compliance: unified content-report queue
   // covering listings, reviews, journal, showcase, DMs, makers, and buyers.
@@ -626,6 +628,7 @@ export default function AdminDashboard() {
             {tab === "digital-product-generator" && <DigitalProductGeneratorTab />}
             {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
             {tab === "orders" && <PaidOrdersList items={orders} />}
+            {tab === "returns-disputes" && <ReturnsDisputesTab />}
             {tab === "approvals" && <RefundApprovalsTab me={me} />}
             {tab === "shipping-ledger" && <ShippingLedgerTab />}
             {tab === "listings" && <ListingsTab />}
@@ -706,3 +709,6 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+
+
