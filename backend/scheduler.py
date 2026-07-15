@@ -39,17 +39,6 @@ async def _job_publish_due_policy_versions() -> None:
     except Exception as e:
         logger.exception("[scheduler] policy publish sweep failed: %s", e)
 
-
-async def _job_return_case_deadlines() -> None:
-    """Hourly: send non-duplicate case deadline reminders and mark overdue cases escalation-eligible."""
-    try:
-        from routers.returns_cases import run_return_case_deadline_sweep
-        r = await run_return_case_deadline_sweep()
-        if r.get("sent") or r.get("escalation_eligible"):
-            logger.info("[scheduler] return-case deadlines: %s", r)
-    except Exception as e:
-        logger.exception("[scheduler] return-case deadline sweep failed: %s", e)
-
 async def _job_auto_renew_promotions() -> None:
     """Hourly: extend any auto-renew-flagged promotion that lapses in the
     next 6 hours. Plus members renew free; everyone else gets the standard
@@ -1676,8 +1665,6 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched = AsyncIOScheduler(timezone="UTC")
     sched.add_job(_job_publish_due_policy_versions, CronTrigger(minute="*/10"),
                   id="policy_publish_versions", replace_existing=True)
-    sched.add_job(_job_return_case_deadlines, CronTrigger(minute=20),
-                  id='return_case_deadlines', replace_existing=True)
     sched.add_job(_job_expire_listings, CronTrigger(hour=3, minute=10),
                   id="expire_listings", replace_existing=True)
     # iter441 — PayPal payout-email reminders (3/7/14 days) for makers with

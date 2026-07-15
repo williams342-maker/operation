@@ -369,8 +369,6 @@ from routers.order_cancellation import router as order_cancellation_router  # it
 api.include_router(order_cancellation_router)
 from routers.inform_act import router as inform_act_router  # iter462
 api.include_router(inform_act_router)
-from routers.returns_cases import router as returns_cases_router
-api.include_router(returns_cases_router)
 
 app.include_router(api)
 
@@ -561,8 +559,6 @@ async def on_startup():
         await ensure_clip_product_indexes()
         from routers.policy_versions import ensure_policy_indexes
         await ensure_policy_indexes()
-        from routers.returns_cases import ensure_return_case_indexes
-        await ensure_return_case_indexes()
     except Exception:
         logger.exception("[clips] clip-product index init failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
