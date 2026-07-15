@@ -18,6 +18,7 @@ import WebAnalyticsTab from "../components/admin/WebAnalyticsTab";
 import MakerAnalyticsTab from "../components/admin/MakerAnalyticsTab";
 import ApplicationsList from "../components/admin/ApplicationsList";
 import ApprovedMakersTab from "../components/admin/ApprovedMakersTab";
+import InformActTab from "../components/admin/InformActTab";
 import RejectedAppsTab from "../components/admin/RejectedAppsTab";
 import PlusMembersTab from "../components/admin/PlusMembersTab";
 import BroadcastTab from "../components/admin/BroadcastTab";
@@ -95,6 +96,7 @@ const TABS = [
   { id: "analytics", label: "Analytics" },
   { id: "applications", label: "Applications", caps: ["marketplace"] },
   { id: "approved-makers", label: "Approved Makers", caps: ["marketplace"] },
+  { id: "inform-act", label: "INFORM Act", caps: ["marketplace"] },
   { id: "founder-funnel", label: "Founder Funnel", caps: ["marketplace", "content"] },
   { id: "founder-review", label: "Founder Review", caps: ["marketplace"] },
   { id: "activation-funnel", label: "Activation Funnel", caps: ["marketplace", "content"] },
@@ -599,6 +601,7 @@ export default function AdminDashboard() {
             {tab === "makers" && <MakerAnalyticsTab />}
             {tab === "applications" && <ApplicationsList items={apps} onChange={refresh} />}
             {tab === "approved-makers" && <ApprovedMakersTab />}
+            {tab === "inform-act" && <InformActTab />}
             {tab === "founder-funnel" && <FounderFunnelTab />}
             {tab === "founder-review" && <FounderReviewTab />}
             {tab === "activation-funnel" && <ActivationFunnelTab />}

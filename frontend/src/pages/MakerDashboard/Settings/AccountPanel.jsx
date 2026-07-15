@@ -9,6 +9,7 @@ import {
 } from "../../../lib/api";
 import { useConfirm } from "../useConfirm";
 import CustomUrlPicker from "./CustomUrlPicker";
+import InformActCard from "./InformActCard";
 import { isFounder, isInauguralFounder, effectiveTier, TIER_LABELS } from "../../../lib/founderTier";
 
 /**
@@ -225,9 +226,12 @@ export default function AccountPanel({ maker, onSaved }) {
         </div>
       </section>
 
-      {/* Plus-only custom shop URL picker. Self-renders an upsell card
-          for non-Plus makers. */}
+      {/* Custom shop URL picker (all approved makers). */}
       <CustomUrlPicker />
+
+      {/* iter462 — INFORM Consumers Act compliance card. Self-hides
+          unless the maker has crossed the high-volume threshold. */}
+      <InformActCard />
 
       {/* Close / reopen shop */}
       <section className="border border-line p-5">

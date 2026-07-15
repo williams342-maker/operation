@@ -40,6 +40,18 @@ async def _job_auto_renew_promotions() -> None:
 
 # iter413cs — Deployment Watch Window auto-close. Runs every 30 minutes,
 # closes any active watch past its expires_at, writes the summary.
+async def _job_inform_act_scan() -> None:
+    # iter462 — INFORM Consumers Act daily threshold scan: flags new
+    # high-volume sellers, enforces the 10-day deadline, nudges annual
+    # recertification.
+    try:
+        from routers.inform_act import run_inform_scan
+        await run_inform_scan(trigger="cron")
+    except Exception as e:  # pragma: no cover
+        logger.warning("[scheduler] inform_act_scan failed: %s", e)
+
+
+
 async def _job_close_expired_deploy_watches() -> None:
     try:
         from routers.deploy_watch import close_expired_deploy_watches
@@ -1949,6 +1961,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
     # watch). Safe across multiple workers (idempotent close).
     sched.add_job(_job_close_expired_deploy_watches, CronTrigger(minute="*/30"),
                   id="close_expired_deploy_watches", replace_existing=True)
+    # iter462 — INFORM Consumers Act daily compliance scan.
+    sched.add_job(_job_inform_act_scan, CronTrigger(hour=7, minute=10),
+                  id="inform_act_scan", replace_existing=True)
     sched.start()
     _scheduler = sched
     logger.info(

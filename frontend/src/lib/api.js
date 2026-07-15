@@ -2157,3 +2157,26 @@ export const adminPushDraftToMicrosoft = (draftId, payload) =>
 export const adminListAdCreativePushes = (limit = 30) =>
   http.get(`/admin/ad-creative/pushes?limit=${limit}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
+
+// ── iter462 — INFORM Consumers Act compliance ──────────────────────────
+export const fetchMakerInformAct = () =>
+  http.get("/maker/inform-act", { headers: authHeaders() }).then((r) => r.data);
+export const submitMakerInformAct = (payload) =>
+  http.post("/maker/inform-act/submit", payload, { headers: authHeaders() }).then((r) => r.data);
+export const certifyMakerInformAct = () =>
+  http.post("/maker/inform-act/certify", {}, { headers: authHeaders() }).then((r) => r.data);
+export const adminFetchInformAct = () =>
+  http.get("/admin/inform-act", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminInformScan = () =>
+  http.post("/admin/inform-act/scan", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminInformVerify = (slug) =>
+  http.post(`/admin/inform-act/${slug}/verify`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminInformReject = (slug, note) =>
+  http.post(`/admin/inform-act/${slug}/reject`, { note }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminInformSuspend = (slug) =>
+  http.post(`/admin/inform-act/${slug}/suspend`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminInformReinstate = (slug) =>
+  http.post(`/admin/inform-act/${slug}/reinstate`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchSellerDisclosure = (slug) =>
+  http.get(`/makers/${slug}/seller-disclosure`).then((r) => r.data);
+

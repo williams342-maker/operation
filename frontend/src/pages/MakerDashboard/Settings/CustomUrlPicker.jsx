@@ -1,16 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Sparkles, Check, X, Lock, Copy } from "lucide-react";
+import { Sparkles, Check, X, Copy } from "lucide-react";
 import {
   fetchMakerCustomUrl, checkMakerCustomUrl, claimMakerCustomUrl,
 } from "../../../lib/api";
 
 /**
- * Plus-only custom shop URL picker. Lives inside the Settings → Account
- * panel below the subscription block. Server-side gates everything
- * (`subscription_status == "active"` required); the UI surfaces a clean
- * upsell card if the maker isn't on Plus.
+ * Custom shop URL picker (available to all approved makers). Lives inside
+ * the Settings → Account panel below the subscription block.
  *
  * UX:
  *  - Current value rendered with copy-to-clipboard + edit button
@@ -21,7 +18,6 @@ import {
  */
 export default function CustomUrlPicker() {
   const [state, setState] = useState(null);
-  const [locked, setLocked] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [check, setCheck] = useState(null); // {available, reason} | null
@@ -30,11 +26,7 @@ export default function CustomUrlPicker() {
   const debounceRef = useRef(null);
 
   useEffect(() => {
-    fetchMakerCustomUrl()
-      .then(setState)
-      .catch((e) => {
-        if (e?.response?.status === 403) setLocked(true);
-      });
+    fetchMakerCustomUrl().then(setState).catch(() => {});
   }, []);
 
   // Debounced availability check as the maker types.
@@ -59,7 +51,6 @@ export default function CustomUrlPicker() {
     return () => debounceRef.current && clearTimeout(debounceRef.current);
   }, [draft, editing]);
 
-  if (locked) return <LockedCard />;
   if (!state) return null;
 
   const origin = window.location.origin;
@@ -210,32 +201,6 @@ export default function CustomUrlPicker() {
           </div>
         </div>
       )}
-    </section>
-  );
-}
-
-function LockedCard() {
-  return (
-    <section
-      className="border-2 border-dashed border-brand/40 bg-brand/5 p-5"
-      data-testid="custom-url-locked"
-    >
-      <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-2">
-        <Lock size={12} /> Plus or Founder tier
-      </div>
-      <h3 className="font-display text-xl uppercase mb-2">Custom shop URL.</h3>
-      <p className="font-mono text-xs text-ink-muted mb-4 max-w-md leading-relaxed">
-        Replace your auto-generated shop ID with a memorable vanity URL —
-        e.g. <span className="text-ink">/makers/iron-and-oak</span>.
-        Plus subscribers AND Founders can claim and change theirs anytime.
-      </p>
-      <Link
-        to="/maker/billing"
-        className="btn-industrial btn-primary inline-block text-xs"
-        data-testid="custom-url-upgrade-cta"
-      >
-        Start 3-month free trial →
-      </Link>
     </section>
   );
 }

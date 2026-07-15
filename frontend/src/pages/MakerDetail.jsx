@@ -384,6 +384,7 @@ export default function MakerDetail() {
           </div>
         </div>
         <SocialLinks maker={m} />
+        <SellerDisclosure slug={m.slug} />
 
         {/* iter321 — Workshop photos gallery. Real proof that the
             maker runs a real shop floor. Auto-hides on empty so makers
@@ -597,6 +598,55 @@ export default function MakerDetail() {
       </div>
       {contactOpen && <ContactMakerModal maker={m} onClose={() => setContactOpen(false)} />}
     </div>
+  );
+}
+
+// iter462 — INFORM Consumers Act seller-identity disclosure. Federal law
+// requires marketplaces to show verified identity info for high-volume
+// ($20k+/yr) sellers. Self-hides (404) for everyone else.
+function SellerDisclosure({ slug }) {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    if (!slug) return;
+    http.get(`/makers/${slug}/seller-disclosure`).then((r) => setD(r.data)).catch(() => {});
+  }, [slug]);
+  if (!d) return null;
+  const a = d.address || {};
+  const addr = d.is_business
+    ? [a.street, a.city, `${a.state || ""} ${a.zip_code || ""}`.trim(), a.country].filter(Boolean).join(", ")
+    : [a.state, a.country].filter(Boolean).join(", ");
+  return (
+    <section className="mt-10 border border-line p-5" data-testid="seller-disclosure">
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-3">
+        ◆ Verified seller information
+      </div>
+      <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 font-mono text-xs">
+        <div>
+          <dt className="text-ink-muted uppercase tracking-[0.18em] text-[9px] mb-1">Seller</dt>
+          <dd className="text-ink" data-testid="seller-disclosure-name">{d.seller_name}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted uppercase tracking-[0.18em] text-[9px] mb-1">Location</dt>
+          <dd className="text-ink">{addr || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted uppercase tracking-[0.18em] text-[9px] mb-1">Contact</dt>
+          <dd className="text-ink break-all">
+            <a href={`mailto:${d.contact_email}`} className="hover:text-brand">{d.contact_email}</a>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted uppercase tracking-[0.18em] text-[9px] mb-1">Phone</dt>
+          <dd className="text-ink">{d.contact_phone || "—"}</dd>
+        </div>
+      </dl>
+      <p className="font-mono text-[10px] text-ink-muted mt-4 leading-relaxed">
+        Identity verified under the INFORM Consumers Act. Something off?{" "}
+        <Link to="/contact" className="text-brand hover:underline" data-testid="seller-disclosure-report">
+          Report this seller
+        </Link>.
+      </p>
+    </section>
   );
 }
 
