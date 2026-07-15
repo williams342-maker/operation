@@ -1,3 +1,4 @@
+from config import env_get
 """
 Seed "Featured Example" content — Phase 1 of populating the marketplace so
 visitors never land on an empty category. Every doc inserted by this
@@ -550,7 +551,7 @@ async def _generate_image(slug: str, prompt: str) -> str:
         print(f"  [WARN] emergentintegrations missing ({e}) — leaving placeholder")
         return public_path
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print("  [WARN] EMERGENT_LLM_KEY not set — leaving placeholder")
         return public_path

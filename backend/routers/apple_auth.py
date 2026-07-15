@@ -1,3 +1,4 @@
+from config import env_get
 """Sign in with Apple — web + iOS WKWebView (App Store Guideline 4.8).
 
 Redirect/form_post flow (works in every browser AND inside the Capacitor
@@ -36,8 +37,8 @@ from .community_common import CURRENT_EUA_VERSION
 
 router = APIRouter()
 
-APPLE_SERVICE_ID = (os.environ.get("APPLE_SERVICE_ID") or "").strip()
-APPLE_REDIRECT_URI = (os.environ.get("APPLE_REDIRECT_URI") or "").strip()
+APPLE_SERVICE_ID = (env_get("APPLE_SERVICE_ID") or "").strip()
+APPLE_REDIRECT_URI = (env_get("APPLE_REDIRECT_URI") or "").strip()
 APPLE_AUTH_URL = "https://appleid.apple.com/auth/authorize"
 APPLE_ISSUER = "https://appleid.apple.com"
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"

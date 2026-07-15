@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+
+from config import settings
 import sys
 
 # Ensure /app/backend is on the path
@@ -36,14 +38,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 
 async def main():
-    api_key = os.environ.get("STRIPE_API_KEY", "")
+    api_key = settings.stripe_api_key
     if not api_key.startswith("sk_live_"):
         print(f"❌ Refusing to run — STRIPE_API_KEY is not a live key (prefix={api_key[:8]!r}).")
         print("   Update STRIPE_API_KEY=sk_live_... in your .env first, then re-run.")
         sys.exit(1)
 
-    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = client[os.environ["DB_NAME"]]
+    client = AsyncIOMotorClient(settings.mongo_url)
+    db = client[settings.db_name]
 
     print(f"🔐 Stripe mode confirmed LIVE — proceeding with migration.\n")
 

@@ -38,6 +38,7 @@ browser-side mapping in `frontend/src/lib/tiktokPixel.js`):
   lead_contact        → Contact
 """
 from __future__ import annotations
+from config import env_get
 
 import hashlib
 import logging
@@ -79,9 +80,9 @@ def _sha256(value: Optional[str]) -> Optional[str]:
 
 
 def _capi_config() -> dict:
-    pixel_id = (os.environ.get("TIKTOK_PIXEL_ID") or "").strip()
-    token = (os.environ.get("TIKTOK_CAPI_ACCESS_TOKEN") or "").strip()
-    test_code = (os.environ.get("TIKTOK_CAPI_TEST_CODE") or "").strip() or None
+    pixel_id = (env_get("TIKTOK_PIXEL_ID") or "").strip()
+    token = (env_get("TIKTOK_CAPI_ACCESS_TOKEN") or "").strip()
+    test_code = (env_get("TIKTOK_CAPI_TEST_CODE") or "").strip() or None
     return {
         "pixel_id": pixel_id,
         "token": token,

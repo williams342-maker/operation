@@ -1,3 +1,4 @@
+from config import env_get
 """iter454 — Pluggable digital-file security scanning.
 
 The upload pipeline calls `scan_digital_file(data, ext)` and never cares
@@ -60,10 +61,10 @@ def _heuristic_engine(data: bytes, ext: str) -> tuple[str, str]:
 
 def _clamav_engine(data: bytes, ext: str) -> tuple[str, str]:
     """INSTREAM scan against a clamd daemon. Skipped unless CLAMAV_HOST set."""
-    host = os.environ.get("CLAMAV_HOST")
+    host = env_get("CLAMAV_HOST")
     if not host:
         return "clean", ""
-    port = int(os.environ.get("CLAMAV_PORT", "3310"))
+    port = int(env_get("CLAMAV_PORT", "3310"))
     try:
         with socket.create_connection((host, port), timeout=20) as s:
             s.sendall(b"zINSTREAM\0")
@@ -95,4 +96,4 @@ def scan_digital_file(data: bytes, ext: str) -> tuple[str, str]:
 
 def engine_label() -> str:
     return "+".join(name for name, _ in ENGINES
-                    if name != "clamav" or os.environ.get("CLAMAV_HOST"))
+                    if name != "clamav" or env_get("CLAMAV_HOST"))

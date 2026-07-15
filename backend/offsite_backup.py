@@ -21,6 +21,8 @@ Cadence: nightly at 03:15 UTC (low-traffic window for the marketplace).
 """
 from __future__ import annotations
 
+from config import settings
+
 import asyncio
 import io
 import os
@@ -90,8 +92,8 @@ async def run_offsite_backup() -> dict:
     if not await get_setting("auto_offsite_backup_enabled", False):
         return {"ran": False, "reason": "toggle_off"}
 
-    mongo_url = os.environ.get("MONGO_URL")
-    db_name = os.environ.get("DB_NAME")
+    mongo_url = settings.mongo_url
+    db_name = settings.db_name
     if not mongo_url or not db_name:
         return {"ran": False, "reason": "missing_env"}
     if not r2_storage.is_configured():

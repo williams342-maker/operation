@@ -18,6 +18,7 @@ OAuth client is the SAME one used for GSC (env vars `GSC_OAUTH_CLIENT_ID`
 to that client: `{PUBLIC_SITE_URL}/api/admin/ga4/oauth-callback`.
 """
 from __future__ import annotations
+from config import env_get
 import logging
 import os
 import secrets
@@ -51,19 +52,19 @@ def _redirect_uri() -> str:
     """Computed at request time so a hot-reloaded env var picks up."""
     # Explicit override (used during preview-env testing — env-var swap
     # is faster than redeploying production to test the OAuth flow).
-    override = (os.environ.get("GA4_OAUTH_REDIRECT_URI") or "").strip()
+    override = (env_get("GA4_OAUTH_REDIRECT_URI") or "").strip()
     if override:
         return override
-    site = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     if not site:
-        site = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+        site = (env_get("PUBLIC_BACKEND_URL") or "").rstrip("/")
     return f"{site}/api/admin/ga4/oauth-callback"
 
 
 def _oauth_configured() -> bool:
     return bool(
-        (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-        and (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+        (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
+        and (env_get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
     )
 
 
@@ -76,7 +77,7 @@ async def ga4_oauth_start(_: dict = Depends(current_admin)):
             "OAuth client not configured. GSC_OAUTH_CLIENT_ID + "
             "GSC_OAUTH_CLIENT_SECRET env vars must be set (we reuse the GSC client).",
         )
-    client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
+    client_id = (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
     redirect_uri = _redirect_uri()
 
     _prune_states()
@@ -140,8 +141,8 @@ async def ga4_oauth_callback(request: Request):
         return _result_page(False, "Invalid or expired state — re-open the connect window and try again.")
     _oauth_state.pop(state, None)
 
-    client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-    client_secret = (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+    client_id = (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
+    client_secret = (env_get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
     redirect_uri = _redirect_uri()
 
     try:
@@ -214,7 +215,7 @@ async def ga4_oauth_callback(request: Request):
 async def ga4_status(_: dict = Depends(current_admin)):
     """Auth-mode + connection state for the admin UI panel."""
     doc = await db.ga4_oauth.find_one({"_id": "singleton"}, {"_id": 0, "refresh_token": 0})
-    sa_path = os.environ.get("GA4_SERVICE_ACCOUNT_JSON_PATH", "/app/backend/secrets/ga4_service_account.json")
+    sa_path = env_get("GA4_SERVICE_ACCOUNT_JSON_PATH", "/app/backend/secrets/ga4_service_account.json")
     sa_present = os.path.exists(sa_path)
     return {
         "oauth_configured": _oauth_configured(),

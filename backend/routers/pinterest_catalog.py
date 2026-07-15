@@ -26,6 +26,7 @@ Diagnostic endpoint: GET /api/pinterest/catalog/health → returns last
 fetch timestamp + product count for the admin Settings card.
 """
 from __future__ import annotations
+from config import env_get
 import csv
 import logging
 import os
@@ -43,8 +44,8 @@ from maker_auth import current_admin
 router = APIRouter()
 log = logging.getLogger("crafters.pinterest_catalog")
 
-PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
-DEFAULT_CURRENCY = (os.environ.get("PINTEREST_FEED_CURRENCY") or "USD").upper()
+PUBLIC_SITE_URL = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+DEFAULT_CURRENCY = (env_get("PINTEREST_FEED_CURRENCY") or "USD").upper()
 # Pinterest = Google Merchant taxonomy. Map our internal `category` strings to
 # the closest official Google product category. Keep simple — when in doubt
 # the field is omitted (Pinterest auto-classifies from title/description).

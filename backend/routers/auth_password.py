@@ -11,6 +11,7 @@ Feature flags:
     and you want admin-only magic-link/Google going forward.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import os
@@ -34,15 +35,15 @@ from passwords import (
 
 router = APIRouter()
 
-ENABLE_BUYER_PASSWORD_AUTH = os.environ.get("ENABLE_BUYER_PASSWORD_AUTH", "true").lower() == "true"
-ENABLE_MAKER_PASSWORD_AUTH = os.environ.get("ENABLE_MAKER_PASSWORD_AUTH", "true").lower() == "true"
-ENABLE_ADMIN_PASSWORD_AUTH = os.environ.get("ENABLE_ADMIN_PASSWORD_AUTH", "true").lower() == "true"
+ENABLE_BUYER_PASSWORD_AUTH = env_get("ENABLE_BUYER_PASSWORD_AUTH", "true").lower() == "true"
+ENABLE_MAKER_PASSWORD_AUTH = env_get("ENABLE_MAKER_PASSWORD_AUTH", "true").lower() == "true"
+ENABLE_ADMIN_PASSWORD_AUTH = env_get("ENABLE_ADMIN_PASSWORD_AUTH", "true").lower() == "true"
 
 # Password rotation policy — admin passwords must be rotated every N days.
 # Set to 0 to disable enforcement. Default 30d per the platform security
 # review. Buyers + makers are NOT forced to rotate (industry standard — NIST
 # no longer recommends periodic rotation for end-users).
-ADMIN_PASSWORD_ROTATION_DAYS = int(os.environ.get("ADMIN_PASSWORD_ROTATION_DAYS", "30"))
+ADMIN_PASSWORD_ROTATION_DAYS = int(env_get("ADMIN_PASSWORD_ROTATION_DAYS", "30"))
 
 Role = Literal["buyer", "maker", "admin"]
 
@@ -376,7 +377,7 @@ async def auth_password_flags():
         "admin_enabled": ENABLE_ADMIN_PASSWORD_AUTH,
         "min_length": PASSWORD_MIN_LENGTH,
         "apple_enabled": bool(
-            (os.environ.get("APPLE_SERVICE_ID") or "").strip()
-            and (os.environ.get("APPLE_REDIRECT_URI") or "").strip()
+            (env_get("APPLE_SERVICE_ID") or "").strip()
+            and (env_get("APPLE_REDIRECT_URI") or "").strip()
         ),
     }

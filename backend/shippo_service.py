@@ -12,6 +12,7 @@ handlers can translate to clean 4xx responses instead of leaking SDK
 stack traces.
 """
 from __future__ import annotations
+from config import env_get
 import os
 from typing import Optional
 from shippo import Shippo
@@ -25,18 +26,18 @@ class ShippoError(ValueError):
 
 
 def _client() -> Shippo:
-    key = os.environ.get("SHIPPO_API_KEY")
+    key = env_get("SHIPPO_API_KEY")
     if not key:
         raise ShippoError("SHIPPO_API_KEY not configured on this deployment.")
     return Shippo(api_key_header=key)
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get("SHIPPO_API_KEY"))
+    return bool(env_get("SHIPPO_API_KEY"))
 
 
 def is_test_key() -> bool:
-    key = os.environ.get("SHIPPO_API_KEY", "")
+    key = env_get("SHIPPO_API_KEY", "")
     return key.startswith("shippo_test_")
 
 

@@ -6,12 +6,11 @@ the API to upload / delete and trust Cloudflare's CDN for reads.
 
 Env (all required for live uploads):
   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-  R2_BUCKET, R2_PUBLIC_URL
+  R2_BUCKET, R2_PUBLIC_URL, R2_ENDPOINT
 """
 from __future__ import annotations
 import base64
 import logging
-import os
 import re
 import uuid
 from typing import Optional
@@ -19,19 +18,31 @@ from typing import Optional
 import boto3
 from botocore.config import Config
 
+from config import env_get, settings
+
 logger = logging.getLogger(__name__)
 
-R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
-R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "")
-R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
-R2_BUCKET = os.environ.get("R2_BUCKET", "")
-R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
 
-# https://<account>.r2.cloudflarestorage.com is the S3-API endpoint.
-R2_ENDPOINT = (
-    f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-    if R2_ACCOUNT_ID else ""
+REQUIRED_R2_ENV_VARS = (
+    "R2_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_BUCKET",
+    "R2_PUBLIC_URL",
+    "R2_ENDPOINT",
 )
+
+
+def _env(name: str) -> str:
+    return env_get(name, "")
+
+
+R2_ACCOUNT_ID = settings.r2_account_id
+R2_ACCESS_KEY_ID = settings.r2_access_key_id
+R2_SECRET_ACCESS_KEY = settings.r2_secret_access_key
+R2_BUCKET = settings.r2_bucket
+R2_PUBLIC_URL = settings.r2_public_url
+R2_ENDPOINT = settings.r2_endpoint
 
 ALLOWED_CONTENT_TYPES = {
     "image/png": "png",
@@ -61,9 +72,50 @@ MAX_MODEL_BYTES = 50 * 1024 * 1024   # 50 MB .glb cap (high-poly support)
 MAX_VIDEO_BYTES = 50 * 1024 * 1024   # 50 MB video cap (matches editor copy)
 
 
+def missing_config_vars() -> list[str]:
+    return [name for name in REQUIRED_R2_ENV_VARS if not _env(name)]
+
+
+def any_configured() -> bool:
+    return any(_env(name) for name in REQUIRED_R2_ENV_VARS)
+
+
+def r2_required() -> bool:
+    return settings.r2_required
+
+
+def validate_config(required: bool | None = None) -> dict:
+    """Validate R2 configuration loaded from the environment.
+
+    R2 is required by default. Local development can opt into non-R2 storage
+    with STORAGE_BACKEND=local. A partially configured R2 environment fails
+    fast because uploads would otherwise fail later with less actionable boto3
+    errors.
+    """
+    missing = missing_config_vars()
+    configured = not missing
+    partial = any_configured() and not configured
+    must_configure = r2_required() if required is None else required
+    if missing and (must_configure or partial):
+        raise RuntimeError(
+            "Cloudflare R2 storage configuration incomplete. "
+            f"Missing required env vars: {', '.join(missing)}"
+        )
+    return {
+        "configured": configured,
+        "missing": missing,
+        "bucket": R2_BUCKET,
+        "endpoint": R2_ENDPOINT,
+        "public_url": R2_PUBLIC_URL,
+    }
+
+
+def validate_startup_config() -> dict:
+    return validate_config(required=None)
+
+
 def is_configured() -> bool:
-    return all([R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-                R2_BUCKET, R2_PUBLIC_URL])
+    return validate_config(required=False)["configured"]
 
 
 _client = None
@@ -73,8 +125,7 @@ def client():
     """Lazy boto3 client — avoids touching the network on import."""
     global _client
     if _client is None:
-        if not is_configured():
-            raise RuntimeError("R2 storage is not configured (missing env).")
+        validate_config(required=True)
         _client = boto3.client(
             "s3",
             endpoint_url=R2_ENDPOINT,
@@ -101,6 +152,12 @@ def presigned_get_url(key: str, expires_seconds: int = 300) -> str:
         Params={"Bucket": R2_BUCKET, "Key": key},
         ExpiresIn=expires_seconds,
     )
+
+
+def download_bytes(key: str) -> bytes:
+    """Download object bytes from R2 for verification and private workflows."""
+    response = client().get_object(Bucket=R2_BUCKET, Key=key)
+    return response["Body"].read()
 
 
 def upload_bytes(data: bytes, key: str, content_type: str,
@@ -277,16 +334,53 @@ def upload_data_url(data_url: str, key_prefix: str) -> Optional[str]:
     return upload_bytes(raw, key, ct)
 
 
-def delete_key(key: str) -> None:
+def delete_key(key: str) -> bool:
     """Best-effort delete (used when migrating / replacing images)."""
     try:
         client().delete_object(Bucket=R2_BUCKET, Key=key)
         logger.info("r2: deleted key=%s", key)
+        return True
     except Exception as e:
         logger.warning("r2: delete failed for key=%s: %s", key, e)
+        return False
 
 
 def key_from_public_url(url: str) -> Optional[str]:
     if R2_PUBLIC_URL and url.startswith(R2_PUBLIC_URL + "/"):
         return url[len(R2_PUBLIC_URL) + 1:]
     return None
+
+
+def verify_storage_operations(prefix: str = "health/r2") -> dict:
+    """Exercise upload, public URL generation, signed URL, download, and delete.
+
+    This is intentionally opt-in so normal startup does not mutate the bucket.
+    It is useful for deployment smoke checks and focused tests.
+    """
+    validate_config(required=True)
+    key = f"{prefix.rstrip('/')}/{uuid.uuid4().hex}.txt"
+    payload = b"crafters-market-r2-check"
+    deleted = False
+    try:
+        url = upload_bytes(
+            payload,
+            key,
+            "text/plain",
+            cache_control="no-store",
+            max_bytes=1024,
+        )
+        signed_url = presigned_get_url(key, expires_seconds=60)
+        downloaded = download_bytes(key)
+        deleted = delete_key(key)
+        return {
+            "key": key,
+            "upload_ok": bool(url),
+            "public_url": url,
+            "public_url_ok": url == public_url(key),
+            "signed_url_ok": bool(signed_url),
+            "download_ok": downloaded == payload,
+            "delete_ok": deleted,
+        }
+    finally:
+        if not deleted:
+            delete_key(key)

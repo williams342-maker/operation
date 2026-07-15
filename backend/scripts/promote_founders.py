@@ -26,6 +26,7 @@ Effect per slug:
 Safe to run multiple times. Refuses to run without ADMIN_EMAIL.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import sys
@@ -42,11 +43,11 @@ from maker_auth import issue_admin_magic_token
 
 
 def main(slugs: list[str]) -> int:
-    base = (os.environ.get("BASE_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "").rstrip("/")
+    base = (env_get("BASE_URL") or env_get("REACT_APP_BACKEND_URL") or "").rstrip("/")
     if not base:
         print("ERROR: set BASE_URL or REACT_APP_BACKEND_URL")
         return 1
-    admin_email = os.environ.get("ADMIN_EMAIL") or "team@craftersmarket.org"
+    admin_email = env_get("ADMIN_EMAIL") or "team@craftersmarket.org"
     if not slugs:
         print("ERROR: pass at least one maker slug as a CLI arg")
         return 1

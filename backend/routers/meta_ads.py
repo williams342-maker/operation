@@ -29,6 +29,7 @@ Env vars (all OPTIONAL — graceful no-op if missing):
     META_REDIRECT_URI          Optional; derived from PUBLIC_BACKEND_URL when blank
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import os
@@ -62,7 +63,7 @@ AUTH_BASE = f"https://www.facebook.com/{META_API_VERSION}"
 # and the Promote engine's MetaGateway flips `is_eligible` to true.
 def _meta_scopes() -> list[str]:
     s = ["ads_read"]
-    if (os.environ.get("META_REQUEST_MANAGEMENT_SCOPE") or "").lower() in ("1", "true", "yes"):
+    if (env_get("META_REQUEST_MANAGEMENT_SCOPE") or "").lower() in ("1", "true", "yes"):
         s.append("ads_management")
     return s
 
@@ -70,10 +71,10 @@ SCOPES = _meta_scopes()
 
 
 def _redirect_uri() -> str:
-    explicit = os.environ.get("META_REDIRECT_URI", "").strip()
+    explicit = env_get("META_REDIRECT_URI", "").strip()
     if explicit:
         return explicit
-    base = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+    base = (env_get("PUBLIC_BACKEND_URL") or "").rstrip("/")
     if not base:
         return ""
     return f"{base}/api/admin/integrations/meta-ads/oauth/callback"
@@ -81,9 +82,9 @@ def _redirect_uri() -> str:
 
 def _config_ok() -> tuple[bool, list[str]]:
     needed = {
-        "META_APP_ID": os.environ.get("META_APP_ID"),
-        "META_APP_SECRET": os.environ.get("META_APP_SECRET"),
-        "META_AD_ACCOUNT_ID": os.environ.get("META_AD_ACCOUNT_ID"),
+        "META_APP_ID": env_get("META_APP_ID"),
+        "META_APP_SECRET": env_get("META_APP_SECRET"),
+        "META_AD_ACCOUNT_ID": env_get("META_AD_ACCOUNT_ID"),
     }
     if not _redirect_uri():
         needed["META_REDIRECT_URI"] = None
@@ -112,7 +113,7 @@ async def oauth_start(_: dict = Depends(current_admin)):
             .isoformat().replace("+00:00", "Z"),
     })
     params = {
-        "client_id": os.environ["META_APP_ID"],
+        "client_id": env_get("META_APP_ID"),
         "redirect_uri": _redirect_uri(),
         "scope": ",".join(SCOPES),  # Meta uses comma-separated, NOT space
         "response_type": "code",
@@ -134,7 +135,7 @@ async def oauth_callback(
     error: Optional[str] = Query(default=None),
     error_reason: Optional[str] = Query(default=None),
 ):
-    site = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     err = f"{site}/admin/dashboard?tab=ads&meta_ads=error"
     if error:
         logger.warning("[meta_ads] OAuth error: %s / %s", error, error_reason)
@@ -147,8 +148,8 @@ async def oauth_callback(
         return RedirectResponse(f"{err}&reason=bad_state", status_code=302)
     await db.integration_oauth_states.delete_one({"_id": state})
 
-    app_id = os.environ["META_APP_ID"]
-    app_secret = os.environ["META_APP_SECRET"]
+    app_id = env_get("META_APP_ID")
+    app_secret = env_get("META_APP_SECRET")
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             # 1) code → short-lived token (~1h)
@@ -253,7 +254,7 @@ async def status(_: dict = Depends(current_admin)):
         expires_at=(cred or {}).get("expires_at"),
         user_email=(cred or {}).get("user_email"),
         user_name=(cred or {}).get("user_name"),
-        ad_account_id=os.environ.get("META_AD_ACCOUNT_ID"),
+        ad_account_id=env_get("META_AD_ACCOUNT_ID"),
         ad_accounts=(cred or {}).get("ad_accounts", []),
         last_sync_at=(last or {}).get("finished_at") or (last or {}).get("started_at"),
         last_sync_status=(last or {}).get("status"),
@@ -309,7 +310,7 @@ async def sync_metrics(date_str: Optional[str] = None) -> dict:
         await _finish("skipped", error=f"missing_env:{','.join(missing)}")
         return {"status": "skipped", "reason": "missing_env", "missing": missing}
 
-    ad_account = os.environ["META_AD_ACCOUNT_ID"]
+    ad_account = env_get("META_AD_ACCOUNT_ID")
     # Meta wants the account ID in the URL with the `act_` prefix; pass
     # through verbatim so user-error is obvious in logs.
     token = cred["access_token"]

@@ -1,49 +1,24 @@
-"""Core: env loading, db handle, common helpers, public-host resolution."""
-import os
+"""Core: db handle, common helpers, public-host resolution."""
 import asyncio
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from dotenv import load_dotenv
+
 from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorClient
 
-ROOT_DIR = Path(__file__).parent
-# iter224 — Selective override: load `.env` WITHOUT global override (so real
-# Kubernetes deployment env vars on craftersmarket.org keep winning — critical
-# for MONGO_URL, DB_NAME, SECRET, JWT_SECRET that prod sets differently than
-# the preview .env). THEN, for any key that exists in `.env`, if the OS env
-# currently holds an Emergent-pod placeholder (contains the `****` mask
-# pattern Emergent uses for dummy values, e.g. STRIPE_API_KEY=sk_test_****gent),
-# we overwrite it from `.env` so preview testing works with real keys.
-#
-# Why this matters:
-#   - Previous fix used `override=True` globally → preview Stripe worked
-#     BUT production crashed with Cloudflare 520 because .env's MONGO_URL
-#     replaced the production cluster URL.
-#   - This selective approach: preview gets real keys (dummies replaced),
-#     production keeps its real K8s-injected vars (no `****` mask, so no
-#     override). Best of both worlds, no manual env edits required.
-def _selective_env_override(env_path: Path) -> None:
-    """Override OS env from .env ONLY for keys whose OS value is an Emergent
-    pod placeholder (contains `****`). Returns silently if .env is missing."""
-    from dotenv import dotenv_values
-    if not env_path.exists():
-        return
-    # First, fill in keys MISSING from OS env (standard load_dotenv behavior
-    # with override=False — we want the same default fill-in).
-    load_dotenv(env_path, override=False)
-    # Then, for keys present in BOTH .env and OS env, replace OS value only
-    # if OS value looks like a dummy. The `****` mask is unique to Emergent
-    # pod placeholders — real API keys never contain four consecutive stars.
-    for key, env_val in dotenv_values(env_path).items():
-        if not env_val:
-            continue
-        os_val = os.environ.get(key, "")
-        if os_val and "****" in os_val:
-            os.environ[key] = env_val
+from config import (
+    env_get,
+    ADMIN_EMAILS as CONFIG_ADMIN_EMAILS,
+    DB_NAME,
+    MONGO_URL,
+    PUBLIC_BACKEND_URL,
+    PUBLIC_SITE_URL,
+    STRIPE_API_KEY,
+    env_get,
+)
 
-_selective_env_override(ROOT_DIR / ".env")
+ROOT_DIR = Path(__file__).parent
 
 # Policy version stamped on every order acceptance. Bump when policy text
 # changes substantially so the audit trail can prove which version a buyer
@@ -51,10 +26,6 @@ _selective_env_override(ROOT_DIR / ".env")
 POLICY_VERSION = "2026.08"
 
 # ---- Mongo ----
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-
-
 class _LoopAwareMotor:
     """Motor binds each AsyncIOMotorClient to the event loop it first runs
     I/O on. In production (one uvicorn loop) that's fine, but under pytest
@@ -137,16 +108,10 @@ client = _ClientProxy(_motor)
 db = _DBProxy(_motor, DB_NAME)
 
 # ---- Public hosts ----
-STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
-PUBLIC_BACKEND_URL = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
-PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+# Imported from config.py so deployment env loading and validation have one source of truth.
 
 # ---- Admin allow-list (CSV; falls back to OPS_EMAIL for backward compat) ----
-def _admin_emails() -> set[str]:
-    raw = os.environ.get("ADMIN_EMAILS") or os.environ.get("OPS_EMAIL") or ""
-    return {e.strip().lower() for e in raw.split(",") if e.strip()}
-
-ADMIN_EMAILS: set[str] = _admin_emails()
+ADMIN_EMAILS: set[str] = set(CONFIG_ADMIN_EMAILS)
 
 # ---- Admin capability matrix ----
 # Per /app/memory/PRD.md spec — multi-tier admin RBAC.
@@ -252,7 +217,7 @@ logger.warning("[stripe] mode=%s", _stripe_mode)
 
 # Log Shippo mode at boot for the same reason — a test-mode Shippo key
 # silently buys non-trackable demo labels that never reach the carrier.
-_shippo_key = os.environ.get("SHIPPO_API_KEY", "")
+_shippo_key = env_get("SHIPPO_API_KEY", "")
 _shippo_mode = (
     "LIVE" if _shippo_key.startswith("shippo_live_")
     else "TEST" if _shippo_key.startswith("shippo_test_")

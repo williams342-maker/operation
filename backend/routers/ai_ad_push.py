@@ -13,6 +13,7 @@ Plus the cross-channel push history endpoint:
   GET  /admin/ad-creative/pushes
 """
 from __future__ import annotations
+from config import env_get
 import logging
 import os
 import secrets
@@ -24,7 +25,7 @@ from pydantic import BaseModel, Field
 from core import db, now_iso
 from maker_auth import current_admin
 
-PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+PUBLIC_SITE_URL = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
 
 router = APIRouter()
 log = logging.getLogger("crafters.ai_ad_push")
@@ -299,7 +300,7 @@ async def push_draft_to_meta(draft_id: str, body: MetaPushRequest,
     await db.admin_ad_pushes.insert_one(push_doc)
     push_doc.pop("_id", None)
 
-    ad_account = os.environ.get("META_AD_ACCOUNT_ID", "").strip()
+    ad_account = env_get("META_AD_ACCOUNT_ID", "").strip()
     meta_ads_url = None
     if ad_account and handle.external_id:
         acct = ad_account.replace("act_", "")
@@ -405,8 +406,8 @@ async def push_draft_to_microsoft(draft_id: str, body: MicrosoftPushRequest,
     push_doc.pop("_id", None)
 
     cred = await db.integration_credentials.find_one({"_id": "microsoft_ads"})
-    customer_id = (cred or {}).get("customer_id") or os.environ.get("BING_CUSTOMER_ID", "")
-    account_id = (cred or {}).get("account_id") or os.environ.get("BING_ACCOUNT_ID", "")
+    customer_id = (cred or {}).get("customer_id") or env_get("BING_CUSTOMER_ID", "")
+    account_id = (cred or {}).get("account_id") or env_get("BING_ACCOUNT_ID", "")
     microsoft_ads_url = None
     if customer_id and account_id and handle.external_id:
         microsoft_ads_url = (

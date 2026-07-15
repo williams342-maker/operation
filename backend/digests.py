@@ -10,6 +10,7 @@ the configured threshold. Designed to be run by:
 …or from a cron / scheduler hitting the same endpoint.
 """
 from __future__ import annotations
+from config import env_get
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 
@@ -26,8 +27,8 @@ DIGEST_COOLDOWN_DAYS = 25
 def _frontend_origin() -> str:
     """Best-effort frontend URL for "Upgrade" CTA."""
     import os
-    return (os.environ.get("FRONTEND_URL")
-            or os.environ.get("PUBLIC_FRONTEND_URL")
+    return (env_get("FRONTEND_URL")
+            or env_get("PUBLIC_FRONTEND_URL")
             or "https://craftersmarket.org").rstrip("/")
 
 

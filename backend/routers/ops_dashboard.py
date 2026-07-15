@@ -18,6 +18,7 @@ Design notes:
     paid orders, custom orders, maker approvals, and scheduler failures.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import json
@@ -618,7 +619,7 @@ async def _build_daily_brief_ai(
 ) -> dict | None:
     """Call Claude Sonnet 4.5 once and parse the structured JSON reply.
     Returns None on any failure so the caller can fall back."""
-    key = (os.environ.get("EMERGENT_LLM_KEY") or "").strip()
+    key = (env_get("EMERGENT_LLM_KEY") or "").strip()
     if not key:
         return None
 

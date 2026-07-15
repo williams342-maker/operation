@@ -1,3 +1,4 @@
+from config import env_get
 """iter453 — Maker/Seller Agreement DB opt-in.
 
 Versioned, append-only acceptance records with a full audit trail
@@ -17,7 +18,7 @@ from maker_auth import current_admin, current_maker_slug
 
 router = APIRouter()
 
-CURRENT_AGREEMENT_VERSION = os.environ.get("MAKER_AGREEMENT_VERSION", "1.0")
+CURRENT_AGREEMENT_VERSION = env_get("MAKER_AGREEMENT_VERSION", "1.0")
 
 
 def _client_ip(request: Request) -> str:

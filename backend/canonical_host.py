@@ -25,6 +25,7 @@ Design:
   301 to http:// on a canonical host in 2026).
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from typing import Iterable
@@ -72,7 +73,7 @@ class CanonicalHostRedirectMiddleware(BaseHTTPMiddleware):
                  skip_markers: Iterable[str] | None = None):
         super().__init__(app)
         self.canonical_host = (canonical_host
-                               or os.environ.get("CANONICAL_HOST") or "").strip().lower()
+                               or env_get("CANONICAL_HOST") or "").strip().lower()
         # Allow callers/tests to augment the skip list if needed.
         self.skip_markers = tuple(skip_markers) if skip_markers else _PREVIEW_MARKERS
 

@@ -1,3 +1,4 @@
+from config import env_get
 """Idempotent seed data for makers, products, reviews, blog posts, activity."""
 from core import db
 from models import Maker, Product, Review, BlogPost, ActivityEvent
@@ -307,11 +308,11 @@ async def _seed_admin_password():
       - it only writes when the admin row is missing a hash.
     """
     import os as _os
-    h = (_os.environ.get("ADMIN_INIT_PASSWORD_HASH") or "").strip()
+    h = (env_get("ADMIN_INIT_PASSWORD_HASH") or "").strip()
     if not h.startswith("$2"):
         return  # not configured (or not a bcrypt hash) — do nothing
-    email = (_os.environ.get("ADMIN_INIT_EMAIL")
-             or _os.environ.get("OPS_EMAIL") or "").lower().strip()
+    email = (env_get("ADMIN_INIT_EMAIL")
+             or env_get("OPS_EMAIL") or "").lower().strip()
     if not email:
         return
     from core import now_iso

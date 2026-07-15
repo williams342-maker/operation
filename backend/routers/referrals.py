@@ -18,6 +18,7 @@ Endpoints:
                                              abuse / leak)
 """
 from __future__ import annotations
+from config import env_get
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -87,8 +88,8 @@ async def _ensure_code(slug: str) -> str:
 
 
 def _share_link(code: str) -> str:
-    base = (os.environ.get("PUBLIC_SITE_URL")
-            or os.environ.get("PUBLIC_APP_URL")
+    base = (env_get("PUBLIC_SITE_URL")
+            or env_get("PUBLIC_APP_URL")
             or "https://craftersmarket.org").rstrip("/")
     return f"{base}/beta?ref={code}"
 

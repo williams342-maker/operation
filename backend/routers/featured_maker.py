@@ -1,3 +1,4 @@
+from config import env_get
 """iter455 — Featured Maker Promotion Engine.
 
 Auto-suggest → admin confirms. Weighted Featured Score over the last 30
@@ -154,7 +155,7 @@ THEME_BACKDROPS = {
 
 async def _gen_promo_image(product_img_b64: Optional[str], prompt: str, session: str) -> Optional[bytes]:
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-    chat = LlmChat(api_key=os.environ.get("EMERGENT_LLM_KEY"),
+    chat = LlmChat(api_key=env_get("EMERGENT_LLM_KEY"),
                    session_id=session, system_message="You are a professional marketing designer.")
     chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(
         modalities=["image", "text"])
@@ -170,7 +171,7 @@ async def _gen_captions(maker: dict, product: dict, theme: str) -> dict:
     import json as _json
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
-        api_key=os.environ.get("EMERGENT_LLM_KEY"),
+        api_key=env_get("EMERGENT_LLM_KEY"),
         session_id=f"fm-cap-{uuid.uuid4().hex[:8]}",
         system_message=(
             "You write social media copy for a handmade-goods marketplace "
@@ -194,7 +195,7 @@ async def _generate_all(maker: dict, product: dict, theme: str) -> tuple:
     img_b64 = None
     img_url = (product.get("images") or [None])[0]
     if img_url and img_url.startswith("/"):
-        img_url = os.environ.get("PUBLIC_SITE_URL", "").rstrip("/") + img_url
+        img_url = env_get("PUBLIC_SITE_URL", "").rstrip("/") + img_url
     if img_url:
         try:
             async with httpx.AsyncClient(timeout=30) as hc:

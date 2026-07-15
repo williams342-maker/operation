@@ -22,6 +22,7 @@ This module is intentionally narrow — fee resolution lives in `revenue.py`,
 which is the single source of truth for what each tier means.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timedelta, timezone
@@ -82,7 +83,7 @@ async def slots(response: Response):
     momentum" optics problem without lying about specific identities."""
     response.headers["Cache-Control"] = _NO_STORE
     taken = await _count_inaugural()
-    baseline = int(os.environ.get("FOUNDER_INAUGURAL_BASELINE_TAKEN", "5"))
+    baseline = int(env_get("FOUNDER_INAUGURAL_BASELINE_TAKEN", "5"))
     display_taken = min(FOUNDER_INAUGURAL_CAP, taken + max(0, baseline))
     settings = await db.platform_meta.find_one({"key": "site_settings"}) or {}
     enabled = (settings.get("value") or {}).get("beta_signup_enabled", True)
@@ -209,7 +210,7 @@ async def admin_promote(body: PromoteRequest, _: dict = Depends(current_admin)):
         try:
             from email_service import send_application_decision
             from maker_auth import issue_magic_token
-            site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+            site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
             token = issue_magic_token(maker["email"])
             sign_in_link = f"{site}/maker/verify?token={token}"
             await send_application_decision(

@@ -31,6 +31,7 @@ import os
 import re
 from typing import Optional
 
+from config import env_get, settings
 from core import db, now_iso
 from .base import (
     AdsGateway, CreateCampaignSpec, CampaignHandle,
@@ -81,17 +82,17 @@ def _make_client():
     cred = None
     # Sync-friendly cred lookup is done in the calling coroutine; here
     # we just expect env vars + a refresh_token already in scope.
-    refresh_token = os.environ.get("_GOOGLE_REFRESH_TOKEN_CACHE")  # set by adapter
+    refresh_token = env_get("_GOOGLE_REFRESH_TOKEN_CACHE")  # set by adapter
     if not refresh_token:
         return None
     from google.ads.googleads.client import GoogleAdsClient
     return GoogleAdsClient.load_from_dict({
-        "developer_token": os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN", ""),
-        "client_id": os.environ.get("GOOGLE_ADS_CLIENT_ID", ""),
-        "client_secret": os.environ.get("GOOGLE_ADS_CLIENT_SECRET", ""),
+        "developer_token": settings.google_ads_developer_token,
+        "client_id": settings.google_ads_client_id,
+        "client_secret": settings.google_ads_client_secret,
         "refresh_token": refresh_token,
         "login_customer_id": (
-            os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "") or ""
+            settings.google_ads_login_customer_id or ""
         ).replace("-", ""),
         "use_proto_plus": True,
     })
@@ -108,7 +109,7 @@ class GoogleGateway(AdsGateway):
             return None
         customer_id = (
             cred.get("customer_id")
-            or os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")
+            or settings.google_ads_customer_id
         ).replace("-", "").strip()
         if not customer_id:
             return None
@@ -126,7 +127,7 @@ class GoogleGateway(AdsGateway):
             k for k in ("GOOGLE_ADS_DEVELOPER_TOKEN",
                         "GOOGLE_ADS_CLIENT_ID",
                         "GOOGLE_ADS_CLIENT_SECRET")
-            if not os.environ.get(k)
+            if not env_get(k, "")
         ]
         if missing:
             return (False, f"Missing Google env vars: {', '.join(missing)}")
@@ -198,12 +199,11 @@ class GoogleGateway(AdsGateway):
 def _build_client_sync(refresh_token: str, customer_id: str):
     """Synchronous client construction — called inside the executor."""
     from google.ads.googleads.client import GoogleAdsClient
-    login_cust = (os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "")
-                  or customer_id).replace("-", "")
+    login_cust = (settings.google_ads_login_customer_id or customer_id).replace("-", "")
     return GoogleAdsClient.load_from_dict({
-        "developer_token": os.environ["GOOGLE_ADS_DEVELOPER_TOKEN"],
-        "client_id": os.environ["GOOGLE_ADS_CLIENT_ID"],
-        "client_secret": os.environ["GOOGLE_ADS_CLIENT_SECRET"],
+        "developer_token": settings.google_ads_developer_token,
+        "client_id": settings.google_ads_client_id,
+        "client_secret": settings.google_ads_client_secret,
         "refresh_token": refresh_token,
         "login_customer_id": login_cust,
         "use_proto_plus": True,

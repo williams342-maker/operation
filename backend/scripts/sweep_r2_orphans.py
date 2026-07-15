@@ -11,6 +11,8 @@ Usage:
     python -m scripts.sweep_r2_orphans --apply    # delete confirmed orphans
 """
 from __future__ import annotations
+
+from config import settings
 import argparse
 import asyncio
 import os
@@ -84,8 +86,8 @@ def _list_keys_under(prefix: str) -> Iterable[str]:
 async def sweep(apply: bool = False) -> dict:
     if not r2_storage.is_configured():
         return {"error": "R2 not configured", "scanned": 0, "orphans": 0, "deleted": 0}
-    mongo = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = mongo[os.environ["DB_NAME"]]
+    mongo = AsyncIOMotorClient(settings.mongo_url)
+    db = mongo[settings.db_name]
     referenced = await collect_referenced_keys(db)
     scanned = 0
     orphans: list[str] = []

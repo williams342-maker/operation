@@ -14,6 +14,7 @@ Public API
 - is_configured()
 """
 from __future__ import annotations
+from config import env_get
 
 import base64
 import os
@@ -29,9 +30,9 @@ TELNYX_TIMESTAMP_TOLERANCE_SECONDS = 300  # 5 min replay-attack window
 
 def _cfg() -> dict:
     return {
-        "api_key": os.environ.get("TELNYX_API_KEY", "").strip(),
-        "messaging_profile_id": os.environ.get("TELNYX_MESSAGING_PROFILE_ID", "").strip(),
-        "public_key": os.environ.get("TELNYX_PUBLIC_KEY", "").strip(),
+        "api_key": env_get("TELNYX_API_KEY", "").strip(),
+        "messaging_profile_id": env_get("TELNYX_MESSAGING_PROFILE_ID", "").strip(),
+        "public_key": env_get("TELNYX_PUBLIC_KEY", "").strip(),
     }
 
 

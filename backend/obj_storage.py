@@ -14,6 +14,7 @@ app-name prefix isolates our bucket; UUID names prevent collisions.
 There is no delete API — orphan handling is a soft-delete flag in Mongo.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 
@@ -30,7 +31,7 @@ async def _init_storage() -> str:
     global _storage_key
     if _storage_key:
         return _storage_key
-    emergent_key = os.environ.get("EMERGENT_LLM_KEY")
+    emergent_key = env_get("EMERGENT_LLM_KEY")
     if not emergent_key:
         raise RuntimeError("EMERGENT_LLM_KEY is not configured")
     async with httpx.AsyncClient(timeout=30) as client:

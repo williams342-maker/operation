@@ -28,6 +28,7 @@ Public entry points (called from routes or background jobs):
   push_items_batch(items, operation)       → dict(ok, status_code, ...)
 """
 from __future__ import annotations
+from config import env_get
 import logging
 import os
 from typing import Any
@@ -46,7 +47,7 @@ _SCOPE_CACHE_TTL_S = 600  # 10 min
 
 
 def _token() -> str:
-    return (os.environ.get(PINTEREST_ACCESS_TOKEN_ENV) or "").strip()
+    return (env_get(PINTEREST_ACCESS_TOKEN_ENV) or "").strip()
 
 
 def _hdrs(token: str | None = None) -> dict[str, str]:

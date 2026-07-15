@@ -27,6 +27,7 @@ Out of scope for v1: typing indicators, real-time WS, read-receipt
 timestamps. Those can land later without breaking this schema.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import uuid
@@ -71,7 +72,7 @@ def _norm_email(s: str | None) -> str:
 
 
 def _site_url() -> str:
-    return (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    return (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
 
 
 def _scrub(text: str, limit: int) -> str:

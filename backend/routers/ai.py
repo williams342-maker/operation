@@ -1,3 +1,4 @@
+from config import env_get
 """AI Assistant router. Powered by Emergent LLM key + emergentintegrations."""
 import os
 import uuid
@@ -12,7 +13,7 @@ from email_service import send_ops_new_custom_order
 
 router = APIRouter()
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 
 SYSTEM_PROMPT = """You are the Crafters Market AI helper — a friendly, concise concierge for an
 online marketplace of handcrafted CNC art (plasma-cut metal, laser-engraved wood, custom signs,

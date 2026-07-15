@@ -27,6 +27,7 @@ A follow-up scheduled job (Phase 2) rolls up unbilled rows per maker and
 generates a Stripe invoice (weekly or biweekly, operator-configured).
 """
 from __future__ import annotations
+from config import env_get
 import os
 import uuid
 from typing import Optional
@@ -48,7 +49,7 @@ router = APIRouter()
 # To change: set SHIPPING_MARKUP_PCT_OVERRIDE in env (e.g. "0.07" for 7%)
 # and restart. Falls back to 0.05 baseline if unset or malformed.
 def _resolve_markup_pct() -> float:
-    raw = (os.environ.get("SHIPPING_MARKUP_PCT_OVERRIDE") or "").strip()
+    raw = (env_get("SHIPPING_MARKUP_PCT_OVERRIDE") or "").strip()
     if raw:
         try:
             return max(0.0, float(raw))

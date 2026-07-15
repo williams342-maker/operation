@@ -23,6 +23,7 @@ Auto-discovery: after the OAuth callback we call `GetCustomersInfo` /
 isn't pre-set. Ops can override later by editing the cred row directly.
 """
 from __future__ import annotations
+from config import env_get
 import logging
 import os
 import secrets
@@ -51,10 +52,10 @@ def _redirect_uri() -> str:
     """Resolve the OAuth redirect URI. Explicit env wins; otherwise
     derived from `PUBLIC_BACKEND_URL` so dev/preview/prod each get the
     correct host without per-env config."""
-    explicit = (os.environ.get("BING_REDIRECT_URI") or "").strip()
+    explicit = (env_get("BING_REDIRECT_URI") or "").strip()
     if explicit:
         return explicit
-    base = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+    base = (env_get("PUBLIC_BACKEND_URL") or "").rstrip("/")
     if not base:
         return ""
     return f"{base}/api/admin/integrations/microsoft-ads/oauth/callback"
@@ -68,9 +69,9 @@ def _config_ok() -> tuple[bool, list[str]]:
     — we discover them after the user signs in. They're only flagged
     missing if discovery fails too (handled at sync time)."""
     needed = {
-        "BING_DEVELOPER_TOKEN": os.environ.get("BING_DEVELOPER_TOKEN"),
-        "BING_CLIENT_ID": os.environ.get("BING_CLIENT_ID"),
-        "BING_CLIENT_SECRET": os.environ.get("BING_CLIENT_SECRET"),
+        "BING_DEVELOPER_TOKEN": env_get("BING_DEVELOPER_TOKEN"),
+        "BING_CLIENT_ID": env_get("BING_CLIENT_ID"),
+        "BING_CLIENT_SECRET": env_get("BING_CLIENT_SECRET"),
     }
     if not _redirect_uri():
         needed["BING_REDIRECT_URI"] = None
@@ -104,7 +105,7 @@ async def oauth_start(_: dict = Depends(current_admin)):
     })
 
     params = {
-        "client_id": os.environ["BING_CLIENT_ID"],
+        "client_id": env_get("BING_CLIENT_ID"),
         "response_type": "code",
         "redirect_uri": _redirect_uri(),
         "scope": " ".join(SCOPES),
@@ -130,7 +131,7 @@ async def oauth_callback(
 ):
     """Exchange the auth code for tokens, auto-discover customer/account IDs,
     persist everything, then 302 back to the admin Ads tab."""
-    site = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     err_redirect = f"{site}/admin/dashboard?tab=ads&microsoft_ads=error"
 
     if error:
@@ -149,8 +150,8 @@ async def oauth_callback(
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(TOKEN_URI, data={
                 "code": code,
-                "client_id": os.environ["BING_CLIENT_ID"],
-                "client_secret": os.environ["BING_CLIENT_SECRET"],
+                "client_id": env_get("BING_CLIENT_ID"),
+                "client_secret": env_get("BING_CLIENT_SECRET"),
                 "redirect_uri": _redirect_uri(),
                 "grant_type": "authorization_code",
                 "scope": " ".join(SCOPES),
@@ -179,8 +180,8 @@ async def oauth_callback(
 
     # Auto-discover customer_id + account_id via the Customer Management
     # SOAP service. Falls back to env vars if discovery fails.
-    customer_id = (os.environ.get("BING_CUSTOMER_ID") or "").strip()
-    account_id = (os.environ.get("BING_ACCOUNT_ID") or "").strip()
+    customer_id = (env_get("BING_CUSTOMER_ID") or "").strip()
+    account_id = (env_get("BING_ACCOUNT_ID") or "").strip()
     discovered: list[dict] = []
     try:
         from .microsoft_ads_sdk import discover_accounts

@@ -23,6 +23,7 @@ ON). Mutes the entire job — useful during a domain change or email
 deliverability investigation.
 """
 from __future__ import annotations
+from config import env_get
 
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -32,9 +33,9 @@ from core import db, logger, now_iso
 # How long after delivery to wait before sending the prompt. Configurable
 # via env so we can A/B-test 5 vs 7 vs 10 days without a deploy.
 import os as _os
-DELAY_DAYS = int(_os.environ.get("REVIEW_PROMPT_DELAY_DAYS", "7"))
-WINDOW_DAYS = int(_os.environ.get("REVIEW_PROMPT_WINDOW_DAYS", "30"))
-PER_RUN_CAP = int(_os.environ.get("REVIEW_PROMPT_PER_RUN_CAP", "200"))
+DELAY_DAYS = int(_env_get("REVIEW_PROMPT_DELAY_DAYS", "7"))
+WINDOW_DAYS = int(_env_get("REVIEW_PROMPT_WINDOW_DAYS", "30"))
+PER_RUN_CAP = int(_env_get("REVIEW_PROMPT_PER_RUN_CAP", "200"))
 
 
 async def run_review_prompts(apply: bool = True) -> dict[str, Any]:

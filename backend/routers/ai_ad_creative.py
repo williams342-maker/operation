@@ -15,6 +15,7 @@ Char limits we enforce (verified against each platform's 2025 docs):
   pinterest:      2 titles (≤100 chars), 2 descriptions (≤500 chars)
 """
 from __future__ import annotations
+from config import env_get
 import asyncio
 import base64
 import json
@@ -33,12 +34,12 @@ from pydantic import BaseModel, Field
 from core import db, now_iso
 from maker_auth import current_admin
 
-PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+PUBLIC_SITE_URL = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
 
 router = APIRouter()
 log = logging.getLogger("crafters.ai_ad_creative")
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 AD_CREATIVE_DIR = Path("/app/frontend/public/ad-creatives")
 AD_CREATIVE_DIR.mkdir(parents=True, exist_ok=True)
 PUBLIC_AD_CREATIVE_PREFIX = "/ad-creatives"

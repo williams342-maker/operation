@@ -1,3 +1,4 @@
+from config import env_get
 """Admin console: magic-link auth, applications/custom-orders/paid-orders dashboards."""
 from typing import Optional
 import uuid  # iter413ax — audit row IDs
@@ -78,7 +79,7 @@ async def admin_auth_verify(payload: AdminVerifyRequest):
 @router.get("/admin/auth/recovery", include_in_schema=False)
 async def admin_auth_recovery(secret: str = "", request_email: Optional[str] = None):
     from fastapi.responses import RedirectResponse
-    expected = os.environ.get("ADMIN_RECOVERY_SECRET", "").strip()
+    expected = env_get("ADMIN_RECOVERY_SECRET", "").strip()
     if not expected:
         # Endpoint disabled — pretend it doesn't exist.
         raise HTTPException(404, "Not Found")
@@ -98,7 +99,7 @@ async def admin_auth_recovery(secret: str = "", request_email: Optional[str] = N
             raise HTTPException(403, "Email is not an authorized admin.")
         target_email = requested
     else:
-        target_email = next(iter(ADMIN_EMAILS), None) or os.environ.get("OPS_EMAIL", "")
+        target_email = next(iter(ADMIN_EMAILS), None) or env_get("OPS_EMAIL", "")
         if not target_email:
             raise HTTPException(500, "No admin email configured (set OPS_EMAIL).")
     token = issue_admin_magic_token(target_email)
@@ -236,7 +237,7 @@ async def admin_team_invite(
             "created_at": now,
         })
     # Email the new admin a branded invitation magic link.
-    origin = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    origin = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     if origin:
         token = issue_admin_magic_token(email)
         link = f"{origin}/admin/verify?token={token}"
@@ -571,7 +572,7 @@ async def _send_enrichlabs_export(triggered_by: str) -> dict:
     import uuid
     from email_service import send_mailgun_with_attachment
 
-    recipient = (os.environ.get("ENRICHLABS_EXPORT_EMAIL") or "").strip()
+    recipient = (env_get("ENRICHLABS_EXPORT_EMAIL") or "").strip()
     if not recipient:
         return {
             "ok": False,
@@ -638,7 +639,7 @@ async def admin_enrichlabs_status(_: dict = Depends(current_admin)):
     """Status card for the Enrich Labs weekly export: recipient config,
     last send timestamp + outcome, total sends-to-date."""
     import os
-    recipient = (os.environ.get("ENRICHLABS_EXPORT_EMAIL") or "").strip()
+    recipient = (env_get("ENRICHLABS_EXPORT_EMAIL") or "").strip()
     last = await db.admin_audit.find_one(
         {"kind": "enrichlabs_export_sent"},
         {"_id": 0, "ts": 1, "ok": 1, "rows": 1, "filename": 1,
@@ -1160,7 +1161,7 @@ async def admin_refund_order(
     returns 202. The frontend then re-calls this endpoint with the
     `approval_id` once a different admin has approved.
     """
-    threshold = float(os.environ.get("REFUND_DUAL_APPROVAL_USD") or 500)
+    threshold = float(env_get("REFUND_DUAL_APPROVAL_USD") or 500)
     tx = await db.transactions.find_one({"session_id": session_id}, {"_id": 0}) \
         or await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if not tx:
@@ -1243,7 +1244,7 @@ async def admin_list_refund_approvals(
         raise HTTPException(400, "Invalid status.")
     q: dict = {} if status == "all" else {"status": status}
     rows = await db.refund_approvals.find(q, {"_id": 0}).sort("requested_at", -1).limit(200).to_list(200)
-    threshold = float(os.environ.get("REFUND_DUAL_APPROVAL_USD") or 500)
+    threshold = float(env_get("REFUND_DUAL_APPROVAL_USD") or 500)
     return {"approvals": rows, "threshold_usd": threshold}
 
 
@@ -1748,7 +1749,7 @@ async def admin_decide_application(
 
         # Mint a magic-link for the maker portal
         from maker_auth import issue_magic_token
-        site = os.environ.get("FRONTEND_URL") or "https://craftersmarket.org"
+        site = env_get("FRONTEND_URL") or "https://craftersmarket.org"
         token = issue_magic_token(appn["email"])
         sign_in_link = f"{site.rstrip('/')}/maker/verify?token={token}"
 
@@ -3162,7 +3163,7 @@ async def admin_impersonation_bug_report(
 
     # Fan out to Slack/Discord (no-op when unconfigured).
     from notify_webhook import notify_team
-    _site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    _site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     bg.add_task(
         notify_team,
         kind="impersonation_bug",

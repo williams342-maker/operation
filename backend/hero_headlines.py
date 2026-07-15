@@ -25,6 +25,7 @@ Mounted as the daily `hero_headlines_refresh` cron in scheduler.py
 (default 09:00 UTC, kill-switch SCHEDULER_HERO_HEADLINES=false).
 """
 from __future__ import annotations
+from config import env_get
 
 import logging
 import os
@@ -125,7 +126,7 @@ async def generate_ai_variants(count: int = DAILY_NEW_COUNT) -> list[dict]:
         logger.warning("[hero_headlines] emergentintegrations unavailable: %s", e)
         return []
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         logger.warning("[hero_headlines] EMERGENT_LLM_KEY missing — skipping")
         return []

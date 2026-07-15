@@ -11,6 +11,7 @@ the daily cron. The endpoint generates ONE clip per invocation so we
 don't time out the HTTP request.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import logging
@@ -227,7 +228,7 @@ def _generate_video_blocking(prompt: str, out_path: str, model: str = "sora-2-pr
     max_wait = 900 if model == "sora-2-pro" else 600
 
     try:
-        video_gen = OpenAIVideoGeneration(api_key=os.environ["EMERGENT_LLM_KEY"])
+        video_gen = OpenAIVideoGeneration(api_key=env_get("EMERGENT_LLM_KEY"))
         video_bytes = video_gen.text_to_video(
             prompt=prompt,
             model=model,

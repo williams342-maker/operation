@@ -6,6 +6,7 @@ the same Mongo + admin_audit + maker_agreement_acceptances patterns already
 present in the app.
 """
 from __future__ import annotations
+from config import env_get
 
 import difflib
 import hashlib
@@ -27,7 +28,7 @@ router = APIRouter()
 POLICY_STATUSES = {"draft", "scheduled", "published", "superseded", "archived"}
 MAKER_POLICY_SLUGS = {"maker-agreement", "fee-pricing", "prohibited-items", "community-guidelines"}
 ADVANCE_NOTICE_DAYS = {
-    "fee-pricing": int(os.environ.get("FEE_POLICY_NOTICE_DAYS", "30") or "30"),
+    "fee-pricing": int(env_get("FEE_POLICY_NOTICE_DAYS", "30") or "30"),
 }
 
 SEED_POLICIES = [
@@ -524,7 +525,7 @@ async def generate_ai_summary(version_id: str, admin: dict = Depends(current_adm
     error = ""
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
-        key = os.environ.get("EMERGENT_LLM_KEY", "")
+        key = env_get("EMERGENT_LLM_KEY", "")
         if not key:
             raise RuntimeError("EMERGENT_LLM_KEY not configured")
         chat = LlmChat(api_key=key, session_id=f"policy-{version_id}", system_message="You write concise, accurate marketplace policy change summaries.").with_model("anthropic", "claude-haiku-4-5")

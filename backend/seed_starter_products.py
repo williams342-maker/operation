@@ -1,3 +1,4 @@
+from config import env_get
 """Seed starter pack — 4 founding makers × 5 products = 20 listings.
 
 iter227 — User-spec'd seed pass for marketplace density. Each maker
@@ -837,7 +838,7 @@ async def _generate_image(slug: str, prompt: str, suffix: str = "") -> str:
         print(f"  [WARN] emergentintegrations missing ({e}) — placeholder kept")
         return public_path
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print("  [WARN] EMERGENT_LLM_KEY not set — placeholder kept")
         return public_path

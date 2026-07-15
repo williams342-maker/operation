@@ -13,6 +13,7 @@ The maker dashboard surfaces a count of pending waitlist signups per
 listing so makers know how much demand sits behind a 0-stock SKU.
 """
 from __future__ import annotations
+from config import env_get
 import os
 from typing import Optional
 
@@ -178,8 +179,8 @@ async def fire_restock_notifications_if_needed(
         {"slug": p.get("maker_slug")}, {"_id": 0, "name": 1},
     ) or {}
     site = (
-        os.environ.get("PUBLIC_SITE_URL")
-        or os.environ.get("FRONTEND_URL")
+        env_get("PUBLIC_SITE_URL")
+        or env_get("FRONTEND_URL")
         or "https://craftersmarket.org"
     ).rstrip("/")
     product_url = f"{site}/shop/{p.get('slug', '')}"

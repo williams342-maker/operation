@@ -34,6 +34,7 @@ Response:
     }
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import subprocess
@@ -71,9 +72,9 @@ _BUILD_INFO = {
     "commit_iso": _git(["log", "-1", "--format=%cI"]),
     "commit_subject": _git(["log", "-1", "--format=%s"]),
     "preview_host": (
-        os.environ.get("preview_endpoint")
-        or os.environ.get("PREVIEW_ENDPOINT")
-        or os.environ.get("APP_URL")
+        env_get("preview_endpoint")
+        or env_get("PREVIEW_ENDPOINT")
+        or env_get("APP_URL")
         or "unknown"
     ),
     "backend_started_at": datetime.now(timezone.utc).isoformat(),

@@ -17,6 +17,7 @@ Returns None on failure — caller is expected to fall back to a static
 placeholder so a transient Gemini blip doesn't break the share flow.
 """
 from __future__ import annotations
+from config import env_get
 
 import base64
 import logging
@@ -36,7 +37,7 @@ async def _generate_via_gemini(prompt: str) -> Optional[tuple[bytes, str]]:
         logger.warning("[founder_card] emergentintegrations unavailable: %s", e)
         return None
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY", "")
+    api_key = env_get("EMERGENT_LLM_KEY", "")
     if not api_key:
         logger.warning("[founder_card] EMERGENT_LLM_KEY missing")
         return None

@@ -33,6 +33,8 @@ Scheduled:
 """
 from __future__ import annotations
 
+from config import settings
+
 import asyncio
 import os
 import shutil
@@ -107,7 +109,7 @@ async def _restore_into_drill_namespace(archive_path: str, source_db: str, drill
     """mongorestore --nsFrom=<source>.* --nsTo=<drill>.* — isolates
     everything in the temp namespace. The source namespace must be the
     one written by `offsite_backup.py` (uses the prod DB_NAME)."""
-    mongo_url = os.environ.get("MONGO_URL")
+    mongo_url = settings.mongo_url
     if not mongo_url:
         raise RuntimeError("MONGO_URL not set")
     rc, err = await _run(
@@ -136,7 +138,7 @@ async def _integrity_probe(drill_db: str, min_products: int) -> dict:
     `motor` client we use everywhere — no shell or extra round-trip.
     """
     from motor.motor_asyncio import AsyncIOMotorClient
-    mongo_url = os.environ.get("MONGO_URL")
+    mongo_url = settings.mongo_url
     client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
     try:
         d = client[drill_db]
@@ -164,7 +166,7 @@ async def _integrity_probe(drill_db: str, min_products: int) -> dict:
 async def _drop_drill_namespace(drill_db: str) -> None:
     """Drop the entire throwaway DB. Idempotent — never raises."""
     from motor.motor_asyncio import AsyncIOMotorClient
-    mongo_url = os.environ.get("MONGO_URL")
+    mongo_url = settings.mongo_url
     client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
     try:
         await client.drop_database(drill_db)
@@ -191,7 +193,7 @@ async def run_recovery_drill(*, manual: bool = False) -> dict:
     if not manual and not await get_setting("auto_recovery_drill_enabled", False):
         return {"ran": False, "reason": "toggle_off"}
 
-    source_db = os.environ.get("DB_NAME")
+    source_db = settings.db_name
     if not source_db:
         return {"ran": False, "reason": "missing_db_name"}
 

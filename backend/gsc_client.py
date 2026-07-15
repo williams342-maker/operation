@@ -35,6 +35,7 @@ Operational notes:
     `gsc_checked_at` is missing or stale (>=7 days).
 """
 from __future__ import annotations
+from config import env_get
 import json
 import logging
 import os
@@ -50,17 +51,17 @@ def is_gsc_enabled() -> bool:
     auth path (OAuth refresh-token in DB OR service-account JSON env)
     is configured. Sync helper — does NOT check DB; use
     `is_gsc_runtime_ready()` for that."""
-    if (os.environ.get("GSC_ENABLED") or "").strip() != "1":
+    if (env_get("GSC_ENABLED") or "").strip() != "1":
         return False
-    if not (os.environ.get("GSC_SITE_URL") or "").strip():
+    if not (env_get("GSC_SITE_URL") or "").strip():
         return False
-    if (os.environ.get("GSC_SERVICE_ACCOUNT_JSON") or "").strip():
+    if (env_get("GSC_SERVICE_ACCOUNT_JSON") or "").strip():
         return True
     # OAuth path requires client_id+secret env vars; the refresh-token
     # itself is checked at client-build time against the DB.
     if (
-        (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-        and (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+        (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
+        and (env_get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
     ):
         return True
     return False
@@ -82,8 +83,8 @@ async def _load_oauth_creds():
             token=None,
             refresh_token=doc["refresh_token"],
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=os.environ.get("GSC_OAUTH_CLIENT_ID"),
-            client_secret=os.environ.get("GSC_OAUTH_CLIENT_SECRET"),
+            client_id=env_get("GSC_OAUTH_CLIENT_ID"),
+            client_secret=env_get("GSC_OAUTH_CLIENT_SECRET"),
             scopes=GSC_SCOPES,
         )
     except Exception as e:
@@ -92,7 +93,7 @@ async def _load_oauth_creds():
 
 
 def _load_service_account_creds():
-    raw = (os.environ.get("GSC_SERVICE_ACCOUNT_JSON") or "").strip()
+    raw = (env_get("GSC_SERVICE_ACCOUNT_JSON") or "").strip()
     if not raw:
         return None
     try:
@@ -112,7 +113,7 @@ async def _client():
     global _service
     if _service is not None:
         return _service
-    if (os.environ.get("GSC_ENABLED") or "").strip() != "1":
+    if (env_get("GSC_ENABLED") or "").strip() != "1":
         return None
     try:
         from googleapiclient.discovery import build
@@ -144,7 +145,7 @@ async def inspect_url(inspection_url: str) -> Optional[dict]:
     svc = await _client()
     if not svc:
         return None
-    site_url = os.environ.get("GSC_SITE_URL")
+    site_url = env_get("GSC_SITE_URL")
     try:
         body = {
             "inspectionUrl": inspection_url,
@@ -174,7 +175,7 @@ async def search_analytics(start_date: str, end_date: str,
     svc = await _client()
     if not svc:
         return None
-    site_url = os.environ.get("GSC_SITE_URL")
+    site_url = env_get("GSC_SITE_URL")
     body: dict = {"startDate": start_date, "endDate": end_date,
                   "rowLimit": row_limit}
     if dimensions:
@@ -240,7 +241,7 @@ async def submit_sitemap(sitemap_url: str | None = None) -> dict:
 
     from core import db, now_iso
 
-    site_url = (os.environ.get("GSC_SITE_URL") or "").strip()
+    site_url = (env_get("GSC_SITE_URL") or "").strip()
     if not site_url:
         return {"ok": False, "throttled": False, "sitemap": "",
                 "error": "GSC_SITE_URL not configured"}

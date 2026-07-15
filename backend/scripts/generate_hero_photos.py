@@ -11,6 +11,7 @@ Run from /app/backend:
 Concurrency: 4 images at a time so we don't slam the upstream too hard.
 """
 from __future__ import annotations
+from config import env_get
 import asyncio
 import base64
 import os
@@ -22,7 +23,7 @@ sys.path.insert(0, "/app/backend")
 from dotenv import load_dotenv
 load_dotenv("/app/backend/.env")
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 if not EMERGENT_LLM_KEY:
     raise SystemExit("EMERGENT_LLM_KEY missing.")
 

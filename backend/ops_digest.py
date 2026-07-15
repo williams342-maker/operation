@@ -15,6 +15,7 @@ Scheduling: runs at 06:00 UTC every day via APScheduler.
 Override: set `OPS_DIGEST_ENABLED=false` to disable.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from collections import Counter
@@ -335,7 +336,7 @@ async def send_daily_digest(*, recipient: str | None = None, dry_run: bool = Fal
     Returns:
         {"sent": bool, "to": str, "data": dict, "html_bytes": int}
     """
-    if os.environ.get("OPS_DIGEST_ENABLED", "true").lower() not in ("1", "true", "yes"):
+    if env_get("OPS_DIGEST_ENABLED", "true").lower() not in ("1", "true", "yes"):
         return {"sent": False, "reason": "disabled_via_env"}
 
     to = recipient or OPS_EMAIL

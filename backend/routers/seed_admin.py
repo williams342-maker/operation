@@ -1,3 +1,4 @@
+from config import env_get
 """Admin endpoints for managing platform seed content (the "Featured
 Example" listings and "Founding Maker · Platform Showcase" profiles).
 
@@ -365,7 +366,7 @@ async def generate_one_clip(
     # we hard-reject pro requests with a clear message instead of letting
     # the operator wait 15 minutes for the inevitable timeout. Flip the
     # env var to re-enable pro once Sora capacity is healthy.
-    if model == "sora-2-pro" and os.environ.get("SORA_DISABLE_PRO", "true").lower() in ("true", "1", "yes"):
+    if model == "sora-2-pro" and env_get("SORA_DISABLE_PRO", "true").lower() in ("true", "1", "yes"):
         raise HTTPException(
             422,
             "sora-2-pro is temporarily disabled (queue exceeded its 900s wait ceiling on recent attempts). "

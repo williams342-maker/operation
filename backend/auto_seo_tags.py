@@ -19,6 +19,7 @@ The LLM call is structured-output via JSON-mode so we get all four
 fields in one round-trip without any post-parsing flake.
 """
 from __future__ import annotations
+from config import env_get
 
 import json
 import logging
@@ -32,7 +33,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 logger = logging.getLogger("crafters.auto_seo_tags")
 
-EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY")
 MODEL_PROVIDER = "anthropic"
 MODEL_NAME = "claude-sonnet-4-5-20250929"
 

@@ -22,6 +22,7 @@ Design notes (forward-compat with the planned centralized Craft Taxonomy):
   • Cached at the edge for 60s (set via Cache-Control header).
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from fastapi import APIRouter, Response
@@ -125,13 +126,13 @@ def build_capabilities_payload() -> dict:
                 "eligible_tiers": ["plus", "founder", "inaugural_founder"],
             },
             "tiktok_pixel": {
-                "enabled": bool(os.environ.get("TIKTOK_PIXEL_ID")),
+                "enabled": bool(env_get("TIKTOK_PIXEL_ID")),
             },
             "tiktok_events_api": {
-                "enabled": bool(os.environ.get("TIKTOK_CAPI_ACCESS_TOKEN")),
+                "enabled": bool(env_get("TIKTOK_CAPI_ACCESS_TOKEN")),
             },
             "google_search_console": {
-                "enabled": (os.environ.get("GSC_ENABLED") or "").strip() == "1",
+                "enabled": (env_get("GSC_ENABLED") or "").strip() == "1",
             },
         },
 

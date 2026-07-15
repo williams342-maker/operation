@@ -13,6 +13,7 @@ Why server-side and not client-side?
   - Keeps the maker dashboard zero-asset-pipeline-dependency.
 """
 from __future__ import annotations
+from config import env_get
 
 import io
 import os
@@ -30,7 +31,7 @@ from core import db
 router = APIRouter()
 
 WIDTH, HEIGHT = 1080, 1920
-SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+SITE_URL = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
 
 BG = (10, 10, 10)         # near-black
 FG = (255, 255, 255)

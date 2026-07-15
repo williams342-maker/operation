@@ -32,11 +32,12 @@ from typing import Optional
 
 import httpx
 
+from config import env_get, settings
 from core import db, now_iso
 
 logger = logging.getLogger("crafters.promote.conversions")
 
-META_API_VERSION = os.environ.get("META_API_VERSION", "v20.0")
+META_API_VERSION = env_get("META_API_VERSION", "v20.0")
 META_GRAPH = f"https://graph.facebook.com/{META_API_VERSION}"
 
 
@@ -127,8 +128,8 @@ async def _upload_meta(amount_cents: int, currency: str,
                        email: Optional[str], fbclid: str,
                        session_id: str) -> None:
     """POST to /{pixel_id}/events with a single Purchase event."""
-    pixel_id = os.environ.get("META_PIXEL_ID", "").strip()
-    access_token = os.environ.get("META_CAPI_ACCESS_TOKEN", "").strip()
+    pixel_id = env_get("META_PIXEL_ID", "").strip()
+    access_token = env_get("META_CAPI_ACCESS_TOKEN", "").strip()
     if not (pixel_id and access_token):
         # Falls through silently — admin hasn't configured CAPI yet.
         raise RuntimeError("META_PIXEL_ID or META_CAPI_ACCESS_TOKEN not set")
@@ -149,7 +150,7 @@ async def _upload_meta(amount_cents: int, currency: str,
         },
     }
     payload = {"data": [event], "access_token": access_token}
-    test_code = os.environ.get("META_CAPI_TEST_CODE", "").strip()
+    test_code = env_get("META_CAPI_TEST_CODE", "").strip()
     if test_code:
         payload["test_event_code"] = test_code
 
@@ -172,11 +173,11 @@ async def _upload_google(amount_cents: int, currency: str,
         raise RuntimeError("Google Ads not connected")
     customer_id = (
         cred.get("customer_id")
-        or os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")
+        or settings.google_ads_customer_id
     ).replace("-", "").strip()
     if not customer_id:
         raise RuntimeError("Google customer_id missing")
-    conv_action = os.environ.get("GOOGLE_ADS_CONVERSION_ACTION_ID", "").strip()
+    conv_action = env_get("GOOGLE_ADS_CONVERSION_ACTION_ID", "").strip()
     if not conv_action:
         raise RuntimeError("GOOGLE_ADS_CONVERSION_ACTION_ID not set")
 
@@ -197,12 +198,12 @@ def _google_upload_sync(refresh_token: str, customer_id: str,
     from google.ads.googleads.client import GoogleAdsClient
     from datetime import datetime as _dt
     client = GoogleAdsClient.load_from_dict({
-        "developer_token": os.environ["GOOGLE_ADS_DEVELOPER_TOKEN"],
-        "client_id": os.environ["GOOGLE_ADS_CLIENT_ID"],
-        "client_secret": os.environ["GOOGLE_ADS_CLIENT_SECRET"],
+        "developer_token": settings.google_ads_developer_token,
+        "client_id": settings.google_ads_client_id,
+        "client_secret": settings.google_ads_client_secret,
         "refresh_token": refresh_token,
         "login_customer_id": (
-            os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "") or customer_id
+            settings.google_ads_login_customer_id or customer_id
         ).replace("-", ""),
         "use_proto_plus": True,
     })
@@ -247,9 +248,9 @@ async def _upload_microsoft(amount_cents: int, currency: str,
     cred = await db.integration_credentials.find_one({"_id": "microsoft_ads"})
     if not cred or not cred.get("refresh_token"):
         raise RuntimeError("Microsoft Ads not connected")
-    customer_id = (cred.get("customer_id") or os.environ.get("BING_CUSTOMER_ID", "")).strip()
-    account_id = (cred.get("account_id") or os.environ.get("BING_ACCOUNT_ID", "")).strip()
-    goal_name = os.environ.get("BING_CONVERSION_GOAL_NAME", "").strip()
+    customer_id = (cred.get("customer_id") or env_get("BING_CUSTOMER_ID", "")).strip()
+    account_id = (cred.get("account_id") or env_get("BING_ACCOUNT_ID", "")).strip()
+    goal_name = env_get("BING_CONVERSION_GOAL_NAME", "").strip()
     if not (customer_id and account_id and goal_name):
         raise RuntimeError("Bing customer/account IDs or BING_CONVERSION_GOAL_NAME missing")
 
@@ -274,7 +275,7 @@ def _microsoft_upload_sync(refresh_token: str, customer_id: str,
     svc = ServiceClient(
         service="CampaignManagementService", version=13,
         authorization_data=auth,
-        environment=os.environ.get("BING_ENVIRONMENT", "production"),
+        environment=env_get("BING_ENVIRONMENT", "production"),
     )
     oc = svc.factory.create("OfflineConversion")
     oc.MicrosoftClickId = msclkid

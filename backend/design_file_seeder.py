@@ -18,6 +18,7 @@ picks copy and tags, never raw vector data — so plasma/laser shops can
 trust the geometry every time.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import base64
@@ -450,7 +451,7 @@ async def _pick_template_and_params() -> dict:
     picked_tid = min(counts.items(), key=lambda kv: (kv[1], random.random()))[0]
     tmpl = TEMPLATES[picked_tid]
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     params: dict = {}
     title = ""
     description = ""
@@ -518,7 +519,7 @@ async def _generate_preview_jpg(slug: str, prompt: str) -> str | None:
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         return f"/seed-designs/{slug}/preview.jpg"
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         return None
     chat = (

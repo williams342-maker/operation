@@ -24,6 +24,7 @@ Review" message — no surprises, no leaked SOAP errors.
 SAFETY: campaigns land with `status=PAUSED`. Maker activates explicitly.
 """
 from __future__ import annotations
+from config import env_get
 import asyncio
 import logging
 import os
@@ -41,7 +42,7 @@ from .base import (
 
 logger = logging.getLogger("crafters.promote.gateway.meta")
 
-GRAPH_VERSION = os.environ.get("META_API_VERSION", "v20.0")
+GRAPH_VERSION = env_get("META_API_VERSION", "v20.0")
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
 # Video uploads MUST go to graph-video.facebook.com per Graph API docs.
 GRAPH_VIDEO_BASE = f"https://graph-video.facebook.com/{GRAPH_VERSION}"
@@ -83,7 +84,7 @@ class MetaGateway(AdsGateway):
         if not cred:
             return (False, "Connect Meta Ads in Admin → Ads first.")
 
-        ad_account = os.environ.get("META_AD_ACCOUNT_ID", "").strip()
+        ad_account = env_get("META_AD_ACCOUNT_ID", "").strip()
         if not ad_account:
             return (False, "META_AD_ACCOUNT_ID env var missing.")
         if not ad_account.startswith("act_"):
@@ -109,7 +110,7 @@ class MetaGateway(AdsGateway):
 
         cred = await self._get_creds()
         token = cred["access_token"]  # type: ignore[index]
-        ad_account = os.environ["META_AD_ACCOUNT_ID"].strip()
+        ad_account = env_get("META_AD_ACCOUNT_ID").strip()
 
         try:
             # 1. Campaign — PAUSED. Objective=OUTCOME_TRAFFIC sends
@@ -254,7 +255,7 @@ async def _create_creative(http: httpx.AsyncClient, ad_account: str,
     boosted listing posts as the platform Page, not as the individual
     maker. Phase 2 will let makers connect their own Page.
     """
-    page_id = os.environ.get("META_DEFAULT_PAGE_ID", "").strip()
+    page_id = env_get("META_DEFAULT_PAGE_ID", "").strip()
     if not page_id:
         raise GatewayError("META_DEFAULT_PAGE_ID env var required to create Meta ads.")
 
@@ -443,7 +444,7 @@ async def _create_video_creative(http: httpx.AsyncClient, ad_account: str,
     """
     import json as _json
 
-    page_id = os.environ.get("META_DEFAULT_PAGE_ID", "").strip()
+    page_id = env_get("META_DEFAULT_PAGE_ID", "").strip()
     if not page_id:
         raise GatewayError("META_DEFAULT_PAGE_ID env var required to create Meta ads.")
 

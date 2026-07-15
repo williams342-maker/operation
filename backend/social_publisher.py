@@ -28,6 +28,7 @@ Env vars (all optional — missing one just skips that platform):
   META_GRAPH_VERSION            (optional, default v20.0)
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from typing import Optional
@@ -37,7 +38,7 @@ import httpx
 from core import db, logger, now_iso
 
 
-META_GRAPH_VERSION = os.environ.get("META_GRAPH_VERSION", "v20.0").strip() or "v20.0"
+META_GRAPH_VERSION = env_get("META_GRAPH_VERSION", "v20.0").strip() or "v20.0"
 FB_GRAPH_BASE = f"https://graph.facebook.com/{META_GRAPH_VERSION}"
 PINTEREST_API_BASE = "https://api.pinterest.com/v5"
 
@@ -46,7 +47,7 @@ CHANNELS = ("instagram", "facebook", "pinterest")
 
 # ─────────────────────────── helpers ────────────────────────────
 def _env(key: str) -> str:
-    return (os.environ.get(key) or "").strip()
+    return (env_get(key) or "").strip()
 
 
 def credentials_status() -> dict:
@@ -318,7 +319,7 @@ async def run_auto_publish_sweep(*, limit: int = 50) -> dict:
     No-op (and quiet) when `SOCIAL_AUTO_PUBLISH_ENABLED` env var isn't
     explicitly truthy. The admin keeps full control over rollout.
     """
-    flag = (os.environ.get("SOCIAL_AUTO_PUBLISH_ENABLED") or "").lower()
+    flag = (env_get("SOCIAL_AUTO_PUBLISH_ENABLED") or "").lower()
     if flag not in ("true", "1", "yes", "on"):
         return {"ran": False, "reason": "disabled_via_env"}
 

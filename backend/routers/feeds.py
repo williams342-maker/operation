@@ -21,6 +21,7 @@ job to maintain. Cache-Control: public, max-age=3600 keeps Cloudflare
 serving the same CSV for an hour at the edge.
 """
 from __future__ import annotations
+from config import env_get
 
 import csv
 import io
@@ -36,7 +37,7 @@ from core import db, listing_price_range
 router = APIRouter()
 
 
-SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+SITE_URL = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
 
 
 def _row_for_product(p: dict, maker: dict) -> dict:

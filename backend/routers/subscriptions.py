@@ -17,6 +17,7 @@ Webhook (mounted on /api/stripe/connect/webhook in stripe_connect.py) handles
     customer.subscription.created/updated/deleted, invoice.payment_succeeded
 """
 from __future__ import annotations
+from config import env_get
 import os
 from typing import Optional
 
@@ -454,9 +455,9 @@ async def get_payout_schedule(slug: str = Depends(current_maker_slug)):
         raise HTTPException(404, "Maker not found.")
 
     # Defaults (mirror stripe_connect.connect_onboard).
-    default_interval = os.environ.get("MAKER_PAYOUT_INTERVAL", "weekly").lower()
-    default_delay = int(os.environ.get("MAKER_PAYOUT_DELAY_DAYS", "7"))
-    default_anchor = os.environ.get("MAKER_PAYOUT_WEEKLY_ANCHOR", "friday")
+    default_interval = env_get("MAKER_PAYOUT_INTERVAL", "weekly").lower()
+    default_delay = int(env_get("MAKER_PAYOUT_DELAY_DAYS", "7"))
+    default_anchor = env_get("MAKER_PAYOUT_WEEKLY_ANCHOR", "friday")
 
     if not m.get("stripe_account_id") or not STRIPE_API_KEY:
         return {

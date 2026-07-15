@@ -5,6 +5,7 @@ tab. All endpoints fail-open: any LLM error returns a soft fallback rather
 than a 5xx so makers never see a broken UX during a transient outage.
 """
 from __future__ import annotations
+from config import env_get
 
 import json
 import os
@@ -20,7 +21,7 @@ from core import db, logger, now_iso
 from maker_auth import current_maker_slug
 
 router = APIRouter()
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 
 
 def _claude(system: str, user: str, max_chars: int = 1200) -> dict | None:

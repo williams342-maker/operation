@@ -53,6 +53,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
+from config import env_get, settings
 from core import db, logger, now_iso
 from maker_auth import current_admin
 
@@ -85,23 +86,17 @@ def _redirect_uri() -> str:
     """Resolve the OAuth redirect URI. Explicit env var wins; otherwise
     we derive from PUBLIC_BACKEND_URL so dev/preview/prod each get the
     correct host without redeploying."""
-    explicit = os.environ.get("GOOGLE_ADS_REDIRECT_URI", "").strip()
-    if explicit:
-        return explicit
-    base = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
-    if not base:
-        return ""
-    return f"{base}/api/admin/integrations/google-ads/oauth/callback"
+    return settings.google_ads_redirect()
 
 
 def _config_ok() -> tuple[bool, list[str]]:
     """Return (ready, missing_keys). Used by the status endpoint so the
     admin sees exactly which env vars still need a value."""
     needed = {
-        "GOOGLE_ADS_DEVELOPER_TOKEN": os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN"),
-        "GOOGLE_ADS_CLIENT_ID": os.environ.get("GOOGLE_ADS_CLIENT_ID"),
-        "GOOGLE_ADS_CLIENT_SECRET": os.environ.get("GOOGLE_ADS_CLIENT_SECRET"),
-        "GOOGLE_ADS_LOGIN_CUSTOMER_ID": os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID"),
+        "GOOGLE_ADS_DEVELOPER_TOKEN": settings.google_ads_developer_token,
+        "GOOGLE_ADS_CLIENT_ID": settings.google_ads_client_id,
+        "GOOGLE_ADS_CLIENT_SECRET": settings.google_ads_client_secret,
+        "GOOGLE_ADS_LOGIN_CUSTOMER_ID": settings.google_ads_login_customer_id,
     }
     if not _redirect_uri():
         needed["GOOGLE_ADS_REDIRECT_URI"] = None
@@ -144,7 +139,7 @@ async def oauth_start(_: dict = Depends(current_admin)):
     })
 
     params = {
-        "client_id": os.environ["GOOGLE_ADS_CLIENT_ID"],
+        "client_id": settings.google_ads_client_id,
         "redirect_uri": _redirect_uri(),
         "response_type": "code",
         "scope": " ".join(SCOPES),
@@ -183,7 +178,7 @@ async def oauth_callback(
     minted server-side in `oauth_start`. After persistence we 302 back
     to the AdsTab so the admin lands on a connected dashboard.
     """
-    site = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     err_redirect = f"{site}/admin/dashboard?tab=ads&google_ads=error"
 
     if error:
@@ -211,8 +206,8 @@ async def oauth_callback(
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(TOKEN_URI, data={
                 "code": code,
-                "client_id": os.environ["GOOGLE_ADS_CLIENT_ID"],
-                "client_secret": os.environ["GOOGLE_ADS_CLIENT_SECRET"],
+                "client_id": settings.google_ads_client_id,
+                "client_secret": settings.google_ads_client_secret,
                 "redirect_uri": _redirect_uri(),
                 "grant_type": "authorization_code",
             })
@@ -260,7 +255,7 @@ async def oauth_callback(
             "token_type": tok.get("token_type"),
             "connected_at": now_iso(),
             "login_customer_id": (
-                os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "").replace("-", "")
+                settings.google_ads_login_customer_id.replace("-", "")
             ),
         }},
         upsert=True,
@@ -362,9 +357,9 @@ def _run_gaql_sync(date_str: str, refresh_token: str,
     from google.ads.googleads.client import GoogleAdsClient
 
     client = GoogleAdsClient.load_from_dict({
-        "developer_token": os.environ["GOOGLE_ADS_DEVELOPER_TOKEN"],
-        "client_id": os.environ["GOOGLE_ADS_CLIENT_ID"],
-        "client_secret": os.environ["GOOGLE_ADS_CLIENT_SECRET"],
+        "developer_token": settings.google_ads_developer_token,
+        "client_id": settings.google_ads_client_id,
+        "client_secret": settings.google_ads_client_secret,
         "refresh_token": refresh_token,
         "login_customer_id": login_customer_id,
         "use_proto_plus": True,
@@ -430,7 +425,7 @@ async def sync_metrics(date_str: Optional[str] = None) -> dict:
 
     login_customer_id = (
         cred.get("login_customer_id")
-        or os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "")
+        or settings.google_ads_login_customer_id
     ).replace("-", "")
 
     # iter334t — Operating customer ID is the ad-running account whose
@@ -439,7 +434,7 @@ async def sync_metrics(date_str: Optional[str] = None) -> dict:
     # one account is involved (no MCC).
     operating_customer_id = (
         cred.get("operating_customer_id")
-        or os.environ.get("GOOGLE_ADS_CUSTOMER_ID", "")
+        or settings.google_ads_customer_id
         or login_customer_id
     ).replace("-", "")
 

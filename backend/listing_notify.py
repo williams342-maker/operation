@@ -13,6 +13,7 @@ featured, or maker-flagged), also fire:
   6. A `kind="drop"` activity event (bigger ticker entry)
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import uuid as _uuid
@@ -26,8 +27,8 @@ from email_service import (
 )
 
 
-HIGH_VALUE_PRICE = float(os.environ.get("HIGH_VALUE_PRICE", "250"))
-SITE_URL = os.environ.get("SITE_URL", "https://craftersmarket.org").rstrip("/")
+HIGH_VALUE_PRICE = float(env_get("HIGH_VALUE_PRICE", "250"))
+SITE_URL = env_get("SITE_URL", "https://craftersmarket.org").rstrip("/")
 
 
 def _activity_id() -> str:

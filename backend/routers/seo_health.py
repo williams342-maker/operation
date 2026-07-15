@@ -22,6 +22,7 @@ surface Google actually sees, regardless of which environment runs the
 check.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import os
@@ -337,7 +338,7 @@ async def _ai_diagnose_issues(issues: list[dict]) -> list[dict]:
     import json as _json
     import re as _re
 
-    llm_key = os.environ.get("EMERGENT_LLM_KEY")
+    llm_key = env_get("EMERGENT_LLM_KEY")
     if not llm_key or not issues:
         return issues
     from emergentintegrations.llm.chat import LlmChat, UserMessage

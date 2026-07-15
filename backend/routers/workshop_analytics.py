@@ -26,6 +26,7 @@ external embed compatibility, secret pulled from env), or any admin JWT
 (`Authorization: Bearer ...`) — whichever the caller supplies.
 """
 from __future__ import annotations
+from config import env_get
 import os
 import random
 from collections import defaultdict
@@ -42,7 +43,7 @@ router = APIRouter(prefix="/workshop-analytics", tags=["workshop-analytics"])
 # Secret pulled from env — mirrors the workshop file's static constant
 # but lets us rotate without a redeploy. Falls back to the original
 # default so paste-in compatibility is preserved.
-ANALYTICS_SECRET = os.environ.get(
+ANALYTICS_SECRET = env_get(
     "WORKSHOP_ANALYTICS_TOKEN", "cm-analytics-readonly-2024"
 )
 

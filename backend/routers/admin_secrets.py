@@ -17,6 +17,7 @@ All write operations require super-admin and are audit-logged so you
 have a full history of "who marked X as rotated when."
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timezone, timedelta
@@ -212,7 +213,7 @@ async def secrets_status(_claims: dict = Depends(require_super_admin())):
     out: list[dict] = []
     today = datetime.now(timezone.utc)
     for spec in TRACKED_SECRETS:
-        is_set = any(bool(os.environ.get(k)) for k in spec["env_keys"])
+        is_set = any(bool(env_get(k)) for k in spec["env_keys"])
         last = rows.get(spec["id"])
         last_rotated_at = last.get("created_at") if last else None
         last_rotated_by = last.get("admin_email") if last else None
@@ -354,7 +355,7 @@ async def rotation_history(
 def _stripe_sdk():
     """Return the stripe SDK with API key configured. Raises HTTPException
     if no API key is set."""
-    api_key = os.environ.get("STRIPE_API_KEY") or os.environ.get("STRIPE_SECRET_KEY")
+    api_key = env_get("STRIPE_API_KEY") or env_get("STRIPE_SECRET_KEY")
     if not api_key:
         raise HTTPException(503, "STRIPE_API_KEY not configured")
     import stripe as stripe_sdk
@@ -366,7 +367,7 @@ def _stripe_webhook_target_url(kind: str) -> str:
     """Build the public webhook URL that matches the existing route.
     `kind`="main" -> /api/webhook/stripe, "connect" -> /api/webhook/stripe/connect.
     """
-    base = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+    base = (env_get("PUBLIC_BACKEND_URL") or "").rstrip("/")
     if not base:
         raise HTTPException(503, "PUBLIC_BACKEND_URL not configured — needed to register webhooks")
     path = "/api/webhook/stripe" if kind == "main" else "/api/webhook/stripe/connect"
@@ -683,9 +684,9 @@ async def stripe_webhook_health(_admin: dict = Depends(_current_admin)):
 
     # Configuration sanity — is the secret even loaded?
     out["secrets_configured"] = {
-        "main":    bool((os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()),
-        "connect": bool((os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET") or "").strip()
-                        or (os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()),
+        "main":    bool((env_get("STRIPE_WEBHOOK_SECRET") or "").strip()),
+        "connect": bool((env_get("STRIPE_CONNECT_WEBHOOK_SECRET") or "").strip()
+                        or (env_get("STRIPE_WEBHOOK_SECRET") or "").strip()),
     }
     return out
 
@@ -768,7 +769,7 @@ def _public_hosts() -> list[str]:
     from urllib.parse import urlparse
     hosts: set[str] = set()
     for var in ("PUBLIC_BACKEND_URL", "PUBLIC_SITE_URL", "PUBLIC_APP_URL"):
-        v = (os.environ.get(var) or "").strip()
+        v = (env_get(var) or "").strip()
         if not v:
             continue
         try:
@@ -802,7 +803,7 @@ async def stripe_webhook_endpoints_list(_admin: dict = Depends(_current_admin)):
     from urllib.parse import urlparse
     import asyncio as _asyncio
 
-    api_key = os.environ.get("STRIPE_API_KEY") or os.environ.get("STRIPE_SECRET_KEY")
+    api_key = env_get("STRIPE_API_KEY") or env_get("STRIPE_SECRET_KEY")
     if not api_key:
         return {
             "configured": False,
@@ -950,7 +951,7 @@ async def feeds_status(_admin: dict = Depends(_current_admin)):
     this to prove the platform's crawler is actually fetching, and to
     surface "haven't seen a hit in 36h" warnings."""
     from datetime import datetime, timedelta, timezone
-    PUBLIC = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+    PUBLIC = (env_get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
     now = datetime.now(timezone.utc)
     cutoff_7d = (now - timedelta(days=7)).isoformat()
 

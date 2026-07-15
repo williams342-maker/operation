@@ -31,6 +31,7 @@ Additional helpful columns (Pinterest uses them for category targeting):
 Respects each maker's `external_ads_opt_out` toggle (Settings → Privacy).
 """
 from __future__ import annotations
+from config import env_get
 
 import csv
 import io
@@ -45,7 +46,7 @@ from core import db, listing_price_range
 router = APIRouter()
 
 
-SITE_BASE = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+SITE_BASE = (env_get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
 
 
 def _abs(url: str) -> str:

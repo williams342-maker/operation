@@ -1,3 +1,4 @@
+from config import env_get
 """EnrichLabs read-only data API (iter258 · 2026-05-26).
 
 Read-only JSON endpoints for the EnrichLabs marketing agent to pull
@@ -45,7 +46,7 @@ router = APIRouter(prefix="/enrich/v1", tags=["enrichlabs"])
 def _enrich_key_guard(
     x_enrichlabs_key: Optional[str] = Header(None, alias="X-EnrichLabs-Key"),
 ):
-    expected = (os.environ.get("ENRICHLABS_API_KEY") or "").strip()
+    expected = (env_get("ENRICHLABS_API_KEY") or "").strip()
     if not expected:
         raise HTTPException(503, "EnrichLabs integration not configured.")
     if not x_enrichlabs_key or not secrets.compare_digest(x_enrichlabs_key, expected):
@@ -69,7 +70,7 @@ def _hash_email(email: str) -> str:
     """Stable, salted SHA-256 of a buyer email. Cannot be reversed without
     the salt, but two orders from the same buyer produce the same hash —
     enough for EnrichLabs to compute repeat-buyer rates."""
-    salt = (os.environ.get("ENRICHLABS_HASH_SALT") or "cm-enrich-v1").encode()
+    salt = (env_get("ENRICHLABS_HASH_SALT") or "cm-enrich-v1").encode()
     return hashlib.sha256(salt + (email or "").lower().strip().encode()).hexdigest()[:32]
 
 

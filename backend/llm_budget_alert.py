@@ -24,6 +24,7 @@ Detection signals:
   - emergentintegrations raising a specific exception class
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import re
@@ -49,7 +50,7 @@ _BUDGET_PATTERNS = re.compile(
 )
 
 # Min seconds between two alerts for the same `kind` (24h by default).
-_DEDUP_WINDOW_SECONDS = int(os.environ.get("LLM_BUDGET_ALERT_DEDUP_SECONDS", "86400"))
+_DEDUP_WINDOW_SECONDS = int(env_get("LLM_BUDGET_ALERT_DEDUP_SECONDS", "86400"))
 
 
 def is_budget_exhaustion_error(err: Exception | str) -> bool:

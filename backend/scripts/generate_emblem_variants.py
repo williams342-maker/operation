@@ -17,6 +17,7 @@ Run once from the backend container:
     cd /app/backend && python scripts/generate_emblem_variants.py
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import base64
@@ -45,7 +46,7 @@ def _load_master_b64() -> str:
 
 async def _generate(prompt: str, dest: Path, master_b64: str) -> bool:
     """Single image-to-image generation. Returns True on success."""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print(f"  [{dest.name}] EMERGENT_LLM_KEY missing — skipping")
         return False

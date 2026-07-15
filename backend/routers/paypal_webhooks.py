@@ -17,13 +17,13 @@ POST /api/webhooks/paypal
 """
 import base64
 import json
-import os
 import time
 
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from config import env_get, settings
 from core import db, logger, now_iso
 
 router = APIRouter(prefix="", tags=["paypal-webhooks"])
@@ -43,16 +43,14 @@ _REQUIRED_HEADERS = [
 
 
 def _config() -> dict:
-    env = (os.environ.get("PAYPAL_ENVIRONMENT") or "sandbox").strip().lower()
-    if env not in _API_BASE:
-        env = "sandbox"
-    suffix = "LIVE" if env == "live" else "SANDBOX"
+    cfg = settings.paypal_mode_config()
+    env = cfg["env"] if cfg["env"] in _API_BASE else "sandbox"
     return {
         "env": env,
         "base": _API_BASE[env],
-        "client_id": (os.environ.get(f"PAYPAL_CLIENT_ID_{suffix}") or "").strip(),
-        "client_secret": (os.environ.get(f"PAYPAL_CLIENT_SECRET_{suffix}") or "").strip(),
-        "webhook_id": (os.environ.get(f"PAYPAL_WEBHOOK_ID_{suffix}") or "").strip(),
+        "client_id": cfg["client_id"],
+        "client_secret": cfg["client_secret"],
+        "webhook_id": cfg["webhook_id"],
     }
 
 
@@ -70,8 +68,8 @@ def _checkout_config() -> dict:
       3. primary PAYPAL_WEBHOOK_ID_{SANDBOX|LIVE}"""
     cfg = _config()
     suffix = "LIVE" if cfg["env"] == "live" else "SANDBOX"
-    dedicated = ((os.environ.get(f"PAYPAL_CHECKOUT_WEBHOOK_ID_{suffix}") or "").strip()
-                 or (os.environ.get("PAYPAL_CHECKOUT_WEBHOOK_ID") or "").strip())
+    dedicated = (env_get(f"PAYPAL_CHECKOUT_WEBHOOK_ID_{suffix}", "").strip()
+                 or env_get("PAYPAL_CHECKOUT_WEBHOOK_ID", "").strip())
     if dedicated:
         cfg = {**cfg, "webhook_id": dedicated}
     return cfg
@@ -88,9 +86,9 @@ def _payout_config() -> dict:
          the existing webhook instead of a dedicated one)"""
     cfg = _config()
     suffix = "LIVE" if cfg["env"] == "live" else "SANDBOX"
-    dedicated = ((os.environ.get(f"PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_{suffix}") or "").strip()
-                 or (os.environ.get("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID") or "").strip()
-                 or (os.environ.get(f"PAYPAL_PAYOUT_WEBHOOK_ID_{suffix}") or "").strip())
+    dedicated = (env_get(f"PAYPAL_PAYOUT_STATUS_WEBHOOK_ID_{suffix}", "").strip()
+                 or env_get("PAYPAL_PAYOUT_STATUS_WEBHOOK_ID", "").strip()
+                 or env_get(f"PAYPAL_PAYOUT_WEBHOOK_ID_{suffix}", "").strip())
     if dedicated:
         cfg = {**cfg, "webhook_id": dedicated}
     return cfg

@@ -18,6 +18,7 @@ The token itself is stateless (URLSafeTimedSerializer) — see
 ``maker_auth.issue_application_verify_token``.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timezone
@@ -200,7 +201,7 @@ async def admin_resend_application_verification(
         {"$set": {"email_verification_sent_at": now_iso_str}},
     )
 
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     token = issue_application_verify_token(app_id, row.get("email") or "")
     verify_url = f"{site}/apply/verify?token={token}"
     bg.add_task(

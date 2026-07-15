@@ -1,3 +1,4 @@
+from config import env_get
 """Community design files: upload, variants, conversions, downloads, reports.
 
 Carved out of `routers/community.py` (Feb 2026 refactor).
@@ -848,8 +849,8 @@ async def unlock_checkout(claims: dict = Depends(current_buyer)):
             },
             "quantity": 1,
         }],
-        success_url=f"{os.environ.get('PUBLIC_SITE_URL', '').rstrip('/')}/community?unlocked=1",
-        cancel_url=f"{os.environ.get('PUBLIC_SITE_URL', '').rstrip('/')}/community",
+        success_url=f"{env_get('PUBLIC_SITE_URL', '').rstrip('/')}/community?unlocked=1",
+        cancel_url=f"{env_get('PUBLIC_SITE_URL', '').rstrip('/')}/community",
         metadata={"kind": "downloads_unlock", "user_id": user_id, "user_email": user["email"]},
     )
     expires_at = (datetime.now(timezone.utc) + timedelta(days=DOWNLOAD_WINDOW_DAYS)).isoformat()

@@ -17,6 +17,7 @@ The frontend (SettingsTab → DiagCard) renders three coloured pills:
 All three endpoints require the admin JWT (same gate as /admin/stripe/diag).
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from typing import Optional
@@ -44,7 +45,7 @@ async def shippo_diag(_: dict = Depends(current_admin)):
     """Probe Shippo by listing one carrier account — cheapest auth-only
     call that doesn't create any state. Surfaces test vs live mode from
     the key prefix (`shippo_test_` vs `shippo_live_`)."""
-    key = os.environ.get("SHIPPO_API_KEY", "")
+    key = env_get("SHIPPO_API_KEY", "")
     if not key:
         return {
             "ok": False,
@@ -102,9 +103,9 @@ async def mailgun_diag(_: dict = Depends(current_admin)):
     verification in one call. Surfaces the region (us/eu) since a
     mismatch is Mailgun's #1 silent failure mode (404 "domain not
     found" when you're actually on the EU stack)."""
-    key = os.environ.get("MAILGUN_API_KEY", "")
-    domain = os.environ.get("MAILGUN_DOMAIN", "")
-    region = (os.environ.get("MAILGUN_REGION") or "us").lower()
+    key = env_get("MAILGUN_API_KEY", "")
+    domain = env_get("MAILGUN_DOMAIN", "")
+    region = (env_get("MAILGUN_REGION") or "us").lower()
     if not key or not domain:
         missing = []
         if not key:
@@ -168,11 +169,11 @@ async def r2_diag(_: dict = Depends(current_admin)):
     misconfigured custom-domain alias, not a bad key)."""
     import r2_storage
     missing = [k for k, v in {
-        "R2_ACCOUNT_ID": os.environ.get("R2_ACCOUNT_ID", ""),
-        "R2_ACCESS_KEY_ID": os.environ.get("R2_ACCESS_KEY_ID", ""),
-        "R2_SECRET_ACCESS_KEY": os.environ.get("R2_SECRET_ACCESS_KEY", ""),
-        "R2_BUCKET": os.environ.get("R2_BUCKET", ""),
-        "R2_PUBLIC_URL": os.environ.get("R2_PUBLIC_URL", ""),
+        "R2_ACCOUNT_ID": env_get("R2_ACCOUNT_ID", ""),
+        "R2_ACCESS_KEY_ID": env_get("R2_ACCESS_KEY_ID", ""),
+        "R2_SECRET_ACCESS_KEY": env_get("R2_SECRET_ACCESS_KEY", ""),
+        "R2_BUCKET": env_get("R2_BUCKET", ""),
+        "R2_PUBLIC_URL": env_get("R2_PUBLIC_URL", ""),
     }.items() if not v]
     if missing:
         return {
@@ -181,7 +182,7 @@ async def r2_diag(_: dict = Depends(current_admin)):
                       "Generate keys at Cloudflare dashboard → R2 → Manage R2 API Tokens.",
         }
     for env_key in ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"):
-        if _looks_placeholder(os.environ.get(env_key, "")):
+        if _looks_placeholder(env_get(env_key, "")):
             return {
                 "ok": False,
                 "reason": f"{env_key} is a `****`-masked Emergent pod placeholder. "

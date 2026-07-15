@@ -6,6 +6,8 @@ import os
 import re
 
 from fastapi import APIRouter, FastAPI
+
+from config import env_get
 from starlette.middleware.cors import CORSMiddleware
 
 from core import client, db, logger
@@ -360,6 +362,8 @@ from routers.order_cancellation import router as order_cancellation_router  # it
 api.include_router(order_cancellation_router)
 from routers.inform_act import router as inform_act_router  # iter462
 api.include_router(inform_act_router)
+from routers.returns_cases import router as returns_cases_router
+api.include_router(returns_cases_router)
 
 app.include_router(api)
 
@@ -377,7 +381,7 @@ app.add_middleware(CanonicalHostRedirectMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=env_get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -417,7 +421,32 @@ async def auto_invalidate_products_cache(request, call_next):
 
 @app.on_event("startup")
 async def on_startup():
-    skip_db_bootstrap = os.environ.get("SKIP_STARTUP_DB_BOOTSTRAP", "").lower() in {
+    try:
+        from config import settings, validate_startup_config as validate_backend_config
+        validate_backend_config()
+        logger.info("[config] startup configuration ok: %s", settings.summary())
+    except RuntimeError as exc:
+        logger.error("[config] startup configuration error: %s", exc)
+        raise
+
+    try:
+        from r2_storage import validate_startup_config, verify_storage_operations
+        r2_status = validate_startup_config()
+        if r2_status.get("configured"):
+            logger.info(
+                "[r2] configured bucket=%s endpoint=%s",
+                r2_status.get("bucket"),
+                r2_status.get("endpoint"),
+            )
+            if env_get("R2_SELF_CHECK_ON_STARTUP", "").lower() in {"1", "true", "yes", "on"}:
+                logger.info("[r2] self-check result=%s", verify_storage_operations())
+        else:
+            logger.warning("[r2] not configured; set all R2_* env vars to enable object storage")
+    except RuntimeError as exc:
+        logger.error("[r2] startup configuration error: %s", exc)
+        raise
+
+    skip_db_bootstrap = env_get("SKIP_STARTUP_DB_BOOTSTRAP", "").lower() in {
         "1",
         "true",
         "yes",
@@ -450,7 +479,7 @@ async def on_startup():
     # unset so dev stacks don't pollute the Shippo account with preview URLs.
     try:
         import shippo_service
-        public_backend = os.environ.get("PUBLIC_BACKEND_URL", "").rstrip("/")
+        public_backend = env_get("PUBLIC_BACKEND_URL", "").rstrip("/")
         if public_backend and shippo_service.is_configured():
             res = shippo_service.ensure_tracking_webhook(f"{public_backend}/api/shippo/webhook")
             logger.info("[shippo] webhook registration: %s", res)
@@ -525,6 +554,8 @@ async def on_startup():
         await ensure_clip_product_indexes()
         from routers.policy_versions import ensure_policy_indexes
         await ensure_policy_indexes()
+        from routers.returns_cases import ensure_return_case_indexes
+        await ensure_return_case_indexes()
     except Exception:
         logger.exception("[clips] clip-product index init failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")

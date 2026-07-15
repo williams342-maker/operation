@@ -1,3 +1,4 @@
+from config import env_get
 """iter452 — Store Analytics (Phase 3).
 
 Maker-facing analytics over the first-party store_events pipeline +
@@ -508,7 +509,7 @@ async def _ai_summary(slug: str, days: int, recs: list) -> str | None:
         {"maker_slug": slug, "days": days}, {"_id": 0})
     if cached and cached.get("date") == today and cached.get("facts_hash") == facts_hash:
         return cached.get("summary")
-    key = os.environ.get("EMERGENT_LLM_KEY", "")
+    key = env_get("EMERGENT_LLM_KEY", "")
     if not key:
         return None
     try:

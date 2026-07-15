@@ -11,6 +11,7 @@ Backend checklist mirrors the figma mock:
          → first_engagement → tour_completed
 """
 from __future__ import annotations
+from config import env_get
 import logging
 from typing import Optional
 
@@ -227,7 +228,7 @@ async def _send_welcome_email(state: dict) -> None:
         ]
 
     import os
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     cta_url = f"{site}{cta_path}"
 
     items_html = "".join(

@@ -1,3 +1,4 @@
+from config import env_get
 """
 Build the Community Design Library seed for the existing `design_files`
 collection (the one the public Community page renders).
@@ -251,7 +252,7 @@ async def _generate_preview(slug: str, prompt: str) -> str:
     except Exception:
         print(f"  [warn] emergentintegrations not available, skipping {slug}")
         return public
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print(f"  [warn] EMERGENT_LLM_KEY not set, skipping {slug}")
         return public

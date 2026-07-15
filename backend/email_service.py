@@ -15,28 +15,14 @@ slots are the same (so misconfiguration can't burn three slots on the same vendo
 """
 import os
 import asyncio
+import html
 import logging
-from pathlib import Path
 from typing import Optional
 
 import httpx
 import resend
-from dotenv import load_dotenv, dotenv_values
 
-# iter224 — Selective override mirrors core.py: load .env without globally
-# overriding the OS env (so production K8s vars keep winning), then for
-# email-integration keys, replace any OS value that looks like an Emergent
-# pod placeholder (`****` mask). Keeps preview workable with real keys
-# while leaving production untouched.
-_ENV_PATH = Path(__file__).parent / ".env"
-if _ENV_PATH.exists():
-    load_dotenv(_ENV_PATH, override=False)
-    for _k, _v in dotenv_values(_ENV_PATH).items():
-        if not _v:
-            continue
-        _cur = os.environ.get(_k, "")
-        if _cur and "****" in _cur:
-            os.environ[_k] = _v
+from config import env_get, settings
 
 logger = logging.getLogger("crafters.email")
 logger.setLevel(logging.INFO)
@@ -46,35 +32,35 @@ if not logger.handlers:
     logger.addHandler(h)
 logger.propagate = True
 
-EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "mailtrap").lower()
-EMAIL_FALLBACK_PROVIDER = os.environ.get("EMAIL_FALLBACK_PROVIDER", "postmark").lower()
+EMAIL_PROVIDER = settings.email_provider
+EMAIL_FALLBACK_PROVIDER = settings.email_fallback_provider
 # 3rd link in the chain. Defaults to "" (disabled) so existing 2-link
 # deploys keep their behaviour unchanged. To get the user's requested
 # Mailgun → Postmark → Mailtrap chain, set:
 #   EMAIL_PROVIDER=mailgun
 #   EMAIL_FALLBACK_PROVIDER=postmark
 #   EMAIL_FALLBACK_PROVIDER_2=mailtrap
-EMAIL_FALLBACK_PROVIDER_2 = os.environ.get("EMAIL_FALLBACK_PROVIDER_2", "").lower()
+EMAIL_FALLBACK_PROVIDER_2 = settings.email_fallback_provider_2
 
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
-MAILERSEND_API_KEY = os.environ.get("MAILERSEND_API_KEY", "")
-SENDER_API_KEY = os.environ.get("SENDER_API_KEY", "")
-POSTMARK_API_KEY = os.environ.get("POSTMARK_API_KEY", "")
-POSTMARK_MESSAGE_STREAM = os.environ.get("POSTMARK_MESSAGE_STREAM", "outbound")
-MAILTRAP_API_KEY = os.environ.get("MAILTRAP_API_KEY", "")
+RESEND_API_KEY = settings.resend_api_key
+BREVO_API_KEY = env_get("BREVO_API_KEY", "")
+MAILERSEND_API_KEY = env_get("MAILERSEND_API_KEY", "")
+SENDER_API_KEY = env_get("SENDER_API_KEY", "")
+POSTMARK_API_KEY = env_get("POSTMARK_API_KEY", "")
+POSTMARK_MESSAGE_STREAM = env_get("POSTMARK_MESSAGE_STREAM", "outbound")
+MAILTRAP_API_KEY = env_get("MAILTRAP_API_KEY", "")
 # Mailgun (REST API). Region is "us" (default) or "eu" — Mailgun runs two
 # isolated stacks; calling the wrong region returns 404 with a confusing
 # "domain not found" body. The domain is the *sending* subdomain
 # verified in the Mailgun dashboard, e.g. "mg.craftersmarket.org".
-MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
-MAILGUN_DOMAIN = os.environ.get("MAILGUN_DOMAIN", "")
-MAILGUN_REGION = os.environ.get("MAILGUN_REGION", "us").lower()
+MAILGUN_API_KEY = env_get("MAILGUN_API_KEY", "")
+MAILGUN_DOMAIN = env_get("MAILGUN_DOMAIN", "")
+MAILGUN_REGION = env_get("MAILGUN_REGION", "us").lower()
 
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "team@craftersmarket.org")
-SENDER_NAME = os.environ.get("SENDER_NAME", "Crafters Market")
-OPS_EMAIL = os.environ.get("OPS_EMAIL", "")
-BETA_NOTIFY_EMAIL = os.environ.get("BETA_NOTIFY_EMAIL", "") or OPS_EMAIL
+SENDER_EMAIL = env_get("SENDER_EMAIL", "team@craftersmarket.org")
+SENDER_NAME = env_get("SENDER_NAME", "Crafters Market")
+OPS_EMAIL = settings.ops_email
+BETA_NOTIFY_EMAIL = env_get("BETA_NOTIFY_EMAIL", "") or OPS_EMAIL
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -498,7 +484,7 @@ def _shell(title: str, intro: str, body_html: str, footer: str = "") -> str:
     # fixed-width left cell and the wordmark in a flexible right cell.
     # Outlook/Yahoo mangle CSS flexbox; tables are the only reliable
     # primitive across the email client matrix.
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     monogram_url = f"{site}/icons/logo-monogram-transparent.png"
     return f"""
     <div style="background:#0a0a0a;padding:40px 16px;font-family:'JetBrains Mono','Courier New',monospace;color:#e5e5e5">
@@ -628,7 +614,7 @@ async def send_buyer_receipt(buyer_email: str, summary: str, total: float, items
     # order-confirmation email so buyers can grab a polished branded
     # PDF straight from their inbox for records / gifting / expenses.
     # Endpoint is gated only by the unguessable Stripe session_id.
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     if session_id:
         pdf_url = f"{site}/api/checkout/{session_id}/receipt.pdf"
         body += (
@@ -697,8 +683,8 @@ async def send_buyer_digital_downloads(
     """
     if not buyer_email or not downloads:
         return
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
-    api_base = (os.environ.get("BACKEND_URL") or site).rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    api_base = (env_get("BACKEND_URL") or site).rstrip("/")
 
     rows = ""
     for d in downloads:
@@ -763,7 +749,7 @@ async def send_buyer_review_prompt(
     """
     if not buyer_email or not items:
         return
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     seen_makers: set[str] = set()
     cta_html = ""
     for it in items:
@@ -850,7 +836,7 @@ async def send_admin_edited_design_file(
             f"<td style='padding:0 0 14px;color:#e5e5e5;font-size:13px;line-height:1.5;border-bottom:1px solid #262626'>→ {after}</td>"
             "</tr>"
         )
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     body = (
         "<p style='font-size:13px;color:#e5e5e5;margin:0 0 14px;line-height:1.6'>"
         f"Heads up{(' ' + poster_name) if poster_name else ''} — a Crafters Market admin made some tidy-up edits to your community design file "
@@ -1201,7 +1187,7 @@ async def send_ops_new_custom_order(name: str, email: str, project_type: str, ma
 
 
 async def send_buyer_custom_ack(buyer_email: str, name: str, project_type: str, tracking_number: str | None = None):
-    site_url = os.environ.get("PUBLIC_SITE_URL", "https://craftersmarket.org")
+    site_url = env_get("PUBLIC_SITE_URL", "https://craftersmarket.org")
     track_link = (
         f"<p style='font-size:13px;color:#a3a3a3;line-height:1.6;margin-top:14px'>"
         f"Your tracking number: <b style='color:#ff4500;font-family:monospace;letter-spacing:1px'>{tracking_number}</b><br/>"
@@ -1231,7 +1217,7 @@ async def send_admin_brief_message(
     standard branded shell. `is_for_maker` flips the chrome copy from
     "we're updating you on your brief" → "here's an admin note on a brief
     assigned to you" so makers know to act on it."""
-    site_url = os.environ.get("PUBLIC_SITE_URL", "https://craftersmarket.org")
+    site_url = env_get("PUBLIC_SITE_URL", "https://craftersmarket.org")
     safe_msg = (message_body or "").replace("\n", "<br/>")
     track_link = (
         f"<p style='font-size:12px;color:#a3a3a3;line-height:1.6;margin-top:18px'>"
@@ -1275,7 +1261,7 @@ async def send_buyer_shipped(
     if not buyer_email:
         return None
     name = (buyer_name or "there").split()[0]
-    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+    site = (env_get("PUBLIC_SITE_URL") or env_get("FRONTEND_URL")
             or "https://craftersmarket.org").rstrip("/")
     carrier_clean = (carrier or "").strip()
     carrier_lc = carrier_clean.lower()
@@ -1453,7 +1439,7 @@ async def send_maker_backorder_alert(
 ):
     if not maker_email:
         return None
-    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+    site = (env_get("PUBLIC_SITE_URL") or env_get("FRONTEND_URL")
             or "https://craftersmarket.org").rstrip("/")
     body = (
         f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
@@ -1580,7 +1566,7 @@ async def send_buyer_delivered(
     so we capitalise on the delivery moment for UGC. Idempotency is
     enforced at the call site (webhook writes `delivered_email_sent=True`
     on the order tx doc before calling this)."""
-    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     name = (buyer_name or "there").split()[0]
     body = (
         f"<p style='font-size:14px;color:#e5e5e5;line-height:1.6'>Hi {name}, your package just arrived.</p>"
@@ -1637,7 +1623,7 @@ async def send_maker_new_order(maker_email: str, maker_name: str,
     # Deep-link to the Orders tab so the maker can print labels / mark
     # shipped in one click. `?tab=orders` (not `#orders`) because email
     # link-rewriters often strip URL fragments.
-    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+    site = (env_get("PUBLIC_SITE_URL") or env_get("FRONTEND_URL")
             or "https://craftersmarket.org").rstrip("/")
     body += (
         f"<div style='margin-top:22px'>"
@@ -1690,7 +1676,7 @@ async def send_maker_listing_renewed(
         ).strftime("%b %d, %Y")
     except Exception:
         nice_date = new_expiry_iso
-    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    base = env_get("PUBLIC_APP_URL") or "https://craftersmarket.org"
     listing_url = f"{base}/shop/{product_slug}"
     body = (
         "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
@@ -1730,7 +1716,7 @@ async def send_maker_listing_expiring_soon(
         ).strftime("%b %d, %Y")
     except Exception:
         nice_date = expires_at_iso
-    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    base = env_get("PUBLIC_APP_URL") or "https://craftersmarket.org"
     edit_url = f"{base}/maker/listings/{product_slug}/edit"
     body = (
         "<p style='font-size:14px;color:#e5e5e5;line-height:1.6;margin:0 0 18px'>"
@@ -1775,7 +1761,7 @@ async def send_maker_renewal_digest(
     """
     if not maker_email or not listings:
         return None
-    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    base = env_get("PUBLIC_APP_URL") or "https://craftersmarket.org"
     renewals_url = f"{base}/maker/dashboard?tab=renewals"
 
     def _fmt(iso: str) -> str:
@@ -1858,7 +1844,7 @@ async def send_maker_pricing_digest(
     underpriced = underpriced or []
     if not maker_email or (not flagged and not underpriced):
         return None
-    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    base = env_get("PUBLIC_APP_URL") or "https://craftersmarket.org"
     n_above = len(flagged)
     n_below = len(underpriced)
     total = n_above + n_below
@@ -1974,7 +1960,7 @@ async def send_maker_smart_paused(
     """
     if not maker_email or paused_count <= 0:
         return None
-    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    base = env_get("PUBLIC_APP_URL") or "https://craftersmarket.org"
     dash_url = f"{base}/maker/dashboard#listings"
     sample_rows = ""
     if samples:
@@ -2035,7 +2021,7 @@ async def send_maker_trial_ending_soon(
     maker either confirm their card or cancel before the first charge."""
     if not maker_email:
         return None
-    base = os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org"
+    base = env_get("PUBLIC_APP_URL") or "https://craftersmarket.org"
     billing_url = f"{base}/maker/dashboard#settings"
     end_str = "in 3 days"
     if trial_end_ts:
@@ -2202,7 +2188,7 @@ def render_application_decision_email(
             f"We're not moving forward right now."
         )
     if approved:
-        site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+        site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
         link = sign_in_link or f"{site}/maker/login"
         # Founder tier banner (iter153) — every approved maker is now a
         # Founder. Render a numbered card with status so they immediately
@@ -2336,7 +2322,7 @@ async def send_founder_expiry_warning(maker_email: str, name: str,
     monogram + tagline alongside every other transactional email.
     Previously this template built its own chrome and was the only
     surface still missing the rebrand."""
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     subj = f"Your Founder rate ends in {days_remaining} days — Crafters Market"
     intro = (
         f"Hey {name} — you've been part of the founding 100 (#{founder_number:03d}) for "
@@ -2380,7 +2366,7 @@ async def send_founder_farewell(maker_email: str, name: str, founder_number: int
 
     iter413ai — wrapped in _shell() to inherit the brand monogram +
     tagline like every other transactional email."""
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     subj = "Thank you for being a Founder — Crafters Market"
     intro = (
         f"Hey {name} — we wanted to take a moment to say thank you. You shipped your first listings, "
@@ -2534,7 +2520,7 @@ async def send_beta_feedback_resolved(name: str, email: str, message: str, page:
     if not email:
         return
     safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
     body = (
@@ -2567,7 +2553,7 @@ async def send_contact_message_resolved(name: str, email: str, message: str, sub
         return
     safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
     safe_subj = (subject or "").replace("<", "&lt;").replace(">", "&gt;")
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
     body = (
@@ -2654,7 +2640,7 @@ async def send_contact_message_autoreply(
 # ============================================================
 #  Listing-publish notifications (maker confirm + ops + followers)
 # ============================================================
-SITE_URL = os.environ.get("SITE_URL", "https://craftersmarket.org").rstrip("/")
+SITE_URL = env_get("SITE_URL", "https://craftersmarket.org").rstrip("/")
 
 
 def _listing_card(title: str, image: str | None, price: float, listing_url: str) -> str:
@@ -2814,7 +2800,7 @@ async def send_dm_to_maker(
     Maker Shop Manager. Replying happens on-site — Reply-To is intentionally
     NOT set on transactional sends so makers don't reply directly to the
     buyer's inbox bypassing the audit trail."""
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     open_url = f"{site}/maker/dashboard#messages?thread={thread_id}"
     intro = (
         f"You have a new message from <strong style='color:#e5e5e5'>{sender_display or sender_email}</strong>"
@@ -2841,7 +2827,7 @@ async def send_dormant_buyer_reengage(buyer_email: str, code: str, pct: int, exp
     """Dormant-buyer win-back email. One-time discount code, marketplace-wide."""
     if not buyer_email:
         return None
-    site = (os.environ.get("FRONTEND_URL") or os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     intro = (
         "Hand-built CNC art doesn't show up in everyone's feed. "
         "We saved you a one-time code so you can come back and grab something new."
@@ -2876,7 +2862,7 @@ async def send_dm_to_buyer(
     maker_name: str, subject: str, body: str, thread_id: str,
 ):
     """Notify a buyer that a maker replied to their DM thread."""
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     open_url = f"{site}/messages?thread={thread_id}"
     intro = (
         f"<strong style='color:#e5e5e5'>{maker_name}</strong> replied to your message on Crafters Market."
@@ -3027,7 +3013,7 @@ async def send_ops_prod_recovery(*, endpoint: str, downtime_minutes: int):
 # updates_digest.py whenever new CHANGELOG entries are detected.
 # ------------------------------------------------------------------
 async def send_updates_digest(*, email: str, name: str, entries: list, unsubscribe_token: str):
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"  # belt-and-suspenders
     unsub = f"{site}/api/updates/unsubscribe?token={unsubscribe_token}"
@@ -3095,7 +3081,7 @@ async def send_ops_updates_dispatch_summary(*, advanced_to: str, new_entries: in
 # ------------------------------------------------------------------
 async def send_maker_restock_digest(*, email: str, name: str,
                                     products: list, total_pending: int):
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
     items = []
@@ -3134,7 +3120,7 @@ async def send_maker_restock_digest(*, email: str, name: str,
 async def send_maker_shop_health_digest(*, email: str, name: str,
                                         pending_orders: list, restock: list,
                                         restock_total: int, feed_quality: list):
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
 
@@ -3215,7 +3201,7 @@ async def send_maker_shop_health_digest(*, email: str, name: str,
 async def send_coming_soon_confirmation(*, email: str, name: str, category: str):
     if not email:
         return
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
     greet = f"Hey {name}," if name else "Hey,"
@@ -3241,7 +3227,7 @@ async def send_coming_soon_confirmation(*, email: str, name: str, category: str)
 async def send_updates_subscribe_welcome(*, email: str, name: str, unsubscribe_token: str = ""):
     if not email:
         return
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
     unsub = f"{site}/api/updates/unsubscribe?token={unsubscribe_token}" if unsubscribe_token else ""
@@ -3280,7 +3266,7 @@ async def send_coming_soon_launch_announcement(*, email: str, name: str, categor
                                                 shop_path: str = "/shop"):
     if not email:
         return
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.lower().endswith(".emergentagent.com") or "preview." in site.lower():
         site = "https://craftersmarket.org"
     # Allow per-launch deep-link override (e.g. `/shop?category=Neon`).
@@ -3320,7 +3306,7 @@ async def send_maker_journal_digest(
     follows. `posts` is a list of `{slug, title, excerpt, cover, read_min}`.
     Designed to read like a curated one-from-the-shop note — not a generic
     blast — so makers feel like the digest carries their voice."""
-    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+    site = (env_get("PUBLIC_SITE_URL") or env_get("FRONTEND_URL")
             or "https://craftersmarket.org").rstrip("/")
     n = len(posts)
     intro_word = "post" if n == 1 else "posts"
@@ -3698,7 +3684,7 @@ async def send_ops_webhook(*, title: str, text: str, url: str | None = None,
     """Post a single-line alert to Slack or Discord. Returns True on
     dispatch, False if OPS_WEBHOOK_URL is empty or the HTTP call fails.
     Never raises — caller can fire-and-forget."""
-    hook = (os.environ.get("OPS_WEBHOOK_URL") or "").strip()
+    hook = (env_get("OPS_WEBHOOK_URL") or "").strip()
     if not hook:
         return False
     import httpx
@@ -3744,7 +3730,7 @@ async def send_maker_paypal_email_needed(maker_email: str, maker_name: str,
     """Maker earned a PayPal-paid sale but has no PayPal email on file."""
     if not maker_email:
         return None
-    site = (os.environ.get("PUBLIC_SITE_URL") or os.environ.get("FRONTEND_URL")
+    site = (env_get("PUBLIC_SITE_URL") or env_get("FRONTEND_URL")
             or "https://craftersmarket.org").rstrip("/")
     body = (
         f"<p style='font-size:14px;line-height:1.7;color:#e5e5e5'>You've earned a payout on "
@@ -3898,7 +3884,7 @@ async def send_policy_update_notice(*, maker_email: str, maker_name: str, notice
     effective = (notice.get("effective_at") or "").replace("T", " ")[:16]
     published = (notice.get("published_at") or "").replace("T", " ")[:16]
     summary = notice.get("summary") or "Please review the updated policy."
-    full_url = (os.environ.get("FRONTEND_BASE_URL") or "https://craftersmarket.org").rstrip("/") + (notice.get("url") or "/policies")
+    full_url = (env_get("FRONTEND_BASE_URL") or "https://craftersmarket.org").rstrip("/") + (notice.get("url") or "/policies")
     ack = "Acknowledgement is required." if notice.get("acknowledgement_required") else "No acknowledgement is required."
     body = (
         f"<p style='color:#a3a3a3;line-height:1.7'>Hi {maker_name or 'Maker'},</p>"
@@ -3909,3 +3895,19 @@ async def send_policy_update_notice(*, maker_email: str, maker_name: str, notice
     )
     html = _shell("Policy update", f"{title} v{version}", body, "Policy notice")
     return await _send(maker_email, f"[Crafters Market] Policy update: {title} v{version}", html)
+
+async def send_return_case_notice(*, email: str, title: str, body: str, case_number: str, case_id: str | None = None):
+    """Transactional Returns & Dispute Center notice."""
+    if not email:
+        return {"ok": False, "skipped": "missing_recipient"}
+    base = (env_get("FRONTEND_BASE_URL") or "https://craftersmarket.org").rstrip("/")
+    url = f"{base}/purchases?case={case_id or ''}"
+    safe_title = html.escape(title or "Case update")
+    safe_body = html.escape(body or "There is an update on your return or dispute case.")
+    safe_case = html.escape(case_number or "case")
+    content = (
+        f"<p style='color:#a3a3a3;line-height:1.7'>Case <b>{safe_case}</b> has an update.</p>"
+        f"<div style='border-left:3px solid #ff4500;padding-left:14px;color:#d4d4d4;line-height:1.7'>{safe_body}</div>"
+        f"<p style='margin-top:18px'><a href='{url}' style='color:#ff4500'>Open the case center</a></p>"
+    )
+    return await _send(email, f"[Crafters Market] {safe_title} · {safe_case}", _shell(safe_title, safe_case, content, "Returns & Dispute Center"))

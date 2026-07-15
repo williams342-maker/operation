@@ -1,3 +1,4 @@
+from config import env_get
 """Community auth: Google OAuth handshake, magic-link sign-in, EUA gate, profile.
 
 Carved out of `routers/community.py` (Feb 2026 refactor). The `/community/me/avatar`
@@ -22,7 +23,7 @@ from .community_common import CURRENT_EUA_VERSION
 
 router = APIRouter()
 
-EMERGENT_AUTH_URL = os.environ.get(
+EMERGENT_AUTH_URL = env_get(
     "EMERGENT_AUTH_URL",
     "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
 )

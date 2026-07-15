@@ -21,9 +21,9 @@ to env and finalizes.
 """
 from __future__ import annotations
 
-import os
 from typing import Optional
 
+from config import settings
 from core import db, logger
 
 
@@ -38,10 +38,9 @@ async def get_active_webhook_secrets(kind: str = "main") -> list[str]:
     """
     secrets: list[str] = []
     if kind == "connect":
-        env = (os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET")
-               or os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()
+        env = settings.stripe_connect_webhook_secret.strip()
     else:
-        env = (os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()
+        env = settings.stripe_webhook_secret.strip()
     if env:
         secrets.append(env)
 

@@ -13,6 +13,8 @@ Usage:
     python -m scripts.swap_r2_host --old <a> --new <b> --dry-run
 """
 from __future__ import annotations
+
+from config import settings
 import argparse
 import asyncio
 import os
@@ -32,8 +34,8 @@ async def main(old: str, new: str, dry: bool) -> int:
     if old == new:
         print("old and new are identical — nothing to do.")
         return 0
-    mongo = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = mongo[os.environ["DB_NAME"]]
+    mongo = AsyncIOMotorClient(settings.mongo_url)
+    db = mongo[settings.db_name]
 
     total = touched = errors = 0
     async for p in db.products.find({}, {"_id": 0, "slug": 1, "images": 1, "model_url": 1}):

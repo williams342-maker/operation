@@ -24,6 +24,7 @@ Endpoints:
 - `POST /api/admin/reddit/refresh`             — bust the cache
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import os
@@ -67,7 +68,7 @@ _token_lock = asyncio.Lock()
 
 
 def _credentials_present() -> bool:
-    return bool(os.environ.get("REDDIT_CLIENT_ID")) and bool(os.environ.get("REDDIT_CLIENT_SECRET"))
+    return bool(env_get("REDDIT_CLIENT_ID")) and bool(env_get("REDDIT_CLIENT_SECRET"))
 
 
 # ---------------- Mongo helpers ----------------
@@ -107,7 +108,7 @@ async def _get_bearer_token() -> Optional[str]:
             ) as client:
                 r = await client.post(
                     "https://www.reddit.com/api/v1/access_token",
-                    auth=(os.environ["REDDIT_CLIENT_ID"], os.environ["REDDIT_CLIENT_SECRET"]),
+                    auth=(env_get("REDDIT_CLIENT_ID"), env_get("REDDIT_CLIENT_SECRET")),
                     data={"grant_type": "client_credentials"},
                 )
             if r.status_code != 200:
@@ -327,8 +328,8 @@ _post_token_lock = asyncio.Lock()
 def _can_post_to_reddit() -> bool:
     return (
         _credentials_present()
-        and bool(os.environ.get("REDDIT_USERNAME"))
-        and bool(os.environ.get("REDDIT_PASSWORD"))
+        and bool(env_get("REDDIT_USERNAME"))
+        and bool(env_get("REDDIT_PASSWORD"))
     )
 
 
@@ -348,11 +349,11 @@ async def _get_user_token() -> Optional[str]:
             ) as client:
                 r = await client.post(
                     "https://www.reddit.com/api/v1/access_token",
-                    auth=(os.environ["REDDIT_CLIENT_ID"], os.environ["REDDIT_CLIENT_SECRET"]),
+                    auth=(env_get("REDDIT_CLIENT_ID"), env_get("REDDIT_CLIENT_SECRET")),
                     data={
                         "grant_type": "password",
-                        "username": os.environ["REDDIT_USERNAME"],
-                        "password": os.environ["REDDIT_PASSWORD"],
+                        "username": env_get("REDDIT_USERNAME"),
+                        "password": env_get("REDDIT_PASSWORD"),
                     },
                 )
             if r.status_code != 200:

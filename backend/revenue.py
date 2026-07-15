@@ -14,19 +14,20 @@ Transaction-fee math (commission + processing) lives in
 `routers.stripe_connect.fee_breakdown_cents`.
 """
 from __future__ import annotations
+from config import env_get
 import os
 from datetime import datetime, timedelta, timezone
 
 from core import db, now_iso
 
-LISTING_FEE_CENTS = int(os.environ.get("LISTING_FEE_CENTS", "20"))
-LISTING_FREE_QUOTA = int(os.environ.get("LISTING_FREE_QUOTA", "10"))
-LISTING_EXPIRY_DAYS = int(os.environ.get("LISTING_EXPIRY_DAYS", "120"))
-PROMOTION_WEEKLY_FEE_CENTS = int(os.environ.get("PROMOTION_WEEKLY_FEE_CENTS", "500"))
-PLUS_MONTHLY_LISTING_QUOTA = int(os.environ.get("PLUS_MONTHLY_LISTING_QUOTA", "15"))
-PLUS_PLATFORM_FEE_BPS = int(os.environ.get("PLUS_PLATFORM_FEE_BPS", "400"))
-PLUS_PRICE_USD = int(os.environ.get("PLUS_PRICE_USD", "12"))
-OFFSITE_AD_FEE_BPS = int(os.environ.get("OFFSITE_AD_FEE_BPS", "1200"))
+LISTING_FEE_CENTS = int(env_get("LISTING_FEE_CENTS", "20"))
+LISTING_FREE_QUOTA = int(env_get("LISTING_FREE_QUOTA", "10"))
+LISTING_EXPIRY_DAYS = int(env_get("LISTING_EXPIRY_DAYS", "120"))
+PROMOTION_WEEKLY_FEE_CENTS = int(env_get("PROMOTION_WEEKLY_FEE_CENTS", "500"))
+PLUS_MONTHLY_LISTING_QUOTA = int(env_get("PLUS_MONTHLY_LISTING_QUOTA", "15"))
+PLUS_PLATFORM_FEE_BPS = int(env_get("PLUS_PLATFORM_FEE_BPS", "400"))
+PLUS_PRICE_USD = int(env_get("PLUS_PRICE_USD", "12"))
+OFFSITE_AD_FEE_BPS = int(env_get("OFFSITE_AD_FEE_BPS", "1200"))
 
 # ───────────────────────── Founders Tier ─────────────────────────
 # Free-forever recruiting tier for the first wave of CraftersMarket
@@ -43,11 +44,11 @@ OFFSITE_AD_FEE_BPS = int(os.environ.get("OFFSITE_AD_FEE_BPS", "1200"))
 #   is_beta_tester      = bool — applies the dual "◆ Beta Tester" badge
 #                                  and grants lifetime inaugural status
 #   founder_grace_until = ISO datetime — 14-day publish-or-lose-slot window
-FOUNDER_PLATFORM_FEE_BPS = int(os.environ.get("FOUNDER_PLATFORM_FEE_BPS", "300"))  # 3%
-FOUNDER_MONTHLY_LISTING_QUOTA = int(os.environ.get("FOUNDER_MONTHLY_LISTING_QUOTA", "50"))
-FOUNDER_WINDOW_DAYS = int(os.environ.get("FOUNDER_WINDOW_DAYS", "365"))
-FOUNDER_GRACE_DAYS = int(os.environ.get("FOUNDER_GRACE_DAYS", "14"))
-FOUNDER_INAUGURAL_CAP = int(os.environ.get("FOUNDER_INAUGURAL_CAP", "100"))
+FOUNDER_PLATFORM_FEE_BPS = int(env_get("FOUNDER_PLATFORM_FEE_BPS", "300"))  # 3%
+FOUNDER_MONTHLY_LISTING_QUOTA = int(env_get("FOUNDER_MONTHLY_LISTING_QUOTA", "50"))
+FOUNDER_WINDOW_DAYS = int(env_get("FOUNDER_WINDOW_DAYS", "365"))
+FOUNDER_GRACE_DAYS = int(env_get("FOUNDER_GRACE_DAYS", "14"))
+FOUNDER_INAUGURAL_CAP = int(env_get("FOUNDER_INAUGURAL_CAP", "100"))
 
 # Veteran-owned bonus (iter153): every veteran-owned maker gets $10/mo
 # in boosted-listing credit, auto-replenished by the daily scheduler at
@@ -55,7 +56,7 @@ FOUNDER_INAUGURAL_CAP = int(os.environ.get("FOUNDER_INAUGURAL_CAP", "100"))
 # Credit is burned BEFORE the cash promotion fee accrues, so a veteran
 # can boost 2 listings free per month at the current $5/week price.
 VETERAN_MONTHLY_BOOST_CREDIT_CENTS = int(
-    os.environ.get("VETERAN_MONTHLY_BOOST_CREDIT_CENTS", "1000")
+    env_get("VETERAN_MONTHLY_BOOST_CREDIT_CENTS", "1000")
 )
 
 # Plus subscribers get 3 boosted listings per month included with their
@@ -63,12 +64,12 @@ VETERAN_MONTHLY_BOOST_CREDIT_CENTS = int(
 # subscription itself, so the Plus tier visibly pays for itself before
 # any of the other perks kick in.
 PLUS_MONTHLY_BOOST_CREDIT_CENTS = int(
-    os.environ.get("PLUS_MONTHLY_BOOST_CREDIT_CENTS", "1500")
+    env_get("PLUS_MONTHLY_BOOST_CREDIT_CENTS", "1500")
 )
 
 # Plus subscribers pay half the per-listing overage past their quota.
 # Standard / Founder pay LISTING_FEE_CENTS; Plus pays this amount instead.
-PLUS_LISTING_FEE_CENTS = int(os.environ.get("PLUS_LISTING_FEE_CENTS", "10"))
+PLUS_LISTING_FEE_CENTS = int(env_get("PLUS_LISTING_FEE_CENTS", "10"))
 
 
 def is_founder(maker: dict) -> bool:
@@ -111,7 +112,7 @@ def commission_bps_for(maker: dict) -> int:
     whichever rate is lower for them (currently identical at 300bps in
     practice, but the resolver stays correct if rates diverge later).
     """
-    base = int(os.environ.get("PLATFORM_FEE_BPS", "500"))
+    base = int(env_get("PLATFORM_FEE_BPS", "500"))
     if is_founder(maker):
         return min(FOUNDER_PLATFORM_FEE_BPS, PLUS_PLATFORM_FEE_BPS if is_plus(maker) else base)
     return PLUS_PLATFORM_FEE_BPS if is_plus(maker) else base
@@ -723,7 +724,7 @@ async def refresh_gsc_indexing_status(limit: int = 1500) -> dict:
     if not is_gsc_enabled():
         return {"skipped": True, "reason": "gsc-not-configured"}
 
-    site_root = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+    site_root = (env_get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
     now = datetime.now(timezone.utc)
     nowiso = now.isoformat()
     stale_cutoff = (now - timedelta(days=7)).isoformat()

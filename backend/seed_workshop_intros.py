@@ -1,3 +1,4 @@
+from config import env_get
 """Generate "From the Workshop" intros for the iter227 starter pack makers.
 
 iter228 — 4 documentary-style intro paragraphs, 120-180 words each,
@@ -98,7 +99,7 @@ async def _generate_intro(maker: dict) -> str | None:
         print(f"  [WARN] emergentintegrations missing ({e})")
         return None
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print("  [WARN] EMERGENT_LLM_KEY not set")
         return None

@@ -18,6 +18,7 @@ to MongoDB `system_state/{_id: 'indexnow'}` so it survives restarts and is
 shared across pods. 32-char hex (well within IndexNow's 8-128 char limit).
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import secrets
@@ -46,7 +47,7 @@ async def _get_or_create_key() -> str:
     iter338e — added env override so prod can adopt a Bing-issued key
     without touching the DB.
     """
-    env_key = (os.environ.get("INDEXNOW_KEY") or "").strip().lower()
+    env_key = (env_get("INDEXNOW_KEY") or "").strip().lower()
     if env_key and all(c in "0123456789abcdef" for c in env_key) and 8 <= len(env_key) <= 128:
         return env_key
     doc = await db.system_state.find_one({"_id": STATE_KEY}, {"_id": 0, "key": 1})
@@ -70,7 +71,7 @@ async def get_key() -> str:
 def _site_root() -> str:
     """Canonical apex — never preview. The IndexNow `host` field requires
     a real public hostname; preview pods would just produce 4xx."""
-    raw = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    raw = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     if raw and "preview." not in raw and not raw.endswith(".emergentagent.com"):
         return raw
     return "https://craftersmarket.org"

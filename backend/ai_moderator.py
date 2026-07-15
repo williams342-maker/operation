@@ -14,6 +14,7 @@ Designed to fail-OPEN: any LLM error returns ALLOW so a transient outage
 doesn't silence the chat.
 """
 from __future__ import annotations
+from config import env_get
 
 import json
 import os
@@ -25,7 +26,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 from core import db, logger, now_iso
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 
 Action = Literal["allow", "warn", "block"]
 

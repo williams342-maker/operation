@@ -11,6 +11,7 @@ SMS leg and continue with the email. This keeps deploys without Twilio
 keys fully functional.
 """
 from __future__ import annotations
+from config import env_get
 import os
 import re
 from typing import Optional
@@ -20,9 +21,9 @@ from core import logger
 
 def is_configured() -> bool:
     return all([
-        os.environ.get("TWILIO_ACCOUNT_SID"),
-        os.environ.get("TWILIO_AUTH_TOKEN"),
-        os.environ.get("TWILIO_FROM_NUMBER"),
+        env_get("TWILIO_ACCOUNT_SID"),
+        env_get("TWILIO_AUTH_TOKEN"),
+        env_get("TWILIO_FROM_NUMBER"),
     ])
 
 
@@ -54,9 +55,9 @@ def send_sms(to: str, body: str) -> Optional[str]:
         return None
     try:
         from twilio.rest import Client
-        c = Client(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
+        c = Client(env_get("TWILIO_ACCOUNT_SID"), env_get("TWILIO_AUTH_TOKEN"))
         msg = c.messages.create(
-            from_=os.environ["TWILIO_FROM_NUMBER"],
+            from_=env_get("TWILIO_FROM_NUMBER"),
             to=e164,
             body=body[:1500],  # Twilio splits at 1600; clip comfortably
         )

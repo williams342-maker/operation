@@ -18,6 +18,7 @@ Best-effort by design — every failure logs + moves on. Never blocks
 backend startup.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timedelta, timezone
@@ -31,7 +32,7 @@ DEFAULT_MIN_HOURS = 6
 
 def _min_hours() -> float:
     try:
-        return float(os.environ.get("STARTUP_SEO_MIN_HOURS",
+        return float(env_get("STARTUP_SEO_MIN_HOURS",
                                     str(DEFAULT_MIN_HOURS)))
     except (TypeError, ValueError):
         return DEFAULT_MIN_HOURS
@@ -67,7 +68,7 @@ async def _stamp_last_submitted(payload: dict) -> None:
 async def run_startup_seo_submit() -> dict:
     """One-shot on-deploy submission. Mirrors the body of the weekly
     `_job_weekly_seo_ping` cron but with the restart-storm guard."""
-    if (os.environ.get("SCHEDULER_STARTUP_SEO") or "true").lower() in (
+    if (env_get("SCHEDULER_STARTUP_SEO") or "true").lower() in (
         "false", "0", "no",
     ):
         logger.info("[startup_seo] disabled via SCHEDULER_STARTUP_SEO env")

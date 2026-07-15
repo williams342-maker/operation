@@ -26,6 +26,7 @@ POST /api/maker/listings/{slug}/price-compare
              from_cache: bool, remaining_today: int }
 """
 from __future__ import annotations
+from config import env_get
 import json
 import os
 import re
@@ -41,7 +42,7 @@ from maker_auth import current_maker_slug
 
 router = APIRouter()
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 JINA_SEARCH_URL = "https://s.jina.ai/"
 PRICE_COMPARE_DAILY_LIMIT = 5  # per maker per listing per UTC day
 CACHE_TTL_HOURS = 24

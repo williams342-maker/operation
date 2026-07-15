@@ -1,3 +1,4 @@
+from config import env_get
 """SEO endpoints: sitemap.xml + robots.txt.
 
 Sitemap conforms to sitemap.org 0.9 + Google's image extension. Robots is
@@ -352,8 +353,8 @@ async def seo_diagnostics(http_request: Request):
 
     return {
         "resolved_site_root": root,
-        "public_site_url_env": os.environ.get("PUBLIC_SITE_URL") or None,
-        "public_backend_url_env": os.environ.get("PUBLIC_BACKEND_URL") or None,
+        "public_site_url_env": env_get("PUBLIC_SITE_URL") or None,
+        "public_backend_url_env": env_get("PUBLIC_BACKEND_URL") or None,
         "x_forwarded_host": fwd_host or None,
         "preview_domain_leakage": leakage,
         "total_indexable_urls": 9 + products_n + makers_n + posts_n,

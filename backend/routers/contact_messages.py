@@ -19,6 +19,7 @@ since this is open to the entire internet (beta-feedback was gated by
 beta_mode).
 """
 from __future__ import annotations
+from config import env_get
 import secrets
 import time as _time
 import uuid
@@ -136,7 +137,7 @@ async def submit_contact_message(
     # iter105 — deep-link to the contact row inside the admin dashboard.
     import os as _os
     from notify_webhook import notify_team
-    _site = (_os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    _site = (_env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     bg.add_task(
         notify_team,
         kind="contact",

@@ -1,3 +1,4 @@
+from config import env_get
 """Public catalog: products, makers, reviews, blog, activity, custom-orders, maker-applications."""
 import math as _math
 import os
@@ -1092,7 +1093,7 @@ async def create_maker_application(
     # (Pending Email Verification / Email Verified) and can resend.
     from maker_auth import issue_application_verify_token
     from email_service import send_application_verify_email
-    site = (os.environ.get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("FRONTEND_URL") or "https://craftersmarket.org").rstrip("/")
     verify_token = issue_application_verify_token(app_obj.id, payload.email)
     verify_url = f"{site}/apply/verify?token={verify_token}"
     bg.add_task(

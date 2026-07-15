@@ -8,6 +8,7 @@ test counts). For the public page we strip those and present each
 entry as: title (translated to plain English), date, short blurb.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import re
@@ -250,7 +251,7 @@ async def unsubscribe_from_updates(token: str = ""):
     res = await unsubscribe(token)
     msg = "You're unsubscribed from Crafters Market updates." if res.get("ok") and res.get("found") \
         else "We couldn't find that subscription — it may have already been removed."
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if "preview." in site or site.endswith(".emergentagent.com"):
         site = "https://craftersmarket.org"
     html = (

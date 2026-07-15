@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from config import settings
 from core import db, logger, now_iso
 from maker_auth import require_super_admin
 
@@ -92,8 +93,8 @@ async def admin_db_backup(request: Request, claims: dict = Depends(require_super
     - No on-disk temp file — archive is piped straight through.
     - Audit-logged to `admin_audit_log`.
     """
-    mongo_url = os.environ.get("MONGO_URL")
-    db_name = os.environ.get("DB_NAME")
+    mongo_url = settings.mongo_url
+    db_name = settings.db_name
     if not mongo_url or not db_name:
         raise HTTPException(500, "MONGO_URL / DB_NAME missing from backend env.")
     if not os.path.isfile(_MONGODUMP):
@@ -139,8 +140,8 @@ async def admin_db_backup_diag(_claims: dict = Depends(require_super_admin())):
     return {
         "mongodump_present": os.path.isfile(_MONGODUMP),
         "mongodump_path": _MONGODUMP,
-        "mongo_url_set": bool(os.environ.get("MONGO_URL")),
-        "db_name": os.environ.get("DB_NAME", ""),
+        "mongo_url_set": bool(settings.mongo_url),
+        "db_name": settings.db_name,
         "r2_configured": r2_storage.is_configured(),
     }
 

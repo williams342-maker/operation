@@ -29,6 +29,7 @@ slipped through), we raise `GatewayError` with the SOAP fault details
 so the FE can show a useful toast.
 """
 from __future__ import annotations
+from config import env_get
 import asyncio
 import logging
 import os
@@ -100,8 +101,8 @@ class MicrosoftGateway(AdsGateway):
         cred = await db.integration_credentials.find_one({"_id": "microsoft_ads"})
         if not cred or not cred.get("refresh_token"):
             return (False, "Connect Microsoft Ads in Admin → Ads first.")
-        cust = (cred.get("customer_id") or os.environ.get("BING_CUSTOMER_ID", "")).strip()
-        acct = (cred.get("account_id") or os.environ.get("BING_ACCOUNT_ID", "")).strip()
+        cust = (cred.get("customer_id") or env_get("BING_CUSTOMER_ID", "")).strip()
+        acct = (cred.get("account_id") or env_get("BING_ACCOUNT_ID", "")).strip()
         if not (cust and acct):
             return (False, "Microsoft Ads connected but BING_CUSTOMER_ID / BING_ACCOUNT_ID not set.")
         return (True, "")
@@ -113,8 +114,8 @@ class MicrosoftGateway(AdsGateway):
 
         cred = await db.integration_credentials.find_one({"_id": "microsoft_ads"})
         refresh = cred["refresh_token"]
-        customer_id = (cred.get("customer_id") or os.environ.get("BING_CUSTOMER_ID")).strip()
-        account_id = (cred.get("account_id") or os.environ.get("BING_ACCOUNT_ID")).strip()
+        customer_id = (cred.get("customer_id") or env_get("BING_CUSTOMER_ID")).strip()
+        account_id = (cred.get("account_id") or env_get("BING_ACCOUNT_ID")).strip()
 
         loop = asyncio.get_running_loop()
         try:
@@ -148,8 +149,8 @@ class MicrosoftGateway(AdsGateway):
             None, _update_campaign_budget_sync,
             int(external_id), _clamp_daily(daily_budget_cents),
             cred["refresh_token"],
-            (cred.get("customer_id") or os.environ.get("BING_CUSTOMER_ID")).strip(),
-            (cred.get("account_id") or os.environ.get("BING_ACCOUNT_ID")).strip(),
+            (cred.get("customer_id") or env_get("BING_CUSTOMER_ID")).strip(),
+            (cred.get("account_id") or env_get("BING_ACCOUNT_ID")).strip(),
         )
 
     async def _set_status(self, external_id: str, status: str) -> None:
@@ -160,8 +161,8 @@ class MicrosoftGateway(AdsGateway):
         await loop.run_in_executor(
             None, _set_campaign_status_sync,
             int(external_id), status, cred["refresh_token"],
-            (cred.get("customer_id") or os.environ.get("BING_CUSTOMER_ID")).strip(),
-            (cred.get("account_id") or os.environ.get("BING_ACCOUNT_ID")).strip(),
+            (cred.get("customer_id") or env_get("BING_CUSTOMER_ID")).strip(),
+            (cred.get("account_id") or env_get("BING_ACCOUNT_ID")).strip(),
         )
 
 
@@ -173,16 +174,16 @@ def _auth_data(refresh_token: str, customer_id: str, account_id: str):
         AuthorizationData, OAuthWebAuthCodeGrant,
     )
     auth = OAuthWebAuthCodeGrant(
-        client_id=os.environ["BING_CLIENT_ID"],
-        client_secret=os.environ["BING_CLIENT_SECRET"],
-        redirection_uri=os.environ.get("BING_REDIRECT_URI", ""),
-        env=os.environ.get("BING_ENVIRONMENT", "production"),
+        client_id=env_get("BING_CLIENT_ID"),
+        client_secret=env_get("BING_CLIENT_SECRET"),
+        redirection_uri=env_get("BING_REDIRECT_URI", ""),
+        env=env_get("BING_ENVIRONMENT", "production"),
     )
     auth.request_oauth_tokens_by_refresh_token(refresh_token)
     return AuthorizationData(
         account_id=int(account_id),
         customer_id=int(customer_id),
-        developer_token=os.environ["BING_DEVELOPER_TOKEN"],
+        developer_token=env_get("BING_DEVELOPER_TOKEN"),
         authentication=auth,
     )
 
@@ -199,7 +200,7 @@ def _create_campaign_sync(spec: CreateCampaignSpec, refresh_token: str,
         service="CampaignManagementService",
         version=13,
         authorization_data=auth,
-        environment=os.environ.get("BING_ENVIRONMENT", "production"),
+        environment=env_get("BING_ENVIRONMENT", "production"),
     )
 
     # 1. Campaign (paused, daily budget, US only).
@@ -340,7 +341,7 @@ def _set_campaign_status_sync(cid: int, status: str, refresh_token: str,
     svc = ServiceClient(
         service="CampaignManagementService", version=13,
         authorization_data=auth,
-        environment=os.environ.get("BING_ENVIRONMENT", "production"),
+        environment=env_get("BING_ENVIRONMENT", "production"),
     )
     campaign = svc.factory.create("Campaign")
     campaign.Id = int(cid)
@@ -357,7 +358,7 @@ def _update_campaign_budget_sync(cid: int, daily_usd: float, refresh_token: str,
     svc = ServiceClient(
         service="CampaignManagementService", version=13,
         authorization_data=auth,
-        environment=os.environ.get("BING_ENVIRONMENT", "production"),
+        environment=env_get("BING_ENVIRONMENT", "production"),
     )
     campaign = svc.factory.create("Campaign")
     campaign.Id = int(cid)

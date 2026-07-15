@@ -23,6 +23,7 @@ where payload = b64url("v1|{session_id}|{file_id}|{exp_unix}")
       sig     = b64url(HMAC-SHA256(secret, payload))
 """
 from __future__ import annotations
+from config import env_get
 
 import base64
 import hashlib
@@ -38,7 +39,7 @@ DOWNLOAD_TTL_SECONDS = 30 * 24 * 3600  # 30 days
 
 
 def _secret() -> bytes:
-    val = os.environ.get(_SECRET_ENV)
+    val = env_get(_SECRET_ENV)
     if not val:
         raise RuntimeError(f"{_SECRET_ENV} not set")
     return val.encode("utf-8")

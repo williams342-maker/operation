@@ -24,6 +24,7 @@ Optional env vars:
                         production conversion totals.
 """
 from __future__ import annotations
+from config import env_get
 
 import hashlib
 import logging
@@ -53,9 +54,9 @@ def _sha256(value: Optional[str]) -> Optional[str]:
 
 
 def _capi_config() -> dict:
-    pixel_id = (os.environ.get("META_PIXEL_ID") or "").strip()
-    token = (os.environ.get("META_CAPI_ACCESS_TOKEN") or "").strip()
-    test_code = (os.environ.get("META_CAPI_TEST_CODE") or "").strip() or None
+    pixel_id = (env_get("META_PIXEL_ID") or "").strip()
+    token = (env_get("META_CAPI_ACCESS_TOKEN") or "").strip()
+    test_code = (env_get("META_CAPI_TEST_CODE") or "").strip() or None
     return {
         "pixel_id": pixel_id,
         "token": token,

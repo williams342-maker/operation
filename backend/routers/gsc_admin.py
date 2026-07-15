@@ -18,6 +18,7 @@ Stored fields: `refresh_token`, `client_email_or_account`, `connected_at`,
 `scopes`.
 """
 from __future__ import annotations
+from config import env_get
 import logging
 import os
 import secrets
@@ -69,7 +70,7 @@ def _resolve_redirect_uri(request: Request) -> str:
       1. `GSC_OAUTH_REDIRECT_URI` env var (manual override, advanced use)
       2. Derived from the inbound request's host + scheme (default)
     """
-    override = (os.environ.get("GSC_OAUTH_REDIRECT_URI") or "").strip()
+    override = (env_get("GSC_OAUTH_REDIRECT_URI") or "").strip()
     if override:
         return override
     # Respect upstream proxy headers — kube ingress + Emergent edge both
@@ -84,13 +85,13 @@ async def gsc_status(request: Request, _: dict = Depends(current_admin)):
     """Connection status for the admin UI panel."""
     resolved_uri = _resolve_redirect_uri(request)
     oauth_configured = bool(
-        (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-        and (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+        (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
+        and (env_get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
         and resolved_uri  # iter413ck — derived URI is always present
     )
-    sa_configured = bool((os.environ.get("GSC_SERVICE_ACCOUNT_JSON") or "").strip())
-    enabled = (os.environ.get("GSC_ENABLED") or "").strip() == "1"
-    site_url = os.environ.get("GSC_SITE_URL") or ""
+    sa_configured = bool((env_get("GSC_SERVICE_ACCOUNT_JSON") or "").strip())
+    enabled = (env_get("GSC_ENABLED") or "").strip() == "1"
+    site_url = env_get("GSC_SITE_URL") or ""
     doc = await db.gsc_oauth.find_one({"_id": "singleton"}, {"_id": 0, "refresh_token": 0})
     return {
         "enabled": enabled,
@@ -109,7 +110,7 @@ async def gsc_oauth_start(request: Request, _: dict = Depends(current_admin)):
 
     Frontend opens this URL in a popup or new tab. After consent, Google
     redirects to `/admin/gsc/oauth-callback?code=...&state=...`."""
-    client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
+    client_id = (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
     redirect_uri = _resolve_redirect_uri(request)
     if not client_id or not redirect_uri:
         raise HTTPException(
@@ -188,8 +189,8 @@ async def gsc_oauth_callback(request: Request):
     # oauth-start. The token-exchange call MUST send the same URI byte-for-byte.
     _ts, bound_redirect_uri = _oauth_state.pop(state)
 
-    client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-    client_secret = (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+    client_id = (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
+    client_secret = (env_get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
     redirect_uri = bound_redirect_uri or _resolve_redirect_uri(request)
 
     try:
@@ -269,7 +270,7 @@ async def gsc_test_inspect(
     """Run ONE URL Inspection now to verify the connection. Defaults
     to the site root if no slug is provided."""
     slug = (body or {}).get("slug", "").strip()
-    site_root = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+    site_root = (env_get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
     target = f"{site_root}/shop/{slug}" if slug else f"{site_root}/"
     result = await inspect_url(target)
     if result is None:
@@ -313,8 +314,8 @@ async def gsc_recheck_product(
     if product.get("status") != "published":
         raise HTTPException(409, "Listing isn't published — nothing for Google to index.")
 
-    site_root = (os.environ.get("PUBLIC_APP_URL")
-                 or os.environ.get("GSC_SITE_URL")
+    site_root = (env_get("PUBLIC_APP_URL")
+                 or env_get("GSC_SITE_URL")
                  or "https://craftersmarket.org").rstrip("/")
     target = f"{site_root}/shop/{slug}"
     result = await inspect_url(target)

@@ -8,6 +8,8 @@ Run from backend dir:
     python -m scripts.migrate_images_to_r2
 """
 from __future__ import annotations
+
+from config import settings
 import asyncio
 import os
 import sys
@@ -28,8 +30,8 @@ async def main():
         print("R2 not configured (missing env). Aborting.")
         return 1
 
-    mongo = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = mongo[os.environ["DB_NAME"]]
+    mongo = AsyncIOMotorClient(settings.mongo_url)
+    db = mongo[settings.db_name]
 
     cursor = db.products.find({}, {"_id": 0})
     total = migrated = unchanged = errors = 0

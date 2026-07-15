@@ -50,6 +50,7 @@ Endpoints (`/api/admin/ops/`):
                                     baseline + computed severity
 """
 from __future__ import annotations
+from config import env_get
 
 import logging
 import os
@@ -98,7 +99,7 @@ def _current_build_id() -> str:
          creates *some* watch boundary if we ever want to use it.
     """
     for key in ("BUILD_SHA", "GIT_COMMIT", "GIT_SHA", "DEPLOY_BUILD_ID"):
-        val = (os.environ.get(key) or "").strip()
+        val = (env_get(key) or "").strip()
         if val:
             return val[:64]
     # No deploy marker. Use date so the first boot of each day still
@@ -200,7 +201,7 @@ async def ensure_watch_for_current_build() -> dict | None:
     Safe to call on every app boot. Returns the active watch (existing
     or newly-opened) or None if disabled.
     """
-    if (os.environ.get("DEPLOY_WATCH_ENABLED") or "true").lower() in ("0", "false", "no"):
+    if (env_get("DEPLOY_WATCH_ENABLED") or "true").lower() in ("0", "false", "no"):
         return None
     try:
         build = _current_build_id()

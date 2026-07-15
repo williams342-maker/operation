@@ -14,6 +14,7 @@ To disable in test/dev, set `SCHEDULER_ENABLED=false` in env. To run a
 specific job manually, hit the existing /api/admin/* endpoints.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 
@@ -37,6 +38,17 @@ async def _job_publish_due_policy_versions() -> None:
             logger.info("[scheduler] policy publish sweep: %s", r)
     except Exception as e:
         logger.exception("[scheduler] policy publish sweep failed: %s", e)
+
+
+async def _job_return_case_deadlines() -> None:
+    """Hourly: send non-duplicate case deadline reminders and mark overdue cases escalation-eligible."""
+    try:
+        from routers.returns_cases import run_return_case_deadline_sweep
+        r = await run_return_case_deadline_sweep()
+        if r.get("sent") or r.get("escalation_eligible"):
+            logger.info("[scheduler] return-case deadlines: %s", r)
+    except Exception as e:
+        logger.exception("[scheduler] return-case deadline sweep failed: %s", e)
 
 async def _job_auto_renew_promotions() -> None:
     """Hourly: extend any auto-renew-flagged promotion that lapses in the
@@ -153,7 +165,7 @@ async def _job_refresh_gsc_indexing() -> None:
 # Threshold default: alert when (prior_pct - current_pct) > 5 percentage points.
 # Tunable via GSC_INDEXED_DROP_THRESHOLD_PP env var.
 GSC_INDEXED_DROP_THRESHOLD_PP = float(
-    os.environ.get("GSC_INDEXED_DROP_THRESHOLD_PP", "5") or "5"
+    env_get("GSC_INDEXED_DROP_THRESHOLD_PP", "5") or "5"
 )
 
 
@@ -264,7 +276,7 @@ async def _job_gsc_indexed_dropoff_alert() -> None:
     from core import db
     from email_service import send_ops_gsc_indexed_dropoff
     try:
-        if (os.environ.get("GSC_ENABLED") or "").strip() != "1":
+        if (env_get("GSC_ENABLED") or "").strip() != "1":
             logger.info("[scheduler] gsc-dropoff-alert: GSC_ENABLED!=1, skipping")
             return
         current = await _snapshot_gsc_indexation()
@@ -629,7 +641,7 @@ async def _job_secrets_rotation_nudge() -> None:
         # Classify each tracked, configured secret by status
         candidates: list[dict] = []
         for spec in TRACKED_SECRETS:
-            is_set = any(bool(_os.environ.get(k)) for k in spec["env_keys"])
+            is_set = any(bool(_env_get(k)) for k in spec["env_keys"])
             if not is_set:
                 continue
             last = rows.get(spec["id"])
@@ -690,7 +702,7 @@ async def _job_secrets_rotation_nudge() -> None:
         soon_items = [f for f in fresh if f["status"] == "due_soon"]
 
         # ---- Email digest (ops) ----
-        ops = (_os.environ.get("OPS_EMAIL") or "").strip()
+        ops = (_env_get("OPS_EMAIL") or "").strip()
         if ops:
             try:
                 from email_service import _send
@@ -1475,7 +1487,7 @@ async def _job_daily_design_file():
     temporarily down — the design still lands (preview falls back to
     the SVG itself). Disable per env: SCHEDULER_DAILY_DESIGNS=false.
     """
-    if os.environ.get("SCHEDULER_DAILY_DESIGNS", "true").lower() in ("false", "0", "no"):
+    if env_get("SCHEDULER_DAILY_DESIGNS", "true").lower() in ("false", "0", "no"):
         logger.info("[scheduler] daily_design_file disabled via env")
         return
     try:
@@ -1515,12 +1527,12 @@ async def _job_daily_clip_seed():
     frame, then inserts a `clips` row flagged `is_seed=true,
     ai_generated=true`.
     """
-    if os.environ.get("SCHEDULER_DAILY_CLIPS", "false").lower() not in ("true", "1", "yes"):
+    if env_get("SCHEDULER_DAILY_CLIPS", "false").lower() not in ("true", "1", "yes"):
         logger.info("[scheduler] daily_clip_seed disabled (SCHEDULER_DAILY_CLIPS=true to opt in)")
         return
     try:
         from clip_seeder import generate_one_clip
-        r = await generate_one_clip(model=os.environ.get("SCHEDULER_DAILY_CLIPS_MODEL", "sora-2"))
+        r = await generate_one_clip(model=env_get("SCHEDULER_DAILY_CLIPS_MODEL", "sora-2"))
         if r.get("status") == "ok":
             logger.info("[scheduler] daily_clip_seed ok: %s · %s",
                         r["clip"]["category"], r["clip"]["slug"])
@@ -1543,7 +1555,7 @@ async def _job_weekly_seo_ping():
     additionally requires `GSC_ENABLED=1` and an OAuth refresh token —
     if either is missing the function quietly skips that half.
     """
-    if os.environ.get("SCHEDULER_WEEKLY_SEO", "true").lower() in ("false", "0", "no"):
+    if env_get("SCHEDULER_WEEKLY_SEO", "true").lower() in ("false", "0", "no"):
         logger.info("[scheduler] weekly_seo_ping disabled via env")
         return
     # ── IndexNow (Bing / Yandex / Naver / Seznam) ─────────────────────
@@ -1582,7 +1594,7 @@ async def _job_weekly_policy_ping():
     Best-effort — never raises. Kill-switch:
     `SCHEDULER_WEEKLY_POLICY_PING=false` (default ON).
     """
-    if os.environ.get("SCHEDULER_WEEKLY_POLICY_PING", "true").lower() in ("false", "0", "no"):
+    if env_get("SCHEDULER_WEEKLY_POLICY_PING", "true").lower() in ("false", "0", "no"):
         logger.info("[scheduler] weekly_policy_ping disabled via env")
         return
     try:
@@ -1610,7 +1622,7 @@ async def _job_hero_headlines_refresh():
     — any LLM failure logs and the pool stays unchanged so the hero never
     breaks.
     """
-    if os.environ.get("SCHEDULER_HERO_HEADLINES", "true").lower() in ("false", "0", "no"):
+    if env_get("SCHEDULER_HERO_HEADLINES", "true").lower() in ("false", "0", "no"):
         logger.info("[scheduler] hero_headlines_refresh disabled via env")
         return
     try:
@@ -1642,7 +1654,7 @@ async def _job_social_auto_publish() -> None:
 # to ENRICHLABS_EXPORT_EMAIL. Self-skips silently when the recipient env
 # var isn't set so a deploy without the config doesn't error-spam the logs.
 async def _job_weekly_enrichlabs_export() -> None:
-    if not (os.environ.get("ENRICHLABS_EXPORT_EMAIL") or "").strip():
+    if not (env_get("ENRICHLABS_EXPORT_EMAIL") or "").strip():
         return  # Not configured — nothing to do.
     try:
         from routers.admin import _send_enrichlabs_export
@@ -1655,7 +1667,7 @@ async def _job_weekly_enrichlabs_export() -> None:
 def start_scheduler() -> AsyncIOScheduler | None:
     """Boot the scheduler if SCHEDULER_ENABLED isn't 'false'."""
     global _scheduler
-    if os.environ.get("SCHEDULER_ENABLED", "true").lower() in ("false", "0", "no"):
+    if env_get("SCHEDULER_ENABLED", "true").lower() in ("false", "0", "no"):
         logger.info("[scheduler] disabled via SCHEDULER_ENABLED env")
         return None
     if _scheduler is not None:
@@ -1664,6 +1676,8 @@ def start_scheduler() -> AsyncIOScheduler | None:
     sched = AsyncIOScheduler(timezone="UTC")
     sched.add_job(_job_publish_due_policy_versions, CronTrigger(minute="*/10"),
                   id="policy_publish_versions", replace_existing=True)
+    sched.add_job(_job_return_case_deadlines, CronTrigger(minute=20),
+                  id='return_case_deadlines', replace_existing=True)
     sched.add_job(_job_expire_listings, CronTrigger(hour=3, minute=10),
                   id="expire_listings", replace_existing=True)
     # iter441 — PayPal payout-email reminders (3/7/14 days) for makers with

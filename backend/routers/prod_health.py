@@ -1,3 +1,4 @@
+from config import env_get
 """Admin-facing endpoints for the prod health watchdog.
 
 - GET  /api/admin/prod-health           → snapshot (state per endpoint)
@@ -155,7 +156,7 @@ async def admin_tax_verification(_: dict = Depends(current_admin)):
     mode = ("LIVE" if key.startswith("sk_live_")
             else "TEST" if key.startswith("sk_test_") else "MISSING")
     placeholder = "****" in key
-    auto_tax_flag = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
+    auto_tax_flag = env_get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
 
     out = {
         "stripe_key_mode": mode,

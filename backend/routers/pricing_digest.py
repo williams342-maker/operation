@@ -24,6 +24,7 @@ when `listed_price >= median * (1 + threshold/100)`. Stale comparisons
 expected to be re-run periodically by the maker.
 """
 from __future__ import annotations
+from config import env_get
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -44,7 +45,7 @@ def _iso_week_key(dt: datetime) -> str:
 
 
 def _over_pct() -> float:
-    raw = (os.environ.get("PRICING_DIGEST_OVER_PCT") or "").strip()
+    raw = (env_get("PRICING_DIGEST_OVER_PCT") or "").strip()
     try:
         v = float(raw) if raw else 20.0
         return max(5.0, min(200.0, v))  # bound to a sensible range
@@ -57,7 +58,7 @@ def _over_pct() -> float:
 # affecting "too high" alerts (e.g. for makers selling premium goods who
 # might genuinely undercut general market median for strategic reasons).
 def _under_pct() -> float:
-    raw = (os.environ.get("PRICING_DIGEST_UNDER_PCT") or "").strip()
+    raw = (env_get("PRICING_DIGEST_UNDER_PCT") or "").strip()
     try:
         v = float(raw) if raw else 20.0
         return max(5.0, min(80.0, v))  # bounded — can't be "100% below"

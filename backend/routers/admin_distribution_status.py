@@ -16,6 +16,7 @@ Read-only. Both probes time out fast (3s) so the admin dashboard
 never hangs waiting for a dead third-party.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import logging
@@ -101,7 +102,7 @@ async def _probe_cloudflare_worker() -> dict[str, Any]:
 
 async def _probe_meta_feed() -> dict[str, Any]:
     """Hit our own /api/meta/feed.csv route and count rows."""
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     if site.endswith(".emergentagent.com"):
         site = "https://craftersmarket.org"
     url = f"{site}/api/meta/feed.csv"

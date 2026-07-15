@@ -1,3 +1,4 @@
+from config import env_get
 """Stripe Connect (Express) — multi-vendor maker payouts.
 
 Flow:
@@ -289,13 +290,13 @@ async def connect_onboard(payload: OnboardRequest, slug: str = Depends(current_m
         # platform balance). Setting MAKER_PAYOUT_INTERVAL=daily|manual
         # flips behavior; `manual` means payouts only fire when we call
         # Payout.create explicitly.
-        interval = os.environ.get("MAKER_PAYOUT_INTERVAL", "weekly").lower()
-        delay_days = int(os.environ.get("MAKER_PAYOUT_DELAY_DAYS", "7"))
+        interval = env_get("MAKER_PAYOUT_INTERVAL", "weekly").lower()
+        delay_days = int(env_get("MAKER_PAYOUT_DELAY_DAYS", "7"))
         schedule: dict = {"interval": interval, "delay_days": delay_days}
         if interval == "weekly":
-            schedule["weekly_anchor"] = os.environ.get("MAKER_PAYOUT_WEEKLY_ANCHOR", "friday")
+            schedule["weekly_anchor"] = env_get("MAKER_PAYOUT_WEEKLY_ANCHOR", "friday")
         elif interval == "monthly":
-            schedule["monthly_anchor"] = int(os.environ.get("MAKER_PAYOUT_MONTHLY_ANCHOR", "1"))
+            schedule["monthly_anchor"] = int(env_get("MAKER_PAYOUT_MONTHLY_ANCHOR", "1"))
         elif interval == "manual":
             # `manual` schedule can't carry delay_days / anchor fields.
             schedule = {"interval": "manual"}
@@ -513,9 +514,9 @@ async def connect_dashboard_link(slug: str = Depends(current_maker_slug)):
 #   maker order if we only absorbed it once. Per-maker is the standard market
 #   practice (matches Etsy / Squarespace / Shopify Markets) — multi-maker
 #   orders are rare and the small over-collection becomes platform margin.
-PLATFORM_FEE_BPS = int(os.environ.get("PLATFORM_FEE_BPS", "500"))     # 5%
-PROCESSING_FEE_BPS = int(os.environ.get("PROCESSING_FEE_BPS", "290"))  # 2.9%
-PROCESSING_FEE_FIXED_CENTS = int(os.environ.get("PROCESSING_FEE_FIXED_CENTS", "30"))  # $0.30
+PLATFORM_FEE_BPS = int(env_get("PLATFORM_FEE_BPS", "500"))     # 5%
+PROCESSING_FEE_BPS = int(env_get("PROCESSING_FEE_BPS", "290"))  # 2.9%
+PROCESSING_FEE_FIXED_CENTS = int(env_get("PROCESSING_FEE_FIXED_CENTS", "30"))  # $0.30
 TOTAL_FEE_BPS = PLATFORM_FEE_BPS + PROCESSING_FEE_BPS
 
 
@@ -862,7 +863,7 @@ async def refund_session(session_id: str) -> dict:
 
 # ---------------- Connect webhook (account.updated etc.) ----------------------
 
-STRIPE_CONNECT_WEBHOOK_SECRET = os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET", "")
+STRIPE_CONNECT_WEBHOOK_SECRET = env_get("STRIPE_CONNECT_WEBHOOK_SECRET", "")
 
 
 @router.post("/webhook/stripe/connect")

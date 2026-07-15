@@ -1,3 +1,4 @@
+from config import env_get
 """Maker self-serve portal: magic-link auth + profile / products / orders endpoints."""
 import os
 import re
@@ -540,7 +541,7 @@ async def _safe_pinterest_sync_product(product_slug: str) -> None:
                                and int(prod.get("in_stock") or 0) <= 0)
             else "in stock"
         )
-        site_root = (os.environ.get("PUBLIC_SITE_URL")
+        site_root = (env_get("PUBLIC_SITE_URL")
                      or "https://craftersmarket.org").rstrip("/")
         link = f"{site_root}/shop/{product_slug}"
         result = await push_item_update(

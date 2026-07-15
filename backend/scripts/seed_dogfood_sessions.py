@@ -85,6 +85,7 @@ When --export-json is supplied, the same data is written to disk as:
 Exit code: 0 if every row is created or skipped, 2 if any row failed.
 """
 from __future__ import annotations
+from config import env_get
 
 import argparse
 import csv
@@ -264,8 +265,8 @@ def main() -> int:
                         help="Parse + validate the input file without hitting the API")
     args = parser.parse_args()
 
-    base_url = (os.environ.get("BASE_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "").rstrip("/")
-    admin_email = os.environ.get("ADMIN_EMAIL") or "team@craftersmarket.org"
+    base_url = (env_get("BASE_URL") or env_get("REACT_APP_BACKEND_URL") or "").rstrip("/")
+    admin_email = env_get("ADMIN_EMAIL") or "team@craftersmarket.org"
     if not base_url:
         print("ERROR: set BASE_URL (or REACT_APP_BACKEND_URL) before running.", file=sys.stderr)
         return 1

@@ -38,6 +38,7 @@ Returned dict mirrors the wizard contract:
     }
 """
 from __future__ import annotations
+from config import env_get
 
 import logging
 import math
@@ -127,7 +128,7 @@ async def _claude_rationale(goal: str, budget_cents: int, listings: int,
     """Optional — write 2-3 sentence rationale via Claude Haiku.
     Falls back to a hand-written version when LLM is unavailable.
     """
-    EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+    EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
     if not EMERGENT_LLM_KEY:
         return None
     try:

@@ -1,3 +1,4 @@
+from config import env_get
 """Stripe checkout: cart quote, session creation, status polling, webhook handler."""
 import hashlib
 import math
@@ -20,7 +21,7 @@ from models import ActivityEvent, CheckoutRequest
 
 router = APIRouter()
 
-LOW_STOCK_THRESHOLD = int(os.environ.get("LOW_STOCK_THRESHOLD", "3"))
+LOW_STOCK_THRESHOLD = int(env_get("LOW_STOCK_THRESHOLD", "3"))
 
 
 async def _decrement_stock_and_collect_low(
@@ -654,7 +655,7 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
                 reduce_per_unit = int(round(discount_amount * 100)) // max(1, qty)
                 line_items[target]["price_data"]["unit_amount"] = max(50, old_amt - reduce_per_unit)
             session_kwargs["line_items"] = line_items
-    try_with_tax = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
+    try_with_tax = env_get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
     session = None
     # First attempt — with automatic_tax enabled if configured. Tax-related
     # Stripe errors (e.g. missing head office address in test mode) should

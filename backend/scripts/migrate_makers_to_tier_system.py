@@ -15,6 +15,8 @@ Run:
 """
 from __future__ import annotations
 
+from config import settings
+
 import asyncio
 import os
 import sys
@@ -35,8 +37,8 @@ BETA_TESTER_EMAILS = {
 
 
 async def main():
-    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = client[os.environ["DB_NAME"]]
+    client = AsyncIOMotorClient(settings.mongo_url)
+    db = client[settings.db_name]
     now = datetime.now(timezone.utc).isoformat()
 
     # Seed/bump the founder_counter so freshly-promoted makers get

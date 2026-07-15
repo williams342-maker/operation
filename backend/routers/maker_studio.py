@@ -14,6 +14,7 @@ Rate limit policy (iter235):
   • Founder / Plus maker: 50 prompts/day
 """
 from __future__ import annotations
+from config import env_get
 
 import json
 import os
@@ -224,7 +225,7 @@ async def studio_generate(body: GenerateBody, user: dict = Depends(_current_stud
     if q["remaining"] <= 0:
         raise HTTPException(429, f"Daily quota of {q['cap']} reached. Comes back tomorrow or upgrade to Founder for {PAID_DAILY_QUOTA}/day.")
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(503, "AI temporarily unavailable")
 
@@ -755,7 +756,7 @@ async def studio_refine(body: RefineBody, user: dict = Depends(_current_studio_u
     if q["remaining"] <= 0:
         raise HTTPException(429, f"Daily quota of {q['cap']} reached. Comes back tomorrow.")
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         raise HTTPException(503, "AI temporarily unavailable")
 

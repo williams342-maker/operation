@@ -16,6 +16,7 @@ Three public functions:
       `AuthorizationData` from the persisted refresh_token.
 """
 from __future__ import annotations
+from config import env_get
 import asyncio
 import logging
 import os
@@ -30,7 +31,7 @@ ENVIRONMENT = "production"  # vs "sandbox" — we never use sandbox.
 
 
 def _api_environment() -> str:
-    return os.environ.get("BING_ENVIRONMENT", ENVIRONMENT).lower()
+    return env_get("BING_ENVIRONMENT", ENVIRONMENT).lower()
 
 
 async def discover_accounts(access_token: str) -> list[dict]:
@@ -57,8 +58,8 @@ def _discover_accounts_sync(access_token: str) -> list[dict]:
     # We don't have refresh-flow yet on this code path so this is a
     # short-lived call before the access_token expires.
     grant = OAuthWebAuthCodeGrant(
-        client_id=os.environ["BING_CLIENT_ID"],
-        client_secret=os.environ["BING_CLIENT_SECRET"],
+        client_id=env_get("BING_CLIENT_ID"),
+        client_secret=env_get("BING_CLIENT_SECRET"),
         redirection_uri="https://login.microsoftonline.com/common/oauth2/nativeclient",
         env=_api_environment(),
     )
@@ -70,7 +71,7 @@ def _discover_accounts_sync(access_token: str) -> list[dict]:
 
     auth = AuthorizationData(
         account_id=None, customer_id=None,
-        developer_token=os.environ["BING_DEVELOPER_TOKEN"],
+        developer_token=env_get("BING_DEVELOPER_TOKEN"),
         authentication=grant,
     )
     svc = CustomerManagementService(
@@ -116,9 +117,9 @@ async def sync_metrics(date_str: Optional[str] = None) -> dict:
         return {"status": "skipped", "reason": "not_connected", "date": date_str}
 
     customer_id = (cred.get("customer_id")
-                   or os.environ.get("BING_CUSTOMER_ID", "")).strip()
+                   or env_get("BING_CUSTOMER_ID", "")).strip()
     account_id = (cred.get("account_id")
-                  or os.environ.get("BING_ACCOUNT_ID", "")).strip()
+                  or env_get("BING_ACCOUNT_ID", "")).strip()
     if not customer_id or not account_id:
         return {
             "status": "skipped",
@@ -192,8 +193,8 @@ def _run_report_sync(date_str: str, refresh_token: str,
     from suds.client import WebFault  # noqa: F401
 
     grant = OAuthWebAuthCodeGrant(
-        client_id=os.environ["BING_CLIENT_ID"],
-        client_secret=os.environ["BING_CLIENT_SECRET"],
+        client_id=env_get("BING_CLIENT_ID"),
+        client_secret=env_get("BING_CLIENT_SECRET"),
         redirection_uri="https://login.microsoftonline.com/common/oauth2/nativeclient",
         env=_api_environment(),
     )
@@ -205,7 +206,7 @@ def _run_report_sync(date_str: str, refresh_token: str,
     auth = AuthorizationData(
         account_id=int(account_id),
         customer_id=int(customer_id),
-        developer_token=os.environ["BING_DEVELOPER_TOKEN"],
+        developer_token=env_get("BING_DEVELOPER_TOKEN"),
         authentication=grant,
     )
 

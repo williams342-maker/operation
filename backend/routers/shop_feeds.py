@@ -25,6 +25,7 @@ Both feeds:
   • return `Cache-Control: public, max-age=3600` to spare the backend
 """
 from __future__ import annotations
+from config import env_get
 
 import csv
 import io
@@ -95,7 +96,7 @@ def _variant_option_attrs(p: dict) -> dict:
 router = APIRouter()
 
 
-SITE_BASE = (os.environ.get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
+SITE_BASE = (env_get("PUBLIC_APP_URL") or "https://craftersmarket.org").rstrip("/")
 
 
 async def _fetch_products() -> list[dict]:

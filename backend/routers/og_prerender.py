@@ -27,6 +27,7 @@ Wiring crawler traffic to these routes (operator action, optional):
   URL and get rich previews.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import re
@@ -177,7 +178,7 @@ def _render_og_html(
 def _site() -> str:
     """Canonical apex — never preview. Falls back to a hard-coded apex
     if `PUBLIC_SITE_URL` is missing or accidentally pointed at preview."""
-    raw = (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    raw = (env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     if raw and "preview." not in raw and not raw.endswith(".emergentagent.com"):
         return raw
     return "https://craftersmarket.org"

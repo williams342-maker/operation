@@ -16,6 +16,7 @@ Results are cached in memory by normalized-query hash for 1 hour to
 keep repeat searches snappy and the LLM bill near zero.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import hashlib
@@ -111,7 +112,7 @@ async def _llm_match(q: str, catalog_blob: str) -> Optional[list]:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
     except Exception:
         return None
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         return None
 
@@ -311,7 +312,7 @@ Return ONLY valid JSON. Schema:
     except Exception:
         return {"matches": [], "fallback": "llm_unavailable"}
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         return {"matches": [], "fallback": "no_api_key"}
 
@@ -414,7 +415,7 @@ Return ONLY valid JSON. Schema:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
     except Exception:
         return {"similar": [], "fallback": "llm_unavailable"}
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         return {"similar": [], "fallback": "no_api_key"}
 

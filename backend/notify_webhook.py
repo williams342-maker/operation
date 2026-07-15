@@ -19,6 +19,7 @@ Design notes:
   blocks the user-facing API response.
 """
 from __future__ import annotations
+from config import env_get
 
 import asyncio
 import hashlib
@@ -46,11 +47,11 @@ _KIND_META = {
 
 
 def _slack_url() -> Optional[str]:
-    return (os.environ.get("SLACK_WEBHOOK_URL") or "").strip() or None
+    return (env_get("SLACK_WEBHOOK_URL") or "").strip() or None
 
 
 def _discord_url() -> Optional[str]:
-    return (os.environ.get("DISCORD_WEBHOOK_URL") or "").strip() or None
+    return (env_get("DISCORD_WEBHOOK_URL") or "").strip() or None
 
 
 def is_configured() -> dict:

@@ -1,3 +1,4 @@
+from config import env_get
 """iter438 — PayPal Checkout (Orders v2), sandbox-first, alongside Stripe.
 
 Server-authoritative flow (browser totals are never trusted):
@@ -40,7 +41,7 @@ async def paypal_checkout_config():
     # iter440 — PayPal stays hidden from normal buyers until parity is
     # signed off. Testers force-show via localStorage cm_pp_test=1
     # (checked client-side against `tester_enabled`).
-    public = (os.environ.get("PAYPAL_PUBLIC_ENABLED") or "false").strip().lower() == "true"
+    public = (env_get("PAYPAL_PUBLIC_ENABLED") or "false").strip().lower() == "true"
     return {
         "enabled": paypal_configured() and public,
         "tester_enabled": paypal_configured(),

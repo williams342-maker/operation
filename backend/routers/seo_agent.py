@@ -21,6 +21,7 @@ Builds ON top of the existing technical health check in routers/seo_health.py
 content-layer scanning the existing health check doesn't do.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import re
@@ -587,7 +588,7 @@ async def _generate_meta_description(product: dict) -> Optional[str]:
         logger.warning("[seo-agent] emergentintegrations unavailable: %s", e)
         return None
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         logger.warning("[seo-agent] EMERGENT_LLM_KEY missing — skipping AI fix")
         return None
@@ -647,7 +648,7 @@ async def _generate_alt_texts(product: dict) -> Optional[list[str]]:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
     except Exception:
         return None
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         return None
 
@@ -740,7 +741,7 @@ _PINTEREST_ALLOWED_HOSTS = {"craftersmarket.org", "www.craftersmarket.org"}
 # to prod. Frontend defaults the input to the apex domain; the preview
 # host is optional.
 def _pinterest_allowed_hosts() -> set[str]:
-    extra = (os.environ.get("PINTEREST_VALIDATOR_EXTRA_HOSTS") or "").strip()
+    extra = (env_get("PINTEREST_VALIDATOR_EXTRA_HOSTS") or "").strip()
     if not extra:
         return _PINTEREST_ALLOWED_HOSTS
     return _PINTEREST_ALLOWED_HOSTS | {h.strip().lower() for h in extra.split(",") if h.strip()}

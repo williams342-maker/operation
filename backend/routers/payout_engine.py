@@ -1,3 +1,4 @@
+from config import env_get
 """iter444 — Automated Payout Engine (Phase A).
 
 Provider-agnostic orchestration: eligibility, hold periods, skip rules,
@@ -19,7 +20,7 @@ from core import db, logger, now_iso
 
 def _hold_days() -> int:
     try:
-        return int(os.environ.get("PAYPAL_PAYOUT_HOLD_DAYS") or 7)
+        return int(env_get("PAYPAL_PAYOUT_HOLD_DAYS") or 7)
     except ValueError:
         return 7
 
@@ -30,7 +31,7 @@ FREQUENCIES = ("daily", "weekly", "monthly", "manual")
 
 async def automation_status() -> dict:
     from routers.settings import get_setting
-    env_flag = (os.environ.get("PAYPAL_AUTOPAYOUT_ENABLED") or "false").strip().lower() == "true"
+    env_flag = (env_get("PAYPAL_AUTOPAYOUT_ENABLED") or "false").strip().lower() == "true"
     admin_flag = bool(await get_setting("paypal_autopayout_enabled", False))
     return {
         "env_flag": env_flag,

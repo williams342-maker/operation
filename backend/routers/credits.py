@@ -10,6 +10,7 @@ Credits land on `maker.listing_credits` and are burned BEFORE accruing cash
 fees in `revenue.accrue_listing_charge`. Credits never expire.
 """
 from __future__ import annotations
+from config import env_get
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,14 +24,14 @@ router = APIRouter()
 
 # pack_id → (credits, price_cents, label)
 CREDIT_PACKS: dict[str, tuple[int, int, str]] = {
-    "small":  (int(os.environ.get("CREDIT_PACK_SMALL_QTY", "10")),
-               int(os.environ.get("CREDIT_PACK_SMALL_CENTS", "150")),
+    "small":  (int(env_get("CREDIT_PACK_SMALL_QTY", "10")),
+               int(env_get("CREDIT_PACK_SMALL_CENTS", "150")),
                "10-pack · $1.50"),
-    "medium": (int(os.environ.get("CREDIT_PACK_MEDIUM_QTY", "50")),
-               int(os.environ.get("CREDIT_PACK_MEDIUM_CENTS", "700")),
+    "medium": (int(env_get("CREDIT_PACK_MEDIUM_QTY", "50")),
+               int(env_get("CREDIT_PACK_MEDIUM_CENTS", "700")),
                "50-pack · $7.00"),
-    "large":  (int(os.environ.get("CREDIT_PACK_LARGE_QTY", "200")),
-               int(os.environ.get("CREDIT_PACK_LARGE_CENTS", "2400")),
+    "large":  (int(env_get("CREDIT_PACK_LARGE_QTY", "200")),
+               int(env_get("CREDIT_PACK_LARGE_CENTS", "2400")),
                "200-pack · $24.00"),
 }
 
@@ -67,7 +68,7 @@ async def start_credit_checkout(
     On success the maker is redirected back with `?credits=success&session_id=…`,
     which the frontend POSTs to `/maker/credits/finalize` to grant credits.
     """
-    api_key = os.environ.get("STRIPE_API_KEY")
+    api_key = env_get("STRIPE_API_KEY")
     if not api_key:
         raise HTTPException(503, "Stripe is not configured.")
     pack_id = (pack or "").lower()

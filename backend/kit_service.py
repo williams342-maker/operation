@@ -9,6 +9,7 @@ V4 API: https://developers.kit.com/v4
 Auth header: X-Kit-Api-Key
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from typing import Optional
@@ -17,9 +18,9 @@ import httpx
 
 from core import db, logger, now_iso
 
-KIT_API_KEY = os.environ.get("KIT_API_KEY", "")
-KIT_BASE_URL = os.environ.get("KIT_BASE_URL", "https://api.kit.com")
-KIT_TAG_NAME = os.environ.get("KIT_TAG_NAME", "homepage-newsletter")
+KIT_API_KEY = env_get("KIT_API_KEY", "")
+KIT_BASE_URL = env_get("KIT_BASE_URL", "https://api.kit.com")
+KIT_TAG_NAME = env_get("KIT_TAG_NAME", "homepage-newsletter")
 
 
 def _enabled() -> bool:

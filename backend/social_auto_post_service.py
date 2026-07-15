@@ -18,6 +18,7 @@ This file owns:
   • The `social_auto_post_queue` Mongo collection schema (created lazily)
 """
 from __future__ import annotations
+from config import env_get
 import os
 import uuid
 from datetime import datetime, timezone
@@ -28,7 +29,7 @@ from revenue import is_founder, is_inaugural_founder, is_plus
 
 
 SITE_URL = (
-    os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org"
+    env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org"
 ).rstrip("/")
 
 

@@ -20,6 +20,7 @@ PII policy: full tax IDs are NEVER stored — only a SHA-256 hash + last 4
 digits. Bank info is name-on-account + last 4 only.
 """
 from __future__ import annotations
+from config import env_get
 import hashlib
 import re
 from datetime import datetime, timedelta, timezone
@@ -139,7 +140,7 @@ def _p(text: str) -> str:
 
 def _cta(label: str) -> str:
     import os
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     return (
         f"<div style='margin-top:22px'><a href='{site}/maker/dashboard?tab=settings' "
         "style='display:inline-block;background:#ff4500;color:#0a0a0a;padding:12px 22px;"

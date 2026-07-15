@@ -27,6 +27,7 @@ Design notes:
       - ResourceExhausted → "GA4 quota hit, try again later"
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from functools import lru_cache
@@ -43,7 +44,7 @@ router = APIRouter()
 
 GA4_PROPERTY_ID = "535632204"
 GA4_PROPERTY_RESOURCE = f"properties/{GA4_PROPERTY_ID}"
-GA4_KEY_PATH = Path(os.environ.get(
+GA4_KEY_PATH = Path(env_get(
     "GA4_SERVICE_ACCOUNT_JSON_PATH",
     "/app/backend/secrets/ga4_service_account.json",
 ))
@@ -68,10 +69,10 @@ def _client():
     # once per uvicorn worker until cache_clear() is called.
     try:
         import pymongo
-        client_id = (os.environ.get("GSC_OAUTH_CLIENT_ID") or "").strip()
-        client_secret = (os.environ.get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
-        mongo_url = os.environ.get("MONGO_URL")
-        db_name = os.environ.get("DB_NAME")
+        client_id = (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
+        client_secret = (env_get("GSC_OAUTH_CLIENT_SECRET") or "").strip()
+        mongo_url = env_get("MONGO_URL")
+        db_name = env_get("DB_NAME")
         if mongo_url and db_name and client_id and client_secret:
             with pymongo.MongoClient(mongo_url, serverSelectionTimeoutMS=2000) as mc:
                 doc = mc[db_name].ga4_oauth.find_one({"_id": "singleton"})

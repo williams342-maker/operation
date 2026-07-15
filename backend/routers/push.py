@@ -9,6 +9,7 @@ Audience taxonomy mirrors the existing email broadcaster:
   - anon           : subs with no email on file
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 import json
@@ -32,9 +33,9 @@ except Exception as e:  # pragma: no cover
 
 router = APIRouter()
 
-VAPID_PUBLIC = (os.environ.get("VAPID_PUBLIC_KEY") or "").strip()
-VAPID_PRIVATE_PEM = (os.environ.get("VAPID_PRIVATE_KEY_PEM") or "").replace("\\n", "\n").strip()
-VAPID_SUBJECT = (os.environ.get("VAPID_SUBJECT") or "mailto:ops@craftersmarket.org").strip()
+VAPID_PUBLIC = (env_get("VAPID_PUBLIC_KEY") or "").strip()
+VAPID_PRIVATE_PEM = (env_get("VAPID_PRIVATE_KEY_PEM") or "").replace("\\n", "\n").strip()
+VAPID_SUBJECT = (env_get("VAPID_SUBJECT") or "mailto:ops@craftersmarket.org").strip()
 
 
 # ───────────── Schemas ─────────────

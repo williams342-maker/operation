@@ -3,7 +3,6 @@
 - Magic link: itsdangerous URLSafeTimedSerializer, 15 min expiry, one purpose.
 - Session: PyJWT HS256, 7 day expiry, claims = {sub: maker_slug, email}.
 """
-import os
 import jwt
 from datetime import datetime, timedelta, timezone
 import ipaddress
@@ -11,7 +10,9 @@ import ipaddress
 from fastapi import Depends, Header, HTTPException, Request
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
-SECRET = os.environ["MAKER_AUTH_SECRET"]
+from config import env_get, settings
+
+SECRET = settings.maker_auth_secret
 MAGIC_TTL_SECONDS = 60 * 15           # 15 minutes
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days (buyers + makers)
 ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24  # 24 hours (admins — tighter)
@@ -152,7 +153,7 @@ def _admin_ip_allowlist() -> list:
       ADMIN_IP_ALLOWLIST="203.0.113.42"           → single IP
       ADMIN_IP_ALLOWLIST="10.0.0.0/8,1.2.3.4"     → CIDR + single
     """
-    raw = (os.environ.get("ADMIN_IP_ALLOWLIST") or "").strip()
+    raw = env_get("ADMIN_IP_ALLOWLIST", "").strip()
     if not raw:
         return []
     nets = []

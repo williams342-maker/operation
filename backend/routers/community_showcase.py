@@ -1,3 +1,4 @@
+from config import env_get
 """Community showcase: buyer + maker photo/video posts, analytics, AI describe.
 
 Carved out of `routers/community.py` (Feb 2026 refactor).
@@ -2138,7 +2139,7 @@ async def upload_showcase_video(
 
 
 # ===================== SHOWCASE — AI description help (iter114) =====================
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 SHOWCASE_AI_VISION_MAX_IMAGES = 3
 SHOWCASE_AI_VISION_MAX_BYTES = 4 * 1024 * 1024
 

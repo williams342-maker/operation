@@ -1,3 +1,4 @@
+from config import env_get
 """Seed maker-attributed forum threads — one per founding maker.
 
 iter230 — Per the user's brief, each of the 10 founding makers has
@@ -254,7 +255,7 @@ async def _generate_replies(thread: dict, replier_makers: list[dict]) -> list[di
         print(f"  [WARN] emergentintegrations unavailable ({e})")
         return []
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print("  [WARN] EMERGENT_LLM_KEY missing")
         return []

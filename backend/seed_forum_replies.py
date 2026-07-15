@@ -1,3 +1,4 @@
+from config import env_get
 """
 Seed additional forum replies so threads don't have the "dead forum"
 look — but kept lean and educational per platform direction:
@@ -65,7 +66,7 @@ async def _generate_replies_for_thread(thread, existing_count) -> list:
         print(f"  [WARN] emergentintegrations unavailable ({e})")
         return []
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print("  [WARN] EMERGENT_LLM_KEY missing — skipping LLM gen")
         return []

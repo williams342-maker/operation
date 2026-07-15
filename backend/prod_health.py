@@ -17,6 +17,7 @@ Design notes:
   - Non-blocking: httpx timeout is short (8s); total job budget is <1 min.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timezone
@@ -41,19 +42,19 @@ TIMEOUT_SEC = 8.0
 def _prod_url() -> Optional[str]:
     """Origin to watchdog. Operator-override via PROD_URL; else fall back
     to PUBLIC_SITE_URL (which is always the canonical apex post-iter92)."""
-    raw = (os.environ.get("PROD_URL") or os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/")
+    raw = (env_get("PROD_URL") or env_get("PUBLIC_SITE_URL") or "").rstrip("/")
     return raw or None
 
 
 def _should_run() -> bool:
     """Skip if watchdog is disabled OR if we'd end up watchdog'ing ourself.
     Running on prod → we're already down when it matters, can't help."""
-    if os.environ.get("PROD_WATCHDOG_ENABLED", "true").lower() in ("false", "0", "no"):
+    if env_get("PROD_WATCHDOG_ENABLED", "true").lower() in ("false", "0", "no"):
         return False
     target = _prod_url()
     if not target:
         return False
-    me = (os.environ.get("PUBLIC_BACKEND_URL") or "").rstrip("/")
+    me = (env_get("PUBLIC_BACKEND_URL") or "").rstrip("/")
     # Only run when we are NOT on the prod host (i.e. we're on preview).
     # If the two happen to match (single-deploy stacks), the watchdog is
     # redundant and we skip — prod outages take the pod with them.
@@ -74,7 +75,7 @@ async def _fire_outage_alert(endpoint: str, status: int, reason: str):
     # iter105 — deep-link operator straight to the prod-health tab.
     try:
         from notify_webhook import notify_team
-        site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+        site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
         await notify_team(
             kind="outage",
             title=endpoint,
@@ -96,7 +97,7 @@ async def _fire_recovery_alert(endpoint: str, downtime_minutes: int):
     # iter105 — deep-link operator straight to the prod-health tab.
     try:
         from notify_webhook import notify_team
-        site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+        site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
         await notify_team(
             kind="recovery",
             title=endpoint,

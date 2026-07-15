@@ -1,3 +1,4 @@
+from config import env_get
 """Seed pack expansion — 6 new founding makers × 5 products = 30 listings.
 
 iter229 — Builds out the founding ecosystem to 10 makers total (4 from
@@ -1216,7 +1217,7 @@ async def _generate_image(slug: str, prompt: str, suffix: str = "") -> str:
         print(f"  [WARN] emergentintegrations missing ({e})")
         return public_path
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print("  [WARN] EMERGENT_LLM_KEY not set")
         return public_path

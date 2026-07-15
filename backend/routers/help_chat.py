@@ -1,3 +1,4 @@
+from config import env_get
 """
 iter312 — Help & Support AI chat (onboarding-focused).
 iter413cq — Now reads live platform capabilities + supports AI-diagnosed bug reports.
@@ -38,7 +39,7 @@ from routers.platform_capabilities import build_capabilities_payload
 
 router = APIRouter()
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 
 SYSTEM_PROMPT_BASE = """You are **Compass**, the AI assistant for Crafters Market —
 a marketplace for handcrafted goods across many disciplines (woodworking,
@@ -555,7 +556,7 @@ async def help_report_issue(payload: HelpReportIssueIn, bg: BackgroundTasks, req
 
     # Fan out to ops Slack/Discord. No-op when webhooks unconfigured.
     from notify_webhook import notify_team
-    site = (os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     bg.add_task(
         notify_team,
         kind="ai_diagnosed_bug",

@@ -19,6 +19,7 @@ failure never breaks the scheduler.
 Runs from scheduler.py every Tuesday at 14:00 UTC.
 """
 from __future__ import annotations
+from config import env_get
 
 import json
 import logging
@@ -91,7 +92,7 @@ async def _generate_thread_via_llm(channel: str, seed_prompt: str) -> dict | Non
         logger.warning("emergentintegrations unavailable: %s", e)
         return None
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         logger.warning("EMERGENT_LLM_KEY missing — skipping weekly thread")
         return None

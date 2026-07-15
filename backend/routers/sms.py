@@ -9,6 +9,7 @@ Endpoints
 - POST /api/admin/sms/optouts/clear — undo an opt-out
 """
 from __future__ import annotations
+from config import env_get
 
 import json
 import os
@@ -143,7 +144,7 @@ async def admin_sms_diag(_: dict = Depends(current_admin)):
         "configured": is_configured(),
         "missing_env": [
             k for k in ("TELNYX_API_KEY", "TELNYX_MESSAGING_PROFILE_ID", "TELNYX_PUBLIC_KEY")
-            if not (os.environ.get(k) or "").strip()
+            if not (env_get(k) or "").strip()
         ],
         "recent_sends": recent,
         "optout_count": await db.sms_optouts.count_documents({}),

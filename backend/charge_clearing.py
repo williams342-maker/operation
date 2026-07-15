@@ -30,6 +30,7 @@ whether a charge-clearing entry already exists in `charge_history` for the
 current batch.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timezone
@@ -41,7 +42,7 @@ from core import STRIPE_API_KEY, db, logger, now_iso
 
 # Skip ledger balances below this threshold — not worth the $0.30 Stripe
 # per-invoice fee. Default $1.00. Set to 0 to always clear.
-MIN_CLEAR_CENTS = int(os.environ.get("CHARGE_CLEARING_MIN_CENTS", "100"))
+MIN_CLEAR_CENTS = int(env_get("CHARGE_CLEARING_MIN_CENTS", "100"))
 
 
 def _batch_key() -> str:

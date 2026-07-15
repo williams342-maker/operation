@@ -5,6 +5,7 @@ admin-toggleable flag. Public `GET /api/settings` returns the subset the
 frontend needs. Admin endpoints read/write the full document.
 """
 from __future__ import annotations
+from config import env_get
 
 import os
 from datetime import datetime, timezone
@@ -150,7 +151,7 @@ async def submit_beta_feedback(payload: BetaFeedbackIn, bg: BackgroundTasks):
     # iter105 — deep-link to the row inside the admin dashboard.
     import os as _os
     from notify_webhook import notify_team
-    _site = (_os.environ.get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    _site = (_env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     bg.add_task(
         notify_team,
         kind="feedback",
@@ -390,9 +391,9 @@ async def admin_email_status(_: dict = Depends(current_admin)):
         {}, {"_id": 0},
     ).sort("created_at", -1).to_list(50)
     return {
-        "provider": os.environ.get("EMAIL_PROVIDER", "mailtrap"),
-        "sender": os.environ.get("SENDER_EMAIL", ""),
-        "ops_email": os.environ.get("OPS_EMAIL", ""),
+        "provider": env_get("EMAIL_PROVIDER", "mailtrap"),
+        "sender": env_get("SENDER_EMAIL", ""),
+        "ops_email": env_get("OPS_EMAIL", ""),
         "today": {"sent": sent_today, "failed": failed_today, "skipped": skipped_today},
         "last_sent": last_sent,
         "last_failed": last_failed,
@@ -416,8 +417,8 @@ async def admin_email_health(_: dict = Depends(current_admin)):
     from datetime import datetime, timezone, timedelta
     now_dt = datetime.now(timezone.utc)
     since = (now_dt - timedelta(hours=24)).isoformat()
-    provider = os.environ.get("EMAIL_PROVIDER", "")
-    fallback = os.environ.get("EMAIL_FALLBACK_PROVIDER", "")
+    provider = env_get("EMAIL_PROVIDER", "")
+    fallback = env_get("EMAIL_FALLBACK_PROVIDER", "")
     primary_key_env = {
         "mailtrap": "MAILTRAP_API_KEY",
         "postmark": "POSTMARK_API_KEY",
@@ -428,7 +429,7 @@ async def admin_email_health(_: dict = Depends(current_admin)):
         "mailgun": "MAILGUN_API_KEY",
     }.get(provider.lower(), "")
     primary_configured = bool(
-        provider and (not primary_key_env or os.environ.get(primary_key_env))
+        provider and (not primary_key_env or env_get(primary_key_env))
     )
 
     sent_24h = await db.email_events.count_documents(
@@ -544,9 +545,9 @@ async def admin_email_provider_audit(_: dict = Depends(current_admin)):
     and what's dead weight cluttering DNS + env vars.
     """
     chain = [
-        os.environ.get("EMAIL_PROVIDER", "").lower().strip(),
-        os.environ.get("EMAIL_FALLBACK_PROVIDER", "").lower().strip(),
-        os.environ.get("EMAIL_FALLBACK_PROVIDER_2", "").lower().strip(),
+        env_get("EMAIL_PROVIDER", "").lower().strip(),
+        env_get("EMAIL_FALLBACK_PROVIDER", "").lower().strip(),
+        env_get("EMAIL_FALLBACK_PROVIDER_2", "").lower().strip(),
     ]
     roles = ["primary", "fallback", "fallback_2"]
     # Map provider -> role (first occurrence wins so duplicates show up as primary).
@@ -556,13 +557,13 @@ async def admin_email_provider_audit(_: dict = Depends(current_admin)):
             provider_role[name] = role
 
     # Derive apex from PUBLIC_SITE_URL for DNS hint substitution.
-    public_site = (os.environ.get("PUBLIC_SITE_URL") or "").strip()
+    public_site = (env_get("PUBLIC_SITE_URL") or "").strip()
     apex = public_site.replace("https://", "").replace("http://", "").rstrip("/")
     apex = apex or "craftersmarket.org"
 
     rows: list[dict] = []
     for name, key_env in _PROVIDER_KEY_ENV.items():
-        key_configured = bool((os.environ.get(key_env) or "").strip())
+        key_configured = bool((env_get(key_env) or "").strip())
         role = provider_role.get(name, "unused")
         safe_to_remove = key_configured and role == "unused"
         dns_records: list[str] = []
@@ -604,7 +605,7 @@ async def admin_email_test(payload: TestEmailIn, claims: dict = Depends(current_
     """Fire a real diagnostic email through the configured provider. Used to
     verify domain/token/quota status from the admin UI without leaving the dashboard."""
     from email_service import _send
-    to = (payload.to or os.environ.get("OPS_EMAIL") or claims.get("email") or "").strip()
+    to = (payload.to or env_get("OPS_EMAIL") or claims.get("email") or "").strip()
     if not to:
         raise HTTPException(400, "No recipient configured (OPS_EMAIL missing).")
     html = (

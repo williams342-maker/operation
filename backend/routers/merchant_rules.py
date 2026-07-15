@@ -16,6 +16,7 @@ MAKER — live preview for the listing editor
       Pure function of the inputs + current category rules; never writes.
 """
 from __future__ import annotations
+from config import env_get
 
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -141,7 +142,7 @@ async def autofix_feed_quality(slug: str = Depends(current_maker_slug)) -> dict:
     from routers.pinterest_feed import _resolve_gpc
     from services.merchant_attributes import merchant_attributes
 
-    llm_key = _os.environ.get("EMERGENT_LLM_KEY")
+    llm_key = _env_get("EMERGENT_LLM_KEY")
     if not llm_key:
         raise HTTPException(503, "AI is not configured on this deployment.")
 
