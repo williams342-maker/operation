@@ -2179,4 +2179,6 @@ export const adminInformReinstate = (slug) =>
   http.post(`/admin/inform-act/${slug}/reinstate`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchSellerDisclosure = (slug) =>
   http.get(`/makers/${slug}/seller-disclosure`).then((r) => r.data);
+export const adminTaxVerification = () =>
+  http.get("/admin/tax/verification", { headers: adminAuthHeaders() }).then((r) => r.data);
 

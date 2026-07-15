@@ -3264,3 +3264,10 @@ Stripe · Cloudflare · GA4 · Google Ads · Google Search Console · Meta Ads/C
 - `/downloads/attorney-review-packet-2026-06-30.pdf` — 577 KB
 - `/downloads/counsel-review-packet-2026-06-30.pdf` — 599 KB (internal dev use)
 
+
+---
+## 2026-07-15 — iter462 status
+- Vanity URL (P1) CLOSED: iteration_121 100% pass; stale Plus-gating code removed from CustomUrlPicker.jsx; stale test_custom_url.py deleted.
+- INFORM Consumers Act automation SHIPPED & TESTED (iteration_122 100%): routers/inform_act.py, daily scheduler scan, maker InformActCard, admin "INFORM Act" tab, public seller-disclosure block. PII posture: tax IDs stored hash+last4 only.
+- Marketplace Facilitator Tax verification SHIPPED: /api/admin/tax/verification + MarketplaceTaxCard in Prod Health. LIVE FINDING: Stripe Tax active, 0 state registrations → $0 tax computed; operator must add registrations in Stripe dashboard, then redeploy is NOT needed (config lives in Stripe).
+- NEXT (per roadmap): P3 Cart-recovery drill-down · P3 Trending auto-boost nudge · Community Phase 2 (badges/collections/leaderboards) · returns & dispute center · PolicyPage.jsx refactor · BLOCKED: Google Ads conversion labels (waiting on user).

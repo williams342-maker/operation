@@ -138,3 +138,117 @@ async def admin_updates_subscribers_csv(_: dict = Depends(current_admin)):
 def _today_str() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+# ── iter462b — Marketplace Facilitator Tax verification (P4 ops task) ───
+# Queries Stripe Tax with the pod's effective key and reports whether
+# marketplace-facilitator sales tax is actually being calculated,
+# collected, and registered per state. Run this on PRODUCTION (real
+# sk_live key) — the preview pod only has the Emergent placeholder.
+@router.get("/admin/tax/verification")
+async def admin_tax_verification(_: dict = Depends(current_admin)):
+    import os
+    import stripe as stripe_sdk
+    from core import STRIPE_API_KEY
+
+    key = STRIPE_API_KEY or ""
+    mode = ("LIVE" if key.startswith("sk_live_")
+            else "TEST" if key.startswith("sk_test_") else "MISSING")
+    placeholder = "****" in key
+    auto_tax_flag = os.environ.get("STRIPE_AUTOMATIC_TAX", "true").lower() == "true"
+
+    out = {
+        "stripe_key_mode": mode,
+        "stripe_key_is_placeholder": placeholder,
+        "automatic_tax_env_enabled": auto_tax_flag,
+        "checkout_integration": (
+            "checkout.py enables automatic_tax on every Stripe Checkout session "
+            "and silently falls back to a tax-less session only if Stripe rejects "
+            "the tax config (e.g. head office not set)."),
+        "tax_settings": None,
+        "registrations": [],
+        "recent_sessions_with_tax": None,
+        "recommendations": [],
+    }
+
+    if placeholder or mode == "MISSING":
+        out["recommendations"].append(
+            "This pod has no real Stripe key — run this check on production "
+            "(craftersmarket.org) where the live key is injected.")
+        return out
+
+    stripe_sdk.api_key = key
+
+    def _sv(obj, *path):
+        for k in path:
+            obj = getattr(obj, k, None)
+            if obj is None:
+                return None
+        return obj
+
+    try:
+        s = stripe_sdk.tax.Settings.retrieve()
+        ho = _sv(s, "head_office", "address")
+        out["tax_settings"] = {
+            "status": _sv(s, "status"),
+            "head_office": {
+                "line1": _sv(ho, "line1"), "city": _sv(ho, "city"),
+                "state": _sv(ho, "state"), "postal_code": _sv(ho, "postal_code"),
+                "country": _sv(ho, "country"),
+            } if ho else None,
+            "default_tax_behavior": _sv(s, "defaults", "tax_behavior"),
+            "default_tax_code": _sv(s, "defaults", "tax_code"),
+        }
+        if _sv(s, "status") != "active":
+            out["recommendations"].append(
+                "Stripe Tax status is not 'active' — set the head-office address and "
+                "defaults at dashboard.stripe.com/settings/tax to activate tax calculation.")
+    except Exception as e:
+        out["tax_settings"] = {"error": f"{type(e).__name__}: {e}"[:300]}
+        out["recommendations"].append(
+            "Couldn't read Stripe Tax settings — verify the key has tax scope and "
+            "Stripe Tax is enabled on the account.")
+
+    try:
+        regs = stripe_sdk.tax.Registration.list(limit=100)
+        for r in (getattr(regs, "data", None) or []):
+            out["registrations"].append({
+                "country": _sv(r, "country"),
+                "state": _sv(r, "country_options", "us", "state"),
+                "status": _sv(r, "status"), "active_from": _sv(r, "active_from"),
+            })
+        if not out["registrations"]:
+            out["recommendations"].append(
+                "No tax registrations on file — without state registrations Stripe Tax "
+                "calculates $0 tax everywhere. Add registrations for states where you have "
+                "nexus at dashboard.stripe.com/tax/registrations.")
+    except Exception as e:
+        out["registrations"] = [{"error": f"{type(e).__name__}: {e}"[:300]}]
+
+    # Spot-check: did the most recent checkout sessions actually carry tax?
+    try:
+        sessions = stripe_sdk.checkout.Session.list(limit=10)
+        rows = []
+        for cs in (getattr(sessions, "data", None) or []):
+            rows.append({
+                "id": _sv(cs, "id"), "status": _sv(cs, "payment_status"),
+                "automatic_tax_enabled": _sv(cs, "automatic_tax", "enabled"),
+                "automatic_tax_status": _sv(cs, "automatic_tax", "status"),
+                "amount_tax_cents": _sv(cs, "total_details", "amount_tax"),
+                "amount_total_cents": _sv(cs, "amount_total"),
+            })
+        out["recent_sessions_with_tax"] = rows
+        enabled = [r for r in rows if r["automatic_tax_enabled"]]
+        if rows and not enabled:
+            out["recommendations"].append(
+                "Recent checkout sessions were created WITHOUT automatic_tax — the "
+                "tax-less fallback is firing. Fix the Stripe Tax settings issue above.")
+    except Exception as e:
+        out["recent_sessions_with_tax"] = [{"error": f"{type(e).__name__}: {e}"[:300]}]
+
+    if not out["recommendations"]:
+        out["recommendations"].append(
+            "All good — Stripe Tax is active, registrations are on file, and recent "
+            "sessions carried automatic tax. Marketplace-facilitator remittance is "
+            "handled by Stripe for registered states.")
+    return out

@@ -3,6 +3,7 @@ import { CheckCircle2, AlertTriangle, RefreshCw, ExternalLink } from "lucide-rea
 import { fetchAdminProdHealth, adminProdHealthCheckNow } from "../../lib/api";
 import CacheStatsCard from "./CacheStatsCard";
 import PricingLabelAbCard from "./PricingLabelAbCard";
+import MarketplaceTaxCard from "./MarketplaceTaxCard";
 
 /**
  * Prod health watchdog admin tab — surfaces the latest result from the
@@ -144,6 +145,8 @@ export default function ProdHealthTab() {
       <CacheStatsCard />
       {/* iter334s — A/B status: pricing-label headline framing. */}
       <PricingLabelAbCard />
+      {/* iter462b — Marketplace facilitator tax (Stripe Tax) verification. */}
+      <MarketplaceTaxCard />
     </div>
   );
 }

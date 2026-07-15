@@ -11286,3 +11286,23 @@ User: variant/color/size buttons too light; cyan "Question for maker" link invis
   - Admin PaidOrdersList: cancellation stats strip, per-order cancellation badge (+internal note), edit-reason, reopen, admin-only "⊘ No-refund" (prompts internal note).
 - v1 skips buyer approval by design (architecture leaves room for it). Refund-SUCCESS provider call not exercisable against fake sessions; shares code with verified paths + pre-existing refund helpers.
 - Test artifacts: `/app/backend/tests/test_iter459_order_cancellation.py`, `/app/test_reports/iteration_120.json`.
+
+## 2026-07-15 — iter462: INFORM Consumers Act automation (P4→shipped) + Marketplace Facilitator Tax verification (P5→shipped)
+(iteration_122: 20/20 backend pytest + all frontend flows pass, zero defects)
+- **INFORM Act backend** `routers/inform_act.py` (registered in server.py):
+  - Rolling 12-month per-maker stats (`compute_rolling_stats`) from db.transactions ∪ db.payment_transactions (session_id dedupe; product lookup fallback).
+  - Statutory thresholds: 200+ orders AND $5,000+ revenue (AND per 15 U.S.C. §45f); $20,000+ → public disclosure; 10-day collection deadline; 365-day annual certification.
+  - Daily scan `_job_inform_act_scan` (scheduler, 07:10 UTC, id='inform_act_scan') + manual `POST /admin/inform-act/scan`: flags new qualifiers (status collection_required + deadline + emails to maker/ops), auto-suspends past-deadline makers, nudges annual recert (once, `recert_notified_at`). Scan summaries in db.inform_act_scans.
+  - Maker: `GET /maker/inform-act`, `POST /maker/inform-act/submit` (full validation; tax ID stored ONLY as SHA-256 hash + last4 — full number unrecoverable; bank = name + last4), `POST /maker/inform-act/certify`.
+  - Admin: `GET /admin/inform-act` (live stats + masked submissions), verify / reject(note, resets deadline) / suspend / reinstate (state derived from verified_at/submission).
+  - Public: `GET /makers/{slug}/seller-disclosure` (accepts vanity custom_url too) — 200 only for verified $20k+ sellers; individuals get partial address (state+country) per §45f(b)(2), businesses full address.
+  - Lifecycle: monitoring → collection_required → pending_verification → verified → (suspended ↔ reinstate); emails at every transition (Mailgun, live).
+- **INFORM Act frontend**:
+  - Maker `Settings/InformActCard.jsx` (AccountPanel, below CustomUrlPicker; self-hides for status=monitoring): status badge, deadline/suspension/rejection banners, 13-field submission form, certify button when recert due.
+  - Admin tab `inform-act` "INFORM Act" (`components/admin/InformActTab.jsx`): thresholds summary, last-scan line, Run-scan button, sortable table (12-mo orders/revenue/status/$20k flag), expandable review row w/ masked tax ID + Verify/Reject(note)/Suspend/Reinstate.
+  - Public `SellerDisclosure` block on MakerDetail.jsx ("Verified seller information" + Report this seller → /contact).
+- **Marketplace Facilitator Tax verification** (P5 ops task):
+  - New `GET /api/admin/tax/verification` (prod_health.py) + `MarketplaceTaxCard.jsx` in Admin → Prod Health: reports Stripe key mode/placeholder, Stripe Tax settings status + head office, tax registrations per state, last-10 checkout sessions automatic_tax spot-check, actionable recommendations. Stripe SDK v15 attribute-access safe (`_sv` helper — StripeObject dropped `.get`).
+  - **LIVE ACCOUNT FINDING (2026-07-15)**: Stripe Tax settings ACTIVE (head office Oak Harbor, WA), automatic_tax ON for 9/10 recent sessions, BUT **0 tax registrations on file → Stripe currently calculates $0 tax in every state**. ACTION FOR OPERATOR: add state registrations (at minimum WA) at dashboard.stripe.com/tax/registrations, then re-run the card on production.
+- Cleanup: removed stale Plus-gating LockedCard + JSDoc from CustomUrlPicker.jsx; deleted stale /app/backend/tests/test_custom_url.py (superseded by test_iter460_custom_url.py).
+- Test artifacts: `/app/backend/tests/test_iter462_inform_act.py` (note: needs re-seed of 205 `{_inform_test:true}` kiln-and-clay transactions to re-run), `/app/test_reports/iteration_122.json`.
