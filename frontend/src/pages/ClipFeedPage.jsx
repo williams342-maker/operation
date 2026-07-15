@@ -7,6 +7,7 @@ import {
   recordClipView, recordClipShare, toggleClipLike, toggleClipSave,
 } from "../lib/api";
 import IncentiveBanner from "../components/ClipsIncentiveBanner";
+import { trackStoreEvent } from "../lib/storeEvents";
 
 const CATEGORY_FALLBACK = [
   { id: null,           label: "For you",        emoji: "✦" },
@@ -230,6 +231,8 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
   const [paused, setPaused] = useState(true);
   const [viewed, setViewed] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
+  const impressed = useRef(new Set());
 
   const isEmbed = clip.source_type === "youtube" || clip.source_type === "vimeo";
 
@@ -246,6 +249,12 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
         }
         if (!viewed) {
           recordClipView(clip.id).catch(() => {});
+          trackStoreEvent("clip_view", {
+            maker_slug: clip.maker_slug || "workshop",
+            clip_id: clip.id,
+            source: "clip_feed",
+            referrer: typeof document !== "undefined" ? document.referrer : "",
+          });
           setViewed(true);
         }
       } else {
@@ -257,7 +266,7 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
     }, { threshold: [0, 0.6, 1] });
     io.observe(el);
     return () => io.disconnect();
-  }, [clip.id, viewed]);
+  }, [clip.id, clip.maker_slug, viewed]);
 
   // Keep <video> muted-prop in sync so the global mute toggle works.
   useEffect(() => {
@@ -303,6 +312,25 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
   const shareUrl = typeof window !== "undefined"
     ? `${window.location.origin}/clips/${clip.slug}`
     : `/clips/${clip.slug}`;
+
+  const linkedProducts = useMemo(() => (Array.isArray(clip.linked_products) ? clip.linked_products : []), [clip.linked_products]);
+  const hasProducts = linkedProducts.length > 0;
+  const shopTarget = hasProducts ? null : (clip.product_slug ? `/shop/${clip.product_slug}` : `/makers/${clip.maker_slug}`);
+
+  useEffect(() => {
+    if (!productsOpen || !hasProducts) return;
+    linkedProducts.forEach((p) => {
+      if (!p?.slug || impressed.current.has(p.slug)) return;
+      impressed.current.add(p.slug);
+      trackStoreEvent("clip_product_impression", {
+        maker_slug: p.maker_slug || clip.maker_slug || "workshop",
+        clip_id: clip.id,
+        product_slug: p.slug,
+        source: "clip_drawer",
+        referrer: typeof document !== "undefined" ? document.referrer : "",
+      });
+    });
+  }, [productsOpen, hasProducts, linkedProducts, clip.id, clip.maker_slug]);
 
   return (
     <div
@@ -391,17 +419,42 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
             testId={`clip-share-${clip.slug}`}
             label="Share"
           />
-          {(clip.maker_slug || clip.product_slug) && (
-            <Link
-              to={clip.product_slug ? `/listing/${clip.product_slug}` : `/maker/${clip.maker_slug}`}
-              className="grid place-items-center w-12 h-12 border border-brand bg-brand text-black"
-              data-testid={`clip-shop-${clip.slug}`}
-              aria-label={clip.product_slug ? "Shop this listing" : "Shop the maker"}
-            >
-              <ShoppingBag size={20} />
-            </Link>
+          {(hasProducts || clip.maker_slug || clip.product_slug) && (
+            hasProducts ? (
+              <button
+                type="button"
+                onClick={() => setProductsOpen((v) => !v)}
+                className={`grid place-items-center w-12 h-12 border ${productsOpen ? "border-white bg-white text-black" : "border-brand bg-brand text-black"}`}
+                data-testid={`clip-shop-${clip.slug}`}
+                aria-label="Featured Products"
+              >
+                <ShoppingBag size={20} />
+              </button>
+            ) : (
+              <Link
+                to={shopTarget}
+                className="grid place-items-center w-12 h-12 border border-brand bg-brand text-black"
+                data-testid={`clip-shop-${clip.slug}`}
+                aria-label={clip.product_slug ? "Shop this listing" : "Shop the maker"}
+              >
+                <ShoppingBag size={20} />
+              </Link>
+            )
           )}
         </div>
+
+        {hasProducts && productsOpen && (
+          <FeaturedProductsDrawer
+            clip={clip}
+            products={linkedProducts}
+            onStoreClick={() => trackStoreEvent("clip_store_click", {
+              maker_slug: clip.maker_slug || "workshop",
+              clip_id: clip.id,
+              source: "clip_drawer",
+              referrer: typeof document !== "undefined" ? document.referrer : "",
+            })}
+          />
+        )}
 
         {/* Bottom-left caption */}
         <div className="absolute left-4 right-20 bottom-6 z-10">
@@ -425,7 +478,7 @@ function ClipPlayer({ clip, muted, onMuteToggle, onEngagementUpdate }) {
           <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink-muted mt-2">
             BY{" "}
             {clip.maker_slug ? (
-              <Link to={`/maker/${clip.maker_slug}`} className="text-ink hover:text-brand underline-offset-2 hover:underline">
+              <Link to={`/makers/${clip.maker_slug}`} className="text-ink hover:text-brand underline-offset-2 hover:underline">
                 {clip.maker_name}
               </Link>
             ) : (
@@ -537,6 +590,71 @@ function ShareSheet({ clip, shareUrl, onClose, onShare }) {
             </a>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+function fmtClipPrice(p) {
+  const min = Number(p.price_min ?? p.price ?? 0);
+  const max = Number(p.price_max ?? p.price ?? min);
+  if (max && max !== min) return `$${min.toFixed(0)}-$${max.toFixed(0)}`;
+  return `$${min.toFixed(min % 1 ? 2 : 0)}`;
+}
+
+function FeaturedProductsDrawer({ clip, products, onStoreClick }) {
+  return (
+    <div
+      className="absolute left-3 right-16 bottom-24 md:left-6 md:right-24 md:bottom-20 max-h-[42vh] overflow-y-auto bg-black/85 border border-white/20 backdrop-blur z-20"
+      data-testid={`clip-products-drawer-${clip.slug}`}
+    >
+      <div className="sticky top-0 bg-black/90 border-b border-white/10 px-3 py-2 flex items-center justify-between gap-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-white">Featured Products</div>
+        {clip.maker_slug && (
+          <Link
+            to={`/makers/${clip.maker_slug}`}
+            onClick={onStoreClick}
+            className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand hover:text-white"
+            data-testid={`clip-store-link-${clip.slug}`}
+          >
+            View Maker Store
+          </Link>
+        )}
+      </div>
+      <div className="p-2 grid gap-2 sm:grid-cols-2">
+        {products.map((p) => (
+          <Link
+            key={p.slug}
+            to={`/shop/${p.slug}`}
+            onClick={() => trackStoreEvent("clip_product_click", {
+              maker_slug: p.maker_slug || clip.maker_slug || "workshop",
+              clip_id: clip.id,
+              product_slug: p.slug,
+              source: "clip_drawer",
+              referrer: typeof document !== "undefined" ? document.referrer : "",
+            })}
+            className="grid grid-cols-[64px_1fr] gap-3 border border-white/10 bg-white/5 hover:bg-white/10 transition p-2 min-w-0"
+            data-testid={`clip-product-link-${p.slug}`}
+          >
+            {p.image ? (
+              <img src={p.image} alt="" className="w-16 h-16 object-cover bg-white/10" />
+            ) : (
+              <div className="w-16 h-16 bg-white/10" />
+            )}
+            <div className="min-w-0">
+              <div className="font-mono text-xs text-white line-clamp-2">{p.title}</div>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <span className="font-display text-xl text-brand">{fmtClipPrice(p)}</span>
+                {p.sale_price && <span className="font-mono text-[10px] text-emerald-300">Sale ${Number(p.sale_price).toFixed(2)}</span>}
+              </div>
+              <div className={`font-mono text-[10px] uppercase tracking-[0.18em] ${p.in_stock > 0 ? "text-white/60" : "text-red-300"}`}>
+                {p.stock_status || (p.in_stock > 0 ? "In stock" : "Out of stock")}
+              </div>
+              {p.maker_name && <div className="font-mono text-[10px] text-white/45 truncate">by {p.maker_name}</div>}
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   );

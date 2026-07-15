@@ -346,6 +346,7 @@ function App() {
                 <Route path="/trust/vendors" element={<TrustVendorsPage />} />
                 <Route path="/policies" element={<PoliciesIndexPage />} />
                 <Route path="/cookie-preferences" element={<CookiePreferences />} />
+                <Route path="/policies/:slug/versions/:version" element={<PolicyDetailPage />} />
                 <Route path="/policies/:slug" element={<PolicyDetailPage />} />
                 <Route path="/counsel-packet" element={<PrintBundlePage />} />
                 <Route path="/attorney-packet" element={<PrintBundlePage />} />

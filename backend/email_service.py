@@ -3890,3 +3890,22 @@ async def send_recon_report(report: dict):
     html = _shell(title, f"Nightly check · trigger: {report.get('trigger')}", body,
                   "Nightly reconciliation engine")
     return await _send(to, subject, html)
+
+async def send_policy_update_notice(*, maker_email: str, maker_name: str, notice: dict):
+    """Transactional policy-change notice for makers."""
+    title = notice.get("policy_title") or "Policy update"
+    version = notice.get("version_number") or ""
+    effective = (notice.get("effective_at") or "").replace("T", " ")[:16]
+    published = (notice.get("published_at") or "").replace("T", " ")[:16]
+    summary = notice.get("summary") or "Please review the updated policy."
+    full_url = (os.environ.get("FRONTEND_BASE_URL") or "https://craftersmarket.org").rstrip("/") + (notice.get("url") or "/policies")
+    ack = "Acknowledgement is required." if notice.get("acknowledgement_required") else "No acknowledgement is required."
+    body = (
+        f"<p style='color:#a3a3a3;line-height:1.7'>Hi {maker_name or 'Maker'},</p>"
+        f"<p style='color:#a3a3a3;line-height:1.7'>We published a policy update: <b>{title} v{version}</b>.</p>"
+        f"<p style='color:#a3a3a3;line-height:1.7'><b>Published:</b> {published or 'now'}<br/><b>Effective:</b> {effective or 'now'}<br/><b>{ack}</b></p>"
+        f"<div style='border-left:3px solid #ff4500;padding-left:14px;color:#d4d4d4;line-height:1.7'>{summary}</div>"
+        f"<p style='margin-top:18px'><a href='{full_url}' style='color:#ff4500'>View the full policy</a></p>"
+    )
+    html = _shell("Policy update", f"{title} v{version}", body, "Policy notice")
+    return await _send(maker_email, f"[Crafters Market] Policy update: {title} v{version}", html)

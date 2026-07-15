@@ -39,8 +39,8 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from core import db, logger, now_iso
-from maker_auth import current_any_user, current_maker_slug
+from core import db, logger, now_iso, listing_price_range
+from maker_auth import current_admin, current_any_user, current_maker_slug
 
 # Reuse the maker's URL-parser so YouTube/Vimeo embeds work the same way
 # across both surfaces.
@@ -73,6 +73,8 @@ CATEGORIES = [
 VALID_CATEGORIES = {c["id"] for c in CATEGORIES}
 MAX_TITLE = 120
 MAX_DESC = 600
+MAX_LINKED_PRODUCTS = 10
+VALID_VISIBILITY = {"public", "unlisted"}
 
 # Founding-50 maker incentive: every brand-new organic clip is automatically
 # promoted to `featured: true` until 50 such clips have been posted.
@@ -147,6 +149,149 @@ async def _unique_slug(base: str) -> str:
         n += 1
         c = f"{base}-{n}"
     return c
+
+
+async def ensure_clip_product_indexes() -> None:
+    """Idempotent Mongo indexes for normalized clip-product links."""
+    try:
+        await db.clip_products.create_index(
+            [("clip_id", 1), ("product_id", 1)],
+            unique=True,
+            name="uniq_clip_product",
+        )
+        await db.clip_products.create_index([("clip_id", 1), ("sort_order", 1)])
+        await db.clip_products.create_index("product_id")
+        await db.clip_edit_history.create_index([("clip_id", 1), ("created_at", -1)])
+        await db.store_events.create_index([("maker_slug", 1), ("clip_id", 1), ("type", 1), ("at", -1)])
+    except Exception as e:
+        logger.warning("[clips] index ensure failed: %s", e)
+
+
+def _clean_text(value: str | None, max_len: int) -> str:
+    value = re.sub(r"<[^>]*>", "", value or "")
+    value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", value)
+    return value.strip()[:max_len]
+
+
+def _clean_tags(tags: list[str] | None) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in tags or []:
+        val = re.sub(r"[^a-z0-9#\-_ ]+", "", (t or "").lower()).strip().lstrip("#")
+        if not val or val in seen:
+            continue
+        seen.add(val)
+        out.append(val[:40])
+        if len(out) >= 10:
+            break
+    return out
+
+
+def _product_available_query(maker_slug: str | None = None) -> dict:
+    q: dict = {
+        "deleted_at": None,
+        "status": {"$nin": ["draft", "inactive", "suspended", "deleted"]},
+        "admin_hidden": {"$ne": True},
+    }
+    if maker_slug:
+        q["maker_slug"] = maker_slug
+    return q
+
+
+def _product_thumb(p: dict) -> Optional[str]:
+    imgs = p.get("images") or []
+    return imgs[0] if imgs else p.get("image_url") or p.get("thumbnail_url")
+
+
+def _product_public_card(p: dict, is_featured: bool = False, sort_order: int = 0) -> dict:
+    lo, hi = listing_price_range(p)
+    in_stock = int(p.get("in_stock") or 0)
+    variants = p.get("variants") or []
+    if variants:
+        in_stock = sum(max(0, int(v.get("in_stock") or 0)) for v in variants)
+    return {
+        "id": p.get("id") or p.get("slug"),
+        "slug": p.get("slug"),
+        "title": p.get("title") or "Untitled listing",
+        "maker_slug": p.get("maker_slug"),
+        "maker_name": p.get("maker_name"),
+        "image": _product_thumb(p),
+        "images": p.get("images") or [],
+        "price": lo if lo == hi else lo,
+        "price_min": lo,
+        "price_max": hi,
+        "sale_price": p.get("sale_price") or p.get("compare_sale_price"),
+        "in_stock": in_stock,
+        "stock_status": "In stock" if in_stock > 0 else "Out of stock",
+        "is_featured": bool(is_featured),
+        "sort_order": int(sort_order),
+        "url": f"/shop/{p.get('slug')}",
+    }
+
+
+async def _linked_products_for_clip(clip: dict, include_legacy: bool = True) -> list[dict]:
+    clip_id = clip.get("id")
+    links = await db.clip_products.find(
+        {"clip_id": clip_id}, {"_id": 0}
+    ).sort("sort_order", 1).to_list(MAX_LINKED_PRODUCTS)
+    product_ids = [x.get("product_id") for x in links if x.get("product_id")]
+    legacy_slug = (clip.get("product_slug") or "").strip()
+    if include_legacy and legacy_slug and legacy_slug not in product_ids:
+        product_ids.append(legacy_slug)
+        links.append({
+            "clip_id": clip_id,
+            "product_id": legacy_slug,
+            "sort_order": len(links),
+            "is_featured": not any(x.get("is_featured") for x in links),
+            "legacy": True,
+        })
+    if not product_ids:
+        return []
+    products = await db.products.find(
+        {"slug": {"$in": product_ids}, **_product_available_query()},
+        {"_id": 0},
+    ).to_list(MAX_LINKED_PRODUCTS)
+    by_slug = {p.get("slug"): p for p in products}
+    out: list[dict] = []
+    for i, link in enumerate(links):
+        p = by_slug.get(link.get("product_id"))
+        if not p:
+            continue
+        out.append(_product_public_card(
+            p,
+            is_featured=bool(link.get("is_featured")),
+            sort_order=int(link.get("sort_order", i)),
+        ))
+    if out and not any(p["is_featured"] for p in out):
+        out[0]["is_featured"] = True
+    return out
+
+
+async def _attach_linked_products(rows: list[dict]) -> list[dict]:
+    for row in rows:
+        row["linked_products"] = await _linked_products_for_clip(row)
+    return rows
+
+
+async def _clip_metrics(clip_id: str, views: int) -> dict:
+    clicks = await db.store_events.count_documents({"clip_id": clip_id, "type": "clip_product_click"})
+    store = await db.store_events.count_documents({"clip_id": clip_id, "type": "clip_store_click"})
+    ctr = round((clicks / views) * 100, 2) if views else 0.0
+    return {"views": views, "product_clicks": clicks, "store_visits": store, "click_through_rate": ctr}
+
+
+async def _write_clip_history(clip_id: str, actor: str, action: str, changes: dict) -> None:
+    try:
+        await db.clip_edit_history.insert_one({
+            "id": uuid.uuid4().hex,
+            "clip_id": clip_id,
+            "actor": actor,
+            "action": action,
+            "changes": changes,
+            "created_at": now_iso(),
+        })
+    except Exception as e:
+        logger.warning("[clips] edit history write failed: %s", e)
 
 
 def _public_row(doc: dict, viewer_email: Optional[str] = None) -> dict:
@@ -228,7 +373,7 @@ async def feed(
     oldest clip in the previous page. No auth required, but if a JWT is
     present we annotate `i_liked` / `i_saved` so the UI renders the
     correct heart state immediately."""
-    q: dict = {"quarantined_at": None, **_orphan_guard()}
+    q: dict = {"quarantined_at": None, "visibility": {"$ne": "unlisted"}, **_orphan_guard()}
     if category:
         if category not in VALID_CATEGORIES:
             raise HTTPException(400, f"Unknown category {category}")
@@ -253,6 +398,7 @@ async def feed(
         except Exception:
             viewer_email = None
     await _annotate_engagement(rows, viewer_email)
+    await _attach_linked_products(rows)
 
     next_cursor = rows[-1]["created_at"] if len(rows) == limit else None
     return {"items": rows, "next_cursor": next_cursor}
@@ -275,6 +421,7 @@ async def get_clip(slug: str, authorization: Optional[str] = None):
         except Exception:
             viewer_email = None
     rows = await _annotate_engagement([_public_row(doc)], viewer_email)
+    await _attach_linked_products(rows)
     return rows[0]
 
 
@@ -455,7 +602,11 @@ async def maker_create_clip(
         "ai_generated": False,
         "ai_model": None,
         "quarantined_at": None,
+        "visibility": "public",
+        "comments_enabled": True,
+        "last_edited_at": None,
         "created_at": now_iso(),
+        "updated_at": now_iso(),
     }
     await db.clips.insert_one(doc)
     logger.info("[clips] maker %s posted %s/%s · %s · featured=%s", slug,
@@ -467,8 +618,224 @@ async def maker_create_clip(
 async def maker_list_mine(slug: str = Depends(current_maker_slug)):
     rows: list[dict] = []
     async for d in db.clips.find({"maker_slug": slug}, {"_id": 0}).sort("created_at", -1):
-        rows.append(_public_row(d))
+        row = _public_row(d)
+        row["linked_products"] = await _linked_products_for_clip(row, include_legacy=True)
+        row["metrics"] = await _clip_metrics(row["id"], int(row.get("views") or 0))
+        rows.append(row)
     return {"items": rows}
+
+
+class _ClipPatch(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=MAX_TITLE)
+    description: Optional[str] = Field(None, max_length=MAX_DESC)
+    category: Optional[str] = None
+    tags: Optional[list[str]] = None
+    visibility: Optional[str] = None
+    comments_enabled: Optional[bool] = None
+
+
+class _LinkedProductIn(BaseModel):
+    product_id: str = Field(..., min_length=1, max_length=160)
+    is_featured: bool = False
+
+
+class _LinkedProductsPatch(BaseModel):
+    products: list[_LinkedProductIn] = Field(default_factory=list, max_length=MAX_LINKED_PRODUCTS)
+
+
+@router.get("/maker/clips/products/search")
+async def maker_clip_product_search(
+    q: str = Query("", max_length=80),
+    limit: int = Query(20, ge=1, le=50),
+    slug: str = Depends(current_maker_slug),
+):
+    query = _product_available_query(slug)
+    text = (q or "").strip()
+    if text:
+        query["$or"] = [
+            {"title": {"$regex": re.escape(text), "$options": "i"}},
+            {"slug": {"$regex": re.escape(text), "$options": "i"}},
+        ]
+    rows = await db.products.find(query, {"_id": 0}).sort("updated_at", -1).limit(limit).to_list(limit)
+    return {"items": [_product_public_card(p) for p in rows]}
+
+
+@router.get("/maker/clips/{clip_id}/edit")
+async def maker_clip_edit_details(clip_id: str, slug: str = Depends(current_maker_slug)):
+    clip = await db.clips.find_one({"id": clip_id, "maker_slug": slug}, {"_id": 0})
+    if not clip:
+        raise HTTPException(404, "Clip not found or not yours.")
+    row = _public_row(clip)
+    row["linked_products"] = await _linked_products_for_clip(row, include_legacy=True)
+    row["metrics"] = await _clip_metrics(row["id"], int(row.get("views") or 0))
+    return {"clip": row}
+
+
+@router.patch("/maker/clips/{clip_id}")
+async def maker_update_clip(
+    clip_id: str,
+    payload: _ClipPatch = Body(...),
+    slug: str = Depends(current_maker_slug),
+):
+    clip = await db.clips.find_one({"id": clip_id, "maker_slug": slug}, {"_id": 0})
+    if not clip:
+        raise HTTPException(404, "Clip not found or not yours.")
+    patch: dict = {}
+    changes: dict = {}
+    if payload.title is not None:
+        title = _clean_text(payload.title, MAX_TITLE)
+        if len(title) < 3:
+            raise HTTPException(422, "Title must be at least 3 characters.")
+        patch["title"] = title
+    if payload.description is not None:
+        patch["description"] = _clean_text(payload.description, MAX_DESC)
+    if payload.category is not None:
+        if payload.category not in VALID_CATEGORIES:
+            raise HTTPException(422, f"Pick a category from: {sorted(VALID_CATEGORIES)}")
+        patch["category"] = payload.category
+    if payload.tags is not None:
+        patch["tags"] = _clean_tags(payload.tags)
+    if payload.visibility is not None:
+        vis = (payload.visibility or "").strip().lower()
+        if vis not in VALID_VISIBILITY:
+            raise HTTPException(422, "Visibility must be public or unlisted.")
+        patch["visibility"] = vis
+    if payload.comments_enabled is not None:
+        patch["comments_enabled"] = bool(payload.comments_enabled)
+    if not patch:
+        return {"ok": True, "clip": _public_row(clip)}
+    for k, v in patch.items():
+        if clip.get(k) != v:
+            changes[k] = {"from": clip.get(k), "to": v}
+    patch["updated_at"] = now_iso()
+    patch["last_edited_at"] = patch["updated_at"]
+    await db.clips.update_one({"id": clip_id, "maker_slug": slug}, {"$set": patch})
+    if changes:
+        await _write_clip_history(clip_id, slug, "maker_clip_update", changes)
+    fresh = await db.clips.find_one({"id": clip_id}, {"_id": 0})
+    row = _public_row(fresh)
+    row["linked_products"] = await _linked_products_for_clip(row, include_legacy=True)
+    row["metrics"] = await _clip_metrics(row["id"], int(row.get("views") or 0))
+    return {"ok": True, "clip": row}
+
+
+async def _validate_linked_products(slug: str, products: list[_LinkedProductIn]) -> list[dict]:
+    if len(products) > MAX_LINKED_PRODUCTS:
+        raise HTTPException(422, f"A clip can link at most {MAX_LINKED_PRODUCTS} products.")
+    seen: set[str] = set()
+    ids: list[str] = []
+    for item in products:
+        pid = item.product_id.strip()
+        if pid in seen:
+            raise HTTPException(422, "Duplicate product links are not allowed.")
+        seen.add(pid)
+        ids.append(pid)
+    if not ids:
+        return []
+    rows = await db.products.find({"slug": {"$in": ids}}, {"_id": 0}).to_list(MAX_LINKED_PRODUCTS)
+    by_slug = {p.get("slug"): p for p in rows}
+    valid_query = _product_available_query(slug)
+    active_rows = await db.products.find({"slug": {"$in": ids}, **valid_query}, {"_id": 0}).to_list(MAX_LINKED_PRODUCTS)
+    active = {p.get("slug"): p for p in active_rows}
+    for pid in ids:
+        row = by_slug.get(pid)
+        if not row:
+            raise HTTPException(422, f"Invalid or unavailable product: {pid}")
+        if row.get("maker_slug") != slug:
+            raise HTTPException(403, "Product belongs to another maker.")
+        if pid not in active:
+            raise HTTPException(422, f"Invalid or unavailable product: {pid}")
+    return [active[pid] for pid in ids]
+
+
+@router.put("/maker/clips/{clip_id}/products")
+async def maker_set_clip_products(
+    clip_id: str,
+    payload: _LinkedProductsPatch = Body(...),
+    slug: str = Depends(current_maker_slug),
+):
+    clip = await db.clips.find_one({"id": clip_id, "maker_slug": slug}, {"_id": 0})
+    if not clip:
+        raise HTTPException(404, "Clip not found or not yours.")
+    products = payload.products or []
+    active = await _validate_linked_products(slug, products)
+    featured_indexes = [i for i, x in enumerate(products) if x.is_featured]
+    if len(featured_indexes) > 1:
+        raise HTTPException(422, "Only one linked product can be featured.")
+    featured_idx = featured_indexes[0] if featured_indexes else (0 if products else -1)
+    existing = await db.clip_products.find({"clip_id": clip_id}, {"_id": 0}).to_list(100)
+    created_map = {x.get("product_id"): x.get("created_at") for x in existing}
+    await db.clip_products.delete_many({"clip_id": clip_id})
+    now = now_iso()
+    docs = []
+    for i, item in enumerate(products):
+        pid = item.product_id.strip()
+        docs.append({
+            "id": uuid.uuid4().hex,
+            "clip_id": clip_id,
+            "product_id": pid,
+            "sort_order": i,
+            "is_featured": i == featured_idx,
+            "created_at": created_map.get(pid) or now,
+            "updated_at": now,
+        })
+    if docs:
+        await db.clip_products.insert_many(docs, ordered=False)
+    await db.clips.update_one(
+        {"id": clip_id},
+        {"$set": {"updated_at": now, "last_edited_at": now}},
+    )
+    await _write_clip_history(
+        clip_id, slug, "maker_clip_products_update",
+        {"product_ids": [d["product_id"] for d in docs], "featured": docs[featured_idx]["product_id"] if docs and featured_idx >= 0 else None},
+    )
+    cards = [_product_public_card(p, is_featured=(i == featured_idx), sort_order=i) for i, p in enumerate(active)]
+    return {"ok": True, "linked_products": cards}
+
+
+@router.get("/admin/clips/linked-products")
+async def admin_clip_product_links(limit: int = Query(50, ge=1, le=200), claims: dict = Depends(current_admin)):
+    rows: list[dict] = []
+    async for clip in db.clips.find({"quarantined_at": None}, {"_id": 0}).sort("updated_at", -1).limit(limit):
+        linked = await _linked_products_for_clip(clip, include_legacy=True)
+        history = await db.clip_edit_history.find({"clip_id": clip.get("id")}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+        rows.append({
+            "id": clip.get("id"),
+            "slug": clip.get("slug"),
+            "title": clip.get("title"),
+            "maker_slug": clip.get("maker_slug"),
+            "maker_name": clip.get("maker_name"),
+            "visibility": clip.get("visibility", "public"),
+            "last_edited_at": clip.get("last_edited_at"),
+            "linked_products": linked,
+            "edit_history": history,
+        })
+    return {"items": rows}
+
+
+@router.delete("/admin/clips/{clip_id}/products/{product_id}")
+async def admin_remove_clip_product(clip_id: str, product_id: str, claims: dict = Depends(current_admin)):
+    clip = await db.clips.find_one({"id": clip_id}, {"_id": 0, "id": 1, "title": 1})
+    if not clip:
+        raise HTTPException(404, "Clip not found.")
+    r = await db.clip_products.delete_one({"clip_id": clip_id, "product_id": product_id})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Product link not found.")
+    remaining = await db.clip_products.find({"clip_id": clip_id}, {"_id": 0}).sort("sort_order", 1).to_list(20)
+    if remaining and not any(x.get("is_featured") for x in remaining):
+        await db.clip_products.update_one({"id": remaining[0]["id"]}, {"$set": {"is_featured": True, "updated_at": now_iso()}})
+    now = now_iso()
+    await db.clips.update_one({"id": clip_id}, {"$set": {"updated_at": now, "last_edited_at": now}})
+    await db.admin_audit.insert_one({
+        "id": uuid.uuid4().hex,
+        "kind": "clip_product_link_removed",
+        "clip_id": clip_id,
+        "product_id": product_id,
+        "by": (claims.get("email") or "").lower(),
+        "at": now,
+    })
+    await _write_clip_history(clip_id, (claims.get("email") or "admin").lower(), "admin_clip_product_removed", {"product_id": product_id})
+    return {"ok": True}
 
 
 @router.delete("/maker/clips/{clip_id}")
@@ -479,6 +846,7 @@ async def maker_delete_clip(clip_id: str, slug: str = Depends(current_maker_slug
     # Also clean engagement rows so counters stay honest if the same id is
     # re-used (shouldn't happen — uuids — but defensive).
     await db.clip_engagement.delete_many({"clip_id": clip_id})
+    await db.clip_products.delete_many({"clip_id": clip_id})
     return {"ok": True}
 
 
@@ -592,7 +960,11 @@ async def maker_upload_clip(
         "ai_generated": False,
         "ai_model": None,
         "quarantined_at": None,
+        "visibility": "public",
+        "comments_enabled": True,
+        "last_edited_at": None,
         "created_at": now_iso(),
+        "updated_at": now_iso(),
     }
     await db.clips.insert_one(doc)
     logger.info("[clips] maker %s uploaded native clip %s (%d KB) · featured=%s",

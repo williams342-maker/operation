@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FileCheck } from "lucide-react";
-import { http, authHeaders } from "../lib/api";
+import { http, authHeaders, acknowledgePolicyNotice } from "../lib/api";
 
 export default function MakerAgreementModal() {
   const [status, setStatus] = useState(null);
@@ -25,8 +25,12 @@ export default function MakerAgreementModal() {
   async function accept() {
     setBusy(true);
     try {
-      await http.post("/maker/agreement/accept",
-        { version: status.current_version }, { headers: authHeaders() });
+      if (status.policy_notice_id && status.policy_version_id) {
+        await acknowledgePolicyNotice({ notification_id: status.policy_notice_id, version_id: status.policy_version_id, accepted: true });
+      } else {
+        await http.post("/maker/agreement/accept",
+          { version: status.current_version }, { headers: authHeaders() });
+      }
       toast.success("Agreement accepted — thank you.");
       setStatus((s) => ({ ...s, requires_acceptance: false }));
     } catch (e) {
@@ -50,7 +54,8 @@ export default function MakerAgreementModal() {
           the current Maker/Seller Agreement. Your acceptance is recorded with a
           timestamp for both of our records.
         </p>
-        <a href="/policies/terms#maker-agreement" target="_blank" rel="noreferrer"
+        {status.policy_summary && <p className="font-mono text-xs text-ink leading-relaxed mb-4 whitespace-pre-wrap">{status.policy_summary}</p>}
+        <a href="/policies/maker-agreement" target="_blank" rel="noreferrer"
            className="industrial-link font-mono text-xs uppercase tracking-[0.18em]"
            data-testid="agreement-full-link">
           Read the full agreement →

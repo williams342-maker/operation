@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { Mail, ChevronLeft } from "lucide-react";
 import {
@@ -7,6 +7,7 @@ import {
 } from "../data/policies/manifest";
 import { POLICY_HIERARCHY } from "../data/policies/hierarchy";
 import { SECTIONS } from "../data/policies/sections";
+import { fetchPublicPolicyVersion, fetchPublicPolicyHistoricalVersion } from "../lib/api";
 import {
   PolicyTOC,
   PolicyMetaHeader,
@@ -32,7 +33,8 @@ const SUPPORT_EMAIL = "team@craftersmarket.org";
 //  and the Trust Center search results.
 // ============================================================
 export default function PolicyDetailPage() {
-  const { slug } = useParams();
+  const { slug, version } = useParams();
+  const [versionData, setVersionData] = useState(null);
   const policy = findPolicyBySlug(slug);
   const section = policy
     ? SECTIONS.find((s) => s.id === policy.section_id)
@@ -48,6 +50,12 @@ export default function PolicyDetailPage() {
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
   }, [slug, policy]);
+
+  useEffect(() => {
+    if (!policy) return;
+    const loader = version ? fetchPublicPolicyHistoricalVersion(slug, version) : fetchPublicPolicyVersion(slug);
+    loader.then(setVersionData).catch(() => setVersionData(null));
+  }, [slug, version, policy]);
 
   useStructuredData({
     title: policy ? `${policy.title} · Crafters Market` : "Policies · Crafters Market",
@@ -121,6 +129,27 @@ export default function PolicyDetailPage() {
         </header>
 
         <PolicyMetaHeader policy={policy} />
+
+        {versionData?.version && !versionData?.is_current && (
+          <div className="border border-amber-700/40 bg-amber-500/5 p-4 mb-6 font-mono text-xs text-ink" data-testid="historical-policy-notice">
+            This is a historical version and is not the current policy. Current policy: <Link to={`/policies/${policy.slug}`} className="text-brand hover:underline">{policy.title}</Link>.
+          </div>
+        )}
+
+        {versionData?.upcoming && (
+          <div className="border border-brand/40 bg-brand/5 p-4 mb-6 font-mono text-xs text-ink" data-testid="upcoming-policy-notice">
+            <b>Upcoming policy change:</b> v{versionData.upcoming.version_number} becomes effective {(versionData.upcoming.effective_at || "").replace("T", " ").slice(0, 16)}.
+            <p className="mt-2 whitespace-pre-wrap">{versionData.upcoming.approved_summary || versionData.upcoming.ai_summary || versionData.upcoming.change_summary}</p>
+            <Link to={`/policies/${policy.slug}/versions/${versionData.upcoming.version_number}`} className="text-brand hover:underline">View upcoming version</Link>
+          </div>
+        )}
+
+        {versionData?.version?.content && (
+          <article className="border border-line bg-paper p-5 md:p-6 mb-6" data-testid="policy-version-body">
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-brand mb-3">Version v{versionData.version.version_number} � {versionData.version.status}</div>
+            <div className="font-mono text-sm text-ink leading-relaxed space-y-3" dangerouslySetInnerHTML={{ __html: versionData.version.content }} />
+          </article>
+        )}
 
         {/* iter413dp — public "not legal advice" notice. Rendered on
             every /policies/:slug page until the policy suite has been
@@ -222,6 +251,21 @@ export default function PolicyDetailPage() {
 
         <PolicyHierarchyBlock hierarchy={POLICY_HIERARCHY} />
         <RevisionHistory policy={policy} />
+        {versionData?.history?.length > 0 && (
+          <section className="border border-line p-5 md:p-6 mt-6" data-testid="policy-version-history">
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-brand mb-3">Policy History</div>
+            <ul className="space-y-2 font-mono text-sm">
+              {versionData.history.map((v) => (
+                <li key={v.id} className="flex flex-wrap gap-2 text-ink">
+                  <Link to={`/policies/${policy.slug}/versions/${v.version_number}`} className="text-brand hover:underline">v{v.version_number}</Link>
+                  <span className="text-ink-muted">{v.status}</span>
+                  <span className="text-ink-muted">Effective {(v.effective_at || "").slice(0, 10)}</span>
+                  <span>{v.approved_summary || v.change_summary}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <RelatedPolicies
           policy={policy}
           allPolicies={POLICIES}

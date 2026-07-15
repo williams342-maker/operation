@@ -47,6 +47,7 @@ import MarketplaceLedgerTab from "../components/admin/MarketplaceLedgerTab"; // 
 import FinancialOpsTab from "../components/admin/FinancialOpsTab"; // iter446 — fin ops dashboard
 import MarketplaceTrendsTab from "../components/admin/MarketplaceTrendsTab"; // iter452 — marketplace trends
 import MakerAgreementTab from "../components/admin/MakerAgreementTab"; // iter453 — agreement audit
+import PolicyManagementTab from "../components/admin/PolicyManagementTab";
 import FeaturedMakerTab from "../components/admin/FeaturedMakerTab"; // iter456 — Featured Maker promotion engine
 import WorkshopFloorTab from "../components/admin/WorkshopFloorTab"; // iter457 — forum taxonomy migration
 import ActivationFunnelTab from "../components/admin/ActivationFunnelTab"; // iter413dh-evidence
@@ -54,6 +55,7 @@ import OrphanPagesTab from "../components/admin/OrphanPagesTab";
 import FreshnessEngineTab from "../components/admin/FreshnessEngineTab";
 import NurtureQueueTab from "../components/admin/NurtureQueueTab";
 import ListingsTab from "../components/admin/ListingsTab";
+import ClipProductsTab from "../components/admin/ClipProductsTab";
 import UsersTab from "../components/admin/UsersTab";
 import ReviewsTab from "../components/admin/ReviewsTab";
 import DigestsTab from "../components/admin/DigestsTab";
@@ -108,6 +110,7 @@ const TABS = [
   { id: "feedback", label: "Founding Access Feedback", caps: ["support"] },
   { id: "broadcast", label: "Broadcast", caps: ["content"] },
   { id: "chat", label: "Chat Mod", caps: ["moderation"] },
+  { id: "clip-products", label: "Clip Products", caps: ["moderation", "content"] },
   { id: "coming-soon", label: "Coming Soon", caps: ["content"] },
   { id: "contact", label: "Contact Inbox", caps: ["support"] },
   { id: "custom", label: "Custom Orders", caps: ["support", "marketplace"] },
@@ -145,6 +148,7 @@ const TABS = [
   { id: "marketplace-trends", label: "Marketplace Trends" },
   // iter453 — maker agreement acceptance audit trail
   { id: "maker-agreement", label: "Maker Agreement" },
+  { id: "policy-management", label: "Policy Management", caps: ["content"] },
   // iter456 — Featured Maker promotion engine (candidates, AI assets, queue)
   { id: "featured-maker", label: "Featured Maker", caps: ["marketplace", "content"] },
   // iter457 — Workshop Floor thread-migration console + report
@@ -633,11 +637,13 @@ export default function AdminDashboard() {
             {tab === "finops" && <FinancialOpsTab />}
             {tab === "marketplace-trends" && <MarketplaceTrendsTab />}
             {tab === "maker-agreement" && <MakerAgreementTab />}
+            {tab === "policy-management" && <PolicyManagementTab />}
             {tab === "featured-maker" && <FeaturedMakerTab />}
             {tab === "workshop-floor" && <WorkshopFloorTab />}
             {tab === "audit" && <AuditTab />}
             {tab === "ads" && <AdsTab />}
             {tab === "chat" && <ChatModTab />}
+            {tab === "clip-products" && <ClipProductsTab />}
             {tab === "digests" && <DigestsTab />}
             {tab === "lead-magnet" && <LeadMagnetTab />}
             {tab === "feedback" && <FeedbackTab />}

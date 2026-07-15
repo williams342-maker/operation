@@ -14,6 +14,7 @@ import ProductsList from "./MakerDashboard/ProductsList";
 import StoreSectionsTab from "./MakerDashboard/StoreSectionsTab"; // iter450 — Store Sections
 import AnalyticsTab from "./MakerDashboard/AnalyticsTab"; // iter452 — Store Analytics
 import MakerAgreementModal from "../components/MakerAgreementModal"; // iter453
+import PolicyUpdateBanner from "../components/PolicyUpdateBanner";
 import RenewalsTab from "./MakerDashboard/RenewalsTab";
 import FounderBenefitsTab from "./MakerDashboard/FounderBenefitsTab";
 import CoachTab from "./MakerDashboard/CoachTab"; // iter413dg — Seller Success Dashboard
@@ -442,6 +443,7 @@ export default function MakerDashboard() {
       />
       {/* iter453 — blocking Maker Agreement acceptance (versioned audit trail) */}
       <MakerAgreementModal />
+      <PolicyUpdateBanner />
       <ShopManagerLayout
         maker={maker}
         tab={tab}

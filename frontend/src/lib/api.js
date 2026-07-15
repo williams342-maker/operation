@@ -1099,6 +1099,18 @@ export const uploadClipFile = (file, fields, onUploadProgress) => {
 };
 export const deleteMyClip = (clipId) =>
   http.delete(`/maker/clips/${clipId}`, { headers: _makerAuth() }).then((r) => r.data);
+export const fetchClipEditDetails = (clipId) =>
+  http.get(`/maker/clips/${clipId}/edit`, { headers: _makerAuth() }).then((r) => r.data);
+export const updateMyClip = (clipId, payload) =>
+  http.patch(`/maker/clips/${clipId}`, payload, { headers: _makerAuth() }).then((r) => r.data);
+export const searchMyClipProducts = (q = "") =>
+  http.get("/maker/clips/products/search", { params: { q }, headers: _makerAuth() }).then((r) => r.data);
+export const setClipProducts = (clipId, products) =>
+  http.put(`/maker/clips/${clipId}/products`, { products }, { headers: _makerAuth() }).then((r) => r.data);
+export const adminFetchClipProductLinks = () =>
+  http.get("/admin/clips/linked-products", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminRemoveClipProductLink = (clipId, productId) =>
+  http.delete(`/admin/clips/${encodeURIComponent(clipId)}/products/${encodeURIComponent(productId)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 // Admin seed
 export const fetchClipsSeedStatus = () =>
   http.get("/admin/seed/clips/status", { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -2182,3 +2194,39 @@ export const fetchSellerDisclosure = (slug) =>
 export const adminTaxVerification = () =>
   http.get("/admin/tax/verification", { headers: adminAuthHeaders() }).then((r) => r.data);
 
+
+// Policy Versioning
+export const fetchAdminPolicies = () =>
+  http.get("/admin/policies", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminPolicyDetail = (slug) =>
+  http.get(`/admin/policies/${encodeURIComponent(slug)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const createPolicyDraft = (slug, payload = {}) =>
+  http.post(`/admin/policies/${encodeURIComponent(slug)}/draft`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const updatePolicyVersion = (versionId, payload) =>
+  http.patch(`/admin/policies/versions/${encodeURIComponent(versionId)}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchPolicyDiff = (versionId) =>
+  http.get(`/admin/policies/versions/${encodeURIComponent(versionId)}/diff`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const generatePolicyAiSummary = (versionId) =>
+  http.post(`/admin/policies/versions/${encodeURIComponent(versionId)}/ai-summary`, {}, { headers: adminAuthHeaders(), timeout: 120000 }).then((r) => r.data);
+export const schedulePolicyVersion = (versionId, payload) =>
+  http.post(`/admin/policies/versions/${encodeURIComponent(versionId)}/schedule`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const publishPolicyVersion = (versionId, payload) =>
+  http.post(`/admin/policies/versions/${encodeURIComponent(versionId)}/publish`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const cancelPolicySchedule = (versionId) =>
+  http.post(`/admin/policies/versions/${encodeURIComponent(versionId)}/cancel`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const archivePolicyVersion = (versionId) =>
+  http.post(`/admin/policies/versions/${encodeURIComponent(versionId)}/archive`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const previewPolicyNotification = (versionId) =>
+  http.get(`/admin/policies/versions/${encodeURIComponent(versionId)}/notification-preview`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchPolicyAcknowledgementStats = (versionId) =>
+  http.get(`/admin/policies/versions/${encodeURIComponent(versionId)}/acknowledgements`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchPublicPolicyVersion = (slug) =>
+  http.get(`/policies/${encodeURIComponent(slug)}`).then((r) => r.data);
+export const fetchPublicPolicyHistoricalVersion = (slug, version) =>
+  http.get(`/policies/${encodeURIComponent(slug)}/versions/${encodeURIComponent(version)}`).then((r) => r.data);
+export const fetchMakerPolicyNotices = () =>
+  http.get("/maker/policy-notices", { headers: authHeaders() }).then((r) => r.data);
+export const reviewPolicyNotice = (notification_id) =>
+  http.post("/maker/policy-notices/review", { notification_id }, { headers: authHeaders() }).then((r) => r.data);
+export const acknowledgePolicyNotice = (payload) =>
+  http.post("/maker/policy-notices/acknowledge", payload, { headers: authHeaders() }).then((r) => r.data);

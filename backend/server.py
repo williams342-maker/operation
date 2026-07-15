@@ -348,6 +348,8 @@ from routers.digital_products import router as digital_products_router  # iter45
 api.include_router(digital_products_router)
 from routers.maker_agreement import router as maker_agreement_router  # iter453
 api.include_router(maker_agreement_router)
+from routers.policy_versions import router as policy_versions_router
+api.include_router(policy_versions_router)
 from routers.digital_landing import router as digital_landing_router  # iter454
 api.include_router(digital_landing_router)
 from routers.featured_maker import router as featured_maker_router  # iter455
@@ -415,24 +417,32 @@ async def auto_invalidate_products_cache(request, call_next):
 
 @app.on_event("startup")
 async def on_startup():
-    await seed_if_empty()
+    skip_db_bootstrap = os.environ.get("SKIP_STARTUP_DB_BOOTSTRAP", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if not skip_db_bootstrap:
+        await seed_if_empty()
     # iter220 — Idempotent seed of hero headline pool baseline. Cheap
     # (8 find-then-insert ops) and ensures /api/hero/headlines never
     # returns an empty list, even on a fresh deploy before the daily
     # cron has fired.
-    try:
-        from hero_headlines import ensure_seed_pool
-        await ensure_seed_pool()
-    except Exception:
-        logger.exception("[hero_headlines] seed bootstrap failed (non-fatal)")
+    if not skip_db_bootstrap:
+        try:
+            from hero_headlines import ensure_seed_pool
+            await ensure_seed_pool()
+        except Exception:
+            logger.exception("[hero_headlines] seed bootstrap failed (non-fatal)")
     # iter221 — Backfill `file_verified` for pre-existing seeded design
     # rows so the new orphan guard doesn't hide working cards on
     # production. Reads disk only; never inserts. Idempotent.
-    try:
-        from design_file_seeder import backfill_file_verified
-        await backfill_file_verified()
-    except Exception:
-        logger.exception("[design_seeder] file_verified backfill failed (non-fatal)")
+    if not skip_db_bootstrap:
+        try:
+            from design_file_seeder import backfill_file_verified
+            await backfill_file_verified()
+        except Exception:
+            logger.exception("[design_seeder] file_verified backfill failed (non-fatal)")
     from scheduler import start_scheduler
     start_scheduler()
     # Register the Shippo tracking webhook idempotently. PUBLIC_BACKEND_URL
@@ -510,6 +520,13 @@ async def on_startup():
                         watch.get("build_id"), watch.get("expires_at"))
     except Exception:
         logger.exception("[deploy-watch] startup hook failed (non-fatal)")
+    try:
+        from routers.clips import ensure_clip_product_indexes
+        await ensure_clip_product_indexes()
+        from routers.policy_versions import ensure_policy_indexes
+        await ensure_policy_indexes()
+    except Exception:
+        logger.exception("[clips] clip-product index init failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
 
 
