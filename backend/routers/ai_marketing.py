@@ -13,11 +13,11 @@ import re
 import uuid
 from typing import List
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core import db, logger, now_iso
+from emergent_optional import get_llm_chat
 from maker_auth import current_maker_slug
 
 router = APIRouter()
@@ -51,6 +51,10 @@ def _claude(system: str, user: str, max_chars: int = 1200) -> dict | None:
 async def _claude_async(system: str, user: str, max_chars: int = 4000) -> dict | None:
     if not EMERGENT_LLM_KEY:
         return None
+    llm = get_llm_chat()
+    if llm is None:
+        return None
+    LlmChat, UserMessage = llm
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=f"mkt-{uuid.uuid4().hex[:12]}",

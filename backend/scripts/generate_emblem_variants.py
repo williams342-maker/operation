@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 load_dotenv("/app/backend/.env")
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+from emergent_optional import get_multimodal_chat
 
 MASTER = Path("/app/frontend/public/downloads/garage-builders.png")
 OUT_DIR = Path("/app/frontend/public/downloads")
@@ -49,6 +49,14 @@ async def _generate(prompt: str, dest: Path, master_b64: str) -> bool:
     api_key = env_get("EMERGENT_LLM_KEY")
     if not api_key:
         print(f"  [{dest.name}] EMERGENT_LLM_KEY missing — skipping")
+        return False
+    llm = get_multimodal_chat()
+    if not llm:
+        print(f"  [{dest.name}] emergentintegrations unavailable — skipping")
+        return False
+    LlmChat, UserMessage, ImageContent, _FileContent = llm
+    if ImageContent is None:
+        print(f"  [{dest.name}] ImageContent unavailable — skipping")
         return False
     chat = (
         LlmChat(

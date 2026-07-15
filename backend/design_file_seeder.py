@@ -32,9 +32,9 @@ from pathlib import Path
 from typing import Any
 
 import ezdxf
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 from core import db, now_iso
+from emergent_optional import get_llm_chat
 from seo_tags import build_seo_description, extract_seo_tags
 
 logger = logging.getLogger("crafters.design_seeder")
@@ -457,7 +457,9 @@ async def _pick_template_and_params() -> dict:
     description = ""
     tags: list = []
 
-    if api_key:
+    llm = get_llm_chat() if api_key else None
+    if api_key and llm:
+        LlmChat, UserMessage = llm
         chat = (
             LlmChat(
                 api_key=api_key,
@@ -520,8 +522,10 @@ async def _generate_preview_jpg(slug: str, prompt: str) -> str | None:
     if out.exists():
         return f"/seed-designs/{slug}/preview.jpg"
     api_key = env_get("EMERGENT_LLM_KEY")
-    if not api_key:
+    llm = get_llm_chat() if api_key else None
+    if not api_key or not llm:
         return None
+    LlmChat, UserMessage = llm
     chat = (
         LlmChat(
             api_key=api_key,

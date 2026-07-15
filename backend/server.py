@@ -11,6 +11,7 @@ from config import env_get
 from starlette.middleware.cors import CORSMiddleware
 
 from core import client, db, logger
+from emergent_optional import get_llm_chat, get_stripe_checkout_cls
 
 
 # iter442 — never let bearer material leak into access logs. WebSocket
@@ -35,6 +36,12 @@ class _RedactSensitiveQuery(logging.Filter):
 
 for _name in ("uvicorn.access", "uvicorn.error", "uvicorn"):
     logging.getLogger(_name).addFilter(_RedactSensitiveQuery())
+
+# Warn once during app import in local environments where the private
+# Emergent package is unavailable. Feature handlers still degrade at
+# request time; this only makes the disabled surface obvious in logs.
+get_llm_chat()
+get_stripe_checkout_cls()
 
 from routers.admin import router as admin_router
 from routers.ai import router as ai_router

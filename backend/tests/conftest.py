@@ -1,6 +1,42 @@
 import pytest
 
 
+def make_valid_maker_doc(slug="smoke-maker", email=None, **overrides):
+    """Build a Mongo maker fixture that satisfies the full Maker model.
+
+    Smoke tests often need temporary makers for auth and DB-write checks.
+    Keep those records model-valid so endpoints with response_model=Maker
+    fail only for product defects, not intentionally incomplete fixtures.
+    """
+    import sys
+    from pathlib import Path
+    backend_dir = str(Path(__file__).resolve().parents[1])
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+    from models import Maker
+
+    email = email or f"{slug}@craftersmarket.org"
+    base = {
+        "slug": slug,
+        "name": overrides.get("name") or slug.replace("-", " ").title(),
+        "initials": overrides.get("initials") or "".join(
+            part[:1].upper() for part in slug.split("-")[:2]
+        )[:2] or "SM",
+        "location": overrides.get("location") or "Local Smoke Test",
+        "bio": overrides.get("bio") or "Disposable model-valid smoke-test maker.",
+        "portrait": overrides.get("portrait") or "/seed-images/workshop-shop-floor.jpg",
+        "cover": overrides.get("cover") or "/seed-images/workshop-shop-floor.jpg",
+        "email": email,
+    }
+    base.update(overrides)
+    return Maker(**base).model_dump()
+
+
+@pytest.fixture
+def valid_maker_doc():
+    return make_valid_maker_doc
+
+
 # iter413ak — Session-scoped seed restoration.
 # --------------------------------------------
 # Several tests in the bulk-migration set delete from `products`,

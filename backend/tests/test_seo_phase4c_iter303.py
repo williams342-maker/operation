@@ -35,6 +35,15 @@ def test_preview_returns_metadata():
     assert f0["formats"] == ["SVG", "DXF"]
 
 
+def test_legacy_free_svg_pack_preview_alias():
+    r = httpx.get(f"{API}/api/free-svg-pack", timeout=10)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["magnet"] == "starter-pack"
+    assert body["file_count"] == 10
+    assert len(body["files"]) == 10
+
+
 def test_subscribe_returns_token_and_download_url():
     r = httpx.post(
         f"{API}/api/lead-magnet/starter-pack/subscribe",

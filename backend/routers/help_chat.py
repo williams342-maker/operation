@@ -30,11 +30,11 @@ import os
 import uuid
 from typing import Optional, List
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from core import db, logger, now_iso
+from emergent_optional import get_llm_chat, raise_emergent_unavailable
 from routers.platform_capabilities import build_capabilities_payload
 
 router = APIRouter()
@@ -285,6 +285,10 @@ async def _coaching_block(req: "HelpChatRequest", role: str) -> str:
 async def help_chat(req: HelpChatRequest):
     if not EMERGENT_LLM_KEY:
         raise HTTPException(503, "Help assistant is not configured.")
+    llm = get_llm_chat()
+    if llm is None:
+        raise_emergent_unavailable("Help assistant")
+    LlmChat, UserMessage = llm
 
     session_id = req.session_id or f"help-{uuid.uuid4().hex[:12]}"
     role = (req.user_role or "visitor").lower()

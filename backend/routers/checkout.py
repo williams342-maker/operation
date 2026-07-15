@@ -6,13 +6,14 @@ import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
-from emergentintegrations.payments.stripe.checkout import StripeCheckout
+from types import SimpleNamespace
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from core import (
     STRIPE_API_KEY, custom_options_summary, db, effective_variant_price,
     logger, now_iso, public_host,
 )
+from emergent_optional import get_stripe_checkout_cls
 from email_service import (
     send_buyer_receipt, send_maker_low_stock,
     send_maker_new_order, send_ops_new_order,
@@ -1445,10 +1446,22 @@ async def stripe_webhook(request: Request):
         logger.warning("checkout webhook signature failed: %s", e)
         await _log(kind="main", path=path, status="bad_signature", error=str(e))
         return {"received": False, "reason": "bad-signature"}
-    stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url,
-                            webhook_secret=accepted_secret)
     try:
-        evt = await stripe.handle_webhook(body, sig)
+        StripeCheckout = get_stripe_checkout_cls()
+        if StripeCheckout:
+            stripe = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url,
+                                    webhook_secret=accepted_secret)
+            evt = await stripe.handle_webhook(body, sig)
+        else:
+            import stripe as _sdk
+            _sdk.api_key = STRIPE_API_KEY
+            raw_evt = _sdk.Webhook.construct_event(body, sig, accepted_secret)
+            obj = raw_evt.get("data", {}).get("object", {}) if isinstance(raw_evt, dict) else {}
+            evt = SimpleNamespace(
+                session_id=obj.get("id") or obj.get("checkout_session") or obj.get("metadata", {}).get("session_id"),
+                payment_status=obj.get("payment_status") or obj.get("status"),
+                event_type=raw_evt.get("type", "stripe.webhook") if isinstance(raw_evt, dict) else "stripe.webhook",
+            )
     except Exception as e:
         logger.exception("webhook fail: %s", e)
         await _log(kind="main", path=path, status="handler_error", error=str(e))

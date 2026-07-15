@@ -4,11 +4,11 @@ import os
 import uuid
 from typing import Optional
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from core import db, logger, now_iso
+from emergent_optional import get_llm_chat, raise_emergent_unavailable
 from email_service import send_ops_new_custom_order
 
 router = APIRouter()
@@ -78,6 +78,10 @@ async def _build_product_context() -> str:
 async def ai_chat(req: ChatRequest):
     if not EMERGENT_LLM_KEY:
         raise HTTPException(503, "AI assistant is not configured.")
+    llm = get_llm_chat()
+    if llm is None:
+        raise_emergent_unavailable("AI assistant")
+    LlmChat, UserMessage = llm
 
     session_id = req.session_id or f"anon-{uuid.uuid4().hex[:12]}"
     product_ctx = await _build_product_context()

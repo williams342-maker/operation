@@ -22,9 +22,8 @@ import re
 import uuid
 from typing import Literal, Tuple
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-
 from core import db, logger, now_iso
+from emergent_optional import get_llm_chat
 
 EMERGENT_LLM_KEY = env_get("EMERGENT_LLM_KEY", "")
 
@@ -116,6 +115,10 @@ async def moderate_message(
     if not EMERGENT_LLM_KEY:
         # Fail-open if no LLM key is configured — never silence the room.
         return "allow", "no_llm_key"
+    llm = get_llm_chat()
+    if llm is None:
+        return "allow", "emergentintegrations_missing_fail_open"
+    LlmChat, UserMessage = llm
 
     session = f"mod-{uuid.uuid4().hex[:12]}"
     chat = LlmChat(

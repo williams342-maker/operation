@@ -255,6 +255,17 @@ async def preview_starter_pack():
     }
 
 
+@router.get("/free-svg-pack")
+async def legacy_free_svg_pack_preview():
+    """Legacy preview alias for older frontend bundles.
+
+    The current page uses /lead-magnet/starter-pack/preview, but older
+    clients requested /api/free-svg-pack. Keep this read-only alias so
+    those clients get the same metadata instead of a noisy 404.
+    """
+    return await preview_starter_pack()
+
+
 @router.get("/lead-magnet/unsubscribe")
 async def lead_magnet_unsubscribe(email: str = ""):
     """One-click unsubscribe target for the drip email footer link.

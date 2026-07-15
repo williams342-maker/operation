@@ -29,7 +29,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergent_optional import get_llm_chat
 
 logger = logging.getLogger("crafters.auto_seo_tags")
 
@@ -110,6 +110,14 @@ def _strip_code_fences(raw: str) -> str:
 async def _llm_generate(system: str, user_prompt: str) -> Optional[dict]:
     """Single LLM round-trip, parsed JSON output. Returns None on
     network / parse errors — caller logs and skips the row."""
+    if not EMERGENT_LLM_KEY:
+        logger.warning("[auto_seo_tags] EMERGENT_LLM_KEY missing; skipping AI SEO generation")
+        return None
+    llm = get_llm_chat()
+    if llm is None:
+        logger.warning("[auto_seo_tags] emergentintegrations missing; skipping AI SEO generation")
+        return None
+    LlmChat, UserMessage = llm
     session_id = f"auto-seo-{uuid.uuid4().hex[:12]}"
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
