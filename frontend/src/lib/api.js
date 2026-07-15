@@ -3,7 +3,7 @@ const BASE = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BASE}/api`;
 export const http = axios.create({ baseURL: API });
 
-// Global response interceptor — FastAPI returns 422 with `detail` as an array
+// Global response interceptor � FastAPI returns 422 with `detail` as an array
 // of {type, loc, msg, ...} objects. Components that do
 // `setErr(e?.response?.data?.detail || "fallback")` would then try to render
 // an array of objects as a React child and crash with "Objects are not valid
@@ -18,7 +18,7 @@ http.interceptors.response.use(
         .map((x) => (x && typeof x === "object" ? (x.msg || JSON.stringify(x)) : String(x)))
         .join("; ");
     } else if (d && typeof d === "object") {
-      // iter413k — Preserve the original structured detail on a sidecar
+      // iter413k � Preserve the original structured detail on a sidecar
       // field BEFORE stringifying. Some consumers (e.g. PlusAnalytics)
       // gate their UI on a structured `code` field like `plus_required`
       // and need the object back. Default consumers still read
@@ -27,11 +27,11 @@ http.interceptors.response.use(
       error.response.data.detail = d.msg || d.message || JSON.stringify(d);
     }
 
-    // iter285 — Auto-purge stale tokens on 401. The Studio (and several
+    // iter285 � Auto-purge stale tokens on 401. The Studio (and several
     // other gated flows) checks `!!localStorage.getItem("cm_*_jwt")` to
     // decide whether to show a sign-in callout. If the token is present
     // but expired/invalid the UI looks signed-in, the action fires, and
-    // backend returns 401 → user gets a confusing "Invalid session"
+    // backend returns 401 ? user gets a confusing "Invalid session"
     // toast with no path forward. Clearing the bad token here flips the
     // UI back to signed-out so the user sees the sign-in CTA on the
     // next render and knows what to do.
@@ -41,23 +41,23 @@ http.interceptors.response.use(
       const looksExpired = /session|sign in|expired|invalid|missing/i.test(detail);
       if (looksExpired) {
         try {
-          // Don't touch admin JWT — admin session lives elsewhere and
+          // Don't touch admin JWT � admin session lives elsewhere and
           // their 401 path is the admin login redirect.
           localStorage.removeItem("cm_maker_jwt");
           localStorage.removeItem("cm_maker_slug");
           localStorage.removeItem("cm_maker_jwt_exp");
           localStorage.removeItem("cm_buyer_jwt");
-        } catch { /* private mode — silent */ }
+        } catch { /* private mode � silent */ }
       }
     }
     return Promise.reject(error);
   },
 );
 
-// ────────────── Maker session expiry enforcement ──────────────
+// -------------- Maker session expiry enforcement --------------
 // If the user unchecked "Keep me signed in" on the login page,
 // MakerVerify stores `cm_maker_jwt_exp` (ms-epoch). Whenever this
-// module loads — and on every authed request — we check whether
+// module loads � and on every authed request � we check whether
 // that deadline has passed and, if so, purge the token so the
 // next protected call 401s and the user is bounced back to login.
 // If the key is absent, the session is treated as persistent.
@@ -71,13 +71,13 @@ const purgeMakerSessionIfExpired = () => {
       localStorage.removeItem("cm_maker_jwt_exp");
     }
   } catch (_) {
-    // localStorage can throw in private-mode / quota edge cases — ignore.
+    // localStorage can throw in private-mode / quota edge cases � ignore.
   }
 };
 purgeMakerSessionIfExpired();
 
 export const fetchProducts = (params) => http.get("/products", { params }).then((r) => r.data);
-// iter360 — Trending strip on the homepage. Defaults to mosaic-source
+// iter360 � Trending strip on the homepage. Defaults to mosaic-source
 // product_view events over the last 24 h.
 export const fetchTrendingProducts = (params) =>
   http.get("/products/trending", { params }).then((r) => r.data);
@@ -92,7 +92,7 @@ export const fetchPost = (slug) => http.get(`/blog/${slug}`).then((r) => r.data)
 // Trending Journal rail. Falls back to recency on a fresh deploy.
 export const fetchTrendingPosts = (limit = 4, days = 14) =>
   http.get("/blog-trending", { params: { limit, days } }).then((r) => r.data);
-// Best-effort view counter — silenced on failure (analytics shouldn't
+// Best-effort view counter � silenced on failure (analytics shouldn't
 // surface as a UX error).
 export const recordPostView = (slug) =>
   http.post(`/blog/${encodeURIComponent(slug)}/view`).then((r) => r.data).catch(() => null);
@@ -111,9 +111,9 @@ export const uploadCustomOrderDesign = (file) => {
 export const submitMakerApplication = (payload) => http.post("/maker-applications", payload).then((r) => r.data);
 export const fetchFeePolicy = () => http.get("/policy/fee-policy").then((r) => r.data);
 
-// ───────────────────── unified password auth ─────────────────────
+// --------------------- unified password auth ---------------------
 export const fetchAuthFlags = () => http.get("/auth/password/flags").then((r) => r.data);
-// Sign in with Apple — redirect flow. Start URL sends the browser to Apple;
+// Sign in with Apple � redirect flow. Start URL sends the browser to Apple;
 // exchange swaps the one-time code from the callback for the buyer JWT.
 export const appleSignInStartUrl = (euaVersion) =>
   `${API}/community/auth/apple/start?eua_version=${encodeURIComponent(euaVersion || "")}`;
@@ -156,7 +156,7 @@ const authHeaders = () => {
 };
 export const fetchMakerMe = () =>
   http.get("/maker/me", { headers: authHeaders() }).then((r) => r.data);
-// iter450 — Store Sections (maker storefront departments)
+// iter450 � Store Sections (maker storefront departments)
 export const fetchMakerSections = () =>
   http.get("/maker/sections", { headers: authHeaders() }).then((r) => r.data);
 export const createStoreSection = (payload) =>
@@ -174,7 +174,7 @@ export const assignProductSections = (product_slug, section_slugs) =>
 export const fetchPublicSections = (makerSlug) =>
   http.get(`/makers/${makerSlug}/sections`).then((r) => r.data);
 
-// ──────────── Smart Sections + Store Analytics (iter452) ────────────
+// ------------ Smart Sections + Store Analytics (iter452) ------------
 export const fetchMakerSmartSections = () =>
   http.get("/maker/smart-sections", { headers: authHeaders() }).then((r) => r.data);
 export const updateSmartSection = (key, payload) =>
@@ -186,7 +186,7 @@ export const fetchStoreAnalytics = (endpoint, params) =>
 export const fetchMarketplaceTrends = (params) =>
   http.get("/admin/marketplace-trends", { params, headers: adminAuthHeaders() }).then((r) => r.data);
 
-// ──────────── Digital Products + Maker Agreement (iter453) ────────────
+// ------------ Digital Products + Maker Agreement (iter453) ------------
 export { authHeaders };
 export const updateDigitalSettings = (productSlug, payload) =>
   http.patch(`/maker/listings/${productSlug}/digital-settings`, payload, { headers: authHeaders() }).then((r) => r.data);
@@ -201,7 +201,7 @@ export const markOrderShipped = (sessionId, payload) =>
 export const resendTrackingEmail = (sessionId) =>
   http.post(`/maker/orders/${sessionId}/resend-tracking-email`, {}, { headers: authHeaders() }).then((r) => r.data);
 
-// ──────────── Shippo shipping labels ────────────
+// ------------ Shippo shipping labels ------------
 export const fetchShipFromAddress = () =>
   http.get("/maker/shipping/from-address", { headers: authHeaders() }).then((r) => r.data);
 export const saveShipFromAddress = (payload) =>
@@ -225,7 +225,7 @@ export const validateShippingAddress = (addr) =>
 export const fetchShippingAnalytics = (days = 30) =>
   http.get("/maker/shipping/analytics", { params: { days }, headers: authHeaders() }).then((r) => r.data);
 
-// iter334 — Live Shippo rates for the listing-editor preset picker
+// iter334 � Live Shippo rates for the listing-editor preset picker
 // `parcel` is optional and overrides the preset's canonical packaging when
 // the maker has filled in their own packed_* dims + weight on the listing.
 export const fetchPresetShippingRates = (preset_id, to_zip = null, parcel = null) =>
@@ -234,11 +234,11 @@ export const fetchPresetShippingRates = (preset_id, to_zip = null, parcel = null
     { headers: authHeaders() }
   ).then((r) => r.data);
 
-// iter334 — AI Price Comparison companion (Jina Reader + Claude)
+// iter334 � AI Price Comparison companion (Jina Reader + Claude)
 export const fetchListingPriceCompare = (slug, force_refresh = false) =>
   http.post(`/maker/listings/${slug}/price-compare`, { force_refresh }, { headers: authHeaders() }).then((r) => r.data);
 
-// Admin · shipping ledger
+// Admin � shipping ledger
 export const adminFetchShippingLedger = (token, params = {}) =>
   http.get("/admin/shipping-ledger", { params, headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
 export const adminFetchShippingRollup = (token) =>
@@ -249,7 +249,7 @@ export const adminRunShippingInvoices = (token, dryRun = true) =>
   http.post("/admin/shipping-ledger/run-invoices", { dry_run: dryRun }, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.data);
 export const adminShippingLedgerCsvUrl = (token, params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  // NOTE: the caller appends the token via fetch w/ Authorization — CSV
+  // NOTE: the caller appends the token via fetch w/ Authorization � CSV
   // download uses a blob fetch rather than a direct <a href>.
   return `${API}/admin/shipping-ledger/export.csv${qs ? `?${qs}` : ""}`;
 };
@@ -264,7 +264,7 @@ export const fetchMakerTransactions = () =>
 export const aiListingCopy = (payload) =>
   http.post("/maker/ai/listing-copy", payload, { headers: authHeaders() }).then((r) => r.data);
 
-// iter334l — Title refresh tied to a price change.
+// iter334l � Title refresh tied to a price change.
 export const aiTitleRefresh = (slug, old_price, new_price) =>
   http.post("/maker/ai/title-refresh",
     { slug, old_price, new_price },
@@ -289,8 +289,8 @@ export const toggleDiscountCode = (id, active) =>
 export const deleteDiscountCode = (id) =>
   http.delete(`/maker/discount-codes/${id}`, { headers: authHeaders() }).then((r) => r.data);
 
-// Messages — buyer ↔ maker DMs
-// Public — guests can start a thread without signing in.
+// Messages � buyer ? maker DMs
+// Public � guests can start a thread without signing in.
 export const startMessageThread = (payload) =>
   http.post("/messages/start", payload).then((r) => r.data);
 
@@ -371,25 +371,25 @@ export const fetchMakerPushStats = () =>
 export const setMakerPushOnShipOptout = (optout) =>
   http.post("/maker/push/on-ship", { optout }, { headers: authHeaders() }).then((r) => r.data);
 
-// iter334f — Weekly AI pricing digest opt-out
+// iter334f � Weekly AI pricing digest opt-out
 export const fetchPricingDigestPreference = () =>
   http.get("/maker/pricing-digest/preference", { headers: authHeaders() }).then((r) => r.data);
 export const setPricingDigestPreference = (opt_out) =>
   http.post("/maker/pricing-digest/preference", { opt_out }, { headers: authHeaders() }).then((r) => r.data);
 
-// iter334i — Inline pricing-verdict badges on the maker dashboard
+// iter334i � Inline pricing-verdict badges on the maker dashboard
 export const fetchLatestPriceComparisons = (max_age_days = 60) =>
   http.get("/maker/pricing-comparisons/latest", {
     params: { max_age_days }, headers: authHeaders(),
   }).then((r) => r.data);
 
-// iter334j — Batch AI Price Check across all maker listings
+// iter334j � Batch AI Price Check across all maker listings
 export const startBatchPriceCompare = () =>
   http.post("/maker/price-compare/batch", {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchBatchPriceCompareJob = (job_id) =>
   http.get(`/maker/price-compare/jobs/${job_id}`, { headers: authHeaders() }).then((r) => r.data);
 
-// iter373 — Admin SEO health monitor
+// iter373 � Admin SEO health monitor
 export const fetchSeoHealthLatest = () =>
   http.get("/admin/seo-health/latest", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const runSeoHealthCheck = () =>
@@ -399,25 +399,25 @@ export const runSeoHealthAutofix = () =>
 export const fetchSeoWins = () =>
   http.get("/admin/seo-health/wins", { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter334l — Microsoft Ads ROAS tile (admin)
+// iter334l � Microsoft Ads ROAS tile (admin)
 export const fetchMsftRoas = (days = 7) =>
   http.get("/admin/ads/msft-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const recordMsftAdSpend = (amount_usd, period_days = 7, note = null) =>
   http.post("/admin/ads/msft-spend", { amount_usd, period_days, note }, { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter334u — Google Ads ROAS tile (admin) — live spend from synced ad_spend rows.
+// iter334u � Google Ads ROAS tile (admin) � live spend from synced ad_spend rows.
 export const fetchGoogleRoas = (days = 7) =>
   http.get("/admin/ads/google-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
-// iter334v — Combined "All Ads ROAS" (Microsoft + Google + Meta).
+// iter334v � Combined "All Ads ROAS" (Microsoft + Google + Meta).
 export const fetchAllAdsRoas = (days = 7) =>
   http.get("/admin/ads/all-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
-// iter334x — Meta Ads ROAS tile (admin) — live spend from synced ad_spend rows.
+// iter334x � Meta Ads ROAS tile (admin) � live spend from synced ad_spend rows.
 export const fetchMetaRoas = (days = 7) =>
   http.get("/admin/ads/meta-roas", { params: { days }, headers: adminAuthHeaders() }).then((r) => r.data);
 export const renewMakerProduct = (slug) =>
   http.post(`/maker/products/${slug}/renew`, {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsStats = () =>
   http.get("/maker/products/stats", { headers: authHeaders() }).then((r) => r.data);
-// iter381 — most-picked variation options per listing (paid orders).
+// iter381 � most-picked variation options per listing (paid orders).
 export const fetchMakerOptionStats = () =>
   http.get("/maker/products/option-stats", { headers: authHeaders() }).then((r) => r.data);
 export const fetchMakerProductsIndexingStatus = () =>
@@ -591,7 +591,7 @@ export const adminRunPlusRoiDigest = (apply = false) =>
     .post(`/admin/digests/plus-roi`, {}, { params: { apply }, headers: adminAuthHeaders() })
     .then((r) => r.data);
 
-// iter334h — Pricing digest admin tooling
+// iter334h � Pricing digest admin tooling
 export const adminRunPricingDigest = (dry_run = true, only_maker = null) =>
   http.post("/admin/pricing-digest/run", { dry_run, only_maker }, { headers: adminAuthHeaders() })
     .then((r) => r.data);
@@ -787,7 +787,7 @@ export const makerShareListingToBuffer = (slug) =>
 
 // 9:16 Instagram/TikTok story PNG. The endpoint returns a binary
 // `image/png` stream so we don't go through the JSON-aware `http`
-// instance — we just expose the URL and let the browser handle the
+// instance � we just expose the URL and let the browser handle the
 // download via an anchor tag (preserves Content-Disposition filename).
 export const productStoryCardUrl = (slug) =>
   `${API}/products/${encodeURIComponent(slug)}/story-card.png`;
@@ -807,7 +807,7 @@ export const downloadProductStoryCard = (slug) => {
 
 // ---------- Maker journal authoring ----------
 // Lets a vetted maker author a journal post directly. Posts land in
-// the same /api/blog feed buyers browse on /journal — no admin queue,
+// the same /api/blog feed buyers browse on /journal � no admin queue,
 // makers wear their own reputation.
 export const createMakerJournalPost = (payload) =>
   http.post("/maker/journal", payload, { headers: authHeaders() }).then((r) => r.data);
@@ -817,14 +817,14 @@ export const deleteMakerJournalPost = (slug) =>
   http.delete(`/maker/journal/${encodeURIComponent(slug)}`, { headers: authHeaders() })
     .then((r) => r.data);
 
-// Public list of one maker's journal posts — no auth, surfaced on
+// Public list of one maker's journal posts � no auth, surfaced on
 // /makers/<slug> as a "More from this maker" rail.
 export const fetchMakerJournalPosts = (makerSlug, limit = 6) =>
   http.get(`/makers/${encodeURIComponent(makerSlug)}/blog`,
     { params: { limit } }
   ).then((r) => r.data);
 
-// Upload an image attached to a journal post — multipart/form-data, R2-
+// Upload an image attached to a journal post � multipart/form-data, R2-
 // backed. Returns `{ url }`. Editor inlines the URL as a markdown
 // image tag (`![](url)`) at the cursor position.
 export const uploadMakerJournalImage = (file) => {
@@ -861,7 +861,7 @@ export const backfillGoogleAds = (days = 30) =>
     { params: { days }, headers: adminAuthHeaders(), timeout: 600000 }
   ).then((r) => r.data);
 
-// iter334w — Microsoft Ads (Bing) integration. Same shape as Google.
+// iter334w � Microsoft Ads (Bing) integration. Same shape as Google.
 export const fetchMicrosoftAdsStatus = () =>
   http.get("/admin/integrations/microsoft-ads/status",
     { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -883,7 +883,7 @@ export const backfillMicrosoftAds = (days = 30) =>
   ).then((r) => r.data);
 
 // ---------- Meta Ads integration ----------
-// Same shape as Google Ads — separate provider, separate token, but
+// Same shape as Google Ads � separate provider, separate token, but
 // rows land in the same `ad_spend` ledger so the AdsTab dashboard
 // renders both side-by-side automatically.
 export const fetchMetaAdsStatus = () =>
@@ -969,7 +969,7 @@ export const revokeAdmin = (email) =>
   http.delete(`/admin/team/${encodeURIComponent(email)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 
 // Featured-example (platform seed) management. Used by the "Purge featured
-// content" card under Admin → Settings once organic listings fill the
+// content" card under Admin ? Settings once organic listings fill the
 // catalogue and the seeded examples are no longer needed.
 export const fetchFeaturedSeedStatus = () =>
   http.get("/admin/seed/featured-content/status", { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -992,20 +992,20 @@ export const installCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/install-fixture", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const purgeCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge", null, { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter221 — orphan-only cleanup (preserves verified seeds + organic uploads).
+// iter221 � orphan-only cleanup (preserves verified seeds + organic uploads).
 export const purgeOrphanCommunityDesignsSeed = () =>
   http.post("/admin/seed/community-designs/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter262 — Re-upload local seed design files to R2 so they survive pod restarts.
+// iter262 � Re-upload local seed design files to R2 so they survive pod restarts.
 // Returns {migrated, orphaned_marked, failed[]}.
 export const migrateCommunityDesignsToR2 = () =>
   http.post("/admin/seed/community-designs/migrate-to-r2", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter222 — Stripe Connect health probe.
+// iter222 � Stripe Connect health probe.
 export const fetchStripeDiag = () =>
   http.get("/admin/stripe/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter231 — Admin showcase curation (pin / hide / reorder / shuffle). The
+// iter231 � Admin showcase curation (pin / hide / reorder / shuffle). The
 // admin list includes hidden posts; the public /community/showcase route
 // already filters them out.
 export const fetchAdminShowcase = () =>
@@ -1021,13 +1021,13 @@ export const moveShowcaseDown = (id) =>
 export const shuffleShowcase = () =>
   http.post("/admin/showcase/shuffle", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter251 — push a showcase post or clip to Buffer's social queue.
+// iter251 � push a showcase post or clip to Buffer's social queue.
 export const shareShowcaseToBuffer = (postId) =>
   http.post(`/admin/buffer/share-showcase/${postId}`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const shareClipToBuffer = (slug) =>
   http.post(`/admin/buffer/share-clip/${slug}`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter226 — Integration diagnostics (Shippo / Mailgun / R2 — same friendly-error pattern).
+// iter226 � Integration diagnostics (Shippo / Mailgun / R2 � same friendly-error pattern).
 export const fetchShippoDiag = () =>
   http.get("/admin/shippo/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchMailgunDiag = () =>
@@ -1035,10 +1035,10 @@ export const fetchMailgunDiag = () =>
 export const fetchR2Diag = () =>
   http.get("/admin/r2/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter226 — GA4 Live Analytics. All endpoints are admin-only, push the
+// iter226 � GA4 Live Analytics. All endpoints are admin-only, push the
 // gRPC GA4 client through a threadpool on the backend. The frontend
 // polls realtime on a short interval; summary/top-* are refreshed on
-// an explicit "↻" click since GA4 quota is shared per-property.
+// an explicit "?" click since GA4 quota is shared per-property.
 export const fetchGa4Diag = () =>
   http.get("/admin/ga4/diag", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchGa4Realtime = () =>
@@ -1050,7 +1050,7 @@ export const fetchGa4TopPages7d = (limit = 10) =>
 export const fetchGa4TopSources7d = (limit = 10) =>
   http.get("/admin/ga4/top-sources-7d", { params: { limit }, headers: adminAuthHeaders() }).then((r) => r.data);
 
-// ─── Clip Feed (TikTok-for-makers) ──────────────────────────────────────
+// --- Clip Feed (TikTok-for-makers) --------------------------------------
 // Public feed + engagement helpers. Auth headers attach the buyer/maker
 // JWT when present so the i_liked / i_saved flags resolve correctly.
 const _anyAuth = () => {
@@ -1114,7 +1114,7 @@ export const adminRemoveClipProductLink = (clipId, productId) =>
 // Admin seed
 export const fetchClipsSeedStatus = () =>
   http.get("/admin/seed/clips/status", { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter310 — generate-one now enqueues a background job + returns {job_id}.
+// iter310 � generate-one now enqueues a background job + returns {job_id}.
 // Long-running Sora-2 renders no longer block the HTTP request, which
 // dies behind Cloudflare's ~100s edge timeout on craftersmarket.org.
 export const generateOneClipSeed = (model = "sora-2") =>
@@ -1134,7 +1134,7 @@ export const purgeClipsSeed = () =>
 export const purgeOrphanClipsSeed = () =>
   http.post("/admin/seed/clips/purge-orphans", null, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter220 — Rotating hero headlines.
+// iter220 � Rotating hero headlines.
 export const fetchHeroHeadlines = () => http.get("/hero/headlines").then((r) => r.data);
 export const adminListHeroHeadlines = () =>
   http.get("/admin/hero/headlines/list", { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -1166,16 +1166,16 @@ export const generateOneCommunityDesign = () =>
 export const generateBatchCommunityDesigns = (count = 5) =>
   http.post(`/admin/seed/community-designs/generate-batch?count=${count}`, null, { headers: adminAuthHeaders(), timeout: 600000 }).then((r) => r.data);
 
-// AI Discovery — "describe what you want" natural-language search.
+// AI Discovery � "describe what you want" natural-language search.
 // Returns matched products w/ a per-result `match_reason`. Public
-// endpoint — no auth headers needed.
+// endpoint � no auth headers needed.
 export const aiDiscoverySearch = (q) =>
   http.post("/ai/discovery/search", { q }).then((r) => r.data);
-// AI Maker Matching — given a custom-order brief, returns the top 3
+// AI Maker Matching � given a custom-order brief, returns the top 3
 // makers most likely to deliver well. Used on /custom-order step 2.
 export const aiMatchMakers = (payload) =>
   http.post("/ai/discovery/match-makers", payload).then((r) => r.data);
-// AI Similar Products — drives the "More like this" rail on product
+// AI Similar Products � drives the "More like this" rail on product
 // detail pages.
 export const aiSimilarProducts = (slug) =>
   http.get(`/ai/discovery/similar-products/${encodeURIComponent(slug)}`).then((r) => r.data);
@@ -1190,31 +1190,31 @@ export const uploadMakerVideo = (file, onProgress) => {
   }).then((r) => r.data);
 };
 
-// Listing photo upload (R2) — eager upload so listing save/publish payloads
+// Listing photo upload (R2) � eager upload so listing save/publish payloads
 // stay small. Returns { url, size }. Accepts a Blob OR File.
 export const uploadMakerListingImage = (blob, onProgress) => {
   const fd = new FormData();
   // R2 endpoint reads `file.content_type`; FormData uses the Blob's `type`
-  // for that, so callers must pass a typed Blob (image/jpeg, image/png, …).
+  // for that, so callers must pass a typed Blob (image/jpeg, image/png, �).
   fd.append("file", blob, blob?.name || "photo.jpg");
   return http.post("/maker/uploads/listing-image", fd, {
     headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
     onUploadProgress: onProgress,
-    // Generous timeout — watermarking large photos can take a few seconds.
+    // Generous timeout � watermarking large photos can take a few seconds.
     timeout: 60_000,
   }).then((r) => r.data);
 };
 
-// iter413cx — Listing Video · Phase 1. Single MP4/MOV per listing.
+// iter413cx � Listing Video � Phase 1. Single MP4/MOV per listing.
 // Returns {url, duration, size, content_type}. Server validates MIME +
-// size (≤100MB) + duration (≤60s via ffprobe).
+// size (=100MB) + duration (=60s via ffprobe).
 export const uploadMakerListingVideo = (file, onProgress) => {
   const fd = new FormData();
   fd.append("file", file, file?.name || "video.mp4");
   return http.post("/maker/uploads/video", fd, {
     headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
     onUploadProgress: onProgress,
-    timeout: 180_000, // 3 min — large videos may take a while
+    timeout: 180_000, // 3 min � large videos may take a while
   }).then((r) => r.data);
 };
 
@@ -1250,20 +1250,20 @@ export const decideMakerApplication = (id, payload) =>
   http.patch(`/admin/maker-applications/${id}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const deleteMakerApplication = (id) =>
   http.delete(`/admin/maker-applications/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter327 — Resend the applicant's confirm-email link. Idempotent: if
+// iter327 � Resend the applicant's confirm-email link. Idempotent: if
 // the applicant is already verified, backend returns
 // `{ok: true, already_verified: true}` without emailing anything.
 export const resendApplicationVerification = (id) =>
   http.post(`/admin/maker-applications/${id}/resend-verification`, null,
     { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter327b — 7-day verification funnel for the applications tab tile
+// iter327b � 7-day verification funnel for the applications tab tile
 // (submitted / verified / pending / stale + rate, in a single call).
 export const getApplicationVerificationFunnel = () =>
   http.get(`/admin/applications/verification-funnel`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
 export const toggleMakerBeta = (slug, enabled) =>
   http.post(`/admin/makers/${slug}/beta`, { enabled }, { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter413bv — Promote a Founding Access maker to permanent Founding
+// iter413bv � Promote a Founding Access maker to permanent Founding
 // Seller. Reuses the existing /admin/founders/promote endpoint. The
 // `force_status: "inaugural"` flag grants the lifetime tier (no expiry).
 export const promoteToFounder = (slug, { inaugural = true } = {}) =>
@@ -1272,8 +1272,8 @@ export const promoteToFounder = (slug, { inaugural = true } = {}) =>
     { headers: adminAuthHeaders() }
   ).then((r) => r.data);
 
-// iter413dg — Seller Success Dashboard ("Coach" tab). All three
-// endpoints share the same payload shape Compass consumes — one
+// iter413dg � Seller Success Dashboard ("Coach" tab). All three
+// endpoints share the same payload shape Compass consumes � one
 // source of truth between Compass, the dashboard, and future emails.
 export const fetchListingsCoachingRollup = () =>
   http.get("/maker/listings-coaching/rollup", { headers: authHeaders() }).then((r) => r.data);
@@ -1286,35 +1286,35 @@ export const fetchListingCoachingTimeline = (slug, limit = 10) =>
     headers: authHeaders(), params: { limit },
   }).then((r) => r.data);
 
-// iter413dd — One-time Founder welcome modal ack. Called when the maker
+// iter413dd � One-time Founder welcome modal ack. Called when the maker
 // dismisses the celebration modal. Backend flips `founder_welcome_seen=true`
 // so the modal never re-appears.
 export const ackFounderWelcome = () =>
   http.post("/maker/founder-welcome/ack", {}, { headers: authHeaders() }).then((r) => r.data);
 
-// iter413bw — Maker Brand Kit (Garage Builders identity).
+// iter413bw � Maker Brand Kit (Garage Builders identity).
 export const applyBrandKit = () =>
   http.post("/maker/brand-kit/apply", {}, { headers: authHeaders() }).then((r) => r.data);
 export const dismissBrandKit = () =>
   http.post("/maker/brand-kit/dismiss", {}, { headers: authHeaders() }).then((r) => r.data);
 export const fetchAdminApprovedMakers = () =>
   http.get("/admin/makers/approved", { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter413az — Hard-purge an approved maker (super-admin only).
+// iter413az � Hard-purge an approved maker (super-admin only).
 // Soft-deletes their listings + tags their payouts. Audit-logged.
 export const purgeApprovedMaker = (slug) =>
   http.delete(`/admin/makers/${slug}`, { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter413az — Build the CSV download URL for the approved-maker
+// iter413az � Build the CSV download URL for the approved-maker
 // directory. We can't just hit it with fetch + Authorization because
 // the browser needs to handle the file download UX; the component
 // adds a one-shot token query param via the JWT it already has.
 export const approvedMakersCsvUrl = () => `${API}/admin/makers/approved.csv`;
-// iter413bo — Enrich Labs weekly export (no PII) — manual trigger + status.
+// iter413bo � Enrich Labs weekly export (no PII) � manual trigger + status.
 export const sendEnrichlabsExportNow = () =>
   http.post("/admin/makers/approved/enrichlabs-send", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const fetchEnrichlabsExportStatus = () =>
   http.get("/admin/makers/approved/enrichlabs-status", { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter413ca — Admin impersonation. Returns { token, target_type, target_sub,
+// iter413ca � Admin impersonation. Returns { token, target_type, target_sub,
 // target_email, target_name, imp_by, expires_in_seconds }. The frontend
 // caller is responsible for stashing the token + meta in localStorage and
 // opening the target dashboard in a new tab.
@@ -1329,7 +1329,7 @@ export const adminImpersonateUser = (user_id) =>
     { headers: adminAuthHeaders() }
   ).then((r) => r.data);
 
-// iter413cb — File a bug observed mid-impersonation. Reads the admin's
+// iter413cb � File a bug observed mid-impersonation. Reads the admin's
 // own JWT from localStorage (shared across tabs) because the active
 // session in the impersonation tab is the target's JWT, not the admin's.
 export const filImpersonationBugReport = (payload) =>
@@ -1337,18 +1337,18 @@ export const filImpersonationBugReport = (payload) =>
     headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
   }).then((r) => r.data);
 
-// iter413bp — Operations Dashboard aggregator (admin landing page).
+// iter413bp � Operations Dashboard aggregator (admin landing page).
 export const fetchOpsDashboardOverview = () =>
   http.get("/admin/ops-dashboard/overview", { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter413bz — Top stale-link surface for the Ops Dashboard.
+// iter413bz � Top stale-link surface for the Ops Dashboard.
 export const fetchNotFoundRecent = () =>
   http.get("/admin/not-found/recent", { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter413cr — AI Operations Center: Top AI-diagnosed issues (card 1 of N).
+// iter413cr � AI Operations Center: Top AI-diagnosed issues (card 1 of N).
 export const fetchAiOpsIssues = (window_days = 7, limit = 12) =>
   http.get(`/admin/ops/ai-issues?window_days=${window_days}&limit=${limit}`, {
     headers: adminAuthHeaders(),
   }).then((r) => r.data);
-// iter413cs — Deployment Watch Window + cards 2 & 6 + Release Timeline.
+// iter413cs � Deployment Watch Window + cards 2 & 6 + Release Timeline.
 export const fetchDeployWatchCurrent = () =>
   http.get("/admin/ops/deploy-watch/current", { headers: adminAuthHeaders() }).then((r) => r.data);
 export const startDeployWatch = (build_id, ttl_hours = 48) =>
@@ -1368,7 +1368,7 @@ export const fetchReleaseTimeline = (q = "", limit = 25) => {
     headers: adminAuthHeaders(),
   }).then((r) => r.data);
 };
-// iter413bq — Dismiss / restore action-queue items per-admin.
+// iter413bq � Dismiss / restore action-queue items per-admin.
 export const dismissOpsItem = (item_id, mode = "24h", status_signature = null) =>
   http.post("/admin/ops-dashboard/dismiss",
     { item_id, mode, status_signature },
@@ -1433,7 +1433,7 @@ export const fetchAdminLeadMagnetSubscribers = (limit = 200, skip = 0) =>
     headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
   }).then((r) => r.data);
 export const adminLeadMagnetExportCsvUrl = () => {
-  // Direct download URL — appends the bearer via a one-shot auth header is
+  // Direct download URL � appends the bearer via a one-shot auth header is
   // not possible with <a href>, so the operator clicks the button and the
   // axios client downloads the body for them, then we trigger a save.
   return "/admin/lead-magnet/export.csv";
@@ -1468,7 +1468,7 @@ const buyerAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
-// Either-role headers for the community surface — used by endpoints that
+// Either-role headers for the community surface � used by endpoints that
 // accept both buyer and maker JWTs (showcase create + video upload).
 // Prefers the buyer JWT so existing buyer flows keep working untouched;
 // makers logged in only via the maker portal still get authed.
@@ -1476,7 +1476,7 @@ const communityAnyAuthHeaders = () => {
   const t = localStorage.getItem("cm_buyer_jwt") || localStorage.getItem("cm_maker_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
-// Same surface, but prefers the MAKER JWT first — used by maker-only
+// Same surface, but prefers the MAKER JWT first � used by maker-only
 // endpoints (video upload) and by showcase posts that include a video
 // clip. Without this preference, a maker who also has a stale buyer JWT
 // in localStorage from a prior Google sign-in would hit a confusing
@@ -1544,7 +1544,7 @@ export const createShowcase = (payload) =>
 export const likeShowcase = (id) =>
   http.post(`/community/showcase/${id}/like`, {}, { headers: buyerAuthHeaders() }).then((r) => r.data);
 
-// Public view-tracker — anyone can hit it, deduped server-side by
+// Public view-tracker � anyone can hit it, deduped server-side by
 // (post_id, visitor_id) within 24h. The `client_id` is a stable random
 // uuid kept in localStorage so refreshing the page doesn't inflate views.
 export const markShowcaseViewed = (id, clientId) =>
@@ -1562,7 +1562,7 @@ export const fetchTopWeekShowcase = (limit = 6) =>
 export const fetchMakerOfTheWeek = () =>
   http.get("/community/maker-of-the-week").then((r) => r.data);
 
-// iter331 — Fair-exposure homepage-makers rotation. Powers the
+// iter331 � Fair-exposure homepage-makers rotation. Powers the
 // <MeetTheMakers /> section: 4 eligible makers per period, ranked by
 // scoring engine (never-featured, days-since-last, impressions,
 // new-maker + optional founder boost). Public + cached at the edge.
@@ -1570,7 +1570,7 @@ export const fetchHomepageMakers = () =>
   http.get("/community/homepage-makers").then((r) => r.data);
 
 // Admin config surface for the rotation engine.
-// NOTE: these three endpoints require an admin JWT — the `http` axios
+// NOTE: these three endpoints require an admin JWT � the `http` axios
 // instance does not attach it globally, so each call includes the
 // Authorization header explicitly. Matches the pattern used by other
 // admin helpers elsewhere in this file.
@@ -1586,7 +1586,7 @@ export const fetchHomepageRotationPreview = () =>
   http.get("/admin/homepage-rotation/preview", {
     headers: { Authorization: `Bearer ${localStorage.getItem("cm_admin_jwt") || ""}` },
   }).then((r) => r.data);
-// iter331c — Rotation audit trail: last N period selections + refill events.
+// iter331c � Rotation audit trail: last N period selections + refill events.
 export const fetchHomepageRotationLedger = (limit = 24) =>
   http.get("/admin/homepage-rotation/ledger", {
     params: { limit },
@@ -1594,13 +1594,13 @@ export const fetchHomepageRotationLedger = (limit = 24) =>
   }).then((r) => r.data);
 
 
-// Marketplace velocity stats — powers the homepage "is this place alive?"
+// Marketplace velocity stats � powers the homepage "is this place alive?"
 // proof strip. Public, cached at the edge.
 export const fetchSiteVelocity = () =>
   http.get("/site/velocity").then((r) => r.data);
 
 // Owner-only edit (patch) and delete. Maker JWT preferred when the
-// caller is a maker — same logic as createShowcase.
+// caller is a maker � same logic as createShowcase.
 export const editShowcase = (id, patch) =>
   http.patch(`/community/showcase/${id}`, patch, {
     headers: communityMakerFirstHeaders(),
@@ -1649,21 +1649,21 @@ export const adminGscDisconnect = () =>
   http.post("/admin/gsc/disconnect", {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 export const adminGscTestInspect = (slug = "") =>
   http.post("/admin/gsc/test-inspect", { slug }, { headers: adminAuthHeaders() }).then((r) => r.data);
-// iter276 — Force re-check this listing now (persists tier + checked_at).
+// iter276 � Force re-check this listing now (persists tier + checked_at).
 export const adminGscRecheck = (slug) =>
   http.post(`/admin/gsc/recheck/${slug}`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// Maker-only — upload a ≤50MB / ≤60s video clip to attach to a showcase post.
+// Maker-only � upload a =50MB / =60s video clip to attach to a showcase post.
 export const uploadShowcaseVideo = (file, opts = {}) => {
   const fd = new FormData();
   fd.append("file", file);
   return http
     .post("/community/showcase/upload-video", fd, {
-      // Always prefer the maker JWT — this endpoint is maker-gated and
+      // Always prefer the maker JWT � this endpoint is maker-gated and
       // sending a buyer JWT here would return 403 with no useful
       // recovery path for the user.
       headers: { ...communityMakerFirstHeaders(), "Content-Type": "multipart/form-data" },
-      // Videos are larger than the default — give the upload plenty of time.
+      // Videos are larger than the default � give the upload plenty of time.
       timeout: 120000,
       onUploadProgress: opts.onProgress
         ? (e) => opts.onProgress(e.total ? Math.round((e.loaded / e.total) * 100) : 0)
@@ -1706,7 +1706,7 @@ export const adminQuarantineDesignFile = (id, note = "") =>
 export const adminDeleteDesignFile = (id) =>
   http.delete(`/admin/design-files/${id}`, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// Maker account lifecycle — close / reopen shop + 30-day grace deletion.
+// Maker account lifecycle � close / reopen shop + 30-day grace deletion.
 export const makerCloseShop = () =>
   http.post("/maker/account/close", {}, { headers: authHeaders() }).then((r) => r.data);
 export const makerReopenShop = () =>
@@ -1742,7 +1742,7 @@ export const updateMakerBrief = (briefId, payload) =>
   http.patch(`/maker/briefs/${briefId}`, payload, { headers: authHeaders() }).then((r) => r.data);
 
 
-// Direct multipart upload — works for any signed-in community user (buyer OR maker).
+// Direct multipart upload � works for any signed-in community user (buyer OR maker).
 // Passes the freshest Bearer token (maker JWT wins over buyer JWT for attribution).
 //
 // Multi-format bundles: pass either `file` (single) OR `files` (array).
@@ -1752,7 +1752,7 @@ export const uploadDesignFileDirect = (
   { onProgress } = {},
 ) => {
   const form = new FormData();
-  // Bundle multi-format support — accept either shape.
+  // Bundle multi-format support � accept either shape.
   const list = Array.isArray(files) && files.length > 0 ? files : (file ? [file] : []);
   for (const f of list) form.append("files", f);
   form.append("title", title);
@@ -1791,7 +1791,7 @@ export const addDesignFileVariants = (fileId, files, { onProgress } = {}) => {
 };
 
 // Owner-only metadata edit (title, description, thumbnail_url). Files
-// themselves are immutable — use the variants endpoints to add/remove.
+// themselves are immutable � use the variants endpoints to add/remove.
 // Admin JWT is also accepted server-side for moderation edits.
 export const updateDesignFile = (fileId, payload) => {
   const adm = localStorage.getItem("cm_admin_jwt");
@@ -1864,9 +1864,9 @@ export const fetchRecentShowcase = (params = {}) =>
     .get("/community/showcase/recent", { params })
     .then((r) => r.data);
 
-// iter117 — Showcase analytics: surface-tagged view + click events.
+// iter117 � Showcase analytics: surface-tagged view + click events.
 // Public endpoints (no auth) since the strip renders for guests too.
-// Both fail-silent — analytics must never break the host page render.
+// Both fail-silent � analytics must never break the host page render.
 export const recordShowcaseView = (postId, source) =>
   http
     .post(`/community/showcase/${postId}/view`, { source })
@@ -1884,7 +1884,7 @@ export const fetchShowcaseAnalytics = (params = {}) =>
     })
     .then((r) => r.data);
 
-// iter114 — Showcase form: multi-image upload + AI description help.
+// iter114 � Showcase form: multi-image upload + AI description help.
 export const uploadShowcaseImage = (file, opts = {}) => {
   const fd = new FormData();
   fd.append("file", file);
@@ -1902,7 +1902,7 @@ export const aiDescribeShowcase = (payload) =>
     .post("/community/showcase/ai-describe", payload, { headers: buyerAuthHeaders() })
     .then((r) => r.data);
 
-// Moderator deletes — accepts admin OR maker JWT (backend checks role).
+// Moderator deletes � accepts admin OR maker JWT (backend checks role).
 const modAuthHeaders = () => {
   const t = localStorage.getItem("cm_admin_jwt") || localStorage.getItem("cm_maker_jwt");
   return t ? { Authorization: `Bearer ${t}` } : {};
@@ -1922,7 +1922,7 @@ export const wsChatUrl = (channel, ticket) => {
   return `${wsBase}/api/ws/chat/${channel}?ticket=${encodeURIComponent(ticket || "")}`;
 };
 
-// iter442 — never put the JWT in the WebSocket URL. Exchange it for a
+// iter442 � never put the JWT in the WebSocket URL. Exchange it for a
 // short-lived (60s) single-use ticket over an authed POST, then connect
 // with the opaque ticket only.
 export const openChatSocket = async (channel, token) => {
@@ -1963,7 +1963,7 @@ export const sendAdminPushTest = () =>
 // `cm_buyer_jwt` (when signed-in) or from a registered Web Push
 // endpoint we attach via X-Push-Endpoint header. Self-noops otherwise.
 //
-// iter267 — Optional `contact` arg lets the CartPage push phone +
+// iter267 � Optional `contact` arg lets the CartPage push phone +
 // receipts/shipping consents BEFORE checkout submit, so abandoned-cart
 // SMS fallback has the buyer's phone even if they bounce mid-form.
 export const trackCart = async (items, contact = null) => {
@@ -1974,7 +1974,7 @@ export const trackCart = async (items, contact = null) => {
       const sub = reg ? await reg.pushManager.getSubscription() : null;
       pushEndpoint = sub?.endpoint || "";
     }
-  } catch { /* no-op — fall through with empty endpoint */ }
+  } catch { /* no-op � fall through with empty endpoint */ }
   const buyerJwt = localStorage.getItem("cm_buyer_jwt");
   const headers = {};
   if (buyerJwt) headers.Authorization = `Bearer ${buyerJwt}`;
@@ -1994,7 +1994,7 @@ export const trackCart = async (items, contact = null) => {
 };
 
 
-// ── iter335 — Unified Promote Engine ───────────────────────────────────
+// -- iter335 � Unified Promote Engine -----------------------------------
 export const fetchPromoteWallet = () =>
   http.get("/promote/wallet", { headers: authHeaders() }).then((r) => r.data);
 
@@ -2028,7 +2028,7 @@ export const applyPromoteCampaign = () =>
   http.post("/promote/campaign/apply", {}, { headers: authHeaders() }).then((r) => r.data);
 
 
-// iter335.5 — External ad channel adapters
+// iter335.5 � External ad channel adapters
 export const fetchPromoteChannels = () =>
   http.get("/promote/channels", { headers: authHeaders() }).then((r) => r.data);
 
@@ -2050,7 +2050,7 @@ export const resumeExternalCampaign = (channel, externalId) =>
 export const fetchPromoteAnalytics = () =>
   http.get("/promote/analytics", { headers: authHeaders() }).then((r) => r.data);
 
-// iter335.13 — AI Recommend Budget + Active Theme campaigns
+// iter335.13 � AI Recommend Budget + Active Theme campaigns
 export const recommendPromoteBudget = (goal = "sales") =>
   http.post("/promote/budget/recommend", { goal },
     { headers: authHeaders() }).then((r) => r.data);
@@ -2058,11 +2058,11 @@ export const recommendPromoteBudget = (goal = "sales") =>
 export const fetchActivePromoteThemes = () =>
   http.get("/promote/themes/active", { headers: authHeaders() }).then((r) => r.data);
 
-// iter335.16 — Maker-facing channel-split hint
+// iter335.16 � Maker-facing channel-split hint
 export const fetchPromoteChannelSplit = () =>
   http.get("/promote/channel-split", { headers: authHeaders() }).then((r) => r.data);
 
-// iter335.13 — Admin: theme campaign CRUD
+// iter335.13 � Admin: theme campaign CRUD
 export const adminFetchPromoteThemes = () =>
   http.get("/admin/promote/themes", { headers: adminAuthHeaders() }).then((r) => r.data);
 
@@ -2074,7 +2074,7 @@ export const adminSetPromoteThemeStatus = (themeId, status) =>
   http.post(`/admin/promote/themes/${themeId}/status?status=${encodeURIComponent(status)}`,
     {}, { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter335.14 — Phase 4: Channel attribution weights + theme suggestions
+// iter335.14 � Phase 4: Channel attribution weights + theme suggestions
 export const adminFetchChannelWeights = () =>
   http.get("/admin/ads/channel-weights",
     { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -2087,16 +2087,16 @@ export const adminSuggestPromoteThemes = () =>
   http.get("/admin/promote/themes/suggest",
     { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter335.15 — Maker Leaderboard (public; widget hides if disabled)
+// iter335.15 � Maker Leaderboard (public; widget hides if disabled)
 export const fetchMakerLeaderboard = (params = {}) =>
   http.get("/leaderboard/makers", { params }).then((r) => r.data);
 
-// iter335.17 — Maker rank widget (closes the leaderboard feedback loop)
+// iter335.17 � Maker rank widget (closes the leaderboard feedback loop)
 export const fetchMakerLeaderboardRank = () =>
   http.get("/maker/leaderboard-rank",
     { headers: authHeaders() }).then((r) => r.data);
 
-// iter346 — Site promos (on-site banner CMS)
+// iter346 � Site promos (on-site banner CMS)
 export const fetchActiveSitePromo = (placement) =>
   http.get(`/site-promos?placement=${encodeURIComponent(placement)}`)
     .then((r) => r.data);
@@ -2116,7 +2116,7 @@ export const adminDeleteSitePromo = (promoId) =>
   http.delete(`/admin/site-promos/${promoId}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter347 — AI Ad-Creative Workshop (Phase 3 of admin-creates-ads roadmap)
+// iter347 � AI Ad-Creative Workshop (Phase 3 of admin-creates-ads roadmap)
 export const adminSearchAdSubjects = (q = "", limit = 12) =>
   http.get(`/admin/ad-creative/subjects?q=${encodeURIComponent(q)}&limit=${limit}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -2139,7 +2139,7 @@ export const adminDeleteAdCreativeDraft = (draftId) =>
   http.delete(`/admin/ad-creative/drafts/${draftId}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// iter348 — Phase 4a — Google Ads campaign push
+// iter348 � Phase 4a � Google Ads campaign push
 export const adminAdCreativeGooglePreflight = () =>
   http.get("/admin/ad-creative/push/google/preflight",
     { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -2148,7 +2148,7 @@ export const adminPushDraftToGoogle = (draftId, payload) =>
   http.post(`/admin/ad-creative/drafts/${draftId}/push/google`, payload,
     { headers: adminAuthHeaders(), timeout: 60000 }).then((r) => r.data);
 
-// iter349 — Phase 4b — Meta Ads campaign push
+// iter349 � Phase 4b � Meta Ads campaign push
 export const adminAdCreativeMetaPreflight = () =>
   http.get("/admin/ad-creative/push/meta/preflight",
     { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -2157,7 +2157,7 @@ export const adminPushDraftToMeta = (draftId, payload) =>
   http.post(`/admin/ad-creative/drafts/${draftId}/push/meta`, payload,
     { headers: adminAuthHeaders(), timeout: 240000 }).then((r) => r.data);
 
-// iter349 — Phase 4c — Microsoft (Bing) Ads campaign push
+// iter349 � Phase 4c � Microsoft (Bing) Ads campaign push
 export const adminAdCreativeMicrosoftPreflight = () =>
   http.get("/admin/ad-creative/push/microsoft/preflight",
     { headers: adminAuthHeaders() }).then((r) => r.data);
@@ -2170,7 +2170,7 @@ export const adminListAdCreativePushes = (limit = 30) =>
   http.get(`/admin/ad-creative/pushes?limit=${limit}`,
     { headers: adminAuthHeaders() }).then((r) => r.data);
 
-// ── iter462 — INFORM Consumers Act compliance ──────────────────────────
+// -- iter462 � INFORM Consumers Act compliance --------------------------
 export const fetchMakerInformAct = () =>
   http.get("/maker/inform-act", { headers: authHeaders() }).then((r) => r.data);
 export const submitMakerInformAct = (payload) =>
@@ -2230,3 +2230,48 @@ export const reviewPolicyNotice = (notification_id) =>
   http.post("/maker/policy-notices/review", { notification_id }, { headers: authHeaders() }).then((r) => r.data);
 export const acknowledgePolicyNotice = (payload) =>
   http.post("/maker/policy-notices/acknowledge", payload, { headers: authHeaders() }).then((r) => r.data);
+// ---------- Admin Digital Product Generator ----------
+export const generateAdminDigitalProducts = (payload) =>
+  http.post("/admin/digital-product-generator/generate", payload, { headers: adminAuthHeaders(), timeout: 240000 }).then((r) => r.data);
+export const fetchAdminGeneratedDigitalProducts = (params = {}) =>
+  http.get("/admin/digital-product-generator/products", { params, headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminGeneratedDigitalProduct = (slug) =>
+  http.get(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const updateAdminGeneratedDigitalProduct = (slug, payload) =>
+  http.patch(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const replaceAdminGeneratedDigitalPreview = (slug, image_data_url) =>
+  http.post(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/replace-preview`, { image_data_url }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const replaceAdminGeneratedDigitalFiles = (slug, files) =>
+  http.post(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/replace-files`, { files }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const approveAdminGeneratedDigitalProduct = (slug, payload = {}) =>
+  http.post(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/approve`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const publishAdminGeneratedDigitalProduct = (slug) =>
+  http.post(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/publish`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const bulkPublishAdminGeneratedDigitalProducts = (slugs) =>
+  http.post("/admin/digital-product-generator/bulk-publish", slugs, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const deleteAdminGeneratedDigitalProduct = (slug) =>
+  http.delete(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminDigitalStarterPacks = () =>
+  http.get("/admin/digital-product-generator/starter-packs", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminDigitalReviewQueue = (params = {}) =>
+  http.get("/admin/digital-product-generator/review-queue", { params, headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminDigitalQaReport = () =>
+  http.get("/admin/digital-product-generator/qa-report", { headers: adminAuthHeaders() }).then((r) => r.data);
+export const fetchAdminGeneratedDigitalProductFiles = (slug) =>
+  http.get(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/files`, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const validateAdminGeneratedDigitalProductFiles = (slug) =>
+  http.post(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/validate`, {}, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const saveAdminGeneratedDigitalReviewNote = (slug, payload) =>
+  http.post(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/review-note`, payload, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const adminGeneratedDigitalProductFileUrl = (slug, filename) =>
+  `${API}/admin/digital-product-generator/products/${encodeURIComponent(slug)}/files/${encodeURIComponent(filename)}`;
+export const fetchAdminGeneratedDigitalProductFileBlob = (slug, filename) =>
+  http.get(`/admin/digital-product-generator/products/${encodeURIComponent(slug)}/files/${encodeURIComponent(filename)}`, { headers: adminAuthHeaders(), responseType: "blob" }).then((r) => r.data);
+export const bulkApproveAdminGeneratedDigitalProducts = (slugs, reason = "") =>
+  http.post("/admin/digital-product-generator/bulk-approve", { slugs, reason }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const bulkRejectAdminGeneratedDigitalProducts = (slugs, reason = "") =>
+  http.post("/admin/digital-product-generator/bulk-reject", { slugs, reason }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const bulkArchiveAdminGeneratedDigitalProducts = (slugs, reason = "") =>
+  http.post("/admin/digital-product-generator/bulk-archive", { slugs, reason }, { headers: adminAuthHeaders() }).then((r) => r.data);
+export const bulkDeleteAdminGeneratedDigitalProducts = (slugs, reason = "") =>
+  http.post("/admin/digital-product-generator/bulk-delete", { slugs, reason }, { headers: adminAuthHeaders() }).then((r) => r.data);

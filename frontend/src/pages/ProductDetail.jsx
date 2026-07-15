@@ -643,6 +643,14 @@ export default function ProductDetail() {
                 based on technique + materials. Renders null when no
                 guide matches. Compounds internal-link equity into the
                 /guides/* pages and reduces buyer hesitation. */}
+            {(p.listing_type === "digital" || p.listing_type === "both") && (
+              <div
+                hidden
+                data-testid="digital-made-with-gallery-hook"
+                data-feature-flag="digital-made-with-gallery"
+                data-product-slug={p.slug}
+              />
+            )}
             <GuideCrossLinkCard product={p} />
 
             {/* iter364 — Grouped variations: one selector per category. */}

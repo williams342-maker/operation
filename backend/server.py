@@ -361,6 +361,8 @@ from routers.policy_versions import router as policy_versions_router
 api.include_router(policy_versions_router)
 from routers.digital_landing import router as digital_landing_router  # iter454
 api.include_router(digital_landing_router)
+from routers.digital_product_generator import router as digital_product_generator_router
+api.include_router(digital_product_generator_router)
 from routers.featured_maker import router as featured_maker_router  # iter455
 api.include_router(featured_maker_router)
 from routers.workshop_floor import router as workshop_floor_router  # iter457
@@ -559,6 +561,8 @@ async def on_startup():
         await ensure_clip_product_indexes()
         from routers.policy_versions import ensure_policy_indexes
         await ensure_policy_indexes()
+        from routers.digital_landing import ensure_digital_marketplace_indexes
+        await ensure_digital_marketplace_indexes()
     except Exception:
         logger.exception("[clips] clip-product index init failed (non-fatal)")
     logger.info("Crafters Market API ready (seed checked).")
@@ -569,3 +573,4 @@ async def shutdown_db():
     from scheduler import shutdown_scheduler
     shutdown_scheduler()
     client.close()
+

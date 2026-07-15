@@ -24,6 +24,7 @@ import PlusMembersTab from "../components/admin/PlusMembersTab";
 import BroadcastTab from "../components/admin/BroadcastTab";
 import DesignFileReportsTab from "../components/admin/DesignFileReportsTab";
 import DesignFilesTab from "../components/admin/DesignFilesTab";
+import DigitalProductGeneratorTab from "../components/admin/DigitalProductGeneratorTab";
 import AdminCommandPalette from "../components/admin/AdminCommandPalette";
 import MobileAdminTabBar from "../components/admin/MobileAdminTabBar";
 import ReviewDisputesTab from "../components/admin/ReviewDisputesTab";
@@ -118,6 +119,7 @@ const TABS = [
   { id: "lead-magnet", label: "Lead Magnet", caps: ["content"] },
   { id: "file-reports", label: "File Reports", caps: ["moderation", "content"] },
   { id: "design-files", label: "Design Files", caps: ["content"] },
+  { id: "digital-product-generator", label: "Digital Product Generator", caps: ["content"] },
   { id: "listings", label: "Listings", caps: ["marketplace"] },
   { id: "makers", label: "Maker Analytics" },
   { id: "orders", label: "Paid Orders", caps: ["finance", "support"] },
@@ -621,6 +623,7 @@ export default function AdminDashboard() {
             {tab === "coming-soon" && <ComingSoonTab />}
             {tab === "file-reports" && <DesignFileReportsTab />}
             {tab === "design-files" && <DesignFilesTab />}
+            {tab === "digital-product-generator" && <DigitalProductGeneratorTab />}
             {tab === "custom" && <CustomOrdersList items={custom} onChange={refresh} />}
             {tab === "orders" && <PaidOrdersList items={orders} />}
             {tab === "approvals" && <RefundApprovalsTab me={me} />}

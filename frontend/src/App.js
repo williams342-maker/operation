@@ -363,6 +363,7 @@ function App() {
                 <Route path="/community/login" element={<CommunityLogin />} />
                 <Route path="/purchases" element={<PurchasesPage />} /> {/* iter453 */}
                 <Route path="/digital-downloads" element={<DigitalDownloadsPage />} /> {/* iter454 */}
+                <Route path="/digital-downloads/category/:categorySlug" element={<DigitalDownloadsPage />} />
                 <Route path="/community/verify" element={<CommunityVerify />} />
                 <Route path="/community/auth/callback" element={<CommunityAuthCallback />} />
                 <Route path="/messages" element={<BuyerMessagesPage />} />
