@@ -30,6 +30,10 @@ def _claude(system: str, user: str, max_chars: int = 1200) -> dict | None:
     object and tolerate code-fence wrappers in the parser."""
     if not EMERGENT_LLM_KEY:
         return None
+    llm = get_llm_chat()
+    if llm is None:
+        return None
+    LlmChat, UserMessage = llm
 
     async def _go():
         chat = LlmChat(

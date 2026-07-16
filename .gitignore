@@ -151,3 +151,8 @@ frontend/node_modules/.cache/default-development/37.pack
 .env
 .env.*
 *.env
+
+# Local development logs and generated test reports
+backend/uvicorn*.log
+frontend/*.log
+test_reports/ui-smoke/
