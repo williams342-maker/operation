@@ -174,6 +174,11 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const protectedOverview = await request("GET", "/overview");
     assert.equal(protectedOverview.status, 401);
 
+    const anonymousLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, { "content-type": "application/json" });
+    assert.equal(anonymousLogout.status, 200);
+    assert.equal(anonymousLogout.body.ok, true);
+    assert.match(anonymousLogout.headers.get("set-cookie") || "", /cc_session=;/);
+
     const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
     process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "disabled";
     const disabledBootstrap = await request("POST", "/auth/bootstrap", {
@@ -231,6 +236,24 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
+
+    const viewerSessionId = new ObjectId(viewerA.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerA.cookie });
+    assert.equal(logoutWithoutCsrf.status, 403);
+    assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 1);
+
+    const activeLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(viewerA));
+    assert.equal(activeLogout.status, 200);
+    assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 0);
+    assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
+
+    const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const expiredViewerSessionId = new ObjectId(expiredViewer.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    await collections.sessions.updateOne({ _id: expiredViewerSessionId }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
+    const expiredLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(expiredViewer));
+    assert.equal(expiredLogout.status, 200);
+    assert.equal(await collections.sessions.countDocuments({ _id: expiredViewerSessionId }), 0);
+    assert.match(expiredLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
     const ownerSessionId = new ObjectId(ownerA.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
     await collections.sessions.updateOne(

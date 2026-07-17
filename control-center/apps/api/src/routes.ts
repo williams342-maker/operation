@@ -9,7 +9,7 @@ import {
   retentionCutoff
 } from "@control-center/shared";
 import { audit } from "./audit.js";
-import { createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
+import { allowExpiredLogout, clearSessionCookie, createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
 import { requireSignedAgent } from "./agentAuth.js";
 import { collections, oid, scopedFilter } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword } from "./crypto.js";
@@ -92,12 +92,12 @@ router.post("/auth/login", noStore, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.use("/auth/logout", requireSession, requireCsrf);
+router.use("/auth/logout", noStore, allowExpiredLogout, requireSession, requireCsrf);
 router.post("/auth/logout", async (req, res, next) => {
   try {
     if (req.sessionId && req.orgId) await collections.sessions.deleteOne({ _id: req.sessionId, orgId: req.orgId });
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user?._id, action: "auth.logout", result: "success", requestId: req.requestId });
-    res.clearCookie("cc_session");
+    clearSessionCookie(res);
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
