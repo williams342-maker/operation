@@ -1,9 +1,9 @@
-﻿name: Control Center CI
+name: Control Center CI
 
 on:
   pull_request:
   push:
-    branches: [ main, checkpoint/local-dashboard-prototype ]
+    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1 ]
 
 jobs:
   verify:
