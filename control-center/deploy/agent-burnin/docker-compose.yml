@@ -1,0 +1,32 @@
+﻿services:
+  http-test:
+    build: ./http-test
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:18081:8080"
+    networks:
+      - burnin
+
+  mongo-test:
+    image: mongo:8.0
+    restart: unless-stopped
+    command: ["mongod", "--bind_ip", "127.0.0.1,mongo-test"]
+    env_file:
+      - .env.test-workload
+    ports:
+      - "127.0.0.1:27028:27017"
+    volumes:
+      - mongo_test_data:/data/db
+    networks:
+      - burnin
+
+networks:
+  burnin:
+    driver: bridge
+
+volumes:
+  mongo_test_data:
