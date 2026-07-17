@@ -128,7 +128,7 @@ export async function requireRecentAuth(req: Request, res: Response, next: NextF
       requestId: req.requestId,
       metadata: { reason: "recent-auth-required" }
     });
-    return res.status(403).json({ error: "Recent reauthentication required" });
+    return res.status(403).json({ error: "Recent reauthentication required", code: "RECENT_AUTH_REQUIRED" });
   }
   next();
 }
