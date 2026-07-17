@@ -38,21 +38,21 @@ jobs:
       - name: Verify Linux test summary has no skips
         run: |
           set -euo pipefail
-          npm test -- --test-reporter=json > test-report.jsonl
+          node --import tsx --test --test-reporter=tap apps/agent/test/*.test.ts > agent.tap
+          node --import tsx --test --test-reporter=tap apps/api/test/*.test.ts > api.tap
+          node --import tsx --test --test-reporter=tap packages/shared/test/*.test.ts > shared.tap
           node - <<'NODE'
           const fs = require('node:fs');
-          const lines = fs.readFileSync('test-report.jsonl', 'utf8').trim().split(/\n+/).filter((line) => line.trim().startsWith('{')).map((line) => JSON.parse(line));
-          const summaries = lines.filter((line) => line.type === 'test:summary').map((line) => line.data);
-          if (!summaries.length) throw new Error('missing test summaries');
-          const totals = summaries.reduce((acc, item) => {
-            acc.tests += item.tests ?? 0;
-            acc.skipped += item.skipped ?? 0;
-            acc.failures += item.failures ?? 0;
-            return acc;
-          }, { tests: 0, skipped: 0, failures: 0 });
-          if (totals.tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${totals.tests}`);
-          if (totals.skipped !== 0) throw new Error(`unexpected skipped tests: ${totals.skipped}`);
-          if (totals.failures !== 0) throw new Error(`unexpected failed tests: ${totals.failures}`);
+          const files = ['agent.tap', 'api.tap', 'shared.tap'];
+          let tests = 0;
+          let skipped = 0;
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            tests += Number(text.match(/^# tests (\d+)/m)?.[1] ?? 0);
+            skipped += Number(text.match(/^# skipped (\d+)/m)?.[1] ?? 0);
+          }
+          if (tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${tests}`);
+          if (skipped !== 0) throw new Error(`unexpected skipped tests: ${skipped}`);
           NODE
       - run: npm run typecheck
       - run: npm run lint
