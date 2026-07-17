@@ -1,0 +1,32 @@
+{
+  "github": {
+    "repository": "owner/repo",
+    "branch": "main"
+  },
+  "paths": {
+    "repoRoot": "C:/Users/willi/Documents/Codex/Craftersmarket",
+    "backendRoot": "C:/Users/willi/Documents/Codex/Craftersmarket/backend",
+    "frontendRoot": "C:/Users/willi/Documents/Codex/Craftersmarket/frontend",
+    "backendEnv": "C:/Users/willi/Documents/Codex/Craftersmarket/backend/.env",
+    "frontendEnv": "C:/Users/willi/Documents/Codex/Craftersmarket/frontend/.env",
+    "backupRoot": "C:/Users/willi/Documents/Codex/Craftersmarket/deployment-dashboard/backups",
+    "logRoot": "C:/Users/willi/Documents/Codex/Craftersmarket/deployment-dashboard/logs"
+  },
+  "commands": {
+    "backendInstall": ["npm", "install"],
+    "frontendInstall": ["npm", "install"],
+    "frontendBuild": ["npm", "run", "build"]
+  },
+  "pm2": {
+    "backendProcess": "crafters-backend",
+    "frontendProcess": "crafters-frontend"
+  },
+  "envValidation": {
+    "backendRequired": ["MONGO_URL", "DB_NAME", "MAKER_AUTH_SECRET"],
+    "frontendRequired": ["REACT_APP_BACKEND_URL"]
+  },
+  "auth": {
+    "issuer": "craftersmarket",
+    "audience": "deployment-dashboard"
+  }
+}
