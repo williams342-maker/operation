@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.git
+.github
+.env
+.env.*
+*.local.json
+deploy/.env.staging
+deploy/env
+deploy/tunnel
+deploy/certs

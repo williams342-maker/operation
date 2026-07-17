@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import { z } from "zod";
 import {
   agentEnrollmentRequestSchema,
@@ -28,11 +28,20 @@ const bootstrapSchema = z.object({
   password: z.string().min(12)
 });
 
-router.post("/auth/bootstrap", async (req, res, next) => {
+router.post("/auth/bootstrap", noStore, async (req, res, next) => {
   try {
+    if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE === "disabled") {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "disabled" } });
+      return res.status(403).json({ error: "Bootstrap is disabled" });
+    }
     const existing = await collections.organizations.countDocuments();
     if (existing > 0) return res.status(409).json({ error: "Bootstrap already completed" });
-    const body = bootstrapSchema.parse(req.body);
+    const parsed = bootstrapSchema.safeParse(req.body);
+    if (!parsed.success) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "failure", requestId: req.requestId, metadata: { reason: "validation" } });
+      return res.status(400).json({ error: "Invalid bootstrap request" });
+    }
+    const body = parsed.data;
     const now = new Date();
     const orgResult = await collections.organizations.insertOne({ name: body.organizationName, slug: body.organizationSlug, createdAt: now, updatedAt: now });
     const userResult = await collections.users.insertOne({

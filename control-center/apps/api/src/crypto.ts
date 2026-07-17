@@ -1,4 +1,4 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
 import { agentSigningKey, secretHash as sharedSecretHash } from "@control-center/shared";
 
 const sessionSecret = process.env.CONTROL_CENTER_SESSION_SECRET || "dev-session-secret-change-me";
@@ -42,8 +42,8 @@ export function validateRuntimeSecrets() {
     if (publicUrl.origin !== webOrigin.origin) throw new Error("CONTROL_CENTER_PUBLIC_URL and CONTROL_CENTER_WEB_ORIGIN must share the same origin in production");
     if (process.env.CONTROL_CENTER_SECURE_COOKIES !== "true") throw new Error("CONTROL_CENTER_SECURE_COOKIES=true is required in production");
     if (!process.env.CONTROL_CENTER_TRUST_PROXY) throw new Error("CONTROL_CENTER_TRUST_PROXY is required in production");
-    if (!process.env.CONTROL_CENTER_BOOTSTRAP_MODE || !["manual", "invitation"].includes(process.env.CONTROL_CENTER_BOOTSTRAP_MODE)) {
-      throw new Error("CONTROL_CENTER_BOOTSTRAP_MODE must be manual or invitation in production");
+    if (!process.env.CONTROL_CENTER_BOOTSTRAP_MODE || !["manual", "invitation", "disabled"].includes(process.env.CONTROL_CENTER_BOOTSTRAP_MODE)) {
+      throw new Error("CONTROL_CENTER_BOOTSTRAP_MODE must be manual, invitation, or disabled in production");
     }
     requireNonProductionMongoUrl();
   }
