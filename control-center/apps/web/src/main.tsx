@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { Activity, Boxes, ClipboardList, LayoutDashboard, Server } from "lucide-react";
-import { api, login } from "./api";
+import { api, bootstrapOwner, bootstrapStatus, login } from "./api";
 import { Badge, Button, Card, Field } from "./ui";
 import "./styles.css";
 
@@ -10,6 +10,34 @@ const queryClient = new QueryClient();
 
 type Page = "overview" | "projects" | "servers" | "audit";
 
+function Bootstrap({ onComplete }: { onComplete: () => void }) {
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationSlug, setOrganizationSlug] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const mutation = useMutation({
+    mutationFn: () => bootstrapOwner({ organizationName, organizationSlug, ownerName, ownerEmail, password }),
+    onSuccess: onComplete
+  });
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <Card>
+        <div className="w-96 max-w-full space-y-3">
+          <h1 className="text-lg font-semibold">Create Owner</h1>
+          <Field placeholder="Organization name" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} />
+          <Field placeholder="Organization slug" value={organizationSlug} onChange={(e) => setOrganizationSlug(e.target.value)} />
+          <Field placeholder="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+          <Field placeholder="Owner email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} />
+          <Field placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Button className="w-full" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Create Owner</Button>
+          {mutation.isSuccess && <p className="text-sm text-success">Owner created. Sign in with the new account.</p>}
+          {mutation.error && <p className="text-sm text-danger">{(mutation.error as Error).message}</p>}
+        </div>
+      </Card>
+    </div>
+  );
+}
 function Login({ onLogin }: { onLogin: () => void }) {
   const [organizationSlug, setOrg] = useState("");
   const [email, setEmail] = useState("");
@@ -69,6 +97,10 @@ function AppShell() {
 
 function Root() {
   const [authed, setAuthed] = useState(Boolean(localStorage.getItem("cc.csrf")));
+  const [bootstrapComplete, setBootstrapComplete] = useState(false);
+  const status = useQuery({ queryKey: ["bootstrap-status", bootstrapComplete], queryFn: bootstrapStatus, retry: false });
+  if (status.isLoading) return <div className="flex min-h-screen items-center justify-center text-sm text-muted">Loading</div>;
+  if (!authed && !bootstrapComplete && status.data?.available) return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
   return authed ? <AppShell /> : <Login onLogin={() => setAuthed(true)} />;
 }
 

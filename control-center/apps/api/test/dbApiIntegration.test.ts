@@ -1,4 +1,4 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -155,6 +155,31 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await assertIndex(collections.telemetry, { orgId: 1, serverId: 1, collectedAt: -1 });
     await assertIndex(collections.servers, { orgId: 1, agentId: 1 }, { unique: true });
 
+    const bootstrapStatus = await request<{ available: boolean }>("GET", "/auth/bootstrap");
+    assert.equal(bootstrapStatus.status, 200);
+    assert.equal(bootstrapStatus.body.available, true);
+    assert.match(bootstrapStatus.headers.get("cache-control") || "", /no-store/);
+
+    const protectedOverview = await request("GET", "/overview");
+    assert.equal(protectedOverview.status, 401);
+
+    const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
+    process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "disabled";
+    const disabledBootstrap = await request("POST", "/auth/bootstrap", {
+      organizationName: "Disabled Org",
+      organizationSlug: "disabled-org",
+      ownerEmail: "disabled@example.test",
+      ownerName: "Disabled Owner",
+      password: "disabled-password"
+    }, { "content-type": "application/json" });
+    assert.equal(disabledBootstrap.status, 403);
+    process.env.CONTROL_CENTER_BOOTSTRAP_MODE = originalBootstrapMode || "manual";
+
+    const invalidBootstrap = await request("POST", "/auth/bootstrap", {}, { "content-type": "application/json" });
+    assert.equal(invalidBootstrap.status, 400);
+    assert.match(invalidBootstrap.headers.get("cache-control") || "", /no-store/);
+    assert.equal(await collections.organizations.countDocuments(), 0);
+
     const bootstrap = await request("POST", "/auth/bootstrap", {
       organizationName: "Phase 1B Org A",
       organizationSlug: "phase-1b-a",
@@ -163,6 +188,25 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
       password: "owner-a-password"
     }, { "content-type": "application/json" });
     assert.equal(bootstrap.status, 201);
+    assert.equal(await collections.organizations.countDocuments(), 1);
+    assert.equal(await collections.users.countDocuments({ role: "Owner" }), 1);
+
+    const duplicateBootstrap = await request("POST", "/auth/bootstrap", {
+      organizationName: "Duplicate Org",
+      organizationSlug: "duplicate-org",
+      ownerEmail: "duplicate@example.test",
+      ownerName: "Duplicate Owner",
+      password: "duplicate-password"
+    }, { "content-type": "application/json" });
+    assert.equal(duplicateBootstrap.status, 409);
+    assert.equal(await collections.organizations.countDocuments(), 1);
+    assert.equal(await collections.users.countDocuments({ role: "Owner" }), 1);
+
+    const auditSnapshot = JSON.stringify(await collections.auditEvents.find({}).toArray());
+    assert.equal(auditSnapshot.includes("owner-a-password"), false);
+    assert.equal(auditSnapshot.includes("disabled-password"), false);
+    assert.equal(auditSnapshot.includes("duplicate-password"), false);
+
     const ownerA = await login("phase-1b-a", "owner-a@example.test", "owner-a-password");
 
     const createViewer = await request("POST", "/org/users", {

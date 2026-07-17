@@ -28,14 +28,28 @@ const bootstrapSchema = z.object({
   password: z.string().min(12)
 });
 
+async function bootstrapAvailable() {
+  if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE === "disabled") return false;
+  return await collections.organizations.countDocuments() === 0;
+}
+
+router.get("/auth/bootstrap", noStore, async (_req, res, next) => {
+  try {
+    res.json({ available: await bootstrapAvailable() });
+  } catch (error) { next(error); }
+});
+
 router.post("/auth/bootstrap", noStore, async (req, res, next) => {
   try {
     if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE === "disabled") {
-      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "disabled" } });
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "bootstrap-disabled" } });
       return res.status(403).json({ error: "Bootstrap is disabled" });
     }
     const existing = await collections.organizations.countDocuments();
-    if (existing > 0) return res.status(409).json({ error: "Bootstrap already completed" });
+    if (existing > 0) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "bootstrap-completed" } });
+      return res.status(409).json({ error: "Bootstrap already completed" });
+    }
     const parsed = bootstrapSchema.safeParse(req.body);
     if (!parsed.success) {
       await audit({ actorType: "anonymous", action: "auth.denied", result: "failure", requestId: req.requestId, metadata: { reason: "validation" } });
