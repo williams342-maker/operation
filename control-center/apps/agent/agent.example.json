@@ -1,0 +1,11 @@
+{
+  "controlCenterUrl": "http://localhost:3000",
+  "agentId": "",
+  "agentSecret": "",
+  "agentVersion": "0.1.0",
+  "allowedRoots": [
+    "C:/srv"
+  ],
+  "pollIntervalSeconds": 30,
+  "mongoChecks": {}
+}

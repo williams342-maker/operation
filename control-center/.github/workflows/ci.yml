@@ -1,0 +1,51 @@
+﻿name: Control Center CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main, checkpoint/local-dashboard-prototype ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: control-center
+    env:
+      CONTROL_CENTER_RUN_DB_TESTS: "true"
+      MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
+      CI_EXPECTED_TESTS: "25"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: control-center/package-lock.json
+      - run: npm ci
+      - name: Test with disposable MongoDB
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee test-output.txt
+          if grep -E "skipped [1-9][0-9]*" test-output.txt; then
+            echo "Unexpected skipped tests in Linux CI" >&2
+            exit 1
+          fi
+          test_count=$(grep -E "^ℹ tests " test-output.txt | awk '{sum += $3} END {print sum+0}')
+          if [ "$test_count" -ne "$CI_EXPECTED_TESTS" ]; then
+            echo "Unexpected test count: $test_count" >&2
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build --workspaces --if-present

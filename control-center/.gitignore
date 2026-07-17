@@ -1,0 +1,8 @@
+﻿node_modules/
+dist/
+*.local.json
+.env
+.env.*
+coverage/
+!deploy/.env.staging.example
+deploy/env/

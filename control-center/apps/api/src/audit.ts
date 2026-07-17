@@ -1,0 +1,38 @@
+import type { ObjectId } from "mongodb";
+import type { AuditAction, AuditResult } from "@control-center/shared";
+import { collections } from "./db.js";
+
+function isSensitiveKey(key: string) {
+  return /secret|token|password|credential|key|signature|cookie|authorization|auth|mongo|uri|url/i.test(key);
+}
+
+function redactValue(value: string | number | boolean | null) {
+  if (typeof value !== "string") return value;
+  if (/mongodb(\+srv)?:\/\//i.test(value)) return "[redacted]";
+  if (/bearer\s+/i.test(value)) return "[redacted]";
+  if (value.length > 80 && /^[A-Za-z0-9._~+/=-]+$/.test(value)) return "[redacted]";
+  return value;
+}
+
+export async function audit(input: {
+  orgId?: ObjectId;
+  actorType: "user" | "agent" | "system" | "anonymous";
+  actorId?: ObjectId | string;
+  action: AuditAction;
+  targetType?: string;
+  targetId?: ObjectId | string;
+  result: AuditResult;
+  requestId: string;
+  metadata?: Record<string, string | number | boolean | null>;
+}) {
+  const safeMetadata: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(input.metadata || {})) {
+    if (isSensitiveKey(key)) continue;
+    safeMetadata[key] = redactValue(value);
+  }
+  await collections.auditEvents.insertOne({
+    ...input,
+    metadata: safeMetadata,
+    createdAt: new Date()
+  });
+}
