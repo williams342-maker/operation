@@ -41,7 +41,7 @@ jobs:
           npm test -- --test-reporter=json > test-report.jsonl
           node - <<'NODE'
           const fs = require('node:fs');
-          const lines = fs.readFileSync('test-report.jsonl', 'utf8').trim().split(/\n+/).filter(Boolean).map((line) => JSON.parse(line));
+          const lines = fs.readFileSync('test-report.jsonl', 'utf8').trim().split(/\n+/).filter((line) => line.trim().startsWith('{')).map((line) => JSON.parse(line));
           const summaries = lines.filter((line) => line.type === 'test:summary').map((line) => line.data);
           if (!summaries.length) throw new Error('missing test summaries');
           const totals = summaries.reduce((acc, item) => {
