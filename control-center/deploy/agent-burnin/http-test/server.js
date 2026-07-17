@@ -1,4 +1,4 @@
-﻿import http from "node:http";
+﻿const http = require("node:http");
 
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
