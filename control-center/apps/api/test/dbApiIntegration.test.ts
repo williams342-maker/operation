@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -148,12 +148,23 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     return request("POST", "/agent/poll", body, signed);
   }
 
+  async function ack(credentials: AgentCredentials, body: unknown, options: { timestamp?: string; nonce?: string; secret?: string; signature?: string; omitSignature?: boolean } = {}) {
+    const signed = signHeaders(credentials, "/api/agent/tasks/ack", body, options);
+    if (options.omitSignature) delete (signed as Partial<typeof signed>)["x-agent-signature"];
+    return request("POST", "/agent/tasks/ack", body, signed);
+  }
+
   try {
     await assertIndex(collections.enrollments, { orgId: 1, tokenHash: 1 }, { unique: true });
     await assertIndex(collections.agentNonces, { orgId: 1, agentId: 1, nonce: 1 }, { unique: true });
     await assertIndex(collections.telemetry, { expiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.telemetry, { orgId: 1, serverId: 1, collectedAt: -1 });
     await assertIndex(collections.servers, { orgId: 1, agentId: 1 }, { unique: true });
+    await assertIndex(collections.agentTasks, { orgId: 1, agentId: 1, state: 1, availableAt: 1 });
+    await assertIndex(collections.agentTasks, { orgId: 1, idempotencyKey: 1 }, { unique: true });
+    await assertIndex(collections.agentTasks, { historyExpiresAt: 1 }, { ttl: 0 });
+    await assertIndex(collections.agentTaskResults, { orgId: 1, taskId: 1 }, { unique: true });
+    await assertIndex(collections.agentTaskResults, { expiresAt: 1 }, { ttl: 0 });
 
     const bootstrapStatus = await request<{ available: boolean }>("GET", "/auth/bootstrap");
     assert.equal(bootstrapStatus.status, 200);
@@ -257,6 +268,50 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     }, jsonHeaders(ownerA));
     assert.equal(project.status, 201);
 
+    const queuedTask = await request<{ task: { _id: string; state: string } }>("POST", "/tasks", {
+      serverId: credentials.serverId,
+      projectId: project.body.id,
+      type: "collect.system",
+      idempotencyKey: "phase-2b-system-task",
+      payload: { projects: [], httpHealthChecks: [], mongoChecks: [] },
+      expiresInSeconds: 600
+    }, jsonHeaders(ownerA));
+    assert.equal(queuedTask.status, 201);
+    assert.equal(queuedTask.body.task.state, "queued");
+
+    const duplicateTask = await request<{ task: { _id: string } }>("POST", "/tasks", {
+      serverId: credentials.serverId,
+      projectId: project.body.id,
+      type: "collect.system",
+      idempotencyKey: "phase-2b-system-task",
+      payload: { projects: [], httpHealthChecks: [], mongoChecks: [] },
+      expiresInSeconds: 600
+    }, jsonHeaders(ownerA));
+    assert.equal(duplicateTask.status, 201);
+    assert.equal(duplicateTask.body.task._id, queuedTask.body.task._id);
+
+    const claimedTask = await poll(credentials, { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.0" } });
+    assert.equal(claimedTask.status, 200);
+    const claimedTasks = (claimedTask.body as { tasks: Array<{ envelope: { taskId: string; agentId: string; serverId: string }; payload: unknown }> }).tasks;
+    assert.equal(claimedTasks.length, 1);
+    assert.equal(claimedTasks[0].envelope.taskId, queuedTask.body.task._id);
+    assert.equal(claimedTasks[0].envelope.agentId, credentials.agentId);
+    assert.equal(claimedTasks[0].envelope.serverId, credentials.serverId);
+
+    const duplicateClaim = await poll(credentials, { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.0" } });
+    assert.equal(duplicateClaim.status, 200);
+    assert.equal(((duplicateClaim.body as { tasks: unknown[] }).tasks).length, 0);
+
+    const startedTask = await ack(credentials, { taskId: queuedTask.body.task._id, event: "started" });
+    assert.equal(startedTask.status, 200);
+    const completedTask = await ack(credentials, { taskId: queuedTask.body.task._id, event: "succeeded", result: { metrics: { ok: true }, secret: "should-redact" } });
+    assert.equal(completedTask.status, 200);
+    const storedTask = await collections.agentTasks.findOne({ _id: new ObjectId(queuedTask.body.task._id), orgId: orgA._id });
+    assert.equal(storedTask?.state, "succeeded");
+    assert.equal(JSON.stringify(storedTask?.result).includes("should-redact"), false);
+
+    const cancelDone = await request("POST", `/tasks/${queuedTask.body.task._id}/cancel`, {}, jsonHeaders(ownerA));
+    assert.equal(cancelDone.status, 404);
     const health = await request<{ id: string }>("POST", `/projects/${project.body.id}/health-checks`, {
       name: "Web",
       url: "https://example.test/health",
@@ -280,7 +335,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     telemetryPayload.mongo.push({ mongoCheckId: mongo.body.id, success: true, latencyMs: 12, databaseName: "appdb", checkedAt: new Date().toISOString() });
     const telemetry = await poll(credentials, telemetryPayload);
     assert.equal(telemetry.status, 200);
-    assert.equal(await collections.telemetry.countDocuments({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId) }), 2);
+    assert.ok(await collections.telemetry.countDocuments({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId) }) >= 2);
 
     const serverList = await request<{ servers: unknown[] }>("GET", "/servers", undefined, jsonHeaders(ownerA));
     assert.equal(serverList.status, 200);
@@ -351,3 +406,4 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
+

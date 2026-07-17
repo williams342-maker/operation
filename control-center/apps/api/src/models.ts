@@ -1,4 +1,4 @@
-﻿import type { ObjectId } from "mongodb";
+import type { ObjectId } from "mongodb";
 import type { AuditAction, AuditResult, Role } from "@control-center/shared";
 
 export type BaseDoc = { _id?: ObjectId; orgId: ObjectId; createdAt: Date; updatedAt: Date };
@@ -13,4 +13,6 @@ export type HealthCheckDoc = BaseDoc & { projectId: ObjectId; serverId: ObjectId
 export type MongoCheckDoc = BaseDoc & { projectId: ObjectId; serverId: ObjectId; name: string; databaseNameHint?: string; encryptedConnectionString?: string; secretReference?: string; secretLocation: "agent" | "api-encrypted"; enabled: boolean; archivedAt?: Date; lastResult?: unknown };
 export type TelemetryDoc = BaseDoc & { serverId: ObjectId; collectedAt: Date; agentVersion: string; metrics?: unknown; docker?: unknown[]; compose?: unknown[]; git?: unknown[]; httpHealth?: unknown[]; mongo?: unknown[]; expiresAt: Date };
 export type AgentNonceDoc = BaseDoc & { agentId: string; nonce: string; expiresAt: Date };
+export type AgentTaskDoc = BaseDoc & { serverId: ObjectId; projectId?: ObjectId; agentId: string; type: string; state: "queued" | "claimed" | "running" | "succeeded" | "failed" | "expired" | "cancelled"; payload: unknown; idempotencyKey: string; nonce: string; signingKeyVersion: string; version: number; createdByUserId?: ObjectId; availableAt: Date; expiresAt: Date; claimedAt?: Date; startedAt?: Date; completedAt?: Date; cancelledAt?: Date; cancellationRequestedAt?: Date; result?: unknown; resultSummary?: string; errorCategory?: string; progress?: number; historyExpiresAt: Date; updatedAt: Date };
+export type AgentTaskResultDoc = BaseDoc & { taskId: ObjectId; serverId: ObjectId; projectId?: ObjectId; agentId: string; state: string; result: unknown; completedAt: Date; expiresAt: Date };
 export type AuditEventDoc = { _id?: ObjectId; orgId?: ObjectId; actorType: "user" | "agent" | "system" | "anonymous"; actorId?: ObjectId | string; action: AuditAction; targetType?: string; targetId?: ObjectId | string; result: AuditResult; requestId: string; metadata?: Record<string, string | number | boolean | null>; createdAt: Date };

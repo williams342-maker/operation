@@ -1,4 +1,4 @@
-﻿export type AuditAction =
+export type AuditAction =
   | "auth.login"
   | "auth.logout"
   | "auth.denied"
@@ -25,6 +25,13 @@
   | "mongo-check.update"
   | "mongo-check.archive"
   | "audit.export"
+  | "task.create"
+  | "task.claim"
+  | "task.start"
+  | "task.progress"
+  | "task.complete"
+  | "task.cancel"
+  | "task.reject"
   | "agent.credential.revoke"
   | "agent.credential.rotate"
   | "authorization.failure";

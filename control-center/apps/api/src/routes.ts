@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   agentEnrollmentRequestSchema,
   agentPollRequestSchema,
+  taskAckSchema,
   DEFAULT_HEARTBEAT_STALE_SECONDS,
   isHeartbeatStale,
   retentionCutoff
@@ -13,6 +14,8 @@ import { requireSignedAgent } from "./agentAuth.js";
 import { collections, oid, scopedFilter } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword } from "./crypto.js";
 import { managementRouter } from "./managementRoutes.js";
+import { taskRouter } from "./taskRoutes.js";
+import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
 
 export const router = express.Router();
 
@@ -176,25 +179,28 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
         updatedAt: now
       }
     });
-    const projects = await collections.projects.find({ orgId: server.orgId, primaryServerId: server._id }).toArray();
-    const healthChecks = await collections.healthChecks.find({ orgId: server.orgId, serverId: server._id, enabled: true }).toArray();
-    const mongoChecks = await collections.mongoChecks.find({ orgId: server.orgId, serverId: server._id, enabled: true }).toArray();
-    res.json({
-      tasks: [{
-        id: `collect-${Date.now()}`,
-        kind: "collect",
-        config: {
-          projects: projects.map((project) => ({ projectId: project._id!.toHexString(), repoPath: project.repoPath, composePath: project.composePath })),
-          httpHealthChecks: healthChecks.map((check) => ({ id: check._id!.toHexString(), url: check.url, timeoutMs: check.timeoutMs })),
-          mongoChecks: mongoChecks.map((check) => ({ id: check._id!.toHexString(), databaseNameHint: check.databaseNameHint }))
-        }
-      }]
-    });
+    noStore(req, res, () => undefined);
+    const claimed = await claimTasksForAgent(server);
+    await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: task.type } })));
+    res.json({ tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
+  } catch (error) { next(error); }
+});
+
+router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, next) => {
+  try {
+    const body = taskAckSchema.parse(req.body);
+    const result = await acknowledgeTask(req.agentServer!, body);
+    if (result.status === 200) {
+      const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : body.event === "succeeded" || body.event === "failed" ? "task.complete" : "task.claim";
+      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: body.taskId, result: body.event === "failed" ? "failure" : "success", requestId: req.requestId });
+    }
+    res.status(result.status).json(result.body);
   } catch (error) { next(error); }
 });
 
 router.use(requireSession, requireCsrf);
 router.use(managementRouter);
+router.use(taskRouter);
 
 router.get("/overview", requirePermission("status:view"), async (req, res, next) => {
   try {

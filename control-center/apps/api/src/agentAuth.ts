@@ -1,6 +1,6 @@
 ﻿import type { NextFunction, Request, Response } from "express";
 import { ObjectId } from "mongodb";
-import { agentPollRequestSchema, isFreshTimestamp, verifyRequestSignature } from "@control-center/shared";
+import { isFreshTimestamp, verifyRequestSignature } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { collections } from "./db.js";
 import type { ServerDoc } from "./models.js";
@@ -60,8 +60,7 @@ export async function requireSignedAgent(req: Request, res: Response, next: Next
     await audit({ orgId: server.orgId, actorType: "agent", actorId: agentId, action: "authorization.failure", result: "denied", requestId: req.requestId, metadata: { reason: "bad-signature" } });
     return res.status(401).json({ error: "Invalid signature" });
   }
-  const parsed = agentPollRequestSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid agent payload" });
   req.agentServer = server as ServerDoc & { _id: ObjectId };
   next();
 }
+

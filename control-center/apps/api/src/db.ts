@@ -1,6 +1,8 @@
 import { MongoClient, ObjectId } from "mongodb";
 import type {
   AgentNonceDoc,
+  AgentTaskDoc,
+  AgentTaskResultDoc,
   AuditEventDoc,
   EnrollmentDoc,
   HealthCheckDoc,
@@ -30,7 +32,9 @@ export const collections = {
   mongoChecks: db.collection<MongoCheckDoc>("mongo_checks"),
   telemetry: db.collection<TelemetryDoc>("telemetry"),
   agentNonces: db.collection<AgentNonceDoc>("agent_nonces"),
-  auditEvents: db.collection<AuditEventDoc>("audit_events")
+  auditEvents: db.collection<AuditEventDoc>("audit_events"),
+  agentTasks: db.collection<AgentTaskDoc>("agent_tasks"),
+  agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results")
 };
 
 export async function connectDb() {
@@ -60,6 +64,14 @@ async function ensureIndexes() {
     collections.telemetry.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.agentNonces.createIndex({ orgId: 1, agentId: 1, nonce: 1 }, { unique: true }),
     collections.agentNonces.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.agentTasks.createIndex({ orgId: 1, serverId: 1, state: 1, availableAt: 1 }),
+    collections.agentTasks.createIndex({ orgId: 1, agentId: 1, state: 1, availableAt: 1 }),
+    collections.agentTasks.createIndex({ orgId: 1, idempotencyKey: 1 }, { unique: true }),
+    collections.agentTasks.createIndex({ expiresAt: 1 }),
+    collections.agentTasks.createIndex({ historyExpiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.agentTaskResults.createIndex({ orgId: 1, serverId: 1, completedAt: -1 }),
+    collections.agentTaskResults.createIndex({ orgId: 1, taskId: 1 }, { unique: true }),
+    collections.agentTaskResults.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.auditEvents.createIndex({ orgId: 1, createdAt: -1 }),
     collections.auditEvents.createIndex({ requestId: 1 })
   ]);
