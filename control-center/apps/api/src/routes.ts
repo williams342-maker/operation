@@ -12,6 +12,7 @@ import { createSession, noStore, requireCsrf, requirePermission, requireRecentAu
 import { requireSignedAgent } from "./agentAuth.js";
 import { collections, oid, scopedFilter } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword } from "./crypto.js";
+import { managementRouter } from "./managementRoutes.js";
 
 export const router = express.Router();
 
@@ -101,42 +102,6 @@ router.post("/auth/logout", async (req, res, next) => {
 router.use("/me", requireSession);
 router.get("/me", (req, res) => {
   res.json({ user: { id: req.user!._id, email: req.user!.email, name: req.user!.name, role: req.user!.role }, orgId: req.orgId });
-});
-
-router.use("/org", requireSession, requireCsrf);
-router.get("/org/audit", requirePermission("audit:view"), async (req, res, next) => {
-  try {
-    const events = await collections.auditEvents.find({ orgId: requireOrg(req) }).sort({ createdAt: -1 }).limit(200).toArray();
-    res.json({ events });
-  } catch (error) { next(error); }
-});
-
-router.post("/org/users", requirePermission("users:manage"), async (req, res, next) => {
-  try {
-    const body = z.object({ email: z.string().email(), name: z.string().min(1), role: z.enum(["Owner", "Administrator", "Developer", "Viewer"]), password: z.string().min(12) }).parse(req.body);
-    const now = new Date();
-    const result = await collections.users.insertOne({ orgId: requireOrg(req), email: body.email.toLowerCase(), name: body.name, role: body.role, passwordHash: hashPassword(body.password), createdAt: now, updatedAt: now });
-    res.status(201).json({ id: result.insertedId });
-  } catch (error) { next(error); }
-});
-
-router.use("/enrollments", requireSession, requireCsrf);
-router.post("/enrollments", noStore, requirePermission("servers:enroll"), async (req, res, next) => {
-  try {
-    const body = z.object({ expiresInMinutes: z.number().int().min(5).max(1440).default(60) }).parse(req.body);
-    const token = randomToken(32);
-    const now = new Date();
-    const result = await collections.enrollments.insertOne({
-      orgId: requireOrg(req),
-      tokenHash: hashSecret(token),
-      expiresAt: new Date(now.getTime() + body.expiresInMinutes * 60 * 1000),
-      createdByUserId: req.user!._id!,
-      createdAt: now,
-      updatedAt: now
-    });
-    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "enrollment.create", targetType: "enrollment", targetId: result.insertedId, result: "success", requestId: req.requestId });
-    res.status(201).json({ id: result.insertedId, token, expiresAt: new Date(now.getTime() + body.expiresInMinutes * 60 * 1000) });
-  } catch (error) { next(error); }
 });
 
 router.post("/agent/enroll", noStore, async (req, res, next) => {
@@ -229,6 +194,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
 });
 
 router.use(requireSession, requireCsrf);
+router.use(managementRouter);
 
 router.get("/overview", requirePermission("status:view"), async (req, res, next) => {
   try {

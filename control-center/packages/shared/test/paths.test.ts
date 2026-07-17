@@ -1,9 +1,9 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateRegisteredPath } from "../src/paths.js";
+import { isSafeHttpCheckUrl, validateConfiguredPath, validateRegisteredPath } from "../src/paths.js";
 
 test("path validation allows paths inside allowed root", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cc-root-"));
@@ -40,4 +40,22 @@ test("path validation rejects symlink escapes when supported", { skip: process.p
   const link = path.join(root, "link");
   fs.symlinkSync(outside, link, "dir");
   assert.throws(() => validateRegisteredPath(root, link));
+});
+
+test("configured path validation allows paths under an allowlisted root", () => {
+  assert.equal(validateConfiguredPath(["/srv/apps"], "/srv/apps/demo/compose.yml"), "/srv/apps/demo/compose.yml");
+});
+
+test("configured path validation rejects traversal and sibling-prefix tricks", () => {
+  assert.throws(() => validateConfiguredPath(["/srv/apps"], "/srv/apps/../secret"));
+  assert.throws(() => validateConfiguredPath(["/srv/apps"], "/srv/appsevil/demo"));
+});
+
+test("http health URL validation blocks SSRF-sensitive targets", () => {
+  assert.equal(isSafeHttpCheckUrl("https://example.com/health"), true);
+  assert.equal(isSafeHttpCheckUrl("ftp://example.com/health"), false);
+  assert.equal(isSafeHttpCheckUrl("http://127.0.0.1/health"), false);
+  assert.equal(isSafeHttpCheckUrl("http://169.254.169.254/latest/meta-data"), false);
+  assert.equal(isSafeHttpCheckUrl("http://10.0.0.4/health"), false);
+  assert.equal(isSafeHttpCheckUrl("http://localhost/health"), false);
 });

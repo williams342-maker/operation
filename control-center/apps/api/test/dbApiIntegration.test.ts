@@ -209,14 +209,15 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
 
     const ownerA = await login("phase-1b-a", "owner-a@example.test", "owner-a-password");
 
-    const createViewer = await request("POST", "/org/users", {
+    const createViewer = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", {
       email: "viewer-a@example.test",
       name: "Viewer A",
-      role: "Viewer",
-      password: "viewer-a-password"
+      role: "Viewer"
     }, jsonHeaders(ownerA));
     assert.equal(createViewer.status, 201);
-    const viewerA = await login("phase-1b-a", "viewer-a@example.test", "viewer-a-password");
+    assert.ok(createViewer.headers.get("cache-control")?.includes("no-store"));
+    assert.ok(createViewer.body.oneTimePassword);
+    const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
@@ -238,6 +239,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(expiredEnroll.status, 401);
 
     const credentials = await enroll(enrollment.token);
+    await collections.servers.updateOne({ _id: new ObjectId(credentials.serverId), orgId: orgA._id }, { $set: { allowlistedRoots: ["/srv"] } });
     const reuse = await request("POST", "/agent/enroll", { enrollmentToken: enrollment.token, hostname: "reuse", agentVersion: "fake-agent/1.0", capabilities: [] }, { "content-type": "application/json" });
     assert.equal(reuse.status, 401);
 

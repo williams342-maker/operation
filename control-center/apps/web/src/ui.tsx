@@ -1,18 +1,11 @@
-import type { ButtonHTMLAttributes, PropsWithChildren } from "react";
-
-export function Card({ children }: PropsWithChildren) {
-  return <section className="rounded-lg border border-border bg-panel p-4">{children}</section>;
-}
-
-export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} className={`rounded-md bg-primary px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50 ${props.className || ""}`} />;
-}
-
-export function Field(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />;
-}
-
-export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: "neutral" | "success" | "danger" | "warning" }>) {
-  const color = tone === "success" ? "text-success border-success/40" : tone === "danger" ? "text-danger border-danger/40" : tone === "warning" ? "text-warning border-warning/40" : "text-muted border-border";
-  return <span className={`rounded-full border px-2 py-0.5 text-xs ${color}`}>{children}</span>;
-}
+﻿import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, ReactNode } from "react";
+export function Card({ children }: PropsWithChildren) { return <section className="rounded-lg border border-border bg-panel p-4 shadow-sm">{children}</section>; }
+export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50 ${props.className || ""}`} />; }
+export function GhostButton(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-text hover:bg-background disabled:opacity-50 ${props.className || ""}`} />; }
+export function Field(props: InputHTMLAttributes<HTMLInputElement>) { return <input {...props} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary ${props.className || ""}`} />; }
+export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) { return <select {...props} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary ${props.className || ""}`} />; }
+export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: "neutral" | "success" | "danger" | "warning" }>) { const color = tone === "success" ? "text-success border-success/40" : tone === "danger" ? "text-danger border-danger/40" : tone === "warning" ? "text-warning border-warning/40" : "text-muted border-border"; return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${color}`}>{children}</span>; }
+export function Empty({ title }: { title: string }) { return <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted">{title}</div>; }
+export function Skeleton() { return <div className="h-24 animate-pulse rounded-md bg-border/40" />; }
+export function Toolbar({ children }: PropsWithChildren) { return <div className="mb-3 flex flex-wrap items-center gap-2">{children}</div>; }
+export function Table({ columns, rows, empty = "No records" }: { columns: string[]; rows?: ReactNode[][]; empty?: string }) { if (!rows?.length) return <Empty title={empty} />; return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((c) => <th key={c} className="border-b border-border px-2 py-2 font-medium">{c}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i} className="border-b border-border/60">{r.map((cell, j) => <td key={j} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>; }
