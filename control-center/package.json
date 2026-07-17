@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "control-center",
   "version": "0.1.0",
   "private": true,
@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "pretest": "npm run build --workspace @control-center/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint ."
