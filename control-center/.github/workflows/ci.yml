@@ -34,18 +34,26 @@ jobs:
           cache-dependency-path: control-center/package-lock.json
       - run: npm ci
       - name: Test with disposable MongoDB
+        run: npm test
+      - name: Verify Linux test summary has no skips
         run: |
           set -euo pipefail
-          npm test 2>&1 | tee test-output.txt
-          if grep -E "skipped [1-9][0-9]*" test-output.txt; then
-            echo "Unexpected skipped tests in Linux CI" >&2
-            exit 1
-          fi
-          test_count=$(grep -E "^ℹ tests " test-output.txt | awk '{sum += $3} END {print sum+0}')
-          if [ "$test_count" -ne "$CI_EXPECTED_TESTS" ]; then
-            echo "Unexpected test count: $test_count" >&2
-            exit 1
-          fi
+          npm test -- --test-reporter=json > test-report.jsonl
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const lines = fs.readFileSync('test-report.jsonl', 'utf8').trim().split(/\n+/).filter(Boolean).map((line) => JSON.parse(line));
+          const summaries = lines.filter((line) => line.type === 'test:summary').map((line) => line.data);
+          if (!summaries.length) throw new Error('missing test summaries');
+          const totals = summaries.reduce((acc, item) => {
+            acc.tests += item.tests ?? 0;
+            acc.skipped += item.skipped ?? 0;
+            acc.failures += item.failures ?? 0;
+            return acc;
+          }, { tests: 0, skipped: 0, failures: 0 });
+          if (totals.tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${totals.tests}`);
+          if (totals.skipped !== 0) throw new Error(`unexpected skipped tests: ${totals.skipped}`);
+          if (totals.failures !== 0) throw new Error(`unexpected failed tests: ${totals.failures}`);
+          NODE
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present
