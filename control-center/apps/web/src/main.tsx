@@ -44,6 +44,7 @@ import {
 } from "./api";
 import { discoveryUiState } from "./discoveryState";
 import { DiscoveryStatusPanel } from "./DiscoveryStatusPanel";
+import { AiAssistantPanel } from "./AiAssistantPanel";
 import {
   Badge,
   Button,
@@ -629,6 +630,7 @@ function ServersPage({ toast }: { toast: (m: string) => void }) {
 function ProjectsPage({ toast }: { toast: (m: string) => void }) {
   const qc = useQueryClient();
   const [showHelp, setShowHelp] = useState(false);
+  const [viewing, setViewing] = useState<any>(null);
   const servers = useQuery({
     queryKey: ["servers"],
     queryFn: () => api.get("/servers").then((r) => r.data.servers),
@@ -662,6 +664,8 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
       toast("Project created");
     },
   });
+  const detail = useQuery({ queryKey: ["project-detail", viewing?._id], queryFn: () => api.get(`/projects/${viewing._id}`).then((r) => r.data), enabled: Boolean(viewing) });
+  if (viewing) return <div className="space-y-4"><Card><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">{viewing.name}</h2><p className="text-sm text-muted">Managed application details</p></div><GhostButton onClick={() => setViewing(null)}>Close</GhostButton></div>{detail.isLoading ? <Skeleton /> : <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-muted">Server</dt><dd>{detail.data?.server?.name || "Unavailable"}</dd></div><div><dt className="text-muted">Branch</dt><dd>{detail.data?.project?.branch || "Unknown"}</dd></div><div><dt className="text-muted">Health checks</dt><dd>{detail.data?.healthChecks?.length || 0}</dd></div><div><dt className="text-muted">Recent telemetry</dt><dd>{detail.data?.telemetry?.length || 0} records</dd></div></dl>}</Card><AiAssistantPanel scope={{ type: "application", id: viewing._id }} /></div>;
   return (
     <Card>
       <div className="flex items-center justify-between gap-2">
@@ -759,13 +763,14 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
         <Skeleton />
       ) : (
         <Table
-          columns={["Name", "Slug", "Adapter", "Branch", "Paths"]}
+          columns={["Name", "Slug", "Adapter", "Branch", "Paths", "Actions"]}
           rows={q.data?.map((p: any) => [
             p.name,
             p.slug,
             p.adapter || "docker-compose",
             p.branch || "-",
             `${p.repoPath || "-"} / ${p.composePath || "-"}`,
+            <GhostButton key={`${p._id}-view`} onClick={() => setViewing(p)}>View</GhostButton>,
           ])}
         />
       )}
@@ -1928,6 +1933,7 @@ function ServerDetail({
             </p>
           )}
           <ErrorText error={importProject.error} />
+          <AiAssistantPanel scope={{ type: "server", id: server._id }} />
         </div>
       </Card>
     );

@@ -330,6 +330,18 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     }, jsonHeaders(ownerA));
     assert.equal(project.status, 201);
 
+    process.env.AI_ASSISTANT_ENABLED = "true";
+    process.env.AI_PROVIDER = "mock";
+    process.env.AI_MODEL = "deterministic-v1";
+    const serverAnalysis = await request<{ result: { executedActions: unknown[] }; metadata: { noActionsExecuted: boolean } }>("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Explain this server status." }, jsonHeaders(ownerA));
+    assert.equal(serverAnalysis.status, 200);
+    assert.deepEqual(serverAnalysis.body.result.executedActions, []);
+    assert.equal(serverAnalysis.body.metadata.noActionsExecuted, true);
+    const appAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "application", id: project.body.id }, question: "Why is this application unhealthy?" }, jsonHeaders(ownerA));
+    assert.equal(appAnalysis.status, 200);
+    const unknownAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: new ObjectId().toHexString() }, question: "Explain status." }, jsonHeaders(ownerA));
+    assert.equal(unknownAnalysis.status, 404);
+
     const queuedTask = await request<{ task: { _id: string; state: string } }>("POST", "/tasks", {
       serverId: credentials.serverId,
       projectId: project.body.id,
@@ -450,6 +462,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const orgBResult = await collections.organizations.insertOne({ name: "Phase 1B Org B", slug: "phase-1b-b", createdAt: new Date(), updatedAt: new Date() });
     await collections.users.insertOne({ orgId: orgBResult.insertedId, email: "owner-b@example.test", name: "Owner B", role: "Owner", passwordHash: hashPassword("owner-b-password"), createdAt: new Date(), updatedAt: new Date() });
     const ownerB = await login("phase-1b-b", "owner-b@example.test", "owner-b-password");
+    const crossOrgAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "application", id: project.body.id }, question: "Explain this application." }, jsonHeaders(ownerB));
+    assert.equal(crossOrgAnalysis.status, 404);
     const orgBServers = await request<{ servers: unknown[] }>("GET", "/servers", undefined, jsonHeaders(ownerB));
     assert.equal(orgBServers.status, 200);
     assert.equal(orgBServers.body.servers.length, 0);

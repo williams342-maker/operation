@@ -50,6 +50,18 @@ The installer accepts `CONTROL_CENTER_URL`, `CONTROL_CENTER_ENROLLMENT_TOKEN`, a
 
 Agents never receive browser-originated secrets. Mongo checks should run on the agent and return only status, latency, database name, error category, and timestamp.
 
+## Read-only AI Assistant
+
+The optional AI Assistant explains server and managed-application evidence already available to the authenticated user. The browser calls only the OpsWorkbench API; provider credentials remain server-side. The first milestone cannot run commands, restart services, deploy, edit configuration, call tools, or execute proposed actions. Every result displays **No actions were executed**.
+
+Enable it with `AI_ASSISTANT_ENABLED=true` and configure `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, and `AI_BASE_URL`. Limits are controlled by `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_CONTEXT_BYTES`, and `AI_MAX_OUTPUT_TOKENS`. When disabled or incomplete, existing OpsWorkbench behavior is unchanged. Automated tests use only the deterministic `mock` provider and never make paid requests.
+
+Context can include organization-scoped server identity/status, bounded metrics and discovery, managed-application metadata, health/database-check status, and recent sanitized operation history. Complete environment files, process environments, credentials, enrollment/session tokens, authorization/cookie headers, private keys, connection strings, unrestricted logs, raw task payloads/results, repository files, and provider request headers are excluded. Collected data is treated as untrusted evidence; instructions found inside it are never followed.
+
+Audit events retain user/scope identifiers, provider/model, included category names, byte and duration counts, response/error status, and aggregate redaction counts. They do not retain the raw question, prompt, context, logs, provider response, or secrets. Disable the feature immediately with `AI_ASSISTANT_ENABLED=false`.
+
+Future controlled actions require separate schema validation, permissions, allowlisting, signatures, idempotency, auditing, explicit confirmation, and execution by OpsWorkbench code. No such execution exists in this milestone.
+
 ## Enrollment Management
 
 Owners and Administrators can open **Administration → Enrollment** to create and manage agent enrollment credentials. The dashboard separates active, expired/exhausted, and revoked tokens and shows remaining uses without ever returning a stored token.

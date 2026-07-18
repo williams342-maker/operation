@@ -45,6 +45,8 @@ export type AuditAction =
   | "task.reject"
   | "agent.credential.revoke"
   | "agent.credential.rotate"
-  | "authorization.failure";
+  | "authorization.failure"
+  | "ai.assistant.analyze"
+  | "ai.assistant.failure";
 
 export type AuditResult = "success" | "failure" | "denied";

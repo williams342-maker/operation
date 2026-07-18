@@ -1,6 +1,6 @@
 ﻿import axios from "axios";
 
-export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api", withCredentials: true });
+export const api = axios.create({ baseURL: import.meta.env?.VITE_API_URL || "/api", withCredentials: true });
 api.interceptors.request.use((config) => { const csrf = localStorage.getItem("cc.csrf"); if (csrf && config.method?.toUpperCase() !== "GET") config.headers["x-csrf-token"] = csrf; return config; });
 export function apiError(error: unknown) { return axios.isAxiosError(error) ? String(error.response?.data?.error || error.message) : error instanceof Error ? error.message : "Unknown error"; }
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean }; }
