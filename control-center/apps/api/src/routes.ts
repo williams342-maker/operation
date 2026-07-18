@@ -108,19 +108,23 @@ router.get("/me", (req, res) => {
   res.json({ user: { id: req.user!._id, email: req.user!.email, name: req.user!.name, role: req.user!.role }, orgId: req.orgId });
 });
 
+function serverSlug(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "server";
+}
+
+function compactServerIdentity(value: string) {
+  return serverSlug(value).replace(/-/g, "");
+}
+
 router.post("/agent/enroll", noStore, async (req, res, next) => {
   try {
     const body = agentEnrollmentRequestSchema.parse(req.body);
     const tokenHash = hashSecret(body.enrollmentToken);
-    const tokenRecord = await collections.enrollments.findOne({ tokenHash }, { projection: { _id: 1, orgId: 1, serverId: 1 } });
+    const tokenRecord = await collections.enrollments.findOne({ tokenHash }, { projection: { _id: 1, orgId: 1 } });
     if (!tokenRecord?._id) {
       await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: "invalid-token" } });
       return res.status(401).json({ error: "Invalid enrollment token" });
     }
-    if (!tokenRecord.serverId) return res.status(401).json({ error: "Enrollment token is not assigned to a server" });
-    const assignedServer = await collections.servers.findOne({ _id: tokenRecord.serverId, orgId: tokenRecord.orgId, archivedAt: { $exists: false }, agentId: /^manual-/ });
-    if (!assignedServer?._id) return res.status(409).json({ error: "The assigned server is already enrolled or unavailable" });
-    if (assignedServer.hostname !== body.hostname) return res.status(409).json({ error: `This token is assigned to ${assignedServer.hostname}, not ${body.hostname}` });
     const now = new Date();
     const enrollment = await collections.enrollments.findOneAndUpdate({
       _id: tokenRecord._id,
@@ -136,11 +140,31 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
     }
     const agentSecret = randomToken(48);
     const agentId = randomToken(18);
-    await collections.servers.updateOne({ _id: assignedServer._id, orgId: enrollment.orgId, agentId: /^manual-/ }, { $set: { agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: 1, status: "online", lastHeartbeatAt: now, agentVersion: body.agentVersion, updatedAt: now } });
-    await collections.enrollments.updateOne({ _id: enrollment._id, orgId: enrollment.orgId }, { $set: { usedByAgentId: assignedServer._id, updatedAt: now }, $push: { usage: { usedAt: now, serverId: assignedServer._id, agentId, hostname: body.hostname } } });
+    const identity: Array<Record<string, string>> = [{ hostname: body.hostname }, { slug: serverSlug(body.hostname) }];
+    if (body.machineId) identity.unshift({ machineId: body.machineId });
+    if (body.agentInstallationId) identity.splice(body.machineId ? 1 : 0, 0, { agentInstallationId: body.agentInstallationId });
+    if (body.displayName) identity.push({ slug: serverSlug(body.displayName) });
+    let existing = await collections.servers.findOne({ orgId: enrollment.orgId, archivedAt: { $exists: false }, $or: identity });
+    if (!existing) {
+      const compact = compactServerIdentity(body.displayName || body.hostname);
+      const legacyCandidates = await collections.servers.find({ orgId: enrollment.orgId, archivedAt: { $exists: false } }).toArray();
+      existing = legacyCandidates.find((server) => compactServerIdentity(server.slug || server.hostname) === compact) || null;
+    }
+    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, status: "online" as const, lastHeartbeatAt: now, enrolledAt: now, agentVersion: body.agentVersion, updatedAt: now };
+    let serverId;
+    if (existing?._id) {
+      serverId = existing._id;
+      await collections.servers.updateOne({ _id: serverId, orgId: enrollment.orgId }, { $set: serverFields, $unset: { revokedAt: "" } });
+    } else {
+      let slug = serverSlug(body.displayName || body.hostname);
+      if (await collections.servers.findOne({ orgId: enrollment.orgId, slug })) slug = `${slug}-${randomToken(4).toLowerCase()}`;
+      const created = await collections.servers.insertOne({ orgId: enrollment.orgId, name: body.displayName || body.hostname, slug, allowlistedRoots: ["/srv"], ...serverFields, createdAt: now });
+      serverId = created.insertedId;
+    }
+    await collections.enrollments.updateOne({ _id: enrollment._id, orgId: enrollment.orgId }, { $set: { usedByAgentId: serverId, updatedAt: now }, $push: { usage: { usedAt: now, serverId, agentId, hostname: body.hostname } } });
     await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.use", targetType: "enrollment", targetId: enrollment._id, result: "success", requestId: req.requestId, metadata: { hostname: body.hostname, uses: enrollment.uses ?? 1 } });
-    await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.success", targetType: "server", targetId: assignedServer._id, result: "success", requestId: req.requestId });
-    res.status(201).json({ agentId, agentSecret, serverId: assignedServer._id, pollIntervalSeconds: 30 });
+    await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.success", targetType: "server", targetId: serverId, result: "success", requestId: req.requestId, metadata: { merge: Boolean(existing), preservedSlug: existing?.slug || null } });
+    res.status(201).json({ agentId, agentSecret, serverId, pollIntervalSeconds: 30 });
   } catch (error) { next(error); }
 });
 

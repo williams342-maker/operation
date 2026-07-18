@@ -5,6 +5,15 @@ export const objectIdSchema = z.string().min(12).max(64);
 export const agentEnrollmentRequestSchema = z.object({
   enrollmentToken: z.string().min(32),
   hostname: z.string().min(1).max(255),
+  machineId: z.string().trim().min(1).max(255).optional(),
+  agentInstallationId: z.string().trim().min(1).max(255).optional(),
+  displayName: z.string().trim().min(1).max(255).optional(),
+  primaryIp: z.string().trim().min(1).max(64).optional(),
+  privateIp: z.string().trim().min(1).max(64).optional(),
+  osName: z.string().trim().min(1).max(120).optional(),
+  osVersion: z.string().trim().min(1).max(120).optional(),
+  kernelVersion: z.string().trim().min(1).max(120).optional(),
+  architecture: z.string().trim().min(1).max(64).optional(),
   agentVersion: z.string().min(1).max(64),
   capabilities: z.array(z.enum(["system", "docker", "compose", "git", "http", "mongo"])).default([])
 });

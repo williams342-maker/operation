@@ -14,28 +14,25 @@ function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Mi
 function id(value: unknown) { const raw = String(value || ""); if (!ObjectId.isValid(raw)) throw new Error("Invalid enrollment id"); return new ObjectId(raw); }
 
 const generateSchema = z.object({
-  serverId: z.string().refine(ObjectId.isValid, "Invalid server"),
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).optional(),
   expiresInMinutes: z.number().int().positive().max(43_200).nullable(),
-  maxUses: z.literal(1)
+  maxUses: z.number().int().positive().max(10_000).nullable()
 });
 
 adminEnrollmentRouter.post("/admin/enrollment/generate", async (req, res, next) => {
   try {
     const body = generateSchema.parse(req.body);
-    const assignedServer = await collections.servers.findOne({ _id: new ObjectId(body.serverId), orgId: orgId(req), archivedAt: { $exists: false }, agentId: /^manual-/ }, { projection: { _id: 1, name: 1 } });
-    if (!assignedServer?._id) return res.status(400).json({ error: "Select a server that has not already been enrolled" });
     const token = `owenr_${randomToken(36)}`;
     const now = new Date();
     const expiresAt = body.expiresInMinutes === null ? undefined : new Date(now.getTime() + body.expiresInMinutes * 60_000);
     const result = await collections.enrollments.insertOne({
-      orgId: orgId(req), serverId: assignedServer._id, tokenHash: hashSecret(token), name: body.name, description: body.description || undefined,
-      expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now
+      orgId: orgId(req), tokenHash: hashSecret(token), name: body.name, description: body.description || undefined,
+      expiresAt, maxUses: body.maxUses ?? undefined, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now
     });
     await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "enrollment.create", targetType: "enrollment", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { maxUses: body.maxUses ?? "unlimited", expiresInMinutes: body.expiresInMinutes ?? "never" } });
     res.setHeader("Cache-Control", "no-store");
-    res.status(201).json({ id: result.insertedId, token, name: body.name, serverId: assignedServer._id, serverName: assignedServer.name, expiresAt, maxUses: 1 });
+    res.status(201).json({ id: result.insertedId, token, name: body.name, expiresAt, maxUses: body.maxUses });
   } catch (error) { next(error); }
 });
 

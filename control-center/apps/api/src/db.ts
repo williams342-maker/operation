@@ -54,6 +54,8 @@ async function ensureIndexes() {
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),
     collections.enrollments.createIndex({ orgId: 1, createdAt: -1 }),
     collections.servers.createIndex({ orgId: 1, agentId: 1 }, { unique: true }),
+    collections.servers.createIndex({ orgId: 1, machineId: 1 }, { unique: true, partialFilterExpression: { machineId: { $type: "string" } } }),
+    collections.servers.createIndex({ orgId: 1, agentInstallationId: 1 }, { unique: true, partialFilterExpression: { agentInstallationId: { $type: "string" } } }),
     collections.servers.createIndex({ orgId: 1, slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: "string" } } }),
     collections.servers.createIndex({ orgId: 1, status: 1 }),
     collections.servers.createIndex({ orgId: 1, archivedAt: 1 }),

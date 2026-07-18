@@ -264,6 +264,18 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(orgA?._id);
     const ownerUserA = await collections.users.findOne({ orgId: orgA._id, email: "owner-a@example.test" });
     assert.ok(ownerUserA?._id);
+    const legacyId = new ObjectId();
+    const legacyCreatedAt = new Date(Date.now() - 86_400_000);
+    await collections.servers.insertOne({ _id: legacyId, orgId: orgA._id, name: "Ops Workbench", slug: "ops-workbench", hostname: "opsworkbench", agentId: `manual-${legacyId}`, agentSecretHash: hashSecret("legacy-placeholder"), credentialVersion: 0, status: "offline", allowlistedRoots: ["/opt/opsworkbench"], createdAt: legacyCreatedAt, updatedAt: legacyCreatedAt });
+    const mergeToken = await request<{ token: string }>("POST", "/admin/enrollment/generate", { name: "Claim existing OpsWorkbench", expiresInMinutes: 60, maxUses: 1 }, jsonHeaders(ownerA));
+    assert.equal(mergeToken.status, 201);
+    const mergedCredentials = await enroll(mergeToken.body.token, "opsworkbench");
+    assert.equal(mergedCredentials.serverId, String(legacyId), "enrollment must preserve the existing ops-workbench server id");
+    assert.equal(await collections.servers.countDocuments({ orgId: orgA._id, slug: "ops-workbench" }), 1, "enrollment must not create a duplicate server");
+    const mergedServer = await collections.servers.findOne({ _id: legacyId });
+    assert.equal(mergedServer?.name, "Ops Workbench");
+    assert.deepEqual(mergedServer?.allowlistedRoots, ["/opt/opsworkbench"]);
+    assert.equal(mergedServer?.createdAt.getTime(), legacyCreatedAt.getTime());
     await collections.enrollments.insertOne({
       orgId: orgA._id,
       tokenHash: hashSecret(expiredToken),
