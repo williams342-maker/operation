@@ -7,6 +7,7 @@ import { analyzeDeployment, buildOperationalSnapshot, findSimilarIncidents, gene
 const cache = new OperationalContextCache<Awaited<ReturnType<typeof collect>>>(30_000);
 const notArchived = { archivedAt: { $exists: false } };
 export function invalidateOperationalContext(scopeId?: string) { cache.invalidate(scopeId); }
+export function operationalContextCacheStatus() { return { status: "ready", entries: cache.size(), ttlMs: 30_000 }; }
 
 type Input = { orgId: ObjectId; userId: ObjectId; scopeType: "server" | "application"; scopeId: string; server: ServerDoc; project?: ProjectDoc; options: { includeHealth: boolean; includeDiscovery: boolean; includeRecentLogs: boolean; includeDeployments: boolean; includeCiSummary: boolean }; now?: Date };
 async function collect(input: Input) {

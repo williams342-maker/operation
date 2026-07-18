@@ -89,7 +89,7 @@ R2_PUBLIC_URL=https://cdn.craftersmarket.org
 ## 🤖 AI / LLMs (Emergent Universal Key)
 
 ```
-EMERGENT_LLM_KEY=sk-emergent-e3197E4508dAf34BcE
+EMERGENT_LLM_KEY=<redacted-rotate-before-use>
 EMERGENT_AUTH_URL=https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data
 ```
 

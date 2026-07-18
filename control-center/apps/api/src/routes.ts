@@ -21,8 +21,12 @@ import { calculateAgentStatus } from "./serverStatus.js";
 import { aiAssistantRouter } from "./aiAssistantRoutes.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
 import { aiSettingsRouter } from "./aiSettingsRoutes.js";
+import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 
 export const router = express.Router();
+
+router.get("/system/health", requirePermission("status:view"), async (_req, res) => res.json(await runtimeHealth()));
+router.get("/system/diagnostics", requirePermission("audit:view"), async (_req, res) => res.json(await internalDiagnostics()));
 
 function sanitizeRemoteForStorage(value?: string) {
   if (!value) return undefined;

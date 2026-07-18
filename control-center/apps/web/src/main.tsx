@@ -46,6 +46,7 @@ import { discoveryUiState } from "./discoveryState";
 import { DiscoveryStatusPanel } from "./DiscoveryStatusPanel";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { AiSettingsCard } from "./AiSettingsCard";
+import { SystemHealthCard } from "./SystemHealthCard";
 import {
   Badge,
   Button,
@@ -1223,6 +1224,8 @@ function HealthPage({ toast }: { toast: (m: string) => void }) {
     },
   });
   return (
+    <div className="space-y-4">
+    <SystemHealthCard />
     <Card>
       <h2 className="font-semibold">Health Checks</h2>
       <div className="mb-4 mt-3 grid gap-2 md:grid-cols-4">
@@ -1256,6 +1259,7 @@ function HealthPage({ toast }: { toast: (m: string) => void }) {
         ])}
       />
     </Card>
+    </div>
   );
 }
 function MongoPage({ toast }: { toast: (m: string) => void }) {

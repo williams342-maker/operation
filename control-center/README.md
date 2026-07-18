@@ -1,5 +1,7 @@
 # Hosted Multi-Project Control Center
 
+Staging operations: [deployment runbook](docs/staging-deployment.md), [readiness checklist](docs/staging-readiness-checklist.md), and [security review](docs/staging-security-review.md).
+
 Phase 1 implements a read-only hosted control center plus an outbound polling agent.
 
 ## Phase 1 Scope
@@ -54,7 +56,7 @@ Agents never receive browser-originated secrets. Mongo checks should run on the 
 
 The optional AI Assistant explains server and managed-application evidence already available to the authenticated user. The browser calls only the OpsWorkbench API; provider credentials remain server-side. The first milestone cannot run commands, restart services, deploy, edit configuration, call tools, or execute proposed actions. Every result displays **No actions were executed**.
 
-Enable it with `AI_ASSISTANT_ENABLED=true` and configure `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, and `AI_BASE_URL`. Limits are controlled by `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_CONTEXT_BYTES`, and `AI_MAX_OUTPUT_TOKENS`. When disabled or incomplete, existing OpsWorkbench behavior is unchanged. Automated tests use only the deterministic `mock` provider and never make paid requests.
+Enable it only in an approved staging window with `AI_ASSISTANT_ENABLED=true`, `AI_DEFAULT_PROVIDER`, `AI_DEFAULT_MODEL`, and provider/model allowlists. OpenAI uses `OPENAI_API_KEY` and optional `OPENAI_BASE_URL`; Anthropic uses `ANTHROPIC_API_KEY` and optional `ANTHROPIC_BASE_URL`; `AI_API_KEY`/`AI_BASE_URL` remain controlled compatibility overrides. `AI_PROVIDER` and `AI_MODEL` are deprecated. Limits use `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_CONTEXT_BYTES`, and `AI_MAX_OUTPUT_TOKENS`. When disabled or incomplete, existing behavior is unchanged and readiness makes no external request.
 
 Context can include organization-scoped server identity/status, bounded metrics and discovery, managed-application metadata, health/database-check status, and recent sanitized operation history. Complete environment files, process environments, credentials, enrollment/session tokens, authorization/cookie headers, private keys, connection strings, unrestricted logs, raw task payloads/results, repository files, and provider request headers are excluded. Collected data is treated as untrusted evidence; instructions found inside it are never followed.
 

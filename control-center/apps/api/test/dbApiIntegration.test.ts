@@ -330,6 +330,17 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     }, jsonHeaders(ownerA));
     assert.equal(project.status, 201);
 
+    const systemHealth = await request<any>("GET", "/system/health", undefined, jsonHeaders(viewerA));
+    assert.equal(systemHealth.status, 200);
+    assert.equal(systemHealth.body.mongo.connected, true);
+    assert.equal(systemHealth.body.audit.status, "ready");
+    const diagnosticsDenied = await request("GET", "/system/diagnostics", undefined, jsonHeaders(viewerA));
+    assert.equal(diagnosticsDenied.status, 403);
+    const diagnostics = await request<any>("GET", "/system/diagnostics", undefined, jsonHeaders(ownerA));
+    assert.equal(diagnostics.status, 200);
+    assert.equal(diagnostics.body.permissions.organizationScoped, true);
+    assert.equal(JSON.stringify(diagnostics.body).includes("mongodb://"), false);
+
     process.env.AI_ASSISTANT_ENABLED = "true";
     process.env.AI_PROVIDER = "mock";
     process.env.AI_MODEL = "deterministic-v1";
