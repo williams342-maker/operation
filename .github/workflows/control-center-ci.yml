@@ -40,23 +40,12 @@ jobs:
       - name: Verify Linux test summary has no skips
         run: |
           set -euo pipefail
-          node --import tsx --test --test-reporter=tap apps/agent/test/*.test.ts > agent.tap
-          node --import tsx --test --test-reporter=tap apps/api/test/*.test.ts > api.tap
-          node --import tsx --test --test-reporter=tap packages/shared/test/*.test.ts > shared.tap
-          node --import tsx --test --test-reporter=tap apps/web/test/*.test.ts apps/web/test/*.test.tsx > web.tap
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const files = ['agent.tap', 'api.tap', 'shared.tap', 'web.tap'];
-          let tests = 0;
-          let skipped = 0;
-          for (const file of files) {
-            const text = fs.readFileSync(file, 'utf8');
-            tests += Number(text.match(/^# tests (\d+)/m)?.[1] ?? 0);
-            skipped += Number(text.match(/^# skipped (\d+)/m)?.[1] ?? 0);
-          }
-          if (tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${tests}`);
-          if (skipped !== 0) throw new Error(`unexpected skipped tests: ${skipped}`);
-          NODE
+          node --test scripts/summarize-tap.test.mjs
+          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap
+          (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap
+          (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap
+          (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap
+          node scripts/summarize-tap.mjs agent.tap api.tap shared.tap web.tap
       - name: Linux agent upgrade and rollback dry run
         run: bash scripts/linux-agent-upgrade-dry-run.sh
       - run: npm run typecheck

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { enrollmentEnv, enrollmentInstallCommand } from "@control-center/shared";
 
-const installer = path.resolve(process.cwd(), "../web/public/install.sh");
+const installer = fileURLToPath(new URL("../../web/public/install.sh", import.meta.url));
 
 test("installer provisions and verifies the systemd agent", () => {
   const source = fs.readFileSync(installer, "utf8");
