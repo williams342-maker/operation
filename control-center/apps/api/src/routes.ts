@@ -21,6 +21,12 @@ import { calculateAgentStatus } from "./serverStatus.js";
 
 export const router = express.Router();
 
+function sanitizeRemoteForStorage(value?: string) {
+  if (!value) return undefined;
+  if (/^git@[a-z0-9.-]+:[a-z0-9._/-]+(?:\.git)?$/i.test(value)) return value;
+  try { const remote = new URL(value); if (!["http:", "https:", "ssh:", "git:"].includes(remote.protocol)) return undefined; remote.search = ""; remote.hash = ""; if (["http:", "https:"].includes(remote.protocol)) { remote.username = ""; remote.password = ""; } else if (remote.username && remote.username !== "git") remote.username = "git"; return remote.toString(); } catch { return undefined; }
+}
+
 function requireOrg(req: express.Request) {
   if (!req.orgId) throw new Error("Missing organization scope");
   return req.orgId;
@@ -181,6 +187,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
   try {
     const server = req.agentServer!;
     const body = agentPollRequestSchema.parse(req.body);
+    const discovery = body.discovery ? { ...body.discovery, repositories: body.discovery.repositories.map((repository) => ({ ...repository, remote: sanitizeRemoteForStorage(repository.remote) })) } : undefined;
     const now = new Date();
     const collectedAt = new Date(body.heartbeat.collectedAt);
     if (collectedAt.getTime() > now.getTime() + 60_000) return res.status(400).json({ error: "Future-dated telemetry rejected" });
@@ -194,6 +201,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
       docker: body.docker || [],
       compose: body.compose || [],
       git: body.git || [],
+      discovery,
       httpHealth: body.httpHealth || [],
       mongo: body.mongo || [],
       expiresAt,
@@ -213,6 +221,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
           docker: body.docker || [],
           compose: body.compose || [],
           git: body.git || [],
+          discovery,
           httpHealth: body.httpHealth || [],
           mongo: body.mongo || [],
           collectedAt: new Date(body.heartbeat.collectedAt)

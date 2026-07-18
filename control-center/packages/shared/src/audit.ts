@@ -25,6 +25,7 @@ export type AuditAction =
   | "server.project_detached"
   | "enrollment.tokens_revoked"
   | "project.create"
+  | "project.import_discovered"
   | "project.update"
   | "project.archive"
   | "health-check.create"

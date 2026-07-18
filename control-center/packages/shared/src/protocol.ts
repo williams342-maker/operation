@@ -31,17 +31,17 @@ export const agentEnrollmentResponseSchema = z.object({
 });
 
 export const dockerServiceSchema = z.object({
-  name: z.string(),
-  image: z.string().optional(),
-  state: z.string(),
-  status: z.string().optional()
+  name: z.string().max(255),
+  image: z.string().max(512).optional(),
+  state: z.string().max(128),
+  status: z.string().max(512).optional()
 });
 
 export const composeServiceSchema = z.object({
-  projectName: z.string(),
-  service: z.string(),
-  state: z.string(),
-  configPath: z.string().optional()
+  projectName: z.string().max(255),
+  service: z.string().max(255),
+  state: z.string().max(128),
+  configPath: z.string().max(1024).optional()
 });
 
 export const gitStatusSchema = z.object({
@@ -76,17 +76,31 @@ export const serverMetricsSchema = z.object({
   uptimeSeconds: z.number().nonnegative(),
   cpu: z.object({
     loadPercent: z.number().min(0).max(100),
-    cores: z.number().int().positive()
+    cores: z.number().int().positive(),
+    loadAverage: z.tuple([z.number().nonnegative(), z.number().nonnegative(), z.number().nonnegative()]).optional()
   }),
   memory: z.object({
     totalBytes: z.number().nonnegative(),
     usedBytes: z.number().nonnegative()
   }),
   disk: z.array(z.object({
-    mount: z.string(),
+    mount: z.string().max(1024),
     totalBytes: z.number().nonnegative(),
     usedBytes: z.number().nonnegative()
-  }))
+  })).max(100),
+  network: z.object({ receivedBytes: z.number().nonnegative(), transmittedBytes: z.number().nonnegative() }).optional()
+});
+
+export const applicationDiscoverySchema = z.object({
+  collectedAt: z.string().datetime(),
+  dockerInstalled: z.boolean(),
+  composeProjects: z.array(z.object({ name: z.string().max(255), configPath: z.string().max(1024), services: z.array(z.string().max(255)).max(250) })).max(100),
+  repositories: z.array(z.object({ path: z.string().max(1024), branch: z.string().max(255).optional(), commit: z.string().max(64).optional(), remote: z.string().max(2048).optional(), dirty: z.boolean().optional() })).max(100),
+  applications: z.array(z.object({ path: z.string().max(1024), type: z.enum(["node", "python", "dotnet"]), name: z.string().max(256) })).max(250),
+  nginxInstalled: z.boolean(),
+  warnings: z.array(z.enum(["mount_boundary_skipped", "symlink_skipped", "unreadable_path", "path_disappeared", "discovery_truncated"])).max(100).default([]),
+  discoveryTruncated: z.boolean().default(false),
+  truncationCategories: z.array(z.enum(["repositories", "composeProjects", "applications", "warnings"])).max(4).default([])
 });
 
 export const agentPollRequestSchema = z.object({
@@ -95,11 +109,12 @@ export const agentPollRequestSchema = z.object({
     agentVersion: z.string().min(1)
   }),
   metrics: serverMetricsSchema.optional(),
-  docker: z.array(dockerServiceSchema).optional(),
-  compose: z.array(composeServiceSchema).optional(),
-  git: z.array(gitStatusSchema).optional(),
+  docker: z.array(dockerServiceSchema).max(250).optional(),
+  compose: z.array(composeServiceSchema).max(250).optional(),
+  git: z.array(gitStatusSchema).max(100).optional(),
   httpHealth: z.array(httpHealthResultSchema).optional(),
-  mongo: z.array(mongoCheckResultSchema).optional()
+  mongo: z.array(mongoCheckResultSchema).optional(),
+  discovery: applicationDiscoverySchema.optional()
 });
 
 export const agentTaskSchema = z.object({

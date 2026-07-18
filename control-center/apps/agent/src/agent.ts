@@ -1,9 +1,9 @@
 ﻿import os from "node:os";
-import { agentSigningKey, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentPollRequestSchema, agentSigningKey, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
-import { collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
+import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
 
 type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
 
@@ -88,9 +88,11 @@ async function pollOnce() {
   const config = await maybeEnroll();
   const initial = {
     heartbeat: { collectedAt: new Date().toISOString(), agentVersion: config.agentVersion },
-    metrics: await collectSystem(config.agentVersion)
+    metrics: await collectSystem(config.agentVersion),
+    docker: await collectDocker().catch(() => []),
+    discovery: await collectApplicationDiscovery(config).catch(() => undefined)
   };
-  const response = await signedPost(config, "/api/agent/poll", initial) as { tasks?: ClaimedTask[] };
+  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { tasks?: ClaimedTask[] };
   for (const task of response.tasks || []) {
     try {
       await executeTask(config, task);

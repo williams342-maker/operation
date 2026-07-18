@@ -1,9 +1,10 @@
 name: Control Center CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
-    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1 ]
+    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**" ]
 
 jobs:
   verify:
@@ -23,8 +24,9 @@ jobs:
         working-directory: control-center
     env:
       CONTROL_CENTER_RUN_DB_TESTS: "true"
+      CONTROL_CENTER_RUN_PRIVILEGED_FS_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      CI_EXPECTED_TESTS: "25"
+      CI_EXPECTED_TESTS: "65"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,9 +43,10 @@ jobs:
           node --import tsx --test --test-reporter=tap apps/agent/test/*.test.ts > agent.tap
           node --import tsx --test --test-reporter=tap apps/api/test/*.test.ts > api.tap
           node --import tsx --test --test-reporter=tap packages/shared/test/*.test.ts > shared.tap
+          node --import tsx --test --test-reporter=tap apps/web/test/*.test.ts apps/web/test/*.test.tsx > web.tap
           node - <<'NODE'
           const fs = require('node:fs');
-          const files = ['agent.tap', 'api.tap', 'shared.tap'];
+          const files = ['agent.tap', 'api.tap', 'shared.tap', 'web.tap'];
           let tests = 0;
           let skipped = 0;
           for (const file of files) {
@@ -54,6 +57,8 @@ jobs:
           if (tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${tests}`);
           if (skipped !== 0) throw new Error(`unexpected skipped tests: ${skipped}`);
           NODE
+      - name: Linux agent upgrade and rollback dry run
+        run: bash scripts/linux-agent-upgrade-dry-run.sh
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present

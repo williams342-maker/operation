@@ -4,6 +4,7 @@ import type { AgentConfig } from "./config.js";
 
 export async function signedPost(config: AgentConfig, path: string, body: unknown) {
   const bodyText = JSON.stringify(body);
+  if (Buffer.byteLength(bodyText) > 1024 * 1024) throw new Error("Agent payload exceeds the 1 MB protocol limit");
   const timestamp = new Date().toISOString();
   const nonce = crypto.randomBytes(18).toString("base64url");
   const signature = signRequest(agentSigningKey(config.agentSecret), { method: "POST", path, timestamp, nonce, body: bodyText });

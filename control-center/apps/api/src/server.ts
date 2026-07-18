@@ -49,6 +49,7 @@ app.get("/readyz", (_req, res) => res.json({ ok: true }));
 app.use("/api", router);
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if ((error as { status?: number })?.status === 413) return res.status(413).json({ error: "Request payload exceeds the 1 MB limit", requestId: req.requestId });
   if (error instanceof ZodError) {
     const issue = error.issues[0];
     const field = issue?.path.join(" ") || "request";

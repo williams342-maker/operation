@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { MongoClient } from "mongodb";
 import { validateRegisteredPath } from "@control-center/shared";
-import { execFixed } from "./safeExec.js";
+import { execFixed, type FixedExecutable } from "./safeExec.js";
+import { capDiscovery, DISCOVERY_LIMITS, sanitizeGitRemote, walkSameDevice } from "./discoverySafety.js";
 import type { AgentConfig } from "./config.js";
 import { parseComposePsLine, parseDockerPsLine } from "./parsers.js";
 
@@ -17,10 +18,39 @@ export async function collectSystem(agentVersion: string) {
     collectedAt: new Date().toISOString(),
     agentVersion,
     uptimeSeconds: os.uptime(),
-    cpu: { loadPercent: Math.min(100, (load / Math.max(1, cpus.length)) * 100), cores: cpus.length },
+    cpu: { loadPercent: Math.min(100, (load / Math.max(1, cpus.length)) * 100), cores: cpus.length, loadAverage: os.loadavg() as [number, number, number] },
     memory: { totalBytes: totalMem, usedBytes: totalMem - freeMem },
-    disk: disks
+    disk: disks,
+    network: collectNetwork()
   };
+}
+
+function collectNetwork() {
+  if (process.platform !== "linux") return { receivedBytes: 0, transmittedBytes: 0 };
+  try {
+    const rows = fs.readFileSync("/proc/net/dev", "utf8").split(/\r?\n/).slice(2);
+    return rows.reduce((total, row) => { const [name, values] = row.trim().split(":"); if (!values || name === "lo") return total; const fields = values.trim().split(/\s+/).map(Number); total.receivedBytes += fields[0] || 0; total.transmittedBytes += fields[8] || 0; return total; }, { receivedBytes: 0, transmittedBytes: 0 });
+  } catch { return { receivedBytes: 0, transmittedBytes: 0 }; }
+}
+
+export async function collectApplicationDiscovery(config: AgentConfig) {
+  const traversals = config.allowedRoots.map(walkSameDevice); const directories = [...new Set(traversals.flatMap((item) => item.directories))].slice(0, DISCOVERY_LIMITS.directories);
+  const repositories = []; const composeProjects = []; const applications = []; const warnings = traversals.flatMap((item) => item.warnings);
+  for (const directory of directories) {
+    if (fs.existsSync(path.join(directory, ".git"))) {
+      const get = async (args: string[]) => (await execFixed("git", args, directory)).stdout.trim();
+      const rawRemote = await get(["remote", "get-url", "origin"]).catch(() => "");
+      repositories.push({ path: directory.slice(0, DISCOVERY_LIMITS.paths), branch: (await get(["rev-parse", "--abbrev-ref", "HEAD"]).catch(() => undefined))?.slice(0, DISCOVERY_LIMITS.branch), commit: (await get(["rev-parse", "HEAD"]).catch(() => undefined))?.slice(0, DISCOVERY_LIMITS.commit), remote: sanitizeGitRemote(rawRemote) || undefined, dirty: Boolean(await get(["status", "--porcelain"]).catch(() => "")) });
+    }
+    const composeFile = ["compose.yml", "compose.yaml", "docker-compose.yml", "docker-compose.yaml"].map((name) => path.join(directory, name)).find(fs.existsSync);
+    if (composeFile) composeProjects.push({ name: path.basename(directory).slice(0, DISCOVERY_LIMITS.name), configPath: composeFile.slice(0, DISCOVERY_LIMITS.paths), services: [] });
+    const markers: Array<[string, "node" | "python" | "dotnet"]> = [["package.json", "node"], ["pyproject.toml", "python"], ["requirements.txt", "python"]];
+    const marker = markers.find(([file]) => fs.existsSync(path.join(directory, file)));
+    const dotnet = (() => { try { return fs.readdirSync(directory).find((file) => file.endsWith(".csproj")); } catch { return undefined; } })();
+    if (marker || dotnet) applications.push({ path: directory.slice(0, DISCOVERY_LIMITS.paths), type: marker?.[1] || "dotnet" as const, name: path.basename(directory).slice(0, DISCOVERY_LIMITS.name) });
+  }
+  const installed = async (command: FixedExecutable, args: string[]) => Boolean(await execFixed(command, args).then((result) => result.code === 0).catch(() => false));
+  return capDiscovery({ collectedAt: new Date().toISOString(), dockerInstalled: await installed("docker", ["--version"]), composeProjects, repositories, applications, nginxInstalled: await installed("nginx", ["-v"]), warnings });
 }
 
 async function collectDisks() {
@@ -68,9 +98,9 @@ export async function collectGit(config: AgentConfig, projects: Array<{ projectI
 
 export async function collectDocker() {
   const result = await execFixed("docker", ["ps", "--format", "{{json .}}"]);
-  return result.stdout.split(/\r?\n/).filter(Boolean).map((line) => {
+  return result.stdout.split(/\r?\n/).filter(Boolean).slice(0, 250).map((line) => {
     try {
-      return parseDockerPsLine(line);
+      const row = parseDockerPsLine(line); return { name: row.name.slice(0, 255), image: row.image?.slice(0, 512), state: row.state.slice(0, 128), status: row.status?.slice(0, 512) };
     } catch {
       return { name: "unknown", state: "unknown" };
     }
@@ -95,7 +125,7 @@ export async function collectCompose(config: AgentConfig, projects: Array<{ proj
       continue;
     }
   }
-  return rows;
+  return rows.slice(0, 250);
 }
 
 export async function collectHttp(checks: Array<{ id: string; url: string; timeoutMs: number }>) {
