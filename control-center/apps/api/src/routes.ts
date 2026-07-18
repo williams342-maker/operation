@@ -226,8 +226,8 @@ router.get("/overview", requirePermission("status:view"), async (req, res, next)
   try {
     const orgId = requireOrg(req);
     const [servers, projects, audits] = await Promise.all([
-      collections.servers.find({ orgId }).toArray(),
-      collections.projects.find({ orgId }).toArray(),
+      collections.servers.find({ orgId, archivedAt: { $exists: false } }).toArray(),
+      collections.projects.find({ orgId, archivedAt: { $exists: false } }).toArray(),
       collections.auditEvents.find({ orgId }).sort({ createdAt: -1 }).limit(20).toArray()
     ]);
     const now = new Date();
@@ -241,7 +241,7 @@ router.get("/overview", requirePermission("status:view"), async (req, res, next)
 router.get("/servers", requirePermission("status:view"), async (req, res, next) => {
   try {
     const orgId = requireOrg(req);
-    const servers = await collections.servers.find({ orgId }, { projection: { agentSecretHash: 0 } }).sort({ createdAt: -1 }).toArray();
+    const servers = await collections.servers.find({ orgId, archivedAt: { $exists: false } }, { projection: { agentSecretHash: 0 } }).sort({ createdAt: -1 }).toArray();
     res.json({ servers });
   } catch (error) { next(error); }
 });
