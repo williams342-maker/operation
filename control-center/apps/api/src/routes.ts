@@ -19,6 +19,7 @@ import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
 import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
 import { calculateAgentStatus } from "./serverStatus.js";
 import { aiAssistantRouter } from "./aiAssistantRoutes.js";
+import { aiSettingsRouter } from "./aiSettingsRoutes.js";
 
 export const router = express.Router();
 
@@ -252,6 +253,7 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
 router.use(requireSession, requireCsrf);
 router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
+router.use(aiSettingsRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

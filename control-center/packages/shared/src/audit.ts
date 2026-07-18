@@ -47,6 +47,12 @@ export type AuditAction =
   | "agent.credential.rotate"
   | "authorization.failure"
   | "ai.assistant.analyze"
-  | "ai.assistant.failure";
+  | "ai.assistant.failure"
+  | "ai.settings.view"
+  | "ai.settings.change"
+  | "ai.settings.enable"
+  | "ai.settings.disable"
+  | "ai.settings.acknowledge"
+  | "ai.assistant.rate_limited";
 
 export type AuditResult = "success" | "failure" | "denied";

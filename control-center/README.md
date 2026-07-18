@@ -62,6 +62,18 @@ Audit events retain user/scope identifiers, provider/model, included category na
 
 Future controlled actions require separate schema validation, permissions, allowlisting, signatures, idempotency, auditing, explicit confirmation, and execution by OpsWorkbench code. No such execution exists in this milestone.
 
+### Operational enablement, privacy, and cost controls
+
+Global and organization-level enablement are both required. Configure server-controlled comma-separated `AI_ALLOWED_PROVIDERS` and `AI_ALLOWED_MODELS` lists plus `AI_DEFAULT_PROVIDER` and `AI_DEFAULT_MODEL` before staging. The browser cannot submit arbitrary providers, models, credentials, or base URLs. Provider credentials remain API environment variables because the existing secret-reference design is agent-local.
+
+Owners and Administrators have `ai:admin`; existing roles retain `ai:use`, which never grants access to resources they cannot already view. MongoDB-backed usage records enforce per-user hourly, organization daily, optional monthly request/token, and concurrent-request limits. These records contain IDs, provider/model, scope, context bytes, duration, outcome, failure category, and provider token counts when available, and expire after 400 days. Raw questions, prompts, context, logs, secrets, and responses are excluded.
+
+Enabling requires acknowledgment that sanitized, bounded operational data may be sent externally, retention depends on the provider account and contract, and charges may apply. OpsWorkbench does not claim zero retention or approve any provider for production.
+
+For staging, configure environment credentials and allowlists, restart only staging, complete the checklist below, then enable the organization in Organization Settings. For emergency disablement, set `AI_ASSISTANT_ENABLED=false` and restart the API. For rollback, disable globally and roll back code; the additive organization field and `ai_usage` collection may remain because older code ignores them.
+
+Provider review checklist: retention settings; training opt-out; processing region; contract/privacy terms; account logging; abuse-monitoring retention; model availability; token accounting; spend limits; and incident-response contact.
+
 ## Enrollment Management
 
 Owners and Administrators can open **Administration → Enrollment** to create and manage agent enrollment credentials. The dashboard separates active, expired/exhausted, and revoked tokens and shows remaining uses without ever returning a stored token.

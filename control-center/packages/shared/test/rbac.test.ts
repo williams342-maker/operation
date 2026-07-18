@@ -10,3 +10,6 @@ test("role foundations enforce phase 1 permissions", () => {
   assert.equal(hasPermission("Viewer", "status:view"), true);
   assert.equal(hasPermission("Viewer", "audit:view"), false);
 });
+
+test("AI administration is limited to owner and administrator", () => { assert.equal(hasPermission("Owner", "ai:admin"), true); assert.equal(hasPermission("Administrator", "ai:admin"), true); assert.equal(hasPermission("Developer", "ai:admin"), false); assert.equal(hasPermission("Viewer", "ai:admin"), false); });
+test("AI use does not grant resource management", () => { assert.equal(hasPermission("Viewer", "ai:use"), true); assert.equal(hasPermission("Viewer", "servers:manage"), false); });

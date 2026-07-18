@@ -9,15 +9,17 @@ export type Permission =
   | "status:view"
   | "audit:view"
   | "audit:manage"
+  | "ai:use"
+  | "ai:admin"
   | "tasks:view"
   | "tasks:run"
   | "tasks:cancel";
 
 const rolePermissions: Record<Role, Permission[]> = {
-  Owner: ["org:manage", "users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "tasks:view", "tasks:run", "tasks:cancel"],
-  Administrator: ["users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "tasks:view", "tasks:run", "tasks:cancel"],
-  Developer: ["projects:manage", "status:view", "tasks:view", "tasks:run"],
-  Viewer: ["status:view", "tasks:view"]
+  Owner: ["org:manage", "users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "ai:use", "ai:admin", "tasks:view", "tasks:run", "tasks:cancel"],
+  Administrator: ["users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "ai:use", "ai:admin", "tasks:view", "tasks:run", "tasks:cancel"],
+  Developer: ["projects:manage", "status:view", "ai:use", "tasks:view", "tasks:run"],
+  Viewer: ["status:view", "ai:use", "tasks:view"]
 };
 
 export function hasPermission(role: Role, permission: Permission) {

@@ -3,6 +3,7 @@ import type {
   AgentNonceDoc,
   AgentTaskDoc,
   AgentTaskResultDoc,
+  AiUsageDoc,
   AuditEventDoc,
   EnrollmentDoc,
   HealthCheckDoc,
@@ -34,7 +35,8 @@ export const collections = {
   agentNonces: db.collection<AgentNonceDoc>("agent_nonces"),
   auditEvents: db.collection<AuditEventDoc>("audit_events"),
   agentTasks: db.collection<AgentTaskDoc>("agent_tasks"),
-  agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results")
+  agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results"),
+  aiUsage: db.collection<AiUsageDoc>("ai_usage")
 };
 
 export async function connectDb() {
@@ -81,7 +83,11 @@ async function ensureIndexes() {
     collections.agentTaskResults.createIndex({ orgId: 1, taskId: 1 }, { unique: true }),
     collections.agentTaskResults.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.auditEvents.createIndex({ orgId: 1, createdAt: -1 }),
-    collections.auditEvents.createIndex({ requestId: 1 })
+    collections.auditEvents.createIndex({ requestId: 1 }),
+    collections.aiUsage.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.aiUsage.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
+    collections.aiUsage.createIndex({ orgId: 1, concurrencySlot: 1 }, { unique: true, partialFilterExpression: { concurrencySlot: { $type: "number" } } }),
+    collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   ]);
 }
 

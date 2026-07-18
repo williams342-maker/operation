@@ -45,6 +45,7 @@ import {
 import { discoveryUiState } from "./discoveryState";
 import { DiscoveryStatusPanel } from "./DiscoveryStatusPanel";
 import { AiAssistantPanel } from "./AiAssistantPanel";
+import { AiSettingsCard } from "./AiSettingsCard";
 import {
   Badge,
   Button,
@@ -325,7 +326,7 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
   });
   if (q.isLoading) return <Skeleton />;
   return (
-    <Card>
+    <div className="space-y-4"><Card>
       <h2 className="font-semibold">Organization Settings</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <Field value={name} onChange={(e) => setName(e.target.value)} />
@@ -347,7 +348,7 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
         Save
       </Button>
       <ErrorText error={m.error} />
-    </Card>
+    </Card><AiSettingsCard toast={toast} /></div>
   );
 }
 

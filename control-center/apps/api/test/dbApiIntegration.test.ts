@@ -333,6 +333,16 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     process.env.AI_ASSISTANT_ENABLED = "true";
     process.env.AI_PROVIDER = "mock";
     process.env.AI_MODEL = "deterministic-v1";
+    process.env.AI_ALLOWED_PROVIDERS = "mock";
+    process.env.AI_ALLOWED_MODELS = "deterministic-v1";
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { aiAssistant: { enabled: true, provider: "mock", model: "deterministic-v1", maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server", "application"], dataRetentionMode: "provider-dependent", providerDataRetentionAcknowledgedAt: new Date(), providerDataRetentionAcknowledgedBy: ownerUserA._id, updatedAt: new Date(), updatedBy: ownerUserA._id } } });
+    const aiAdminDenied = await request("GET", "/org/ai-assistant", undefined, jsonHeaders(viewerA));
+    assert.equal(aiAdminDenied.status, 403);
+    const aiSettings = await request("GET", "/org/ai-assistant", undefined, jsonHeaders(ownerA));
+    assert.equal(aiSettings.status, 200);
+    assert.equal(JSON.stringify(aiSettings.body).includes(process.env.AI_API_KEY || "impossible-secret"), false);
+    const invalidProvider = await request("PUT", "/org/ai-assistant", { enabled: true, provider: "attacker", model: "deterministic-v1", monthlyRequestLimit: null, monthlyTokenLimit: null, maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server"], retentionAcknowledged: true }, jsonHeaders(ownerA));
+    assert.equal(invalidProvider.status, 400);
     const serverAnalysis = await request<{ result: { executedActions: unknown[] }; metadata: { noActionsExecuted: boolean } }>("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Explain this server status." }, jsonHeaders(ownerA));
     assert.equal(serverAnalysis.status, 200);
     assert.deepEqual(serverAnalysis.body.result.executedActions, []);
@@ -341,6 +351,24 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(appAnalysis.status, 200);
     const unknownAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: new ObjectId().toHexString() }, question: "Explain status." }, jsonHeaders(ownerA));
     assert.equal(unknownAnalysis.status, 404);
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.maximumRequestsPerUserPerHour": 1 } });
+    const limitedAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Explain this server again." }, jsonHeaders(ownerA));
+    assert.equal(limitedAnalysis.status, 429);
+    assert.equal((await collections.auditEvents.findOne({ orgId: orgA._id, action: "ai.assistant.rate_limited" }))?.metadata?.reason, "user_hourly");
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.maximumRequestsPerUserPerHour": 20, "aiAssistant.monthlyRequestLimit": 2 } });
+    const monthlyRequestLimited = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Monthly request limit check." }, jsonHeaders(ownerA));
+    assert.equal(monthlyRequestLimited.status, 429);
+    await collections.aiUsage.updateOne({ orgId: orgA._id, outcome: "success" }, { $set: { inputTokens: 10, outputTokens: 5 } });
+    await collections.organizations.updateOne({ _id: orgA._id }, { $unset: { "aiAssistant.monthlyRequestLimit": "" }, $set: { "aiAssistant.monthlyTokenLimit": 5 } });
+    const monthlyTokenLimited = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Monthly token limit check." }, jsonHeaders(ownerA));
+    assert.equal(monthlyTokenLimited.status, 429);
+    await collections.organizations.updateOne({ _id: orgA._id }, { $unset: { "aiAssistant.monthlyTokenLimit": "" }, $set: { "aiAssistant.maximumConcurrentRequests": 1 } });
+    const occupied = await collections.aiUsage.insertOne({ orgId: orgA._id, userId: ownerUserA._id, provider: "mock", model: "deterministic-v1", scopeType: "server", contextBytes: 1, outcome: "pending", concurrencySlot: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 60_000) });
+    const concurrentLimited = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Concurrent limit check." }, jsonHeaders(ownerA));
+    assert.equal(concurrentLimited.status, 429);
+    await collections.aiUsage.deleteOne({ _id: occupied.insertedId });
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.maximumConcurrentRequests": 3 } });
+    assert.equal(await collections.aiUsage.countDocuments({ orgId: orgA._id, outcome: "success" }), 2);
 
     const queuedTask = await request<{ task: { _id: string; state: string } }>("POST", "/tasks", {
       serverId: credentials.serverId,
@@ -460,7 +488,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(revokedRejected.status, 401);
 
     const orgBResult = await collections.organizations.insertOne({ name: "Phase 1B Org B", slug: "phase-1b-b", createdAt: new Date(), updatedAt: new Date() });
-    await collections.users.insertOne({ orgId: orgBResult.insertedId, email: "owner-b@example.test", name: "Owner B", role: "Owner", passwordHash: hashPassword("owner-b-password"), createdAt: new Date(), updatedAt: new Date() });
+    const ownerBResult = await collections.users.insertOne({ orgId: orgBResult.insertedId, email: "owner-b@example.test", name: "Owner B", role: "Owner", passwordHash: hashPassword("owner-b-password"), createdAt: new Date(), updatedAt: new Date() });
+    await collections.organizations.updateOne({ _id: orgBResult.insertedId }, { $set: { aiAssistant: { enabled: true, provider: "mock", model: "deterministic-v1", maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server", "application"], dataRetentionMode: "provider-dependent", providerDataRetentionAcknowledgedAt: new Date(), providerDataRetentionAcknowledgedBy: ownerBResult.insertedId, updatedAt: new Date(), updatedBy: ownerBResult.insertedId } } });
     const ownerB = await login("phase-1b-b", "owner-b@example.test", "owner-b-password");
     const crossOrgAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "application", id: project.body.id }, question: "Explain this application." }, jsonHeaders(ownerB));
     assert.equal(crossOrgAnalysis.status, 404);
