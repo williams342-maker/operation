@@ -7,6 +7,16 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ["deploy/agent-burnin/**/*.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: { ...globals.node, ...globals.commonjs }
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off"
+    }
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser }

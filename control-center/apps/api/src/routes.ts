@@ -120,10 +120,17 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
   try {
     const body = agentEnrollmentRequestSchema.parse(req.body);
     const tokenHash = hashSecret(body.enrollmentToken);
-    const tokenRecord = await collections.enrollments.findOne({ tokenHash }, { projection: { _id: 1, orgId: 1 } });
+    const tokenRecord = await collections.enrollments.findOne({ tokenHash }, { projection: { _id: 1, orgId: 1, serverId: 1 } });
     if (!tokenRecord?._id) {
       await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: "invalid-token" } });
       return res.status(401).json({ error: "Invalid enrollment token" });
+    }
+    const boundTarget = tokenRecord.serverId
+      ? await collections.servers.findOne({ _id: tokenRecord.serverId, orgId: tokenRecord.orgId, archivedAt: { $exists: false } })
+      : null;
+    if (tokenRecord.serverId && !boundTarget) return res.status(409).json({ error: "Enrollment target is unavailable" });
+    if (boundTarget?.machineId && body.machineId && boundTarget.machineId !== body.machineId) {
+      return res.status(409).json({ error: "Enrollment target belongs to a different machine identity" });
     }
     const now = new Date();
     const enrollment = await collections.enrollments.findOneAndUpdate({
@@ -144,13 +151,14 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
     if (body.machineId) identity.unshift({ machineId: body.machineId });
     if (body.agentInstallationId) identity.splice(body.machineId ? 1 : 0, 0, { agentInstallationId: body.agentInstallationId });
     if (body.displayName) identity.push({ slug: serverSlug(body.displayName) });
-    let existing = await collections.servers.findOne({ orgId: enrollment.orgId, archivedAt: { $exists: false }, $or: identity });
+    if (body.requestedSlug) identity.push({ slug: body.requestedSlug });
+    let existing = boundTarget || await collections.servers.findOne({ orgId: enrollment.orgId, archivedAt: { $exists: false }, $or: identity });
     if (!existing) {
-      const compact = compactServerIdentity(body.displayName || body.hostname);
+      const compact = compactServerIdentity(body.requestedSlug || body.displayName || body.hostname);
       const legacyCandidates = await collections.servers.find({ orgId: enrollment.orgId, archivedAt: { $exists: false } }).toArray();
       existing = legacyCandidates.find((server) => compactServerIdentity(server.slug || server.hostname) === compact) || null;
     }
-    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, status: "online" as const, lastHeartbeatAt: now, enrolledAt: now, agentVersion: body.agentVersion, updatedAt: now };
+    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, updatedAt: now };
     let serverId;
     if (existing?._id) {
       serverId = existing._id;
@@ -195,6 +203,8 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
     await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, {
       $set: {
         status: "online",
+        agentStatus: "online",
+        enrollmentStatus: "connected",
         lastHeartbeatAt: now,
         agentVersion: body.heartbeat.agentVersion,
         currentState: {

@@ -4,6 +4,8 @@ import { z } from "zod";
 
 const schema = z.object({
   controlCenterUrl: z.string().url(),
+  installationId: z.string().default(""),
+  requestedSlug: z.string().default(""),
   agentId: z.string(),
   agentSecret: z.string(),
   agentVersion: z.string().default("0.1.0"),

@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-CONTROL_CENTER="${CONTROL_CENTER:-https://opsworkbench.org}"
-TOKEN="${TOKEN:-}"
+CONTROL_CENTER_URL="${CONTROL_CENTER_URL:-https://opsworkbench.org}"
+CONTROL_CENTER_ENROLLMENT_TOKEN="${CONTROL_CENTER_ENROLLMENT_TOKEN:-}"
+CONTROL_CENTER_SERVER_SLUG="${CONTROL_CENTER_SERVER_SLUG:-}"
 AGENT_USER="opsworkbench-agent"
 INSTALL_DIR="/opt/opsworkbench-agent"
 CONFIG_DIR="/etc/opsworkbench-agent"
 fail() { printf 'OpsWorkbench installer: %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || fail "run through sudo as shown in the Control Center"
-[ -n "$TOKEN" ] || fail "TOKEN is required"
-case "$CONTROL_CENTER" in https://*) ;; *) fail "CONTROL_CENTER must use HTTPS" ;; esac
+[ -n "$CONTROL_CENTER_ENROLLMENT_TOKEN" ] || fail "CONTROL_CENTER_ENROLLMENT_TOKEN is required"
+case "$CONTROL_CENTER_URL" in https://*) ;; *) fail "CONTROL_CENTER_URL must use HTTPS" ;; esac
+case "$CONTROL_CENTER_SERVER_SLUG" in *[!a-z0-9-]*) fail "CONTROL_CENTER_SERVER_SLUG must contain lowercase letters, numbers, and hyphens" ;; esac
 
 if command -v apt-get >/dev/null 2>&1; then
   apt-get update -qq
@@ -36,11 +38,13 @@ npm ci --omit=optional
 npm run build --workspace @control-center/shared
 npm run build --workspace @control-center/agent
 
+installation_id="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || node -e 'console.log(require("crypto").randomUUID())')"
 cat >"$CONFIG_DIR/agent.json" <<EOF
-{"controlCenterUrl":"$CONTROL_CENTER","agentId":"","agentSecret":"","agentVersion":"0.1.0","allowedRoots":["/srv"],"pollIntervalSeconds":30,"mongoChecks":{}}
+{"controlCenterUrl":"$CONTROL_CENTER_URL","installationId":"$installation_id","requestedSlug":"$CONTROL_CENTER_SERVER_SLUG","agentId":"","agentSecret":"","agentVersion":"0.1.0","allowedRoots":["/srv"],"pollIntervalSeconds":30,"mongoChecks":{}}
 EOF
 cat >"$CONFIG_DIR/enrollment.env" <<EOF
-CONTROL_CENTER_ENROLLMENT_TOKEN=$TOKEN
+CONTROL_CENTER_ENROLLMENT_TOKEN=$CONTROL_CENTER_ENROLLMENT_TOKEN
+CONTROL_CENTER_SERVER_SLUG=$CONTROL_CENTER_SERVER_SLUG
 CONTROL_CENTER_AGENT_CONFIG=$CONFIG_DIR/agent.json
 EOF
 chmod 0600 "$CONFIG_DIR/agent.json" "$CONFIG_DIR/enrollment.env"
@@ -78,7 +82,7 @@ for _ in $(seq 1 30); do
     chmod 0600 "$CONFIG_DIR/enrollment.env"; chown "$AGENT_USER:$AGENT_USER" "$CONFIG_DIR/enrollment.env"
     systemctl restart opsworkbench-agent.service
     systemctl is-active --quiet opsworkbench-agent.service || fail "agent service did not remain active"
-    printf '\nOpsWorkbench agent enrolled successfully.\nControl Center: %s\nService: opsworkbench-agent (active)\n' "$CONTROL_CENTER"
+    printf '\nOpsWorkbench agent enrolled successfully.\nControl Center: %s\nService: opsworkbench-agent (active)\n' "$CONTROL_CENTER_URL"
     exit 0
   fi
   sleep 2

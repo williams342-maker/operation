@@ -267,8 +267,10 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const legacyId = new ObjectId();
     const legacyCreatedAt = new Date(Date.now() - 86_400_000);
     await collections.servers.insertOne({ _id: legacyId, orgId: orgA._id, name: "Ops Workbench", slug: "ops-workbench", hostname: "opsworkbench", agentId: `manual-${legacyId}`, agentSecretHash: hashSecret("legacy-placeholder"), credentialVersion: 0, status: "offline", allowlistedRoots: ["/opt/opsworkbench"], createdAt: legacyCreatedAt, updatedAt: legacyCreatedAt });
-    const mergeToken = await request<{ token: string }>("POST", "/admin/enrollment/generate", { name: "Claim existing OpsWorkbench", expiresInMinutes: 60, maxUses: 1 }, jsonHeaders(ownerA));
+    const mergeToken = await request<{ token: string; serverId: string; installCommand: string }>("POST", "/servers/onboard", { url: "https://opsworkbench.org", expiresInMinutes: 60 }, jsonHeaders(ownerA));
     assert.equal(mergeToken.status, 201);
+    assert.equal(mergeToken.body.serverId, String(legacyId), "URL-first onboarding must bind to the existing compact slug match");
+    assert.match(mergeToken.body.installCommand, /CONTROL_CENTER_SERVER_SLUG="ops-workbench"/);
     const mergedCredentials = await enroll(mergeToken.body.token, "opsworkbench");
     assert.equal(mergedCredentials.serverId, String(legacyId), "enrollment must preserve the existing ops-workbench server id");
     assert.equal(await collections.servers.countDocuments({ orgId: orgA._id, slug: "ops-workbench" }), 1, "enrollment must not create a duplicate server");

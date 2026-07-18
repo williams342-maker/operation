@@ -1,5 +1,6 @@
 ﻿import os from "node:os";
 import { agentSigningKey, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import fs from "node:fs";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
@@ -11,7 +12,19 @@ async function maybeEnroll() {
   const token = process.env.CONTROL_CENTER_ENROLLMENT_TOKEN;
   if (config.agentId && config.agentSecret) return config;
   if (!token) throw new Error("Agent is not enrolled. Set CONTROL_CENTER_ENROLLMENT_TOKEN for first run.");
-  const result = await enroll(config.controlCenterUrl, token, os.hostname(), config.agentVersion);
+  const interfaces = Object.values(os.networkInterfaces()).flat().filter((entry) => entry && !entry.internal);
+  const primaryIp = interfaces.find((entry) => entry?.family === "IPv4")?.address;
+  const machineId = ["/etc/machine-id", "/var/lib/dbus/machine-id"].map((file) => { try { return fs.readFileSync(file, "utf8").trim(); } catch { return ""; } }).find(Boolean);
+  let diskBytes: number | undefined;
+  try { const stat = fs.statfsSync("/"); diskBytes = Number(stat.blocks) * Number(stat.bsize); } catch { /* optional metadata */ }
+  const result = await enroll(config.controlCenterUrl, token, {
+    requestedSlug: config.requestedSlug || process.env.CONTROL_CENTER_SERVER_SLUG || undefined,
+    machineId: machineId || undefined, agentInstallationId: config.installationId || undefined,
+    hostname: os.hostname(), primaryIp, privateIp: primaryIp,
+    osName: os.platform(), osVersion: os.release(), kernelVersion: os.release(), architecture: os.arch(),
+    cpuModel: os.cpus()[0]?.model, cpuCoreCount: os.cpus().length, memoryBytes: os.totalmem(), diskBytes,
+    agentVersion: config.agentVersion
+  });
   const nextConfig = { ...config, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
   saveConfig(nextConfig);
   return nextConfig;

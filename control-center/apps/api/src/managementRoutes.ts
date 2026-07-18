@@ -2,12 +2,13 @@
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { gzipSync } from "node:zlib";
-import { isSafeHttpCheckUrl, validateConfiguredPath } from "@control-center/shared";
+import { deriveWebsiteTarget, enrollmentInstallCommand, isSafeHttpCheckUrl, validateConfiguredPath } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission, requireRecentAuth } from "./auth.js";
 import { collections, oid } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken } from "./crypto.js";
 import type { UserDoc } from "./models.js";
+import { discoverWebsite } from "./urlDiscovery.js";
 
 export const managementRouter = express.Router();
 const roles = ["Owner", "Administrator", "Developer", "Viewer"] as const;
@@ -82,6 +83,44 @@ managementRouter.post("/org/users/:id/activate", requirePermission("users:manage
 managementRouter.post("/org/users/:id/revoke-sessions", requirePermission("users:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const deleted = await collections.sessions.deleteMany({ orgId: orgId(req), userId: id }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.sessions.revoke", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ revoked: deleted.deletedCount }); } catch (error) { next(error); } });
 managementRouter.post("/servers", requirePermission("servers:manage"), async (req, res, next) => {
   try { const body = z.object({ name: z.string().min(1), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), hostname: z.string().min(1), allowlistedRoots: z.array(z.string()).default([]), metadata: z.record(z.string()).default({}) }).parse(req.body); const org = orgId(req); const slugBase = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || body.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "server"; let slug = slugBase; let suffix = 2; while (await collections.servers.findOne({ orgId: org, slug }, { projection: { _id: 1 } })) { if (body.slug) return res.status(409).json({ error: "Server slug is already in use" }); slug = `${slugBase}-${suffix++}`; } const now = new Date(); const result = await collections.servers.insertOne({ orgId: org, name: body.name, slug, hostname: body.hostname, agentId: `manual-${randomToken(12)}`, agentSecretHash: hashAgentSecret(randomToken(48)), credentialVersion: 1, status: "offline", allowlistedRoots: body.allowlistedRoots, metadata: body.metadata, createdAt: now, updatedAt: now }); await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.create", targetType: "server", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { slug } }); res.status(201).json({ id: result.insertedId, slug }); } catch (error) { next(error); }
+});
+
+managementRouter.post("/servers/discover", requirePermission("servers:manage"), async (req, res, next) => {
+  try { const body = z.object({ url: z.string().min(1).max(2048) }).parse(req.body); res.json({ discovery: await discoverWebsite(body.url) }); } catch (error) { next(error); }
+});
+
+managementRouter.post("/servers/onboard", noStore, requirePermission("servers:manage"), async (req, res, next) => {
+  try {
+    const body = z.object({ url: z.string().min(1).max(2048), displayName: z.string().trim().min(1).max(120).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), detectedPublicIps: z.array(z.string()).max(20).default([]), expiresInMinutes: z.number().int().min(5).max(43_200).default(60) }).parse(req.body);
+    const derived = deriveWebsiteTarget(body.url); const org = orgId(req); const slugBase = body.slug || derived.slug;
+    let target = await collections.servers.findOne({ orgId: org, archivedAt: { $exists: false }, slug: slugBase });
+    if (!target) {
+      const compact = slugBase.replace(/-/g, "");
+      const candidates = await collections.servers.find({ orgId: org, archivedAt: { $exists: false } }).toArray();
+      target = candidates.find((server) => (server.slug || "").replace(/-/g, "") === compact) || null;
+    }
+    const now = new Date();
+    if (target?._id) {
+      await collections.servers.updateOne({ _id: target._id, orgId: org }, { $set: { primaryUrl: derived.normalizedUrl, detectedPublicIps: body.detectedPublicIps, enrollmentStatus: "pending", agentStatus: target.lastHeartbeatAt ? "offline" : "never_connected", updatedAt: now } });
+    } else {
+      let slug = slugBase; let suffix = 2; while (await collections.servers.findOne({ orgId: org, slug })) slug = `${slugBase}-${suffix++}`;
+      const created = await collections.servers.insertOne({ orgId: org, name: body.displayName || derived.displayName, slug, primaryUrl: derived.normalizedUrl, detectedPublicIps: body.detectedPublicIps, enrollmentStatus: "pending", agentStatus: "never_connected", hostname: "", agentId: `pending-${randomToken(12)}`, agentSecretHash: hashAgentSecret(randomToken(48)), credentialVersion: 0, status: "offline", allowlistedRoots: ["/srv"], createdAt: now, updatedAt: now });
+      target = await collections.servers.findOne({ _id: created.insertedId, orgId: org });
+    }
+    if (!target?._id) throw new Error("Pending server could not be created");
+    const token = `owenr_${randomToken(36)}`; const expiresAt = new Date(now.getTime() + body.expiresInMinutes * 60_000);
+    const enrollment = await collections.enrollments.insertOne({ orgId: org, serverId: target._id, tokenHash: hashSecret(token), name: `Setup ${target.name}`, description: `URL-first onboarding for ${derived.normalizedUrl}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.create", targetType: "server", targetId: target._id, result: "success", requestId: req.requestId, metadata: { slug: target.slug || slugBase, url: derived.normalizedUrl } });
+    res.status(201).json({ serverId: target._id, enrollmentId: enrollment.insertedId, token, expiresAt, server: { _id: target._id, name: target.name, slug: target.slug, primaryUrl: derived.normalizedUrl, enrollmentStatus: "pending" }, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", target.slug) });
+  } catch (error) { next(error); }
+});
+
+managementRouter.get("/servers/:id/onboarding-status", requirePermission("status:view"), async (req, res, next) => {
+  try { const server = await collections.servers.findOne({ _id: oid(String(req.params.id)), orgId: orgId(req) }, { projection: { agentSecretHash: 0 } }); if (!server) return res.status(404).json({ error: "Server not found" }); res.json({ server }); } catch (error) { next(error); }
+});
+
+managementRouter.post("/servers/:id/enrollment", noStore, requirePermission("servers:enroll"), async (req, res, next) => {
+  try { const serverId = oid(String(req.params.id)); const server = await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } }); if (!server) return res.status(404).json({ error: "Server not found" }); const token = `owenr_${randomToken(36)}`; const now = new Date(); const expiresAt = new Date(now.getTime() + 60 * 60_000); const result = await collections.enrollments.insertOne({ orgId: orgId(req), serverId, tokenHash: hashSecret(token), name: `Setup ${server.name}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now }); await collections.servers.updateOne({ _id: serverId, orgId: orgId(req) }, { $set: { enrollmentStatus: "pending", updatedAt: now } }); res.status(201).json({ id: result.insertedId, token, expiresAt, serverId, slug: server.slug, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", server.slug) }); } catch (error) { next(error); }
 });
 managementRouter.get("/servers/:id", requirePermission("status:view"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const org = orgId(req); const [server, projects, telemetry] = await Promise.all([collections.servers.findOne({ _id: id, orgId: org }, { projection: { agentSecretHash: 0 } }), collections.projects.find({ orgId: org, primaryServerId: id, ...notArchived }).toArray(), collections.telemetry.find({ orgId: org, serverId: id }).sort({ collectedAt: -1 }).limit(25).toArray()]); if (!server) return res.status(404).json({ error: "Server not found" }); res.json({ server, projects, telemetry }); } catch (error) { next(error); } });
 managementRouter.patch("/servers/:id", requirePermission("servers:manage"), async (req, res, next) => { try { const body = z.object({ name: z.string().min(1).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), hostname: z.string().min(1).optional(), allowlistedRoots: z.array(z.string()).optional(), metadata: z.record(z.string()).optional(), expectedUpdatedAt: z.string().datetime() }).parse(req.body); const serverId = oid(String(req.params.id)); if (body.slug && await collections.servers.findOne({ _id: { $ne: serverId }, orgId: orgId(req), slug: body.slug })) return res.status(409).json({ error: "Server slug is already in use" }); const set: Record<string, unknown> = { updatedAt: new Date() }; for (const key of ["name", "slug", "hostname", "allowlistedRoots", "metadata"] as const) if (body[key] !== undefined) set[key] = body[key]; const result = await collections.servers.findOneAndUpdate({ _id: serverId, orgId: orgId(req), updatedAt: new Date(body.expectedUpdatedAt) }, { $set: set }, { returnDocument: "after", projection: { agentSecretHash: 0 } }); if (!result) return res.status(409).json({ error: "Server was modified by another request" }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "server.update", targetType: "server", targetId: result._id, result: "success", requestId: req.requestId }); res.json({ server: result }); } catch (error) { next(error); } });

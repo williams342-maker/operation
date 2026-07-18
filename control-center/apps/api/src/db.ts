@@ -59,6 +59,7 @@ async function ensureIndexes() {
     collections.servers.createIndex({ orgId: 1, slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: "string" } } }),
     collections.servers.createIndex({ orgId: 1, status: 1 }),
     collections.servers.createIndex({ orgId: 1, archivedAt: 1 }),
+    collections.servers.createIndex({ orgId: 1, enrollmentStatus: 1, updatedAt: -1 }),
     collections.projects.createIndex({ orgId: 1, slug: 1 }, { unique: true }),
     collections.projects.createIndex({ orgId: 1, primaryServerId: 1 }),
     collections.projects.createIndex({ orgId: 1, archivedAt: 1 }),
