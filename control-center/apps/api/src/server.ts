@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { ZodError } from "zod";
 import { captureRawBody } from "./agentAuth.js";
 import { connectDb } from "./db.js";
 import { validateRuntimeSecrets } from "./crypto.js";
@@ -48,6 +49,11 @@ app.get("/readyz", (_req, res) => res.json({ ok: true }));
 app.use("/api", router);
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (error instanceof ZodError) {
+    const issue = error.issues[0];
+    const field = issue?.path.join(" ") || "request";
+    return res.status(400).json({ error: `Invalid ${field}: ${issue?.message || "invalid value"}`, requestId: req.requestId });
+  }
   const message = error instanceof Error ? error.message : "Unknown error";
   res.status(500).json({ error: message, requestId: req.requestId });
 });

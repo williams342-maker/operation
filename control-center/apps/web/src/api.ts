@@ -6,4 +6,11 @@ export function apiError(error: unknown) { return axios.isAxiosError(error) ? St
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean }; }
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }
 export async function login(organizationSlug: string, email: string, password: string) { const { data } = await api.post("/auth/login", { organizationSlug, email, password }); localStorage.setItem("cc.csrf", data.csrfToken); return data; }
-export async function logout() { await api.post("/auth/logout"); localStorage.removeItem("cc.csrf"); }
+export async function logout() {
+  try {
+    await api.post("/auth/logout");
+  } finally {
+    // A stale server session must not trap the browser in the authenticated UI.
+    localStorage.removeItem("cc.csrf");
+  }
+}

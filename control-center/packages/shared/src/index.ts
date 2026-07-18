@@ -5,3 +5,4 @@ export * from "./paths.js";
 export * from "./telemetry.js";
 export * from "./audit.js";
 export * from "./tasks.js";
+export * from "./enrollment.js";

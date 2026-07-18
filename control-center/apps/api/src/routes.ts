@@ -15,6 +15,7 @@ import { collections, oid, scopedFilter } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword } from "./crypto.js";
 import { managementRouter } from "./managementRoutes.js";
 import { taskRouter } from "./taskRoutes.js";
+import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
 import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
 
 export const router = express.Router();
@@ -111,14 +112,31 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
   try {
     const body = agentEnrollmentRequestSchema.parse(req.body);
     const tokenHash = hashSecret(body.enrollmentToken);
-    const enrollment = await collections.enrollments.findOneAndUpdate({ tokenHash, expiresAt: { $gt: new Date() }, usedAt: { $exists: false } }, { $set: { usedAt: new Date(), updatedAt: new Date() } }, { returnDocument: "after" });
+    const tokenRecord = await collections.enrollments.findOne({ tokenHash }, { projection: { _id: 1, orgId: 1 } });
+    if (!tokenRecord?._id) {
+      await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: "invalid-token" } });
+      return res.status(401).json({ error: "Invalid enrollment token" });
+    }
+    const duplicate = await collections.servers.findOne({ orgId: tokenRecord.orgId, hostname: body.hostname, archivedAt: { $exists: false } }, { projection: { _id: 1 } });
+    if (duplicate) {
+      await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: "duplicate-hostname" } });
+      return res.status(409).json({ error: "A server with this hostname is already enrolled" });
+    }
+    const now = new Date();
+    const enrollment = await collections.enrollments.findOneAndUpdate({
+      _id: tokenRecord._id,
+      revokedAt: { $exists: false },
+      $and: [
+        { $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: now } }] },
+        { $or: [{ maxUses: { $exists: false } }, { $expr: { $lt: [{ $ifNull: ["$uses", 0] }, "$maxUses"] } }] }
+      ]
+    }, { $inc: { uses: 1 }, $set: { usedAt: now, updatedAt: now } }, { returnDocument: "after" });
     if (!enrollment?._id) {
       await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: "invalid-or-expired" } });
       return res.status(401).json({ error: "Invalid enrollment token" });
     }
     const agentSecret = randomToken(48);
     const agentId = randomToken(18);
-    const now = new Date();
     const serverResult = await collections.servers.insertOne({
       orgId: enrollment.orgId,
       name: body.hostname,
@@ -132,7 +150,8 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
       createdAt: now,
       updatedAt: now
     });
-    await collections.enrollments.updateOne({ _id: enrollment._id, orgId: enrollment.orgId }, { $set: { usedByAgentId: serverResult.insertedId, updatedAt: now } });
+    await collections.enrollments.updateOne({ _id: enrollment._id, orgId: enrollment.orgId }, { $set: { usedByAgentId: serverResult.insertedId, updatedAt: now }, $push: { usage: { usedAt: now, serverId: serverResult.insertedId, agentId, hostname: body.hostname } } });
+    await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.use", targetType: "enrollment", targetId: enrollment._id, result: "success", requestId: req.requestId, metadata: { hostname: body.hostname, uses: enrollment.uses ?? 1 } });
     await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.success", targetType: "server", targetId: serverResult.insertedId, result: "success", requestId: req.requestId });
     res.status(201).json({ agentId, agentSecret, serverId: serverResult.insertedId, pollIntervalSeconds: 30 });
   } catch (error) { next(error); }
@@ -199,6 +218,7 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
 });
 
 router.use(requireSession, requireCsrf);
+router.use(adminEnrollmentRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

@@ -43,13 +43,16 @@ export async function connectDb() {
 }
 
 async function ensureIndexes() {
+  await collections.enrollments.updateMany({ name: { $exists: false } }, { $set: { name: "Legacy enrollment" } });
+  await collections.enrollments.updateMany({ uses: { $exists: false } }, { $set: { uses: 0 } });
+  await collections.enrollments.updateMany({ usage: { $exists: false } }, { $set: { usage: [] } });
   await Promise.all([
     collections.organizations.createIndex({ slug: 1 }, { unique: true }),
     collections.users.createIndex({ orgId: 1, email: 1 }, { unique: true }),
     collections.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.sessions.createIndex({ orgId: 1, userId: 1 }),
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),
-    collections.enrollments.createIndex({ expiresAt: 1 }),
+    collections.enrollments.createIndex({ orgId: 1, createdAt: -1 }),
     collections.servers.createIndex({ orgId: 1, agentId: 1 }, { unique: true }),
     collections.servers.createIndex({ orgId: 1, status: 1 }),
     collections.servers.createIndex({ orgId: 1, archivedAt: 1 }),

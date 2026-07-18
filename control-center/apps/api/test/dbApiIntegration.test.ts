@@ -232,6 +232,32 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
+    const generated = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "CI enrollment", expiresInMinutes: 60, maxUses: 2, description: "integration" }, jsonHeaders(ownerA));
+    assert.equal(generated.status, 201);
+    assert.match(generated.body.token, /^owenr_/);
+    const listed = await request<{ enrollments: Array<{ _id: string; tokenHash?: string; token?: string; usesRemaining: number }> }>("GET", "/admin/enrollment", undefined, jsonHeaders(ownerA));
+    assert.equal(listed.status, 200);
+    const listedGenerated = listed.body.enrollments.find((item) => String(item._id) === String(generated.body.id));
+    assert.ok(listedGenerated);
+    assert.equal(listedGenerated.tokenHash, undefined);
+    assert.equal(listedGenerated.token, undefined);
+    assert.equal(listedGenerated.usesRemaining, 2);
+    const unavailableDownload = await request("GET", `/admin/enrollment/download/${generated.body.id}`, undefined, jsonHeaders(ownerA));
+    assert.equal(unavailableDownload.status, 410);
+    await enroll(generated.body.token, "multi-use-one");
+    await enroll(generated.body.token, "multi-use-two");
+    const maxUseRejected = await request("POST", "/agent/enroll", { enrollmentToken: generated.body.token, hostname: "multi-use-three", agentVersion: "fake-agent/1.0", capabilities: [] }, { "content-type": "application/json" });
+    assert.equal(maxUseRejected.status, 401);
+
+    const revocable = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "Revocable", expiresInMinutes: null, maxUses: null }, jsonHeaders(ownerA));
+    assert.equal(revocable.status, 201);
+    const revokeEnrollment = await request("POST", "/admin/enrollment/revoke", { id: revocable.body.id }, jsonHeaders(ownerA));
+    assert.equal(revokeEnrollment.status, 200);
+    const revokedEnrollmentUse = await request("POST", "/agent/enroll", { enrollmentToken: revocable.body.token, hostname: "revoked-enrollment", agentVersion: "fake-agent/1.0", capabilities: [] }, { "content-type": "application/json" });
+    assert.equal(revokedEnrollmentUse.status, 401);
+    const deleteEnrollment = await request("DELETE", `/admin/enrollment/${revocable.body.id}`, undefined, jsonHeaders(ownerA));
+    assert.equal(deleteEnrollment.status, 200);
+
     const enrollment = await createEnrollment(ownerA);
     const expiredToken = `expired-${crypto.randomBytes(32).toString("hex")}`;
     const orgA = await collections.organizations.findOne({ slug: "phase-1b-a" });
@@ -241,7 +267,11 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await collections.enrollments.insertOne({
       orgId: orgA._id,
       tokenHash: hashSecret(expiredToken),
+      name: "Expired test token",
       expiresAt: new Date(Date.now() - 60_000),
+      maxUses: 1,
+      uses: 0,
+      usage: [],
       createdByUserId: ownerUserA._id,
       createdAt: new Date(),
       updatedAt: new Date()
