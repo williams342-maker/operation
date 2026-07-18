@@ -28,6 +28,7 @@ export type AuditAction =
   | "mongo-check.update"
   | "mongo-check.archive"
   | "audit.export"
+  | "audit.clear"
   | "task.create"
   | "task.claim"
   | "task.start"

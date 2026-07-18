@@ -8,13 +8,14 @@ export type Permission =
   | "projects:manage"
   | "status:view"
   | "audit:view"
+  | "audit:manage"
   | "tasks:view"
   | "tasks:run"
   | "tasks:cancel";
 
 const rolePermissions: Record<Role, Permission[]> = {
-  Owner: ["org:manage", "users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "tasks:view", "tasks:run", "tasks:cancel"],
-  Administrator: ["users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "tasks:view", "tasks:run", "tasks:cancel"],
+  Owner: ["org:manage", "users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "tasks:view", "tasks:run", "tasks:cancel"],
+  Administrator: ["users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "tasks:view", "tasks:run", "tasks:cancel"],
   Developer: ["projects:manage", "status:view", "tasks:view", "tasks:run"],
   Viewer: ["status:view", "tasks:view"]
 };
