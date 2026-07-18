@@ -25,9 +25,6 @@ import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 
 export const router = express.Router();
 
-router.get("/system/health", requirePermission("status:view"), async (_req, res) => res.json(await runtimeHealth()));
-router.get("/system/diagnostics", requirePermission("audit:view"), async (_req, res) => res.json(await internalDiagnostics()));
-
 function sanitizeRemoteForStorage(value?: string) {
   if (!value) return undefined;
   if (/^git@[a-z0-9.-]+:[a-z0-9._/-]+(?:\.git)?$/i.test(value)) return value;
@@ -257,6 +254,8 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
 });
 
 router.use(requireSession, requireCsrf);
+router.get("/system/health", requirePermission("status:view"), async (req, res) => res.json(await runtimeHealth(req.orgId)));
+router.get("/system/diagnostics", requirePermission("audit:view"), async (req, res) => res.json(await internalDiagnostics(req.orgId)));
 router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
 router.use(aiSettingsRouter);

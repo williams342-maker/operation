@@ -9,6 +9,7 @@ This checklist gates the first controlled staging deployment. It does not author
 - [ ] Tests, type checking, lint, and all production builds pass.
 - [ ] `/healthz` reports liveness and expected build identity.
 - [ ] `/readyz` returns 200 with API, MongoDB, audit, rate-limit, and cache readiness.
+- [ ] Owner, Administrator, and Viewer can read `/api/system/health`; anonymous requests cannot.
 - [ ] An Owner can read `/api/system/diagnostics`; a Viewer cannot.
 - [ ] Startup has no environment errors or unknown-variable warnings.
 

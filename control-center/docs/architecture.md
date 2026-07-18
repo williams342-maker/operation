@@ -49,6 +49,6 @@ Three secret-free health surfaces have distinct purposes:
 
 - `GET /healthz` is public process liveness and returns build identity only.
 - `GET /readyz` is public deployment readiness and verifies MongoDB plus initialized subsystems.
-- `GET /api/system/health` and `GET /api/system/diagnostics` are authenticated operational reports. Diagnostics requires audit permission.
+- `GET /api/system/health` and `GET /api/system/diagnostics` are authenticated operational reports. System health follows the established `status:view` policy (including Viewer); diagnostics requires `audit:view`. Organization-specific AI state is derived only from the authenticated organization.
 
 The API has no in-process background worker queue in this release; health reports that state as `not_configured`. The operational context cache is in memory and is intentionally reported without cached content. AI remains globally disabled unless explicitly enabled, and startup readiness checks never contact an external provider.

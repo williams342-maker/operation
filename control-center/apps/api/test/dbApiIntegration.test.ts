@@ -229,6 +229,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(createViewer.headers.get("cache-control")?.includes("no-store"));
     assert.ok(createViewer.body.oneTimePassword);
     const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const createAdministrator = await request<{ oneTimePassword: string }>("POST", "/org/users", {
+      email: "administrator-a@example.test",
+      name: "Administrator A",
+      role: "Administrator"
+    }, jsonHeaders(ownerA));
+    assert.equal(createAdministrator.status, 201);
+    const administratorA = await login("phase-1b-a", "administrator-a@example.test", createAdministrator.body.oneTimePassword);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
@@ -330,10 +337,15 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     }, jsonHeaders(ownerA));
     assert.equal(project.status, 201);
 
-    const systemHealth = await request<any>("GET", "/system/health", undefined, jsonHeaders(viewerA));
-    assert.equal(systemHealth.status, 200);
-    assert.equal(systemHealth.body.mongo.connected, true);
-    assert.equal(systemHealth.body.audit.status, "ready");
+    const anonymousSystemHealth = await request("GET", "/system/health");
+    assert.equal(anonymousSystemHealth.status, 401);
+    for (const session of [ownerA, administratorA, viewerA]) {
+      const systemHealth = await request<any>("GET", "/system/health", undefined, jsonHeaders(session));
+      assert.equal(systemHealth.status, 200);
+      assert.equal(systemHealth.body.mongo.connected, true);
+      assert.equal(systemHealth.body.audit.status, "ready");
+      assert.equal(systemHealth.body.ai.organizationState, "disabled");
+    }
     const diagnosticsDenied = await request("GET", "/system/diagnostics", undefined, jsonHeaders(viewerA));
     assert.equal(diagnosticsDenied.status, 403);
     const diagnostics = await request<any>("GET", "/system/diagnostics", undefined, jsonHeaders(ownerA));
@@ -502,6 +514,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const ownerBResult = await collections.users.insertOne({ orgId: orgBResult.insertedId, email: "owner-b@example.test", name: "Owner B", role: "Owner", passwordHash: hashPassword("owner-b-password"), createdAt: new Date(), updatedAt: new Date() });
     await collections.organizations.updateOne({ _id: orgBResult.insertedId }, { $set: { aiAssistant: { enabled: true, provider: "mock", model: "deterministic-v1", maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server", "application"], dataRetentionMode: "provider-dependent", providerDataRetentionAcknowledgedAt: new Date(), providerDataRetentionAcknowledgedBy: ownerBResult.insertedId, updatedAt: new Date(), updatedBy: ownerBResult.insertedId } } });
     const ownerB = await login("phase-1b-b", "owner-b@example.test", "owner-b-password");
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.enabled": false } });
+    const [orgAHealth, orgBHealth] = await Promise.all([
+      request<any>("GET", "/system/health", undefined, jsonHeaders(ownerA)),
+      request<any>("GET", "/system/health", undefined, jsonHeaders(ownerB))
+    ]);
+    assert.equal(orgAHealth.body.ai.organizationState, "disabled");
+    assert.equal(orgBHealth.body.ai.organizationState, "enabled");
     const crossOrgAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "application", id: project.body.id }, question: "Explain this application." }, jsonHeaders(ownerB));
     assert.equal(crossOrgAnalysis.status, 404);
     const orgBServers = await request<{ servers: unknown[] }>("GET", "/servers", undefined, jsonHeaders(ownerB));
