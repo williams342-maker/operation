@@ -10,7 +10,16 @@ export type WebsiteDiscovery = ReturnType<typeof deriveWebsiteTarget> & {
   httpStatus?: number;
   pageTitle?: string;
   responseHeaders?: Record<string, string>;
+  redirected: boolean;
 };
+
+export type WebsiteFailureStatus = "dns_error" | "tls_error" | "unreachable";
+export function websiteFailureStatus(error: unknown): WebsiteFailureStatus {
+  const message = `${error instanceof Error ? error.message : error} ${error instanceof Error && error.cause ? String(error.cause) : ""}`.toLowerCase();
+  if (/enotfound|eai_again|dns|name.*not.*resolved/.test(message)) return "dns_error";
+  if (/certificate|cert_|tls|ssl|hostname.*match|unable_to_verify/.test(message)) return "tls_error";
+  return "unreachable";
+}
 
 export function isPublicAddress(address: string) {
   if (net.isIPv4(address)) {
@@ -56,7 +65,7 @@ async function fetchBounded(initialUrl: string) {
         chunks.push(part.value);
       }
       await reader?.cancel().catch(() => undefined);
-      return { response, text: new TextDecoder().decode(Buffer.concat(chunks)) };
+      return { response, text: new TextDecoder().decode(Buffer.concat(chunks)), redirected: redirects > 0 };
     } finally { clearTimeout(timer); }
   }
   throw new Error("Discovery failed");
@@ -65,11 +74,11 @@ async function fetchBounded(initialUrl: string) {
 export async function discoverWebsite(input: string): Promise<WebsiteDiscovery> {
   const derived = deriveWebsiteTarget(input);
   const resolved = await resolvePublic(derived.domain);
-  const { response, text } = await fetchBounded(derived.normalizedUrl);
+  const { response, text, redirected } = await fetchBounded(derived.normalizedUrl);
   const title = /<title[^>]*>([^<]{1,300})<\/title>/i.exec(text)?.[1]?.replace(/\s+/g, " ").trim();
   const safeHeaders: Record<string, string> = {};
   for (const name of ["content-type", "content-length", "server", "cache-control", "strict-transport-security"]) {
     const value = response.headers.get(name); if (value) safeHeaders[name] = value.slice(0, 500);
   }
-  return { ...derived, addresses: [...new Set(resolved.map((entry) => entry.address))], aRecords: resolved.filter((entry) => entry.family === 4).map((entry) => entry.address), aaaaRecords: resolved.filter((entry) => entry.family === 6).map((entry) => entry.address), httpsAvailable: response.url.startsWith("https://") || derived.normalizedUrl.startsWith("https://"), httpStatus: response.status, pageTitle: title, responseHeaders: safeHeaders };
+  return { ...derived, addresses: [...new Set(resolved.map((entry) => entry.address))], aRecords: resolved.filter((entry) => entry.family === 4).map((entry) => entry.address), aaaaRecords: resolved.filter((entry) => entry.family === 6).map((entry) => entry.address), httpsAvailable: response.url.startsWith("https://") || derived.normalizedUrl.startsWith("https://"), httpStatus: response.status, pageTitle: title, responseHeaders: safeHeaders, redirected };
 }

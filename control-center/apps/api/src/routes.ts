@@ -17,6 +17,7 @@ import { managementRouter } from "./managementRoutes.js";
 import { taskRouter } from "./taskRoutes.js";
 import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
 import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
+import { calculateAgentStatus } from "./serverStatus.js";
 
 export const router = express.Router();
 
@@ -263,7 +264,8 @@ router.get("/servers", requirePermission("status:view"), async (req, res, next) 
   try {
     const orgId = requireOrg(req);
     const servers = await collections.servers.find({ orgId, archivedAt: { $exists: false } }, { projection: { agentSecretHash: 0 } }).sort({ createdAt: -1 }).toArray();
-    res.json({ servers });
+    const now = new Date();
+    res.json({ servers: servers.map((server) => { const agentStatus = calculateAgentStatus(server.lastHeartbeatAt, server.revokedAt, now); return { ...server, agentStatus, status: agentStatus === "online" ? "online" : agentStatus === "revoked" ? "revoked" : "offline" }; }) });
   } catch (error) { next(error); }
 });
 

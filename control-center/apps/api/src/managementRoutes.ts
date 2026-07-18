@@ -8,11 +8,13 @@ import { noStore, requirePermission, requireRecentAuth } from "./auth.js";
 import { collections, oid } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken } from "./crypto.js";
 import type { UserDoc } from "./models.js";
-import { discoverWebsite } from "./urlDiscovery.js";
+import { discoverWebsite, websiteFailureStatus } from "./urlDiscovery.js";
+import { calculateAgentStatus, publicSiteStatus } from "./serverStatus.js";
 
 export const managementRouter = express.Router();
 const roles = ["Owner", "Administrator", "Developer", "Viewer"] as const;
 const notArchived = { archivedAt: { $exists: false } };
+const statusCheckTimes = new Map<string, number>();
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }
 function deny(res: express.Response, message = "Forbidden") { return res.status(403).json({ error: message }); }
@@ -119,22 +121,65 @@ managementRouter.get("/servers/:id/onboarding-status", requirePermission("status
   try { const server = await collections.servers.findOne({ _id: oid(String(req.params.id)), orgId: orgId(req) }, { projection: { agentSecretHash: 0 } }); if (!server) return res.status(404).json({ error: "Server not found" }); res.json({ server }); } catch (error) { next(error); }
 });
 
+managementRouter.post("/servers/:id/check-status", requirePermission("servers:manage"), async (req, res, next) => {
+  try {
+    const serverId = oid(String(req.params.id)); const org = orgId(req); const key = `${org}:${serverId}`; const now = new Date();
+    if (now.getTime() - (statusCheckTimes.get(key) || 0) < 5_000) return res.status(429).json({ error: "Please wait before checking this server again" });
+    statusCheckTimes.set(key, now.getTime());
+    const server = await collections.servers.findOne({ _id: serverId, orgId: org, ...notArchived });
+    if (!server) return res.status(404).json({ error: "Server not found" });
+    const agentStatus = calculateAgentStatus(server.lastHeartbeatAt, server.revokedAt, now);
+    const enrollmentStatus = server.revokedAt ? "revoked" : server.enrolledAt ? "connected" : server.enrollmentStatus || "pending";
+    const set: Record<string, unknown> = { agentStatus, enrollmentStatus, status: agentStatus === "online" ? "online" : agentStatus === "revoked" ? "revoked" : "offline", updatedAt: now };
+    let siteError: string | undefined;
+    if (server.primaryUrl) {
+      set.publicSiteCheckedAt = now;
+      try {
+        const discovery = await discoverWebsite(server.primaryUrl);
+        set.detectedPublicIps = discovery.addresses;
+        set.publicSiteHttpStatus = discovery.httpStatus;
+        set.publicSiteStatus = publicSiteStatus(discovery.httpStatus || 0, discovery.redirected);
+      } catch (error) {
+        set.publicSiteStatus = websiteFailureStatus(error);
+        siteError = set.publicSiteStatus as string;
+      }
+    } else set.publicSiteStatus = "unknown";
+    await collections.servers.updateOne({ _id: serverId, orgId: org }, { $set: set, ...(siteError ? { $unset: { publicSiteHttpStatus: "" } } : {}) });
+    const updated = await collections.servers.findOne({ _id: serverId, orgId: org }, { projection: { agentSecretHash: 0 } });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.status_checked", targetType: "server", targetId: serverId, result: "success", requestId: req.requestId, metadata: { agentStatus, siteStatus: String(set.publicSiteStatus) } });
+    res.json({ server_id: serverId, primary_url: updated?.primaryUrl || null, public_site_status: updated?.publicSiteStatus || "unknown", public_site_http_status: updated?.publicSiteHttpStatus || null, public_site_checked_at: updated?.publicSiteCheckedAt || null, detected_public_ips: updated?.detectedPublicIps || [], agent_status: updated?.agentStatus, enrollment_status: updated?.enrollmentStatus, last_seen_at: updated?.lastHeartbeatAt || null, server: updated });
+  } catch (error) { next(error); }
+});
+
 managementRouter.post("/servers/:id/enrollment", noStore, requirePermission("servers:enroll"), async (req, res, next) => {
   try { const serverId = oid(String(req.params.id)); const server = await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } }); if (!server) return res.status(404).json({ error: "Server not found" }); const token = `owenr_${randomToken(36)}`; const now = new Date(); const expiresAt = new Date(now.getTime() + 60 * 60_000); const result = await collections.enrollments.insertOne({ orgId: orgId(req), serverId, tokenHash: hashSecret(token), name: `Setup ${server.name}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now }); await collections.servers.updateOne({ _id: serverId, orgId: orgId(req) }, { $set: { enrollmentStatus: "pending", updatedAt: now } }); res.status(201).json({ id: result.insertedId, token, expiresAt, serverId, slug: server.slug, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", server.slug) }); } catch (error) { next(error); }
 });
 managementRouter.get("/servers/:id", requirePermission("status:view"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const org = orgId(req); const [server, projects, telemetry] = await Promise.all([collections.servers.findOne({ _id: id, orgId: org }, { projection: { agentSecretHash: 0 } }), collections.projects.find({ orgId: org, primaryServerId: id, ...notArchived }).toArray(), collections.telemetry.find({ orgId: org, serverId: id }).sort({ collectedAt: -1 }).limit(25).toArray()]); if (!server) return res.status(404).json({ error: "Server not found" }); res.json({ server, projects, telemetry }); } catch (error) { next(error); } });
-managementRouter.patch("/servers/:id", requirePermission("servers:manage"), async (req, res, next) => { try { const body = z.object({ name: z.string().min(1).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), hostname: z.string().min(1).optional(), allowlistedRoots: z.array(z.string()).optional(), metadata: z.record(z.string()).optional(), expectedUpdatedAt: z.string().datetime() }).parse(req.body); const serverId = oid(String(req.params.id)); if (body.slug && await collections.servers.findOne({ _id: { $ne: serverId }, orgId: orgId(req), slug: body.slug })) return res.status(409).json({ error: "Server slug is already in use" }); const set: Record<string, unknown> = { updatedAt: new Date() }; for (const key of ["name", "slug", "hostname", "allowlistedRoots", "metadata"] as const) if (body[key] !== undefined) set[key] = body[key]; const result = await collections.servers.findOneAndUpdate({ _id: serverId, orgId: orgId(req), updatedAt: new Date(body.expectedUpdatedAt) }, { $set: set }, { returnDocument: "after", projection: { agentSecretHash: 0 } }); if (!result) return res.status(409).json({ error: "Server was modified by another request" }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "server.update", targetType: "server", targetId: result._id, result: "success", requestId: req.requestId }); res.json({ server: result }); } catch (error) { next(error); } });
+managementRouter.patch("/servers/:id", requirePermission("servers:manage"), async (req, res, next) => { try { const body = z.object({ name: z.string().trim().min(1).max(120).optional(), primaryUrl: z.string().trim().min(1).max(2048).optional(), slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), notes: z.string().max(2000).optional(), tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(), expectedUpdatedAt: z.string().datetime() }).parse(req.body); const serverId = oid(String(req.params.id)); const org = orgId(req); if (body.slug && await collections.servers.findOne({ _id: { $ne: serverId }, orgId: org, slug: body.slug, ...notArchived })) return res.status(409).json({ error: "Server slug is already in use" }); const set: Record<string, unknown> = { updatedAt: new Date() }; for (const key of ["name", "slug", "notes", "tags"] as const) if (body[key] !== undefined) set[key] = body[key]; if (body.primaryUrl !== undefined) { set.primaryUrl = deriveWebsiteTarget(body.primaryUrl).normalizedUrl; set.publicSiteStatus = "unknown"; } const result = await collections.servers.findOneAndUpdate({ _id: serverId, orgId: org, updatedAt: new Date(body.expectedUpdatedAt), ...notArchived }, { $set: set }, { returnDocument: "after", projection: { agentSecretHash: 0 } }); if (!result) return res.status(409).json({ error: "Server was modified by another request" }); await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.update", targetType: "server", targetId: result._id, result: "success", requestId: req.requestId }); res.json({ server: result }); } catch (error) { next(error); } });
 managementRouter.delete("/servers/:id", requirePermission("servers:manage"), async (req, res, next) => {
   try {
+    const body = z.object({ mode: z.enum(["remove", "purge"]).default("remove"), confirmation: z.string().optional() }).parse(req.body || {});
     const id = oid(String(req.params.id)); const org = orgId(req);
-    const server = await collections.servers.findOne({ _id: id, orgId: org, ...notArchived }, { projection: { _id: 1 } });
+    const server = await collections.servers.findOne({ _id: id, orgId: org, ...notArchived });
     if (!server) return res.status(404).json({ error: "Server not found" });
-    const assignedProjects = await collections.projects.countDocuments({ orgId: org, primaryServerId: id, ...notArchived });
-    if (assignedProjects) return res.status(409).json({ error: "Move or archive projects assigned to this server before deleting it" });
+    const pending = server.enrollmentStatus === "pending" && !server.enrolledAt;
+    if (!pending && body.confirmation !== server.name && body.confirmation !== server.slug) return res.status(400).json({ error: "Type the server name or slug to confirm deletion" });
+    const activeTasks = await collections.agentTasks.countDocuments({ orgId: org, serverId: id, state: { $in: ["queued", "claimed", "running"] } });
+    if (activeTasks) return res.status(409).json({ error: "Cancel active tasks before deleting this server", activeTasks });
     const now = new Date();
-    await collections.servers.updateOne({ _id: id, orgId: org }, { $set: { archivedAt: now, revokedAt: now, status: "revoked", updatedAt: now } });
-    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.archive", targetType: "server", targetId: id, result: "success", requestId: req.requestId });
-    res.json({ ok: true });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.delete_requested", targetType: "server", targetId: id, result: "success", requestId: req.requestId, metadata: { mode: body.mode, pending } });
+    const revokedTokens = await collections.enrollments.updateMany({ orgId: org, serverId: id, revokedAt: { $exists: false }, usedAt: { $exists: false } }, { $set: { revokedAt: now, updatedAt: now } });
+    if (revokedTokens.modifiedCount) await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "enrollment.tokens_revoked", targetType: "server", targetId: id, result: "success", requestId: req.requestId, metadata: { count: revokedTokens.modifiedCount } });
+    if (pending) await collections.servers.deleteOne({ _id: id, orgId: org });
+    else {
+      await collections.servers.updateOne({ _id: id, orgId: org }, { $set: { archivedAt: now, revokedAt: now, enrollmentStatus: "revoked", agentStatus: "revoked", status: "revoked", updatedAt: now } });
+      const detached = await collections.projects.updateMany({ orgId: org, primaryServerId: id, ...notArchived }, { $set: { detachedServerId: id, updatedAt: now }, $unset: { primaryServerId: "" } });
+      if (detached.modifiedCount) await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.project_detached", targetType: "server", targetId: id, result: "success", requestId: req.requestId, metadata: { count: detached.modifiedCount } });
+      await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "agent.credential.revoke", targetType: "server", targetId: id, result: "success", requestId: req.requestId });
+    }
+    if (body.mode === "purge") { await collections.telemetry.deleteMany({ orgId: org, serverId: id }); await collections.agentTaskResults.deleteMany({ orgId: org, serverId: id }); }
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: body.mode === "purge" ? "server.purged" : "server.deleted", targetType: "server", targetId: id, result: "success", requestId: req.requestId });
+    res.json({ deleted: true, server_id: id, credentials_revoked: !pending, tokens_revoked: revokedTokens.modifiedCount, mode: body.mode, pending });
   } catch (error) { next(error); }
 });
 managementRouter.post("/servers/:id/archive", requirePermission("servers:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); await collections.servers.updateOne({ _id: id, orgId: orgId(req) }, { $set: { archivedAt: new Date(), status: "offline", updatedAt: new Date() } }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "server.archive", targetType: "server", targetId: id, result: "success", requestId: req.requestId }); res.json({ ok: true }); } catch (error) { next(error); } });

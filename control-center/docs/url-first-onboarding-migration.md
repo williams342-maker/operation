@@ -6,6 +6,8 @@ The migration is additive and runs through the existing `ensureIndexes()` startu
 - The existing `ops-workbench` document is reused when its slug is selected. Its `_id`, name, slug, `createdAt`, project references, and `allowlistedRoots` are not replaced.
 - Enrollment records may now contain `serverId`; legacy generic records remain supported.
 - `primaryUrl` is deliberately not unique and is not treated as machine identity.
+- Server status fields (`publicSiteStatus`, `publicSiteHttpStatus`, `publicSiteCheckedAt`, `notes`, and `tags`) are additive and optional. Existing records remain valid.
+- Deleted enrolled servers are archived and credential-revoked. Pending records may be removed after their unused tokens are revoked. Project documents are preserved and record the detached server ID.
 
 ## Rollback
 

@@ -278,6 +278,24 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(mergedServer?.name, "Ops Workbench");
     assert.deepEqual(mergedServer?.allowlistedRoots, ["/opt/opsworkbench"]);
     assert.equal(mergedServer?.createdAt.getTime(), legacyCreatedAt.getTime());
+    const editedServer = await request<{ server: { _id: string; slug: string; primaryUrl: string; machineId?: string } }>("PATCH", `/servers/${legacyId}`, { name: "Ops Workbench", slug: "ops-workbench", primaryUrl: "https://opsworkbench.org/", notes: "integration", tags: ["production"], expectedUpdatedAt: mergedServer!.updatedAt.toISOString() }, jsonHeaders(ownerA));
+    assert.equal(editedServer.status, 200);
+    assert.equal(String(editedServer.body.server._id), String(legacyId));
+    assert.equal(editedServer.body.server.primaryUrl, "https://opsworkbench.org");
+    const statusChecked = await request<{ server_id: string; public_site_checked_at: string; agent_status: string; enrollment_status: string }>("POST", `/servers/${legacyId}/check-status`, {}, jsonHeaders(ownerA));
+    assert.equal(statusChecked.status, 200);
+    assert.equal(statusChecked.body.server_id, String(legacyId));
+    assert.ok(statusChecked.body.public_site_checked_at);
+    assert.equal(statusChecked.body.enrollment_status, "connected");
+    const pendingDelete = await request<{ serverId: string; enrollmentId: string }>("POST", "/servers/onboard", { url: "https://pending-delete.example.test", displayName: "Pending delete", slug: "pending-delete", expiresInMinutes: 60 }, jsonHeaders(ownerA));
+    assert.equal(pendingDelete.status, 201);
+    const deletedPending = await request<{ deleted: boolean; tokens_revoked: number }>("DELETE", `/servers/${pendingDelete.body.serverId}`, { mode: "remove" }, jsonHeaders(ownerA));
+    assert.equal(deletedPending.status, 200);
+    assert.equal(deletedPending.body.deleted, true);
+    assert.equal(deletedPending.body.tokens_revoked, 1);
+    assert.equal(await collections.servers.countDocuments({ _id: new ObjectId(pendingDelete.body.serverId) }), 0);
+    const revokedPendingToken = await collections.enrollments.findOne({ _id: new ObjectId(pendingDelete.body.enrollmentId) });
+    assert.ok(revokedPendingToken?.revokedAt);
     await collections.enrollments.insertOne({
       orgId: orgA._id,
       tokenHash: hashSecret(expiredToken),
