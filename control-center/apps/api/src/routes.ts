@@ -22,6 +22,8 @@ import { aiAssistantRouter } from "./aiAssistantRoutes.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
 import { aiSettingsRouter } from "./aiSettingsRoutes.js";
 import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
+import { configurationRouter } from "./configurationRoutes.js";
+import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 
 export const router = express.Router();
 
@@ -169,7 +171,7 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
       const legacyCandidates = await collections.servers.find({ orgId: enrollment.orgId, archivedAt: { $exists: false } }).toArray();
       existing = legacyCandidates.find((server) => compactServerIdentity(server.slug || server.hostname) === compact) || null;
     }
-    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, updatedAt: now };
+    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentCapabilities: body.capabilities, updatedAt: now };
     let serverId;
     if (existing?._id) {
       serverId = existing._id;
@@ -213,6 +215,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
       updatedAt: now
     };
     await collections.telemetry.insertOne(telemetry);
+    if (discovery?.settings.length) await ingestConfigurationDiscovery(server, discovery.settings, req.requestId);
     await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, {
       $set: {
         status: "online",
@@ -259,6 +262,7 @@ router.get("/system/diagnostics", requirePermission("audit:view"), async (req, r
 router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
 router.use(aiSettingsRouter);
+router.use(configurationRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

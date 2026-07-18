@@ -8,4 +8,5 @@ export * from "./tasks.js";
 export * from "./enrollment.js";
 export * from "./onboarding.js";
 export * from "./aiAssistant.js";
+export * from "./configuration.js";
 export * from "./aiSettings.js";

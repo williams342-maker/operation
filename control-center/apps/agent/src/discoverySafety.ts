@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const DISCOVERY_LIMITS = { paths: 1024, name: 256, branch: 255, commit: 64, remote: 2048, repositories: 100, composeProjects: 100, applications: 250, warnings: 100, directories: 2000, payloadBytes: 768 * 1024 } as const;
+export const DISCOVERY_LIMITS = { paths: 1024, name: 256, branch: 255, commit: 64, remote: 2048, repositories: 100, composeProjects: 100, applications: 250, settings: 1000, warnings: 100, directories: 2000, payloadBytes: 768 * 1024 } as const;
 export type DiscoveryWarning = "mount_boundary_skipped" | "symlink_skipped" | "unreadable_path" | "path_disappeared" | "discovery_truncated";
 
 export function sanitizeGitRemote(value: string): string | null {
@@ -48,11 +48,11 @@ export function walkSameDevice(rootInput: string) {
   directories.push(root); visit(root, 0); return { directories, warnings: [...warningSet].slice(0, DISCOVERY_LIMITS.warnings) };
 }
 
-export function capDiscovery<T extends { repositories: unknown[]; composeProjects: unknown[]; applications: unknown[]; warnings: string[] }>(value: T): T & { discoveryTruncated: boolean; truncationCategories: string[] } {
+export function capDiscovery<T extends { repositories: unknown[]; composeProjects: unknown[]; applications: unknown[]; settings?: unknown[]; warnings: string[] }>(value: T): T & { discoveryTruncated: boolean; truncationCategories: string[] } {
   const categories: string[] = []; const cap = (key: keyof T, limit: number) => { const rows = value[key] as unknown[]; if (rows.length > limit) categories.push(String(key)); return rows.slice(0, limit); };
-  const result: any = { ...value, repositories: cap("repositories", DISCOVERY_LIMITS.repositories), composeProjects: cap("composeProjects", DISCOVERY_LIMITS.composeProjects), applications: cap("applications", DISCOVERY_LIMITS.applications), warnings: cap("warnings", DISCOVERY_LIMITS.warnings), discoveryTruncated: categories.length > 0, truncationCategories: categories };
-  while (Buffer.byteLength(JSON.stringify(result)) > DISCOVERY_LIMITS.payloadBytes && (result.warnings.length || result.applications.length || result.repositories.length || result.composeProjects.length)) {
-    const key = result.warnings.length ? "warnings" : result.applications.length ? "applications" : result.repositories.length ? "repositories" : "composeProjects"; result[key].pop(); if (!categories.includes(key)) categories.push(key); result.discoveryTruncated = true; result.truncationCategories = categories;
+  const result: any = { ...value, repositories: cap("repositories", DISCOVERY_LIMITS.repositories), composeProjects: cap("composeProjects", DISCOVERY_LIMITS.composeProjects), applications: cap("applications", DISCOVERY_LIMITS.applications), ...(value.settings ? { settings: cap("settings", DISCOVERY_LIMITS.settings) } : {}), warnings: cap("warnings", DISCOVERY_LIMITS.warnings), discoveryTruncated: categories.length > 0, truncationCategories: categories };
+  while (Buffer.byteLength(JSON.stringify(result)) > DISCOVERY_LIMITS.payloadBytes && (result.settings?.length || result.warnings.length || result.applications.length || result.repositories.length || result.composeProjects.length)) {
+    const key = result.settings?.length ? "settings" : result.warnings.length ? "warnings" : result.applications.length ? "applications" : result.repositories.length ? "repositories" : "composeProjects"; result[key].pop(); if (!categories.includes(key)) categories.push(key); result.discoveryTruncated = true; result.truncationCategories = categories;
   }
   return result;
 }

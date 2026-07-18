@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { discoveredSettingSchema } from "./configuration.js";
 
 export const objectIdSchema = z.string().min(12).max(64);
 
@@ -20,7 +21,7 @@ export const agentEnrollmentRequestSchema = z.object({
   memoryBytes: z.number().int().nonnegative().optional(),
   diskBytes: z.number().int().nonnegative().optional(),
   agentVersion: z.string().min(1).max(64),
-  capabilities: z.array(z.enum(["system", "docker", "compose", "git", "http", "mongo"])).default([])
+  capabilities: z.array(z.enum(["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "systemdActivation", "configurationValidation", "configurationRollback"])).default([])
 });
 
 export const agentEnrollmentResponseSchema = z.object({
@@ -97,10 +98,11 @@ export const applicationDiscoverySchema = z.object({
   composeProjects: z.array(z.object({ name: z.string().max(255), configPath: z.string().max(1024), services: z.array(z.string().max(255)).max(250) })).max(100),
   repositories: z.array(z.object({ path: z.string().max(1024), branch: z.string().max(255).optional(), commit: z.string().max(64).optional(), remote: z.string().max(2048).optional(), dirty: z.boolean().optional() })).max(100),
   applications: z.array(z.object({ path: z.string().max(1024), type: z.enum(["node", "python", "dotnet"]), name: z.string().max(256) })).max(250),
+  settings: z.array(discoveredSettingSchema).max(1000).default([]),
   nginxInstalled: z.boolean(),
   warnings: z.array(z.enum(["mount_boundary_skipped", "symlink_skipped", "unreadable_path", "path_disappeared", "discovery_truncated"])).max(100).default([]),
   discoveryTruncated: z.boolean().default(false),
-  truncationCategories: z.array(z.enum(["repositories", "composeProjects", "applications", "warnings"])).max(4).default([])
+  truncationCategories: z.array(z.enum(["repositories", "composeProjects", "applications", "settings", "warnings"])).max(5).default([])
 });
 
 export const agentPollRequestSchema = z.object({

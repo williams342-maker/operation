@@ -53,6 +53,10 @@ export type AuditAction =
   | "ai.settings.enable"
   | "ai.settings.disable"
   | "ai.settings.acknowledge"
-  | "ai.assistant.rate_limited";
+  | "ai.assistant.rate_limited"
+  | "configuration.definition.create"
+  | "configuration.version.create"
+  | "configuration.discovery.received"
+  | "configuration.drift.detected";
 
 export type AuditResult = "success" | "failure" | "denied";

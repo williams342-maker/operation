@@ -3,6 +3,9 @@ import type {
   AgentNonceDoc,
   AgentTaskDoc,
   AgentTaskResultDoc,
+  ConfigurationDefinitionDoc,
+  ConfigurationEnvironmentDoc,
+  ConfigurationVersionDoc,
   AiUsageDoc,
   AuditEventDoc,
   EnrollmentDoc,
@@ -36,7 +39,10 @@ export const collections = {
   auditEvents: db.collection<AuditEventDoc>("audit_events"),
   agentTasks: db.collection<AgentTaskDoc>("agent_tasks"),
   agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results"),
-  aiUsage: db.collection<AiUsageDoc>("ai_usage")
+  aiUsage: db.collection<AiUsageDoc>("ai_usage"),
+  configurationEnvironments: db.collection<ConfigurationEnvironmentDoc>("configuration_environments"),
+  configurationDefinitions: db.collection<ConfigurationDefinitionDoc>("configuration_definitions"),
+  configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions")
 };
 
 export async function connectDb() {
@@ -87,7 +93,11 @@ async function ensureIndexes() {
     collections.aiUsage.createIndex({ orgId: 1, createdAt: -1 }),
     collections.aiUsage.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
     collections.aiUsage.createIndex({ orgId: 1, concurrencySlot: 1 }, { unique: true, partialFilterExpression: { concurrencySlot: { $type: "number" } } }),
-    collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+    collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.configurationEnvironments.createIndex({ orgId: 1, projectId: 1, name: 1 }, { unique: true }),
+    collections.configurationDefinitions.createIndex({ orgId: 1, projectId: 1, applicationPath: 1, name: 1 }, { unique: true }),
+    collections.configurationVersions.createIndex({ orgId: 1, definitionId: 1, environmentId: 1, version: -1 }, { unique: true }),
+    collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 })
   ]);
 }
 

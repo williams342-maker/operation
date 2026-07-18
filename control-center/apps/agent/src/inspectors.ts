@@ -7,6 +7,7 @@ import { execFixed, type FixedExecutable } from "./safeExec.js";
 import { capDiscovery, DISCOVERY_LIMITS, sanitizeGitRemote, walkSameDevice } from "./discoverySafety.js";
 import type { AgentConfig } from "./config.js";
 import { parseComposePsLine, parseDockerPsLine } from "./parsers.js";
+import { discoverConfiguration } from "./configurationDiscovery.js";
 
 export async function collectSystem(agentVersion: string) {
   const cpus = os.cpus();
@@ -50,7 +51,9 @@ export async function collectApplicationDiscovery(config: AgentConfig) {
     if (marker || dotnet) applications.push({ path: directory.slice(0, DISCOVERY_LIMITS.paths), type: marker?.[1] || "dotnet" as const, name: path.basename(directory).slice(0, DISCOVERY_LIMITS.name) });
   }
   const installed = async (command: FixedExecutable, args: string[]) => Boolean(await execFixed(command, args).then((result) => result.code === 0).catch(() => false));
-  return capDiscovery({ collectedAt: new Date().toISOString(), dockerInstalled: await installed("docker", ["--version"]), composeProjects, repositories, applications, nginxInstalled: await installed("nginx", ["-v"]), warnings });
+  const configuration = discoverConfiguration(applications);
+  if (configuration.truncated) warnings.push("discovery_truncated");
+  return capDiscovery({ collectedAt: new Date().toISOString(), dockerInstalled: await installed("docker", ["--version"]), composeProjects, repositories, applications, settings: configuration.settings, nginxInstalled: await installed("nginx", ["-v"]), warnings });
 }
 
 async function collectDisks() {

@@ -47,6 +47,7 @@ import { DiscoveryStatusPanel } from "./DiscoveryStatusPanel";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { AiSettingsCard } from "./AiSettingsCard";
 import { SystemHealthCard } from "./SystemHealthCard";
+import { ConfigurationPage } from "./ConfigurationPage";
 import {
   Badge,
   Button,
@@ -67,6 +68,7 @@ type Page =
   | "users"
   | "servers"
   | "projects"
+  | "configuration"
   | "enrollments"
   | "health"
   | "mongo"
@@ -1616,6 +1618,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
     ["users", "Users", Users],
     ["servers", "Servers", Server],
     ["projects", "Projects", Boxes],
+    ["configuration", "Configuration", KeyRound],
     ["health", "Health", HeartPulse],
     ["mongo", "Mongo", Database],
     ["tasks", "Tasks", ListChecks],
@@ -1685,6 +1688,7 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
           {page === "projects" && <ProjectsPage toast={toast.show} />}
+          {page === "configuration" && <ConfigurationPage toast={toast.show} />}
           {page === "enrollments" && isAdmin && (
             <EnrollmentsPage toast={toast.show} />
           )}

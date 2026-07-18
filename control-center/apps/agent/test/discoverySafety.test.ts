@@ -29,3 +29,10 @@ test("real traversal skips symlinks and stays bounded", () => {
 test("discovery arrays and payload are capped", () => {
   const item = { path: "/srv/app", branch: "main" }; const result = capDiscovery({ repositories: Array.from({ length: 150 }, () => item), composeProjects: [], applications: [], warnings: [] }); assert.equal(result.repositories.length, 100); assert.equal(result.discoveryTruncated, true); assert.ok(result.truncationCategories.includes("repositories"));
 });
+
+test("configuration settings participate in discovery payload caps", () => {
+  const settings = Array.from({ length: 1200 }, (_, index) => ({ name: `SETTING_${index}` }));
+  const result = capDiscovery({ repositories: [], composeProjects: [], applications: [], settings, warnings: [] });
+  assert.equal(result.settings?.length, 1000);
+  assert.ok(result.truncationCategories.includes("settings"));
+});
