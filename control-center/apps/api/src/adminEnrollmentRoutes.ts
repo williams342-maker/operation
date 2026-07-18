@@ -14,25 +14,28 @@ function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Mi
 function id(value: unknown) { const raw = String(value || ""); if (!ObjectId.isValid(raw)) throw new Error("Invalid enrollment id"); return new ObjectId(raw); }
 
 const generateSchema = z.object({
+  serverId: z.string().refine(ObjectId.isValid, "Invalid server"),
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).optional(),
   expiresInMinutes: z.number().int().positive().max(43_200).nullable(),
-  maxUses: z.number().int().positive().max(10_000).nullable()
+  maxUses: z.literal(1)
 });
 
 adminEnrollmentRouter.post("/admin/enrollment/generate", async (req, res, next) => {
   try {
     const body = generateSchema.parse(req.body);
+    const assignedServer = await collections.servers.findOne({ _id: new ObjectId(body.serverId), orgId: orgId(req), archivedAt: { $exists: false }, agentId: /^manual-/ }, { projection: { _id: 1, name: 1 } });
+    if (!assignedServer?._id) return res.status(400).json({ error: "Select a server that has not already been enrolled" });
     const token = `owenr_${randomToken(36)}`;
     const now = new Date();
     const expiresAt = body.expiresInMinutes === null ? undefined : new Date(now.getTime() + body.expiresInMinutes * 60_000);
     const result = await collections.enrollments.insertOne({
-      orgId: orgId(req), tokenHash: hashSecret(token), name: body.name, description: body.description || undefined,
-      expiresAt, maxUses: body.maxUses ?? undefined, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now
+      orgId: orgId(req), serverId: assignedServer._id, tokenHash: hashSecret(token), name: body.name, description: body.description || undefined,
+      expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now
     });
     await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "enrollment.create", targetType: "enrollment", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { maxUses: body.maxUses ?? "unlimited", expiresInMinutes: body.expiresInMinutes ?? "never" } });
     res.setHeader("Cache-Control", "no-store");
-    res.status(201).json({ id: result.insertedId, token, name: body.name, expiresAt, maxUses: body.maxUses });
+    res.status(201).json({ id: result.insertedId, token, name: body.name, serverId: assignedServer._id, serverName: assignedServer.name, expiresAt, maxUses: 1 });
   } catch (error) { next(error); }
 });
 
@@ -40,10 +43,12 @@ adminEnrollmentRouter.get("/admin/enrollment", async (req, res, next) => {
   try {
     const docs = await collections.enrollments.find({ orgId: orgId(req) }, { projection: { tokenHash: 0, usage: 0 } }).sort({ createdAt: -1 }).toArray();
     const userIds = [...new Set(docs.map((doc) => String(doc.createdByUserId)))].filter(ObjectId.isValid).map((value) => new ObjectId(value));
-    const users = await collections.users.find({ _id: { $in: userIds }, orgId: orgId(req) }, { projection: { name: 1, email: 1 } }).toArray();
+    const serverIds = [...new Set(docs.map((doc) => String(doc.serverId)).filter(ObjectId.isValid))].map((value) => new ObjectId(value));
+    const [users, servers] = await Promise.all([collections.users.find({ _id: { $in: userIds }, orgId: orgId(req) }, { projection: { name: 1, email: 1 } }).toArray(), collections.servers.find({ _id: { $in: serverIds }, orgId: orgId(req) }, { projection: { name: 1, slug: 1 } }).toArray()]);
     const userMap = new Map(users.map((user) => [String(user._id), user.name || user.email]));
+    const serverMap = new Map(servers.map((server) => [String(server._id), server.slug || server.name]));
     const now = Date.now();
-    res.json({ enrollments: docs.map((doc) => ({ ...doc, createdBy: userMap.get(String(doc.createdByUserId)) || "Unknown", status: doc.revokedAt ? "revoked" : doc.expiresAt && doc.expiresAt.getTime() <= now ? "expired" : doc.maxUses !== undefined && doc.uses >= doc.maxUses ? "exhausted" : "active", usesRemaining: doc.maxUses === undefined ? null : Math.max(0, doc.maxUses - doc.uses) })) });
+    res.json({ enrollments: docs.map((doc) => ({ ...doc, serverName: serverMap.get(String(doc.serverId)) || "Unassigned", createdBy: userMap.get(String(doc.createdByUserId)) || "Unknown", status: doc.revokedAt ? "revoked" : doc.expiresAt && doc.expiresAt.getTime() <= now ? "expired" : doc.maxUses !== undefined && doc.uses >= doc.maxUses ? "exhausted" : "active", usesRemaining: doc.maxUses === undefined ? null : Math.max(0, doc.maxUses - doc.uses) })) });
   } catch (error) { next(error); }
 });
 
