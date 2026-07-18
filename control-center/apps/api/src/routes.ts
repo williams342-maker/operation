@@ -19,6 +19,7 @@ import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
 import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
 import { calculateAgentStatus } from "./serverStatus.js";
 import { aiAssistantRouter } from "./aiAssistantRoutes.js";
+import { invalidateOperationalContext } from "./aiContextBuilder.js";
 import { aiSettingsRouter } from "./aiSettingsRoutes.js";
 
 export const router = express.Router();
@@ -231,6 +232,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
         updatedAt: now
       }
     });
+    invalidateOperationalContext(server._id.toHexString());
     noStore(req, res, () => undefined);
     const claimed = await claimTasksForAgent(server);
     await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: task.type } })));

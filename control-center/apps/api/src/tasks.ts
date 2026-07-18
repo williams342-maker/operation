@@ -4,6 +4,7 @@ import { z } from "zod";
 import { payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ServerDoc } from "./models.js";
+import { invalidateOperationalContext } from "./aiContextBuilder.js";
 
 const maxResultBytes = 32_000;
 const taskRetentionMs = 14 * 24 * 60 * 60 * 1000;
@@ -66,6 +67,8 @@ export async function createTask(input: { orgId: ObjectId; server: ServerDoc & {
   };
   try {
     const result = await collections.agentTasks.insertOne(doc);
+    invalidateOperationalContext(input.server._id.toHexString());
+    if (input.projectId) invalidateOperationalContext(input.projectId.toHexString());
     return { ...doc, _id: result.insertedId };
   } catch (error) {
     const existing = await collections.agentTasks.findOne({ orgId: input.orgId, idempotencyKey: input.idempotencyKey });
@@ -130,6 +133,8 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   }
   set.state = nextState;
   await collections.agentTasks.updateOne({ _id: id, orgId: server.orgId }, { $set: set, $inc: { version: 1 } });
+  invalidateOperationalContext(server._id.toHexString());
+  if (task.projectId) invalidateOperationalContext(task.projectId.toHexString());
   return { status: 200, body: { ok: true } };
 }
 
