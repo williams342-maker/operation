@@ -137,9 +137,13 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
     }
     const agentSecret = randomToken(48);
     const agentId = randomToken(18);
+    const slugBase = body.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "server";
+    let slug = slugBase; let suffix = 2;
+    while (await collections.servers.findOne({ orgId: enrollment.orgId, slug }, { projection: { _id: 1 } })) slug = `${slugBase}-${suffix++}`;
     const serverResult = await collections.servers.insertOne({
       orgId: enrollment.orgId,
       name: body.hostname,
+      slug,
       hostname: body.hostname,
       agentId,
       agentSecretHash: hashAgentSecret(agentSecret),
