@@ -1,7 +1,7 @@
 ﻿import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
-import { payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { deploymentProgressSchema, payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ServerDoc } from "./models.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -13,6 +13,8 @@ const defaultExpiryMs = 10 * 60 * 1000;
 export const taskRegistry: Record<TaskType, { timeoutMs: number; outputCapBytes: number; permission: "tasks:run"; payload: typeof taskPayloadSchema }> = Object.fromEntries(
   taskTypes.map((type) => [type, { timeoutMs: type === "check.http" || type === "check.mongo" ? 30_000 : 20_000, outputCapBytes: maxResultBytes, permission: "tasks:run" as const, payload: taskPayloadSchema }])
 ) as Record<TaskType, { timeoutMs: number; outputCapBytes: number; permission: "tasks:run"; payload: typeof taskPayloadSchema }>;
+
+export function isConfigurationMutationTask(type: TaskType) { return type === "configuration.apply" || type === "configuration.rollback"; }
 
 export function taskSigningKeyVersion() {
   return process.env.CONTROL_CENTER_TASK_SIGNING_KEY_VERSION || "v1";
@@ -29,7 +31,13 @@ export function sanitizeResult(value: unknown): unknown {
     return safe;
   }
   if (typeof value === "string") {
-    return value.replace(/mongodb(?:\+srv)?:\/\/[^\s"']+/gi, "mongodb://[redacted]").replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]");
+    return value
+      .replace(/mongodb(?:\+srv)?:\/\/[^\s"']+/gi, "mongodb://[redacted]")
+      .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+      .replace(/(https?:\/\/)[^\s/@:]+:[^\s/@]+@/gi, "$1[redacted]@")
+      .replace(/([?&][A-Za-z0-9_.~-]+)=([^&#\s]*)/g, "$1=[redacted]")
+      .replace(/\b([A-Z][A-Z0-9_]{1,127})=([^\s]*)/g, "$1=[redacted]")
+      .replace(/\b(token|secret|password|credential|api[_-]?key)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
   }
   return value;
 }
@@ -39,6 +47,15 @@ export function ensureBounded(value: unknown) {
   const size = Buffer.byteLength(JSON.stringify(sanitized));
   if (size > maxResultBytes) throw new Error("Task result exceeds output cap");
   return sanitized;
+}
+
+export function safeTaskSummary(type: string, message: unknown, result: unknown) {
+  if (type === "configuration.apply" || type === "configuration.rollback") {
+    const category = result && typeof result === "object" && typeof (result as Record<string, unknown>).errorCategory === "string" ? (result as Record<string, unknown>).errorCategory : "unknown";
+    return `Configuration deployment failed (${String(category).replace(/[^a-z_]/g, "").slice(0, 32) || "unknown"})`;
+  }
+  const sanitized = sanitizeResult(typeof message === "string" ? message : "Task failed");
+  return [...String(sanitized)].map((character) => { const code = character.charCodeAt(0); return code < 32 || code === 127 ? " " : character; }).join("").replace(/\s+/g, " ").slice(0, 500);
 }
 
 export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
@@ -125,17 +142,19 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   if (body.event === "started") { nextState = "running"; set.startedAt = task.startedAt || now; }
   if (body.event === "progress") { set.progress = body.progress ?? task.progress ?? 0; }
   if (body.event === "succeeded" || body.event === "failed") {
+    if (task.type === "configuration.apply" || task.type === "configuration.rollback") deploymentProgressSchema.parse(body.result);
     nextState = body.event;
     set.completedAt = now;
     set.result = ensureBounded(body.result ?? {});
-    set.resultSummary = body.message;
+    set.resultSummary = safeTaskSummary(task.type, body.message, set.result);
     await collections.agentTaskResults.updateOne({ orgId: task.orgId, taskId: id }, { $setOnInsert: { orgId: task.orgId, taskId: id, serverId: task.serverId, projectId: task.projectId, agentId: task.agentId, state: nextState, result: set.result, completedAt: now, expiresAt: task.historyExpiresAt, createdAt: now, updatedAt: now } }, { upsert: true });
   }
   set.state = nextState;
   await collections.agentTasks.updateOne({ _id: id, orgId: server.orgId }, { $set: set, $inc: { version: 1 } });
   invalidateOperationalContext(server._id.toHexString());
   if (task.projectId) invalidateOperationalContext(task.projectId.toHexString());
-  return { status: 200, body: { ok: true } };
+  const deployment = task.type === "configuration.apply" || task.type === "configuration.rollback" ? deploymentProgressSchema.safeParse(set.result) : undefined;
+  return { status: 200, body: { ok: true }, auditMetadata: deployment?.success ? { phase: deployment.data.phase, deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none", rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none" } : undefined };
 }
 
 export const createTaskSchema = z.object({

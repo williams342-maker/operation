@@ -1,9 +1,10 @@
 ﻿import os from "node:os";
-import { agentPollRequestSchema, agentSigningKey, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
+import { executeConfigurationDeployment } from "./configurationDeployment.js";
 
 type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
 
@@ -78,10 +79,16 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
         mongo: await collectMongo(config, payload.mongoChecks).catch(() => [])
       };
       break;
+    case "configuration.apply":
+    case "configuration.rollback":
+      if (!payload.configurationDeployment) throw new Error("Missing typed configuration deployment payload");
+      result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion);
+      break;
     default:
       throw new Error("Unsupported task type");
   }
-  await acknowledge(config, envelope.taskId, "succeeded", result);
+  const deploymentResult = envelope.taskType === "configuration.apply" || envelope.taskType === "configuration.rollback" ? result as { phase?: string } : undefined;
+  await acknowledge(config, envelope.taskId, deploymentResult && deploymentResult.phase !== "succeeded" ? "failed" : "succeeded", result, deploymentResult ? `Configuration deployment ${deploymentResult.phase || "failed"}` : undefined);
 }
 
 async function pollOnce() {
@@ -98,7 +105,11 @@ async function pollOnce() {
       await executeTask(config, task);
     } catch (error) {
       const taskId = task?.envelope?.taskId;
-      if (taskId) await acknowledge(config, taskId, "failed", { errorCategory: "unknown" }, (error as Error).message).catch(() => undefined);
+      if (taskId) {
+        const configurationTask = task.envelope.taskType === "configuration.apply" || task.envelope.taskType === "configuration.rollback";
+        const result = configurationTask ? { phase: "failed", progress: 100, changedVariables: 0, services: [], healthChecksPassed: 0, errorCategory: "unknown" } : { errorCategory: "unknown" };
+        await acknowledge(config, taskId, "failed", result, configurationTask ? "Configuration deployment failed" : (error as Error).message).catch(() => undefined);
+      }
     }
   }
 }

@@ -25,8 +25,9 @@ jobs:
     env:
       CONTROL_CENTER_RUN_DB_TESTS: "true"
       CONTROL_CENTER_RUN_PRIVILEGED_FS_TESTS: "true"
+      CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      CI_EXPECTED_TESTS: "125"
+      CI_EXPECTED_TESTS: "155"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

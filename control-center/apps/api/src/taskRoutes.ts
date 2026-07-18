@@ -4,7 +4,7 @@ import { taskTypes, type TaskType } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections, oid } from "./db.js";
-import { createTask, createTaskSchema, taskRegistry } from "./tasks.js";
+import { createTask, createTaskSchema, isConfigurationMutationTask, taskRegistry } from "./tasks.js";
 
 export const taskRouter = express.Router();
 
@@ -15,7 +15,7 @@ function redactTask(task: Record<string, unknown>) { const copy = { ...task }; d
 const projection = { payload: 0 };
 
 taskRouter.get("/tasks/types", requirePermission("tasks:view"), (_req, res) => {
-  res.json({ types: taskTypes.map((type) => ({ type, timeoutMs: taskRegistry[type].timeoutMs, outputCapBytes: taskRegistry[type].outputCapBytes })) });
+  res.json({ types: taskTypes.filter((type) => type !== "configuration.apply" && type !== "configuration.rollback").map((type) => ({ type, timeoutMs: taskRegistry[type].timeoutMs, outputCapBytes: taskRegistry[type].outputCapBytes })) });
 });
 
 taskRouter.get("/tasks", requirePermission("tasks:view"), async (req, res, next) => {
@@ -52,6 +52,7 @@ taskRouter.get("/tasks/:id", requirePermission("tasks:view"), async (req, res, n
 taskRouter.post("/tasks", noStore, requirePermission("tasks:run"), async (req, res, next) => {
   try {
     const body = createTaskSchema.parse(req.body);
+    if (isConfigurationMutationTask(body.type)) return res.status(403).json({ error: "Configuration mutation tasks require the approved deployment workflow" });
     const org = orgId(req);
     const server = await collections.servers.findOne({ _id: oid(body.serverId), orgId: org, archivedAt: { $exists: false }, revokedAt: { $exists: false } });
     if (!server?._id) return res.status(404).json({ error: "Server not found" });

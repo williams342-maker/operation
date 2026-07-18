@@ -9,4 +9,5 @@ export * from "./enrollment.js";
 export * from "./onboarding.js";
 export * from "./aiAssistant.js";
 export * from "./configuration.js";
+export * from "./configurationDeployment.js";
 export * from "./aiSettings.js";

@@ -6,6 +6,8 @@ import type {
   ConfigurationDefinitionDoc,
   ConfigurationEnvironmentDoc,
   ConfigurationVersionDoc,
+  ConfigurationTargetProfileDoc,
+  ConfigurationDeploymentPlanDoc,
   AiUsageDoc,
   AuditEventDoc,
   EnrollmentDoc,
@@ -42,7 +44,9 @@ export const collections = {
   aiUsage: db.collection<AiUsageDoc>("ai_usage"),
   configurationEnvironments: db.collection<ConfigurationEnvironmentDoc>("configuration_environments"),
   configurationDefinitions: db.collection<ConfigurationDefinitionDoc>("configuration_definitions"),
-  configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions")
+  configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions"),
+  configurationTargetProfiles: db.collection<ConfigurationTargetProfileDoc>("configuration_target_profiles"),
+  configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans")
 };
 
 export async function connectDb() {
@@ -97,7 +101,10 @@ async function ensureIndexes() {
     collections.configurationEnvironments.createIndex({ orgId: 1, projectId: 1, name: 1 }, { unique: true }),
     collections.configurationDefinitions.createIndex({ orgId: 1, projectId: 1, applicationPath: 1, name: 1 }, { unique: true }),
     collections.configurationVersions.createIndex({ orgId: 1, definitionId: 1, environmentId: 1, version: -1 }, { unique: true }),
-    collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 })
+    collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 }),
+    collections.configurationTargetProfiles.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
+    collections.configurationDeploymentPlans.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
+    collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 })
   ]);
 }
 

@@ -57,6 +57,11 @@ export type AuditAction =
   | "configuration.definition.create"
   | "configuration.version.create"
   | "configuration.discovery.received"
-  | "configuration.drift.detected";
+  | "configuration.drift.detected"
+  | "configuration.deployment.plan"
+  | "configuration.deployment.approve"
+  | "configuration.deployment.start"
+  | "configuration.deployment.complete"
+  | "configuration.deployment.rollback";
 
 export type AuditResult = "success" | "failure" | "denied";

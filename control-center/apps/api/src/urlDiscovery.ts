@@ -1,6 +1,6 @@
 import dns from "node:dns/promises";
 import net from "node:net";
-import { deriveWebsiteTarget } from "@control-center/shared";
+import { deriveWebsiteTarget, isSafeHttpCheckUrl } from "@control-center/shared";
 
 export type WebsiteDiscovery = ReturnType<typeof deriveWebsiteTarget> & {
   addresses: string[];
@@ -33,11 +33,19 @@ export function isPublicAddress(address: string) {
   return false;
 }
 
-async function resolvePublic(hostname: string) {
+export async function resolvePublic(hostname: string) {
+  hostname = hostname.replace(/^\[|\]$/g, "");
   if (hostname === "localhost" || hostname.endsWith(".localhost")) throw new Error("Local addresses are not allowed");
   const literal = net.isIP(hostname) ? [{ address: hostname, family: net.isIPv4(hostname) ? 4 : 6 }] : await dns.lookup(hostname, { all: true, verbatim: true });
   if (!literal.length || literal.some((entry) => !isPublicAddress(entry.address))) throw new Error("URL resolves to a private or reserved address");
   return literal;
+}
+
+export async function validatePublicHealthCheckUrl(raw: string) {
+  if (!isSafeHttpCheckUrl(raw)) throw new Error("Health check URL is not an approved public HTTP target");
+  const url = new URL(raw);
+  await resolvePublic(url.hostname);
+  return url.toString();
 }
 
 async function fetchBounded(initialUrl: string) {
