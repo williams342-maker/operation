@@ -127,10 +127,11 @@ ln -s -- "$target" "$INSTALL_ROOT/current.bootstrap-pending"
 mv -Tf -- "$INSTALL_ROOT/current.bootstrap-pending" "$INSTALL_ROOT/current"
 systemctl daemon-reload
 systemctl enable "$AGENT_SERVICE" "$UPDATER_PATH" >/dev/null
+heartbeat="$STATE_ROOT/agent/heartbeat.json"
+rm -f -- "$heartbeat" "$heartbeat.pending"
 systemctl restart "$AGENT_SERVICE"
 systemctl start "$UPDATER_PATH"
 
-heartbeat="$STATE_ROOT/agent/heartbeat.json"
 validated=false
 for _ in $(seq 1 60); do
   if [ -s "$heartbeat" ] && node -e 'const fs=require("fs");const h=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const required=["environmentDiscovery","agentUpgrade","upgradeManifestHandoff"];if(h.agentVersion!==process.argv[2]||h.discoveryComplete!==true||required.some((c)=>!h.capabilities?.includes(c)))process.exit(1);' "$heartbeat" "$RELEASE_VERSION"; then validated=true; break; fi
