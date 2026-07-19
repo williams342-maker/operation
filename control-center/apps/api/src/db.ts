@@ -18,7 +18,10 @@ import type {
   ServerDoc,
   SessionDoc,
   TelemetryDoc,
-  UserDoc
+  UserDoc,
+  AgentReleaseDoc,
+  AgentUpgradePlanDoc,
+  AgentRolloutDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -46,7 +49,10 @@ export const collections = {
   configurationDefinitions: db.collection<ConfigurationDefinitionDoc>("configuration_definitions"),
   configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions"),
   configurationTargetProfiles: db.collection<ConfigurationTargetProfileDoc>("configuration_target_profiles"),
-  configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans")
+  configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans"),
+  agentReleases: db.collection<AgentReleaseDoc>("agent_releases"),
+  agentUpgradePlans: db.collection<AgentUpgradePlanDoc>("agent_upgrade_plans"),
+  agentRollouts: db.collection<AgentRolloutDoc>("agent_rollouts")
 };
 
 export async function connectDb() {
@@ -104,7 +110,12 @@ async function ensureIndexes() {
     collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 }),
     collections.configurationTargetProfiles.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
     collections.configurationDeploymentPlans.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
-    collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 })
+    collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 }),
+    collections.agentReleases.createIndex({ orgId: 1, id: 1 }, { unique: true }),
+    collections.agentReleases.createIndex({ orgId: 1, channel: 1, publicationStatus: 1, revoked: 1, version: -1 }),
+    collections.agentUpgradePlans.createIndex({ orgId: 1, serverId: 1, createdAt: -1 }),
+    collections.agentUpgradePlans.createIndex({ orgId: 1, planDigest: 1 }, { unique: true }),
+    collections.agentRollouts.createIndex({ orgId: 1, state: 1, createdAt: -1 })
   ]);
 }
 

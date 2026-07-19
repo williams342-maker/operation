@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for approved OpsWorkbench agent upgrade manifests
+
+[Path]
+PathExistsGlob=/var/lib/opsworkbench-agent/updater-inbox/*.json
+Unit=opsworkbench-agent-updater.service
+
+[Install]
+WantedBy=multi-user.target

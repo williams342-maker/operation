@@ -8,7 +8,12 @@ export const agentConfigSchema = z.object({
   requestedSlug: z.string().default(""),
   agentId: z.string(),
   agentSecret: z.string(),
+  serverId: z.string().default(""),
   agentVersion: z.string().default("0.1.0"),
+  protocolVersion: z.string().default("task-v1"),
+  packageType: z.enum(["tar", "deb", "rpm"]).default("tar"),
+  releaseChannel: z.enum(["stable", "candidate", "preview"]).default("stable"),
+  binarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   allowedRoots: z.array(z.string()).default([]),
   pollIntervalSeconds: z.number().int().min(10).max(3600).default(30),
   mongoChecks: z.record(z.string()).default({})

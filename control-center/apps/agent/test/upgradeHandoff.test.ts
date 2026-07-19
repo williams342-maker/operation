@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { agentUpgradePlanDigest } from "@control-center/shared";
+import { agentConfigSchema } from "../src/config.js";
+import { handoffUpgrade, readUpgradeManifest } from "../src/upgradeHandoff.js";
+
+function fixture() { const root = fs.mkdtempSync(path.join(os.tmpdir(), "opsworkbench-handoff-")); const config = agentConfigSchema.parse({ controlCenterUrl: "https://control.example.test", agentId: "agent-123456", agentSecret: "synthetic-secret", serverId: "server-123456", agentVersion: "1.0.0" }); const unsigned = { schemaVersion: "agent-upgrade-v1" as const, upgradeId: "upgrade-123456", serverId: config.serverId, expectedAgentId: config.agentId, expectedCurrentVersion: config.agentVersion, targetVersion: "1.1.0", releaseId: "release-110", artifactSha256: "a".repeat(64), artifactSignature: "s".repeat(80), signatureKeyId: "key-1", releaseManifestDigest: "b".repeat(64), operatingSystem: "linux", architecture: "x64", packageType: "tar" as const, requiredCapabilities: ["agentUpgrade"], expiresAt: new Date(Date.now() + 60_000).toISOString(), nonce: "nonce-1234567890123456" }; return { root, config, manifest: { ...unsigned, planDigest: agentUpgradePlanDigest(unsigned) }, inbox: path.join(root, "inbox"), state: path.join(root, "state") }; }
+
+test("typed upgrade is handed to the fixed updater inbox without credentials", () => { const item = fixture(); const result = handoffUpgrade(item.config, item.manifest, item.config.serverId, "task-123", item.inbox, item.state); assert.equal(result.phase, "queued"); const raw = fs.readFileSync(path.join(item.inbox, `${item.manifest.upgradeId}.json`), "utf8"); assert.doesNotMatch(raw, /synthetic-secret/); assert.equal(readUpgradeManifest(path.join(item.inbox, `${item.manifest.upgradeId}.json`)).planDigest, item.manifest.planDigest); });
+
+test("cross-server, stale-version, expired, replay, and modified plans fail closed", () => { for (const mutate of [(item: ReturnType<typeof fixture>) => ({ ...item.manifest, serverId: "server-654321" }), (item: ReturnType<typeof fixture>) => ({ ...item.manifest, expectedCurrentVersion: "0.9.0" }), (item: ReturnType<typeof fixture>) => ({ ...item.manifest, expiresAt: "2020-01-01T00:00:00.000Z" }), (item: ReturnType<typeof fixture>) => ({ ...item.manifest, targetVersion: "9.9.9" })]) { const item = fixture(); assert.throws(() => handoffUpgrade(item.config, mutate(item), item.config.serverId, "task-123", item.inbox, item.state)); } const replay = fixture(); handoffUpgrade(replay.config, replay.manifest, replay.config.serverId, "task-123", replay.inbox, replay.state); assert.throws(() => handoffUpgrade(replay.config, replay.manifest, replay.config.serverId, "task-123", replay.inbox, replay.state)); });

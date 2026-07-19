@@ -2,16 +2,18 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { sha256, timingSafeEqualHex } from "./signing.js";
 import { configurationDeploymentPayloadSchema } from "./configurationDeployment.js";
+import { agentUpgradeManifestSchema } from "./agentUpgrades.js";
 
 export const taskProtocolVersion = "task-v1";
 export const taskStates = ["queued", "claimed", "running", "succeeded", "failed", "expired", "cancelled"] as const;
-export const taskTypes = ["collect.system", "inspect.docker", "inspect.compose", "inspect.git", "check.http", "check.mongo", "collect.telemetry", "configuration.apply", "configuration.rollback"] as const;
+export const taskTypes = ["collect.system", "inspect.docker", "inspect.compose", "inspect.git", "check.http", "check.mongo", "collect.telemetry", "configuration.apply", "configuration.rollback", "agent.upgrade"] as const;
 
 export const taskPayloadSchema = z.object({
   projects: z.array(z.object({ projectId: z.string(), repoPath: z.string().optional(), composePath: z.string().optional() })).default([]),
   httpHealthChecks: z.array(z.object({ id: z.string(), url: z.string().url(), timeoutMs: z.number().int().min(100).max(30000) })).default([]),
   mongoChecks: z.array(z.object({ id: z.string(), databaseNameHint: z.string().optional() })).default([]),
-  configurationDeployment: configurationDeploymentPayloadSchema.optional()
+  configurationDeployment: configurationDeploymentPayloadSchema.optional(),
+  agentUpgrade: agentUpgradeManifestSchema.optional()
 }).strict().default({});
 
 export const taskEnvelopeSchema = z.object({

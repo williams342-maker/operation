@@ -18,6 +18,7 @@ export type Permission =
   | "configuration:edit-public"
   | "secrets:create"
   | "secrets:replace"
+  | "agent:update"
   | "configuration:validate"
   | "configuration:view-history"
   | "configuration:manage-integrations"
@@ -25,8 +26,8 @@ export type Permission =
   | "configuration:approve-non-production";
 
 const rolePermissions: Record<Role, Permission[]> = {
-  Owner: ["org:manage", "users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "ai:use", "ai:admin", "tasks:view", "tasks:run", "tasks:cancel", "configuration:view", "configuration:edit-public", "secrets:create", "secrets:replace", "configuration:validate", "configuration:view-history", "configuration:manage-integrations", "configuration:deploy-non-production", "configuration:approve-non-production"],
-  Administrator: ["users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "ai:use", "ai:admin", "tasks:view", "tasks:run", "tasks:cancel", "configuration:view", "configuration:edit-public", "secrets:create", "secrets:replace", "configuration:validate", "configuration:view-history", "configuration:manage-integrations", "configuration:deploy-non-production", "configuration:approve-non-production"],
+  Owner: ["org:manage", "users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "ai:use", "ai:admin", "tasks:view", "tasks:run", "tasks:cancel", "configuration:view", "configuration:edit-public", "secrets:create", "secrets:replace", "agent:update", "configuration:validate", "configuration:view-history", "configuration:manage-integrations", "configuration:deploy-non-production", "configuration:approve-non-production"],
+  Administrator: ["users:manage", "servers:enroll", "servers:manage", "projects:manage", "status:view", "audit:view", "audit:manage", "ai:use", "ai:admin", "tasks:view", "tasks:run", "tasks:cancel", "configuration:view", "configuration:edit-public", "secrets:create", "secrets:replace", "agent:update", "configuration:validate", "configuration:view-history", "configuration:manage-integrations", "configuration:deploy-non-production", "configuration:approve-non-production"],
   Developer: ["projects:manage", "status:view", "ai:use", "tasks:view", "tasks:run", "configuration:view", "configuration:edit-public", "configuration:validate", "configuration:view-history"],
   Viewer: ["status:view", "ai:use", "tasks:view", "configuration:view"]
 };

@@ -1,0 +1,19 @@
+[Unit]
+Description=OpsWorkbench Agent Independent Updater
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/opsworkbench-agent/updater-trust.json
+ConditionPathExists=/etc/opsworkbench-agent/release-catalog.json
+
+[Service]
+Type=oneshot
+User=root
+Group=opsworkbench-agent
+WorkingDirectory=/opt/opsworkbench-agent/current/control-center/apps/updater
+ExecStart=/usr/bin/node /opt/opsworkbench-agent/current/control-center/apps/updater/dist/main.js
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/opsworkbench-agent /etc/opsworkbench-agent /var/lib/opsworkbench-agent /var/backups/opsworkbench-agent
+UMask=0077

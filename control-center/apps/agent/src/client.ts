@@ -39,7 +39,7 @@ export async function enroll(controlCenterUrl: string, enrollmentToken: string, 
   const response = await fetch(`${controlCenterUrl}/api/agent/enroll`, {
     method: "POST",
     headers: { ...machineAccessHeaders(), "content-type": "application/json" },
-    body: JSON.stringify({ enrollmentToken, ...metadata, capabilities: ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback"] })
+    body: JSON.stringify({ enrollmentToken, ...metadata })
   });
   if (!response.ok) throw new Error(`Enrollment failed with ${response.status}`);
   return response.json() as Promise<{ agentId: string; agentSecret: string; serverId: string; pollIntervalSeconds: number }>;

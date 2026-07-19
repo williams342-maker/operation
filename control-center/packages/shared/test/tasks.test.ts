@@ -1,6 +1,6 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { payloadDigest, signTaskEnvelope, taskProtocolVersion, verifyTaskEnvelope, isTaskExpired } from "../src/tasks.js";
+import { payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, verifyTaskEnvelope, isTaskExpired } from "../src/tasks.js";
 
 function envelope(payload: unknown) {
   const unsigned = {
@@ -31,4 +31,12 @@ test("task envelope signature verifies bound task fields and payload digest", ()
 test("task expiry rejects stale envelopes", () => {
   assert.equal(isTaskExpired(new Date(Date.now() - 1_000).toISOString()), true);
   assert.equal(isTaskExpired(new Date(Date.now() + 60_000).toISOString()), false);
+});
+
+test("agent upgrade payload accepts only a typed immutable manifest", () => {
+  const unsigned = { schemaVersion: "agent-upgrade-v1" as const, upgradeId: "upgrade-123456", serverId: "server-123456", expectedAgentId: "agent-123456", expectedCurrentVersion: "1.0.0", targetVersion: "1.1.0", releaseId: "release-110", artifactSha256: "a".repeat(64), artifactSignature: "s".repeat(80), signatureKeyId: "key-1", releaseManifestDigest: "b".repeat(64), operatingSystem: "linux", architecture: "x64", packageType: "tar" as const, requiredCapabilities: ["agentUpgrade"], expiresAt: "2030-01-01T00:00:00.000Z", nonce: "nonce-1234567890123456" };
+  const payload = { projects: [], httpHealthChecks: [], mongoChecks: [], agentUpgrade: { ...unsigned, planDigest: "c".repeat(64) } };
+  assert.equal(taskPayloadSchema.safeParse(payload).success, true);
+  assert.equal(taskPayloadSchema.safeParse({ ...payload, command: "sh" }).success, false);
+  assert.equal(taskPayloadSchema.safeParse({ ...payload, agentUpgrade: { ...payload.agentUpgrade, artifactUrl: "https://unapproved.example.test/payload" } }).success, false);
 });

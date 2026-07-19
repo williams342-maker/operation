@@ -24,6 +24,7 @@ import { aiSettingsRouter } from "./aiSettingsRoutes.js";
 import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
+import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 
 export const router = express.Router();
 
@@ -212,7 +213,7 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
       const legacyCandidates = await collections.servers.find({ orgId: enrollment.orgId, archivedAt: { $exists: false } }).toArray();
       existing = legacyCandidates.find((server) => compactServerIdentity(server.slug || server.hostname) === compact) || null;
     }
-    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentCapabilities: body.capabilities, updatedAt: now };
+    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentProtocolVersion: body.protocolVersion, agentPackageType: body.packageType, agentReleaseChannel: body.releaseChannel, agentBinarySha256: body.binarySha256, agentCapabilities: body.capabilities, updatedAt: now };
     let serverId;
     if (existing?._id) {
       serverId = existing._id;
@@ -264,6 +265,11 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
         enrollmentStatus: "connected",
         lastHeartbeatAt: now,
         agentVersion: body.heartbeat.agentVersion,
+        agentProtocolVersion: body.heartbeat.protocolVersion,
+        agentPackageType: body.heartbeat.packageType,
+        agentReleaseChannel: body.heartbeat.releaseChannel,
+        agentBinarySha256: body.heartbeat.binarySha256,
+        ...(body.heartbeat.capabilities ? { agentCapabilities: body.heartbeat.capabilities } : {}),
         currentState: {
           metrics: body.metrics,
           docker: body.docker || [],
@@ -281,7 +287,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
     noStore(req, res, () => undefined);
     const claimed = await claimTasksForAgent(server);
     await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: task.type } })));
-    res.json({ tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
+    res.json({ serverId: server._id.toHexString(), tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
   } catch (error) { next(error); }
 });
 
@@ -304,6 +310,7 @@ router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
 router.use(aiSettingsRouter);
 router.use(configurationRouter);
+router.use(agentUpgradeRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

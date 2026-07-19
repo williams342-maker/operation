@@ -53,6 +53,7 @@ import { AiAssistantPanel } from "./AiAssistantPanel";
 import { AiSettingsCard } from "./AiSettingsCard";
 import { SystemHealthCard } from "./SystemHealthCard";
 import { ConfigurationPage } from "./ConfigurationPage";
+import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import {
   Badge,
   Button,
@@ -72,6 +73,7 @@ type Page =
   | "org"
   | "users"
   | "servers"
+  | "upgrades"
   | "projects"
   | "configuration"
   | "enrollments"
@@ -1715,6 +1717,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
+    ["upgrades", "Agent Upgrades", Download],
     ["projects", "Projects", Boxes],
     ["configuration", "Configuration", KeyRound],
     ["health", "Health", HeartPulse],
@@ -1788,6 +1791,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
+          {page === "upgrades" && <AgentUpgradesPage toast={toast.show} />}
           {page === "projects" && <ProjectsPage toast={toast.show} />}
           {page === "configuration" && <ConfigurationPage toast={toast.show} />}
           {page === "enrollments" && isAdmin && (

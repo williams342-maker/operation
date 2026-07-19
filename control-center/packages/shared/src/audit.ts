@@ -65,6 +65,14 @@ export type AuditAction =
   | "configuration.deployment.approve"
   | "configuration.deployment.start"
   | "configuration.deployment.complete"
-  | "configuration.deployment.rollback";
+  | "configuration.deployment.rollback"
+  | "agent.release.create"
+  | "agent.release.publish"
+  | "agent.release.revoke"
+  | "agent.upgrade.plan"
+  | "agent.upgrade.approve"
+  | "agent.upgrade.complete"
+  | "agent.upgrade.rollback"
+  | "agent.rollout.change";
 
 export type AuditResult = "success" | "failure" | "denied";

@@ -4,8 +4,10 @@ import { agentPollRequestSchema } from "@control-center/shared";
 import { agentConfigSchema } from "../src/config.js";
 
 test("existing agent configuration survives upgrade parsing", () => {
-  const before = { controlCenterUrl: "https://opsworkbench.org", installationId: "install-1", requestedSlug: "crafters-market", agentId: "agent-1", agentSecret: "secret-value", agentVersion: "0.1.0", allowedRoots: ["/root/Craftersmarket"], pollIntervalSeconds: 30, mongoChecks: {} };
-  assert.deepEqual(agentConfigSchema.parse(before), before);
+  const before = { controlCenterUrl: "https://opsworkbench.org", installationId: "install-1", requestedSlug: "synthetic-host", agentId: "agent-1", agentSecret: "synthetic-placeholder", agentVersion: "0.1.0", allowedRoots: ["/srv/example"], pollIntervalSeconds: 30, mongoChecks: {} };
+  const parsed = agentConfigSchema.parse(before);
+  assert.equal(parsed.agentId, before.agentId); assert.equal(parsed.agentSecret, before.agentSecret); assert.deepEqual(parsed.allowedRoots, before.allowedRoots);
+  assert.equal(parsed.serverId, ""); assert.equal(parsed.protocolVersion, "task-v1"); assert.equal(parsed.packageType, "tar"); assert.equal(parsed.releaseChannel, "stable");
 });
 
 test("old heartbeat remains compatible with the new API schema", () => {

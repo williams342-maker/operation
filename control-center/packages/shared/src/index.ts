@@ -11,3 +11,4 @@ export * from "./aiAssistant.js";
 export * from "./configuration.js";
 export * from "./configurationDeployment.js";
 export * from "./aiSettings.js";
+export * from "./agentUpgrades.js";
