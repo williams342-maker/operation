@@ -72,7 +72,10 @@ await page.getByRole("button", { name: "Generate", exact: true }).click();
 await page.getByRole("heading", { name: "Confirm your password" }).waitFor();
 await page.locator('input[type="password"]').last().fill(password);
 await page.getByRole("button", { name: "Confirm", exact: true }).click();
-await page.getByRole("heading", { name: "Enrollment token generated" }).waitFor();
+const enrollmentSuccess = page.getByRole("heading", { name: "Enrollment token generated" });
+await enrollmentSuccess.waitFor();
+await page.getByRole("button", { name: "Close permanently", exact: true }).click();
+await enrollmentSuccess.waitFor({ state: "hidden" });
 
 // Active-session logout.
 await page.getByRole("button", { name: /sign out/i }).click();
