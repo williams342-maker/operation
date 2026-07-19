@@ -51,6 +51,25 @@ export async function createSession(user: UserDoc & { _id: ObjectId }) {
   return { sessionId: result.insertedId, csrfToken };
 }
 
+export function clearSessionCookie(res: Response) {
+  res.clearCookie("cc_session", { path: "/" });
+}
+
+export async function allowExpiredLogout(req: Request, res: Response, next: NextFunction) {
+  const sessionRaw = parseCookies(req.headers.cookie).cc_session;
+  if (!sessionRaw || !ObjectId.isValid(sessionRaw)) {
+    clearSessionCookie(res);
+    return res.status(200).json({ ok: true });
+  }
+  const sessionId = new ObjectId(sessionRaw);
+  const session = await collections.sessions.findOne({ _id: sessionId });
+  if (!session || session.expiresAt <= new Date()) {
+    if (session) await collections.sessions.deleteOne({ _id: sessionId, orgId: session.orgId });
+    clearSessionCookie(res);
+    return res.status(200).json({ ok: true });
+  }
+  next();
+}
 export async function requireSession(req: Request, res: Response, next: NextFunction) {
   const cookies = parseCookies(req.headers.cookie);
   const sessionRaw = cookies.cc_session;
@@ -128,7 +147,7 @@ export async function requireRecentAuth(req: Request, res: Response, next: NextF
       requestId: req.requestId,
       metadata: { reason: "recent-auth-required" }
     });
-    return res.status(403).json({ error: "Recent reauthentication required" });
+    return res.status(403).json({ error: "Recent reauthentication required", code: "RECENT_AUTH_REQUIRED" });
   }
   next();
 }

@@ -2,7 +2,7 @@ import express from "express";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { audit } from "./audit.js";
-import { requirePermission } from "./auth.js";
+import { requirePermission, requireRecentAuth } from "./auth.js";
 import { collections } from "./db.js";
 import { hashSecret, randomToken } from "./crypto.js";
 
@@ -20,7 +20,7 @@ const generateSchema = z.object({
   maxUses: z.number().int().positive().max(10_000).nullable()
 });
 
-adminEnrollmentRouter.post("/admin/enrollment/generate", async (req, res, next) => {
+adminEnrollmentRouter.post("/admin/enrollment/generate", requireRecentAuth, async (req, res, next) => {
   try {
     const body = generateSchema.parse(req.body);
     const token = `owenr_${randomToken(36)}`;
@@ -49,7 +49,7 @@ adminEnrollmentRouter.get("/admin/enrollment", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-adminEnrollmentRouter.post("/admin/enrollment/revoke", async (req, res, next) => {
+adminEnrollmentRouter.post("/admin/enrollment/revoke", requireRecentAuth, async (req, res, next) => {
   try {
     const enrollmentId = id(req.body?.id); const now = new Date();
     const result = await collections.enrollments.updateOne({ _id: enrollmentId, orgId: orgId(req), revokedAt: { $exists: false } }, { $set: { revokedAt: now, updatedAt: now } });
@@ -59,7 +59,7 @@ adminEnrollmentRouter.post("/admin/enrollment/revoke", async (req, res, next) =>
   } catch (error) { next(error); }
 });
 
-adminEnrollmentRouter.delete("/admin/enrollment/:id", async (req, res, next) => {
+adminEnrollmentRouter.delete("/admin/enrollment/:id", requireRecentAuth, async (req, res, next) => {
   try {
     const enrollmentId = id(req.params.id);
     const result = await collections.enrollments.deleteOne({ _id: enrollmentId, orgId: orgId(req), $or: [{ revokedAt: { $exists: true } }, { expiresAt: { $lte: new Date() } }] });

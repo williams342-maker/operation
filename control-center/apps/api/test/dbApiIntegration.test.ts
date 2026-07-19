@@ -239,6 +239,48 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
+    const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const viewerSessionId = new ObjectId(viewerLogout.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerLogout.cookie });
+    assert.equal(logoutWithoutCsrf.status, 403);
+    assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 1);
+
+    const activeLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(viewerLogout));
+    assert.equal(activeLogout.status, 200);
+    assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 0);
+    assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
+
+    const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const expiredViewerSessionId = new ObjectId(expiredViewer.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    await collections.sessions.updateOne({ _id: expiredViewerSessionId }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
+    const expiredLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(expiredViewer));
+    assert.equal(expiredLogout.status, 200);
+    assert.equal(await collections.sessions.countDocuments({ _id: expiredViewerSessionId }), 0);
+    assert.match(expiredLogout.headers.get("set-cookie") || "", /cc_session=;/);
+
+    const ownerSessionId = new ObjectId(ownerA.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    await collections.sessions.updateOne(
+      { _id: ownerSessionId },
+      { $set: { authenticatedAt: new Date(Date.now() - 11 * 60_000) } }
+    );
+    const recentAuthRequired = await request<{ error: string; code: string }>("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(ownerA));
+    assert.equal(recentAuthRequired.status, 403);
+    assert.equal(recentAuthRequired.body.code, "RECENT_AUTH_REQUIRED");
+    const adminRecentAuthRequired = await request<{ error: string; code: string }>("POST", "/admin/enrollment/generate", { name: "Stale enrollment", expiresInMinutes: 60, maxUses: 1 }, jsonHeaders(ownerA));
+    assert.equal(adminRecentAuthRequired.status, 403);
+    assert.equal(adminRecentAuthRequired.body.code, "RECENT_AUTH_REQUIRED");
+
+    const failedReauthentication = await request<{ error: string; code: string }>("POST", "/auth/reauthenticate", { password: "incorrect-password" }, jsonHeaders(ownerA));
+    assert.equal(failedReauthentication.status, 403);
+    assert.equal(failedReauthentication.body.code, "REAUTHENTICATION_FAILED");
+
+    const successfulReauthentication = await request<{ ok: boolean }>("POST", "/auth/reauthenticate", { password: "owner-a-password" }, jsonHeaders(ownerA));
+    assert.equal(successfulReauthentication.status, 200);
+    assert.equal(successfulReauthentication.body.ok, true);
+    const refreshedSession = await collections.sessions.findOne({ _id: ownerSessionId });
+    assert.ok(refreshedSession?.authenticatedAt);
+    assert.ok(Date.now() - refreshedSession.authenticatedAt.getTime() < 10_000);
+
     const generated = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "CI enrollment", expiresInMinutes: 60, maxUses: 2, description: "integration" }, jsonHeaders(ownerA));
     assert.equal(generated.status, 201);
     assert.match(generated.body.token, /^owenr_/);

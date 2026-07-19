@@ -9,7 +9,7 @@ import {
   retentionCutoff
 } from "@control-center/shared";
 import { audit } from "./audit.js";
-import { createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
+import { allowExpiredLogout, clearSessionCookie, createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
 import { requireSignedAgent } from "./agentAuth.js";
 import { collections, oid, scopedFilter } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword } from "./crypto.js";
@@ -106,16 +106,41 @@ router.post("/auth/login", noStore, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.use("/auth/logout", requireSession, requireCsrf);
+router.use("/auth/logout", noStore, allowExpiredLogout, requireSession, requireCsrf);
 router.post("/auth/logout", async (req, res, next) => {
   try {
     if (req.sessionId && req.orgId) await collections.sessions.deleteOne({ _id: req.sessionId, orgId: req.orgId });
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user?._id, action: "auth.logout", result: "success", requestId: req.requestId });
-    res.clearCookie("cc_session");
+    clearSessionCookie(res);
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
 
+router.use("/auth/reauthenticate", requireSession, requireCsrf);
+router.post("/auth/reauthenticate", noStore, async (req, res, next) => {
+  try {
+    const body = z.object({ password: z.string().min(1) }).parse(req.body);
+    if (!req.user || !req.sessionId || !req.orgId || !verifyPassword(body.password, req.user.passwordHash)) {
+      await audit({
+        orgId: req.orgId,
+        actorType: req.user ? "user" : "anonymous",
+        actorId: req.user?._id,
+        action: "auth.denied",
+        result: "denied",
+        requestId: req.requestId,
+        metadata: { reason: "reauthentication-failed" }
+      });
+      return res.status(403).json({ error: "Password confirmation failed", code: "REAUTHENTICATION_FAILED" });
+    }
+    const now = new Date();
+    await collections.sessions.updateOne(
+      { _id: req.sessionId, orgId: req.orgId, userId: req.user._id },
+      { $set: { authenticatedAt: now, lastSeenAt: now, updatedAt: now } }
+    );
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "auth.login", result: "success", requestId: req.requestId, metadata: { reauthentication: true } });
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
 router.use("/me", requireSession);
 router.get("/me", (req, res) => {
   res.json({ user: { id: req.user!._id, email: req.user!.email, name: req.user!.name, role: req.user!.role }, orgId: req.orgId });

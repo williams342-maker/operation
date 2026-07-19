@@ -39,8 +39,11 @@ import {
   apiError,
   bootstrapOwner,
   bootstrapStatus,
+  isRecentAuthRequired,
   login,
   logout,
+  reauthenticate,
+  SESSION_EXPIRED_EVENT,
 } from "./api";
 import { discoveryUiState } from "./discoveryState";
 import { DiscoveryStatusPanel } from "./DiscoveryStatusPanel";
@@ -941,6 +944,8 @@ function EnrollmentGenerate({
     maxUses: "1",
     description: "",
   });
+  const [confirmingPassword, setConfirmingPassword] = useState(false);
+  const [password, setPassword] = useState("");
   const mutation = useMutation({
     mutationFn: () =>
       api
@@ -955,7 +960,18 @@ function EnrollmentGenerate({
             f.values.maxUses === "unlimited" ? null : Number(f.values.maxUses),
         })
         .then((response) => response.data),
-    onSuccess: onGenerated,
+    onSuccess: (value) => {
+      setConfirmingPassword(false);
+      setPassword("");
+      onGenerated(value);
+    },
+    onError: (error) => {
+      if (isRecentAuthRequired(error)) setConfirmingPassword(true);
+    },
+  });
+  const confirmPassword = useMutation({
+    mutationFn: () => reauthenticate(password),
+    onSuccess: () => mutation.mutate(),
   });
   return (
     <div
@@ -1011,7 +1027,45 @@ function EnrollmentGenerate({
               {...f.field("description")}
             />
           </label>
-          <ErrorText error={mutation.error} />
+          {confirmingPassword ? (
+            <div className="rounded-md border border-border bg-background p-4">
+              <h3 className="font-semibold">Confirm your password</h3>
+              <p className="mt-1 text-sm text-muted">
+                Recent authentication is required before creating an enrollment token.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Field
+                  autoFocus
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && password) confirmPassword.mutate();
+                  }}
+                />
+                <Button
+                  disabled={!password || confirmPassword.isPending}
+                  onClick={() => confirmPassword.mutate()}
+                >
+                  Confirm
+                </Button>
+                <GhostButton
+                  onClick={() => {
+                    setConfirmingPassword(false);
+                    setPassword("");
+                    mutation.reset();
+                    confirmPassword.reset();
+                  }}
+                >
+                  Cancel
+                </GhostButton>
+              </div>
+              <ErrorText error={confirmPassword.error} />
+            </div>
+          ) : (
+            <ErrorText error={mutation.error} />
+          )}
           <div className="flex justify-end gap-2">
             <GhostButton onClick={onClose}>Cancel</GhostButton>
             <Button
@@ -1604,7 +1658,7 @@ function Header({
     </Toolbar>
   );
 }
-function AppShell({ onLogout }: { onLogout: () => void }) {
+function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
   const toast = useToast();
   const [page, setPage] = useState<Page>("overview");
   const me = useQuery({
@@ -1660,12 +1714,15 @@ function AppShell({ onLogout }: { onLogout: () => void }) {
           </>
         )}
         <button
+          type="button"
+          disabled={logoutPending}
           onClick={onLogout}
           className="mt-4 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background"
         >
           <LogOut className="h-4 w-4" />
-          Sign out
+          {logoutPending ? "Signing out..." : "Sign out"}
         </button>
+        {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
       <main className="p-5">
         <div className="mb-5 flex items-center justify-between">
@@ -1723,11 +1780,19 @@ class ErrorBoundary extends React.Component<
     );
   }
 }
-function Root() {
+export function Root() {
   const [authed, setAuthed] = useState(
     Boolean(localStorage.getItem("cc.csrf")),
   );
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
+  React.useEffect(() => {
+    const expireSession = () => {
+      queryClient.clear();
+      setAuthed(false);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expireSession);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expireSession);
+  }, []);
   const status = useQuery({
     queryKey: ["bootstrap-status", bootstrapComplete],
     queryFn: bootstrapStatus,
@@ -1735,7 +1800,10 @@ function Root() {
   });
   const logoutMutation = useMutation({
     mutationFn: logout,
-    onSettled: () => setAuthed(false),
+    onSuccess: () => {
+      queryClient.clear();
+      setAuthed(false);
+    },
   });
   if (status.isLoading)
     return (
@@ -1746,7 +1814,7 @@ function Root() {
   if (!authed && !bootstrapComplete && status.data?.available)
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
   return authed ? (
-    <AppShell onLogout={() => logoutMutation.mutate()} />
+    <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
   ) : (
     <Login onLogin={() => setAuthed(true)} />
   );
@@ -2575,10 +2643,13 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
 // The legacy component remains temporarily for rollback compatibility.
 // @ts-expect-error Function declarations are writable at runtime.
 ServersPage = UrlServersPage;
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <Root />
-    </QueryClientProvider>
-  </React.StrictMode>,
-);
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <Root />
+      </QueryClientProvider>
+    </React.StrictMode>,
+  );
+}
