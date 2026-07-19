@@ -9,27 +9,38 @@ const installer = fileURLToPath(new URL("../../web/public/install.sh", import.me
 
 test("installer provisions and verifies the systemd agent", () => {
   const source = fs.readFileSync(installer, "utf8");
-  assert.match(source, /CONTROL_CENTER_URL=.*opsworkbench\.org/);
-  assert.match(source, /CONTROL_CENTER_ENROLLMENT_TOKEN is required/);
+  assert.match(source, /CONTROL_CENTER_URL=.*control-center-url/);
+  assert.match(source, /OPSWORKBENCH_INSTALL_INPUT_DIR/);
+  assert.match(source, /machine-auth\.env/);
+  assert.match(source, /CF_ACCESS_CLIENT_ID/);
+  assert.match(source, /CF_ACCESS_CLIENT_SECRET/);
   assert.match(source, /installation_id=/);
   assert.match(source, /CONTROL_CENTER_SERVER_SLUG/);
   assert.match(source, /useradd --system/);
   assert.match(source, /opsworkbench-agent\.service/);
   assert.match(source, /systemctl enable --now/);
+  assert.match(source, /Restart=always/);
+  assert.match(source, /\[ ! -s "\$CONFIG_DIR\/agent\.json" \]/, "reinstallation must preserve permanent agent credentials");
   assert.match(source, /agent enrolled successfully/);
-  assert.match(source, /CONTROL_CENTER_AGENT_CONFIG=.*agent\.json/);
-  assert.match(source, /printf 'CONTROL_CENTER_AGENT_CONFIG=/, "installer must remove the plaintext enrollment token after successful use");
+  assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .*agent\.json/);
+  assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .* >"\$CONFIG_DIR\/enrollment\.env"/, "installer must remove the plaintext enrollment token after successful use");
+  const webConfig = fs.readFileSync(fileURLToPath(new URL("../../../deploy/nginx/web.conf", import.meta.url)), "utf8");
+  assert.match(webConfig, /location = \/install\.sh/);
+  assert.match(webConfig, /default_type text\/x-shellscript/);
 });
 
 test("enrollment download and copy-command formats are stable", () => {
   const token = "owenr_test-token";
   assert.equal(enrollmentEnv(token), `CONTROL_CENTER_URL=https://opsworkbench.org\nCONTROL_CENTER_ENROLLMENT_TOKEN=${token}\n`);
   const command = enrollmentInstallCommand(token, "https://opsworkbench.org", "opsworkbench");
-  assert.match(command, /^curl -fsSL https:\/\/opsworkbench\.org\/install\.sh/);
-  assert.match(command, /CONTROL_CENTER_ENROLLMENT_TOKEN="owenr_test-token"/);
-  assert.match(command, /CONTROL_CENTER_SERVER_SLUG="opsworkbench"/);
-  assert.match(command, /sudo env/);
-  assert.match(command, /bash$/);
+  assert.doesNotMatch(command, /owenr_test-token/, "generated commands must not embed enrollment tokens");
+  assert.match(command, /read -rsp 'Enrollment token:/);
+  assert.match(command, /curl --config curl\.conf/);
+  assert.match(command, /bash -n installer\.sh/);
+  assert.match(command, /inspect before continuing/);
+  assert.match(command, /OPSWORKBENCH_INSTALL_INPUT_DIR=/);
+  assert.doesNotMatch(command, /sudo env|curl .*\|.*bash/);
+  assert.doesNotMatch(command, /\\ +\n/, "continuation backslashes may not have trailing whitespace");
 });
 
 test("installer has valid shell syntax when bash is available", { skip: process.platform === "win32" }, () => {

@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
+import { enrollmentInstallCommand } from "@control-center/shared";
 import {
   api,
   apiError,
@@ -842,13 +843,7 @@ type GeneratedEnrollment = {
   maxUses?: number | null;
 };
 const installCommand = (token: string, slug?: string) =>
-  [
-    `curl -fsSL https://opsworkbench.org/install.sh | sudo env \\`,
-    `  CONTROL_CENTER_URL="https://opsworkbench.org" \\`,
-    `  CONTROL_CENTER_ENROLLMENT_TOKEN="${token}" \\`,
-    ...(slug ? [`  CONTROL_CENTER_SERVER_SLUG="${slug}" \\`] : []),
-    "  bash",
-  ].join("\n");
+  enrollmentInstallCommand(token, "https://opsworkbench.org", slug);
 function deriveWebsiteInput(input: string) {
   const raw = input.trim();
   const url = new URL(

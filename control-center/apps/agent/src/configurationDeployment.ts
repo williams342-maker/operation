@@ -48,8 +48,26 @@ export function parseEnvironment(source: string) {
   return values;
 }
 
-function render(values: Map<string, string>) { return `${[...values].sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("\n")}\n`; }
 export function configurationDigest(source: string) { return crypto.createHash("sha256").update(source).digest("hex"); }
+
+export function applyEnvironmentMutations(source: string, mutations: ConfigurationDeploymentPayload["mutations"], resolved: Record<string, string>) {
+  const current = parseEnvironment(source); const changed = new Set<string>();
+  for (const mutation of mutations) {
+    if (!("valueRef" in mutation)) current.delete(mutation.name);
+    else { const value = resolved[mutation.valueRef]; if (value === undefined) throw new Error("Missing encrypted value reference"); current.set(mutation.name, value); }
+    changed.add(mutation.name);
+  }
+  const output: string[] = [];
+  for (const raw of source.split(/\n/)) {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const match = /^([A-Z_][A-Z0-9_]*)=/.exec(line);
+    if (!match || !changed.has(match[1])) { if (line || output.length) output.push(line); continue; }
+    if (current.has(match[1])) { output.push(`${match[1]}=${current.get(match[1])}`); current.delete(match[1]); }
+  }
+  for (const mutation of mutations) if (current.has(mutation.name)) { output.push(`${mutation.name}=${current.get(mutation.name)}`); current.delete(mutation.name); }
+  while (output.length && output[output.length - 1] === "") output.pop();
+  return `${output.join("\n")}\n`;
+}
 
 export function decryptValues(payload: ConfigurationDeploymentPayload, signingKey: string) {
   const bundle = payload.encryptedValues; const key = crypto.createHash("sha256").update(`configuration-deployment:${signingKey}`).digest();
@@ -102,11 +120,13 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const resolver = hooks.resolve || (async (hostname: string) => (await dns.lookup(hostname, { all: true, verbatim: true })).map((entry) => entry.address));
   for (const check of payload.healthChecks) await validateHealthUrl(check.url, resolver);
   const file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath); assertSafePath(payload.repositoryRoot, payload.composePath);
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw new Error("Environment file must be a regular file with one hard link");
+  if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) throw new Error("Environment file permissions are too broad");
   const original = fs.readFileSync(file, "utf8"); if (configurationDigest(original) !== payload.expectedConfigurationDigest) throw new Error("Expected configuration version mismatch");
-  const stat = fs.statSync(file); const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (process.platform !== "win32") fs.chownSync(backup, stat.uid, stat.gid);
-  const secrets = decryptValues(payload, signingKey); const values = parseEnvironment(original);
-  for (const mutation of payload.mutations) { const value = secrets[mutation.valueRef]; if (value === undefined) throw new Error("Missing encrypted value reference"); values.set(mutation.name, value); }
-  writeAtomic(file, render(values), stat.mode, stat.uid, stat.gid);
+  const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (process.platform !== "win32") fs.chownSync(backup, stat.uid, stat.gid);
+  const secrets = decryptValues(payload, signingKey); const proposed = applyEnvironmentMutations(original, payload.mutations, secrets);
+  writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid);
   const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 120_000));
   const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", ...payload.statelessServices];
   const activation = await compose(args, payload.repositoryRoot);
@@ -123,7 +143,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
     for (const check of payload.healthChecks) { if (!await runHealth(check.url, check.timeoutMs)) return { phase: "rollback_failed", progress: 100, changedVariables: payload.mutations.length, services: payload.statelessServices, healthChecksPassed: rollbackHealthPassed, errorCategory: "rollback", deploymentErrorCategory, rollbackErrorCategory: "health", backupId: path.basename(backup), configurationDigest: configurationDigest(original) }; rollbackHealthPassed += 1; }
     return { phase: "rolled_back", progress: 100, changedVariables: payload.mutations.length, services: payload.statelessServices, healthChecksPassed: rollbackHealthPassed, errorCategory: deploymentErrorCategory, deploymentErrorCategory, backupId: path.basename(backup), configurationDigest: configurationDigest(original) };
   }
-  return { phase: "succeeded", progress: 100, changedVariables: payload.mutations.length, services: payload.statelessServices, healthChecksPassed: payload.healthChecks.length, backupId: path.basename(backup), configurationDigest: configurationDigest(render(values)) };
+  return { phase: "succeeded", progress: 100, changedVariables: payload.mutations.length, services: payload.statelessServices, healthChecksPassed: payload.healthChecks.length, backupId: path.basename(backup), configurationDigest: configurationDigest(proposed) };
 }
 
 export function resetReplayStateForTests() { if (process.env.NODE_ENV !== "test") throw new Error("Test-only operation"); usedNonces.clear(); }
