@@ -39,6 +39,7 @@ import {
   apiError,
   bootstrapOwner,
   bootstrapStatus,
+  changePassword,
   isRecentAuthRequired,
   login,
   logout,
@@ -361,6 +362,10 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
 function UsersPage({ toast }: { toast: (m: string) => void }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.get("/me").then((r) => r.data),
+  });
   const q = useQuery({
     queryKey: ["users", search],
     queryFn: () =>
@@ -380,6 +385,8 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     },
   });
   return (
+    <div className="space-y-4">
+    <PasswordChangeCard toast={toast} />
     <Card>
       <Header title="Users" search={search} setSearch={setSearch} />
       <div className="mb-4 grid gap-2 md:grid-cols-4">
@@ -407,14 +414,40 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
               {u.disabledAt ? "inactive" : "active"}
             </Badge>,
             fmt(u.createdAt),
-            <UserActions key={u._id} user={u} onDone={refresh} />,
+            <UserActions key={u._id} user={u} currentUser={me.data?.user} onDone={refresh} toast={toast} />,
           ])}
         />
       )}
     </Card>
+    </div>
   );
 }
-function UserActions({ user, onDone }: { user: any; onDone: () => void }) {
+function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
+  const f = useForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const mutation = useMutation({
+    mutationFn: () => changePassword(f.values.currentPassword, f.values.newPassword),
+    onSuccess: () => {
+      f.setValues({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      toast("Password changed. Other sessions were revoked.");
+    },
+  });
+  const valid = f.values.currentPassword.length > 0 && f.values.newPassword.length >= 12 && f.values.newPassword === f.values.confirmPassword;
+  return (
+    <Card>
+      <h2 className="font-semibold">Change your password</h2>
+      <p className="mt-1 text-sm text-muted">Use at least 12 characters. Changing your password revokes your other sessions.</p>
+      <div className="mt-3 grid gap-2 md:grid-cols-4">
+        <PasswordField placeholder="Current password" autoComplete="current-password" {...f.field("currentPassword")} />
+        <PasswordField placeholder="New password" autoComplete="new-password" {...f.field("newPassword")} />
+        <PasswordField placeholder="Confirm new password" autoComplete="new-password" {...f.field("confirmPassword")} />
+        <Button disabled={!valid || mutation.isPending} onClick={() => mutation.mutate()}>Change password</Button>
+      </div>
+      {f.values.confirmPassword && f.values.newPassword !== f.values.confirmPassword && <p className="mt-2 text-sm text-danger">New passwords do not match.</p>}
+      <ErrorText error={mutation.error} />
+    </Card>
+  );
+}
+function UserActions({ user, currentUser, onDone, toast }: { user: any; currentUser?: any; onDone: () => void; toast: (m: string) => void }) {
   const toggle = useMutation({
     mutationFn: () =>
       api.post(
@@ -426,12 +459,28 @@ function UserActions({ user, onDone }: { user: any; onDone: () => void }) {
     mutationFn: () => api.post(`/org/users/${user._id}/revoke-sessions`),
     onSuccess: onDone,
   });
+  const resetPassword = useMutation({
+    mutationFn: () => api.post(`/org/users/${user._id}/reset-password`),
+    onSuccess: (response) => {
+      toast(`One-time password: ${response.data.oneTimePassword}`);
+      onDone();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/org/users/${user._id}`),
+    onSuccess: onDone,
+  });
+  const canReset = currentUser?.role === "Owner" || user.role !== "Owner";
+  const canDelete = currentUser?.role === "Owner" && currentUser?.id !== user._id;
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <GhostButton onClick={() => confirm("Continue?") && toggle.mutate()}>
         {user.disabledAt ? "Activate" : "Deactivate"}
       </GhostButton>
       <GhostButton onClick={() => revoke.mutate()}>Revoke sessions</GhostButton>
+      {canReset && <GhostButton onClick={() => confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`) && resetPassword.mutate()}>Reset password</GhostButton>}
+      {canDelete && <GhostButton onClick={() => confirm(`Permanently delete ${user.email}? This cannot be undone.`) && remove.mutate()}><Trash2 className="h-4 w-4" />Delete</GhostButton>}
+      <ErrorText error={toggle.error || revoke.error || resetPassword.error || remove.error} />
     </div>
   );
 }

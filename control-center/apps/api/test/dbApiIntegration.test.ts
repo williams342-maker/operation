@@ -583,6 +583,39 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const staleServer = await collections.servers.findOne({ _id: new ObjectId(credentials.serverId), orgId: orgA._id });
     assert.equal(staleServer?.status, "offline");
 
+    const reauthForUserManagement = await request("POST", "/auth/reauthenticate", { password: "owner-a-password" }, jsonHeaders(ownerA));
+    assert.equal(reauthForUserManagement.status, 200);
+    const disposable = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", { email: "disposable@example.test", name: "Disposable User", role: "Viewer" }, jsonHeaders(ownerA));
+    assert.equal(disposable.status, 201);
+    await login("phase-1b-a", "disposable@example.test", disposable.body.oneTimePassword);
+    const resetDisposable = await request<{ oneTimePassword: string }>("POST", `/org/users/${disposable.body.id}/reset-password`, {}, jsonHeaders(ownerA));
+    assert.equal(resetDisposable.status, 200);
+    assert.ok(resetDisposable.headers.get("cache-control")?.includes("no-store"));
+    assert.ok(resetDisposable.body.oneTimePassword);
+    assert.equal(await collections.sessions.countDocuments({ userId: new ObjectId(disposable.body.id) }), 0);
+    const oldPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: disposable.body.oneTimePassword }, { "content-type": "application/json" });
+    assert.equal(oldPasswordRejected.status, 401);
+    const resetLogin = await login("phase-1b-a", "disposable@example.test", resetDisposable.body.oneTimePassword);
+    const badPasswordChange = await request("POST", "/auth/change-password", { currentPassword: "wrong-current-password", newPassword: "replacement-password-long" }, jsonHeaders(resetLogin));
+    assert.equal(badPasswordChange.status, 403);
+    const changedPassword = await request("POST", "/auth/change-password", { currentPassword: resetDisposable.body.oneTimePassword, newPassword: "replacement-password-long" }, jsonHeaders(resetLogin));
+    assert.equal(changedPassword.status, 200);
+    const changedUser = await collections.users.findOne({ _id: new ObjectId(disposable.body.id) });
+    assert.equal(changedUser?.mustChangePassword, undefined);
+    assert.equal(changedUser?.inviteIssuedAt, undefined);
+    const resetPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: resetDisposable.body.oneTimePassword }, { "content-type": "application/json" });
+    assert.equal(resetPasswordRejected.status, 401);
+    await login("phase-1b-a", "disposable@example.test", "replacement-password-long");
+    const selfDeleteDenied = await request("DELETE", `/org/users/${ownerUserA._id}`, undefined, jsonHeaders(ownerA));
+    assert.equal(selfDeleteDenied.status, 403);
+    const deleteDisposable = await request("DELETE", `/org/users/${disposable.body.id}`, undefined, jsonHeaders(ownerA));
+    assert.equal(deleteDisposable.status, 200);
+    assert.equal(await collections.users.countDocuments({ _id: new ObjectId(disposable.body.id) }), 0);
+    assert.equal(await collections.sessions.countDocuments({ userId: new ObjectId(disposable.body.id) }), 0);
+    const sensitiveAuditSnapshot = JSON.stringify(await collections.auditEvents.find({ action: { $in: ["user.password.change", "user.password.reset", "user.delete"] } }).toArray());
+    assert.equal(sensitiveAuditSnapshot.includes("replacement-password-long"), false);
+    assert.equal(sensitiveAuditSnapshot.includes(resetDisposable.body.oneTimePassword), false);
+
     const auditFailure = await collections.auditEvents.findOne({ action: "authorization.failure", result: "denied" });
     assert.ok(auditFailure?.requestId);
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
@@ -593,4 +626,3 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
-

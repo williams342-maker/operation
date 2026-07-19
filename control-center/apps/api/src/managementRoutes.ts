@@ -83,6 +83,35 @@ managementRouter.post("/org/users/:id/deactivate", requirePermission("users:mana
 });
 managementRouter.post("/org/users/:id/activate", requirePermission("users:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); await collections.users.updateOne({ _id: id, orgId: orgId(req) }, { $unset: { disabledAt: "" }, $set: { updatedAt: new Date() } }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.activate", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ ok: true }); } catch (error) { next(error); } });
 managementRouter.post("/org/users/:id/revoke-sessions", requirePermission("users:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const deleted = await collections.sessions.deleteMany({ orgId: orgId(req), userId: id }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.sessions.revoke", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ revoked: deleted.deletedCount }); } catch (error) { next(error); } });
+
+managementRouter.post("/org/users/:id/reset-password", noStore, requirePermission("users:manage"), requireRecentAuth, async (req, res, next) => {
+  try {
+    const id = oid(String(req.params.id)); const org = orgId(req);
+    const target = await collections.users.findOne({ _id: id, orgId: org });
+    if (!target) return res.status(404).json({ error: "User not found" });
+    if (target.role === "Owner" && !requireOwner(req, res)) return;
+    const oneTimePassword = randomToken(24); const now = new Date();
+    await collections.users.updateOne({ _id: id, orgId: org }, { $set: { passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, updatedAt: now } });
+    await collections.sessions.deleteMany({ orgId: org, userId: id });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.password.reset", targetType: "user", targetId: id, result: "success", requestId: req.requestId });
+    res.json({ oneTimePassword });
+  } catch (error) { next(error); }
+});
+
+managementRouter.delete("/org/users/:id", requirePermission("users:manage"), requireRecentAuth, async (req, res, next) => {
+  try {
+    if (!requireOwner(req, res)) return;
+    const id = oid(String(req.params.id)); const org = orgId(req);
+    if (String(id) === String(actorId(req))) return deny(res, "Users cannot delete their own account");
+    const target = await collections.users.findOne({ _id: id, orgId: org });
+    if (!target) return res.status(404).json({ error: "User not found" });
+    if (target.role === "Owner" && await activeOwners(org) <= 1) return res.status(409).json({ error: "Cannot delete the final active Owner" });
+    await collections.users.deleteOne({ _id: id, orgId: org });
+    await collections.sessions.deleteMany({ orgId: org, userId: id });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.delete", targetType: "user", targetId: id, result: "success", requestId: req.requestId, metadata: { role: target.role } });
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
 managementRouter.post("/servers", requirePermission("servers:manage"), async (req, res, next) => {
   try { const body = z.object({ name: z.string().min(1), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), hostname: z.string().min(1), allowlistedRoots: z.array(z.string()).default([]), metadata: z.record(z.string()).default({}) }).parse(req.body); const org = orgId(req); const slugBase = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || body.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "server"; let slug = slugBase; let suffix = 2; while (await collections.servers.findOne({ orgId: org, slug }, { projection: { _id: 1 } })) { if (body.slug) return res.status(409).json({ error: "Server slug is already in use" }); slug = `${slugBase}-${suffix++}`; } const now = new Date(); const result = await collections.servers.insertOne({ orgId: org, name: body.name, slug, hostname: body.hostname, agentId: `manual-${randomToken(12)}`, agentSecretHash: hashAgentSecret(randomToken(48)), credentialVersion: 1, status: "offline", allowlistedRoots: body.allowlistedRoots, metadata: body.metadata, createdAt: now, updatedAt: now }); await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.create", targetType: "server", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { slug } }); res.status(201).json({ id: result.insertedId, slug }); } catch (error) { next(error); }
 });

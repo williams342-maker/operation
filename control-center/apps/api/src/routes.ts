@@ -141,6 +141,22 @@ router.post("/auth/reauthenticate", noStore, async (req, res, next) => {
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
+
+router.use("/auth/change-password", noStore, requireSession, requireCsrf);
+router.post("/auth/change-password", async (req, res, next) => {
+  try {
+    const body = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(12).max(256) }).parse(req.body);
+    if (!req.user || !req.sessionId || !req.orgId || !verifyPassword(body.currentPassword, req.user.passwordHash)) {
+      await audit({ orgId: req.orgId, actorType: req.user ? "user" : "anonymous", actorId: req.user?._id, action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "password-change-failed" } });
+      return res.status(403).json({ error: "Current password is incorrect", code: "PASSWORD_CHANGE_FAILED" });
+    }
+    const now = new Date();
+    await collections.users.updateOne({ _id: req.user._id, orgId: req.orgId }, { $set: { passwordHash: hashPassword(body.newPassword), updatedAt: now }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } });
+    await collections.sessions.deleteMany({ orgId: req.orgId, userId: req.user._id, _id: { $ne: req.sessionId } });
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "user.password.change", targetType: "user", targetId: req.user._id, result: "success", requestId: req.requestId });
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
 router.use("/me", requireSession);
 router.get("/me", (req, res) => {
   res.json({ user: { id: req.user!._id, email: req.user!.email, name: req.user!.name, role: req.user!.role }, orgId: req.orgId });
