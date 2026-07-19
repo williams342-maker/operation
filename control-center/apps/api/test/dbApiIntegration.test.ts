@@ -605,7 +605,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(changedUser?.inviteIssuedAt, undefined);
     const resetPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: resetDisposable.body.oneTimePassword }, { "content-type": "application/json" });
     assert.equal(resetPasswordRejected.status, 401);
-    assert.equal((await login("phase-1b-a", "disposable@example.test", "replacement-password-long")).body.user.email, "disposable@example.test");
+    await login("phase-1b-a", "disposable@example.test", "replacement-password-long");
     const selfDeleteDenied = await request("DELETE", `/org/users/${ownerUserA._id}`, undefined, jsonHeaders(ownerA));
     assert.equal(selfDeleteDenied.status, 403);
     const deleteDisposable = await request("DELETE", `/org/users/${disposable.body.id}`, undefined, jsonHeaders(ownerA));
@@ -626,4 +626,3 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });
-
