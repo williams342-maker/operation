@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { MongoClient, ObjectId } from "mongodb";
+import { createBrowserErrorTracker } from "./e2e-browser-errors.mjs";
 
 const baseUrl = (process.env.E2E_BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
 const apiUrl = (process.env.E2E_API_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
@@ -25,9 +26,14 @@ assert.equal(bootstrap.status, 201, "bootstrap succeeds");
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
 const page = await context.newPage();
-const errors = [];
-page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-page.on("pageerror", (error) => errors.push(error.message));
+const browserErrors = createBrowserErrorTracker([
+  { phase: "recent-auth enrollment", method: "POST", path: "/api/admin/enrollment/generate", status: 403, count: 1 },
+  { phase: "expired session", method: "GET", path: "/api/me", status: 401, count: 1 },
+  { phase: "expired session", method: "GET", path: "/api/overview", status: 401, count: 1 },
+]);
+page.on("console", (message) => browserErrors.console({ type: message.type(), text: message.text() }));
+page.on("pageerror", (error) => browserErrors.console({ type: "error", text: error.message }));
+page.on("response", (response) => browserErrors.response({ method: response.request().method(), url: response.url(), status: response.status() }));
 
 async function login() {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -68,8 +74,10 @@ await db.collection("sessions").updateOne({ _id: await currentSessionId() }, { $
 await page.getByRole("button", { name: "Enrollment" }).click();
 await page.getByRole("button", { name: "Generate Enrollment Token" }).click();
 await page.getByPlaceholder("Production web server").fill("E2E staging agent");
+browserErrors.setPhase("recent-auth enrollment");
 await page.getByRole("button", { name: "Generate", exact: true }).click();
 await page.getByRole("heading", { name: "Confirm your password" }).waitFor();
+browserErrors.setPhase("normal");
 await page.locator('input[type="password"]').last().fill(password);
 await page.getByRole("button", { name: "Confirm", exact: true }).click();
 const enrollmentSuccess = page.getByRole("heading", { name: "Enrollment token generated" });
@@ -84,8 +92,10 @@ await page.getByRole("button", { name: "Sign in" }).waitFor();
 // Expired-session handling must return the browser to the login screen.
 await login();
 await db.collection("sessions").updateOne({ _id: await currentSessionId() }, { $set: { expiresAt: new Date(0) } });
+browserErrors.setPhase("expired session");
 await page.reload({ waitUntil: "networkidle" });
 await page.getByRole("button", { name: "Sign in" }).waitFor();
+browserErrors.setPhase("normal");
 
 // Authenticated configuration workflow using real API, MongoDB, and browser UI.
 await login();
@@ -121,7 +131,7 @@ await page.getByText("Independent approval", { exact: false }).waitFor();
 await page.getByText("Backup and apply", { exact: false }).waitFor();
 await page.getByText("Success or rollback", { exact: false }).waitFor();
 assert.equal(await page.getByRole("button", { name: "Create immutable plan" }).isEnabled(), true, "non-production deployment workflow is available");
-assert.equal(errors.length, 0, `browser console errors: ${errors.join("; ")}`);
+assert.deepEqual(browserErrors.result(), { unmet: [], unexpectedResponses: [], unexpectedConsoleErrors: [] }, "browser responses and console errors match narrow expectations");
 
 await context.close();
 await browser.close();
