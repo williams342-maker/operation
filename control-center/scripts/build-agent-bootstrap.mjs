@@ -39,9 +39,10 @@ try {
   const agentOut = path.join(packageRoot, "control-center", "apps", "agent", "dist", "agent.js");
   const updaterOut = path.join(packageRoot, "control-center", "apps", "updater", "dist", "main.js");
   fs.mkdirSync(path.dirname(agentOut), { recursive: true }); fs.mkdirSync(path.dirname(updaterOut), { recursive: true });
-  const agentMeta = await build({ entryPoints: [path.join(root, "apps", "agent", "src", "agent.ts")], outfile: agentOut, bundle: true, platform: "node", format: "esm", target: "node22", legalComments: "none", metafile: true, logLevel: "silent" });
+  const agentMeta = await build({ entryPoints: [path.join(root, "apps", "agent", "src", "agent.ts")], outfile: agentOut, bundle: true, platform: "node", format: "cjs", target: "node22", legalComments: "none", metafile: true, logLevel: "silent" });
   const updaterMeta = await build({ entryPoints: [path.join(root, "apps", "updater", "src", "main.ts")], outfile: updaterOut, bundle: true, platform: "node", format: "esm", target: "node22", legalComments: "none", metafile: true, logLevel: "silent" });
   fs.writeFileSync(path.join(packageRoot, "control-center", "package.json"), '{"private":true,"type":"module"}\n');
+  fs.writeFileSync(path.join(packageRoot, "control-center", "apps", "agent", "package.json"), '{"private":true,"type":"commonjs"}\n');
   const unitDirectory = path.join(packageRoot, "control-center", "deploy", "systemd"); fs.mkdirSync(unitDirectory, { recursive: true });
   for (const unit of ["opsworkbench-agent.service", "opsworkbench-agent-updater.service", "opsworkbench-agent-updater.path"]) fs.copyFileSync(path.join(root, "deploy", "systemd", unit), path.join(unitDirectory, unit));
   const packageScripts = path.join(packageRoot, "control-center", "scripts"); fs.mkdirSync(packageScripts, { recursive: true }); fs.copyFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), path.join(packageScripts, "rollback-agent-bootstrap.sh"));
