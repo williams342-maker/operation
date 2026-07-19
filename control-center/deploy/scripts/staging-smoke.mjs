@@ -16,7 +16,7 @@ async function browserPass(label, viewport) {
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); }); page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.getByPlaceholder("Organization slug").fill(organizationSlug); await page.getByPlaceholder("Email").fill(email); await page.getByPlaceholder("Password").fill(password); await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: "Dashboard" }).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Overview" }).waitFor({ state: "visible" });
   const api = async (path) => page.evaluate(async (url) => { const response = await fetch(url, { credentials: "include" }); return { status: response.status, body: await response.json() }; }, `${baseUrl}${path}`);
   const dashboard = await api("/api/dashboard"); check(`${label} authentication`, dashboard.status === 200); check(`${label} audit logging`, dashboard.body.recentAudit?.some((event) => event.action === "auth.login"));
   const servers = await api("/api/servers"); check(`${label} agent connectivity payload`, servers.status === 200 && Array.isArray(servers.body.servers)); check(`${label} discovery payload`, servers.body.servers.every((server) => !server.currentState?.discovery || typeof server.currentState.discovery === "object"));
