@@ -59,6 +59,8 @@ jobs:
           cache: npm
           cache-dependency-path: control-center/package-lock.json
       - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --audit-level=high
       - name: Test with disposable MongoDB
         run: npm test
       - name: Verify Linux test summary has no skips
@@ -72,6 +74,42 @@ jobs:
           node scripts/summarize-tap.mjs agent.tap api.tap shared.tap web.tap
       - name: Linux agent upgrade and rollback dry run
         run: bash scripts/linux-agent-upgrade-dry-run.sh
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Authenticated browser end-to-end tests
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5173
+          E2E_API_URL: http://127.0.0.1:3000
+          MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_e2e_ci
+        run: |
+          set -euo pipefail
+          session_secret="$(openssl rand -hex 32)"
+          csrf_secret="$(openssl rand -hex 32)"
+          encryption_key="$(openssl rand -base64 32)"
+          NODE_ENV=development PORT=3000 \
+            MONGO_URL="$MONGO_URL_TEST" CONTROL_CENTER_DB=control_center_e2e_ci \
+            CONTROL_CENTER_WEB_ORIGIN="$E2E_BASE_URL" CONTROL_CENTER_BOOTSTRAP_MODE=manual \
+            CONTROL_CENTER_SESSION_SECRET="$session_secret" CONTROL_CENTER_CSRF_SECRET="$csrf_secret" \
+            CONTROL_CENTER_ENCRYPTION_KEY="$encryption_key" AI_ASSISTANT_ENABLED=false \
+            npm run dev --workspace @control-center/api >"$RUNNER_TEMP/control-center-api.log" 2>&1 &
+          api_pid=$!
+          npm run dev --workspace @control-center/web >"$RUNNER_TEMP/control-center-web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$api_pid" "$web_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in {1..60}; do
+            curl --fail --silent http://127.0.0.1:3000/healthz >/dev/null && \
+              curl --fail --silent http://127.0.0.1:5173/ >/dev/null && break
+            if [ "$attempt" -eq 60 ]; then
+              sed -E 's/([A-Z0-9_]*(TOKEN|SECRET|PASSWORD|KEY)[A-Z0-9_]*=)[^ ]+/\\1[REDACTED]/g' "$RUNNER_TEMP/control-center-api.log" >&2
+              sed -E 's/([A-Z0-9_]*(TOKEN|SECRET|PASSWORD|KEY)[A-Z0-9_]*=)[^ ]+/\\1[REDACTED]/g' "$RUNNER_TEMP/control-center-web.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          npm run test:e2e:authenticated
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present

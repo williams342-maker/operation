@@ -152,3 +152,4 @@ frontend/node_modules/.cache/default-development/37.pack
 backend/uvicorn*.log
 frontend/*.log
 test_reports/ui-smoke/
+release-output/
