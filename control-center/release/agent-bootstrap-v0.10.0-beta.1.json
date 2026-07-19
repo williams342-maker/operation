@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "opsworkbench-agent-bootstrap-proposal-v1",
+  "releaseId": "agent-0.10.0-beta.1-linux-x64",
+  "version": "0.10.0-beta.1",
+  "protocolVersion": "task-v1",
+  "supportedOperatingSystems": ["linux"],
+  "supportedDistributions": ["debian", "ubuntu"],
+  "supportedArchitectures": ["x64"],
+  "packageType": "tar",
+  "minimumSourceVersion": "0.1.0",
+  "maximumSourceVersion": "0.1.0",
+  "requiredCapabilities": [
+    "environmentDiscovery",
+    "agentUpgrade",
+    "upgradeManifestHandoff"
+  ],
+  "channel": "candidate",
+  "upgradeFrom": ["0.1.0"],
+  "rollbackTo": ["0.1.0"],
+  "publicationStatus": "draft",
+  "revoked": false,
+  "nonProductionOnly": true,
+  "signingKeyId": "OWNER_SIGNING_KEY_REQUIRED"
+}

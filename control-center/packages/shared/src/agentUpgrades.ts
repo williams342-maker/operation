@@ -7,7 +7,7 @@ export const upgradeStates = ["up_to_date", "upgrade_available", "upgrade_requir
 export const releaseChannels = ["stable", "candidate", "preview"] as const;
 export const packageTypes = ["tar", "deb", "rpm"] as const;
 export const rolloutStrategies = ["canary", "sequential", "fixed_batch", "percentage_batch"] as const;
-const semver = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
+const semver = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/);
 
 export const agentReleaseSchema = z.object({
   id: safeId,
@@ -47,8 +47,41 @@ export type AgentInventory = z.infer<typeof agentInventorySchema>;
 export type AgentUpgradeManifest = z.infer<typeof agentUpgradeManifestSchema>;
 export type UpgradeState = typeof upgradeStates[number];
 
-function tuple(value?: string) { const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value || ""); return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : undefined; }
-export function compareAgentVersions(left?: string, right?: string) { const a = tuple(left); const b = tuple(right); if (!a || !b) return undefined; for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1; return 0; }
+function tuple(value?: string) { const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(value || ""); return match ? { core: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4]?.split(".") } : undefined; }
+export function compareAgentVersions(left?: string, right?: string) { const a = tuple(left); const b = tuple(right); if (!a || !b) return undefined; for (let i = 0; i < 3; i += 1) if (a.core[i] !== b.core[i]) return a.core[i] < b.core[i] ? -1 : 1; if (!a.prerelease && !b.prerelease) return 0; if (!a.prerelease) return 1; if (!b.prerelease) return -1; const length = Math.max(a.prerelease.length, b.prerelease.length); for (let i = 0; i < length; i += 1) { if (a.prerelease[i] === undefined) return -1; if (b.prerelease[i] === undefined) return 1; if (a.prerelease[i] === b.prerelease[i]) continue; const leftNumeric = /^\d+$/.test(a.prerelease[i]); const rightNumeric = /^\d+$/.test(b.prerelease[i]); if (leftNumeric && rightNumeric) return Number(a.prerelease[i]) < Number(b.prerelease[i]) ? -1 : 1; if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1; return a.prerelease[i] < b.prerelease[i] ? -1 : 1; } return 0; }
+
+const releaseArtifactSchema = z.object({
+  role: z.enum(["agent_package", "artifact_signature", "bootstrap_installer", "public_key", "rollback_script", "release_catalog", "sbom", "systemd_unit"]),
+  filename: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/),
+  sizeBytes: z.number().int().positive().max(2 * 1024 * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/)
+}).strict();
+
+export const bootstrapReleaseManifestSchema = z.object({
+  schemaVersion: z.literal("opsworkbench-agent-bootstrap-v1"),
+  releaseId: safeId,
+  version: semver,
+  protocolVersion: safeId,
+  buildTimestamp: z.string().datetime(),
+  sourceCommit: z.string().regex(/^[a-f0-9]{40}$/),
+  supportedOperatingSystems: z.array(z.literal("linux")).length(1),
+  supportedDistributions: z.array(z.enum(["debian", "ubuntu"])).min(1),
+  supportedArchitectures: z.array(z.enum(["x64"])).length(1),
+  packageType: z.literal("tar"),
+  minimumSourceVersion: semver,
+  maximumSourceVersion: semver.optional(),
+  artifacts: z.array(releaseArtifactSchema).min(5).max(20),
+  requiredCapabilities: z.array(safeId).min(1).max(100),
+  channel: z.literal("candidate"),
+  upgradeFrom: z.array(semver).min(1).max(100),
+  rollbackTo: z.array(semver).min(1).max(100),
+  publicationStatus: z.enum(["draft", "published"]),
+  revoked: z.literal(false),
+  expiresAt: z.string().datetime().optional(),
+  signingKeyId: safeId,
+  nonProductionOnly: z.literal(true)
+}).strict().superRefine((value, context) => { const roles = new Set(value.artifacts.map((artifact) => artifact.role)); for (const required of ["agent_package", "bootstrap_installer", "rollback_script", "release_catalog", "sbom"] as const) if (!roles.has(required)) context.addIssue({ code: z.ZodIssueCode.custom, message: `Missing required artifact role: ${required}` }); if (new Set(value.artifacts.map((artifact) => artifact.filename)).size !== value.artifacts.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "Duplicate artifact filename" }); if (value.maximumSourceVersion && compareAgentVersions(value.minimumSourceVersion, value.maximumSourceVersion)! > 0) context.addIssue({ code: z.ZodIssueCode.custom, message: "Minimum source version exceeds maximum source version" }); });
+export type BootstrapReleaseManifest = z.infer<typeof bootstrapReleaseManifestSchema>;
 
 export function agentReleaseManifestDigest(release: Pick<AgentRelease, "id" | "version" | "protocolVersion" | "minimumSourceVersion" | "supportedOperatingSystems" | "supportedArchitectures" | "packageType" | "channel" | "artifactUrl" | "artifactSha256" | "artifactSizeBytes" | "artifactSignature" | "signatureKeyId" | "requiredCapabilities" | "upgradeFrom" | "rollbackTo" | "classification">) {
   const canonical = { id: release.id, version: release.version, protocolVersion: release.protocolVersion, minimumSourceVersion: release.minimumSourceVersion, supportedOperatingSystems: [...release.supportedOperatingSystems].sort(), supportedArchitectures: [...release.supportedArchitectures].sort(), packageType: release.packageType, channel: release.channel, artifactUrl: release.artifactUrl, artifactSha256: release.artifactSha256, artifactSizeBytes: release.artifactSizeBytes, artifactSignature: release.artifactSignature, signatureKeyId: release.signatureKeyId, requiredCapabilities: [...release.requiredCapabilities].sort(), upgradeFrom: [...release.upgradeFrom].sort(), rollbackTo: [...release.rollbackTo].sort(), classification: release.classification };

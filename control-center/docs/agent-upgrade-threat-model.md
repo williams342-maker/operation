@@ -23,7 +23,7 @@ Agent credentials, enrollment and machine-access credentials, release signing ke
 ## Residual risks and owner gates
 
 - The API stores signature metadata but does not possess signing private keys. Owner release publication must independently verify provenance and provision only public trust material.
-- Current legacy agents cannot use the handoff. A reviewed, signed one-time bootstrap is required.
-- The updater templates and catalog/trust files are not installed by the legacy installer in this change because no approved signed release exists.
+- Current legacy agents cannot use the handoff. The proposed `0.10.0-beta.1` one-time bootstrap remains non-production and draft pending the signing and Linux staging gates.
+- A bootstrap trusts only an out-of-band public key, verifies the signed manifest before artifact metadata, rejects unsafe archives and special files, preserves the enrolled identity, and uses file-based machine credentials when Cloudflare Access is required.
 - Linux systemd, archive, reboot/reconnect, and rollback validation must run in a disposable staging host before any release publication.
 - Production policy, signing ceremony, artifact hosting, retention, monitoring, and Cloudflare machine-access policy require separate owner approval.

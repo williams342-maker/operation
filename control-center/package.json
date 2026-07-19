@@ -10,15 +10,19 @@
   "scripts": {
     "pretest": "npm run build --workspace @control-center/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present && node --test deploy/scripts/e2e-browser-errors.test.mjs",
+    "test": "npm run test --workspaces --if-present && node --test deploy/scripts/*.test.mjs",
     "lint": "eslint .",
     "smoke:staging": "node deploy/scripts/staging-smoke.mjs",
     "test:e2e:authenticated": "node deploy/scripts/authenticated-e2e.mjs",
     "release:build": "bash scripts/build-release-artifacts.sh",
-    "release:verify": "bash scripts/verify-release-artifacts.sh"
+    "release:verify": "bash scripts/verify-release-artifacts.sh",
+    "agent-bootstrap:build": "node scripts/build-agent-bootstrap.mjs",
+    "agent-bootstrap:sign": "node scripts/sign-agent-bootstrap.mjs",
+    "agent-bootstrap:verify": "node scripts/verify-agent-bootstrap.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "esbuild": "^0.28.1",
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
     "playwright": "^1.55.1",
