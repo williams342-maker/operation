@@ -22,8 +22,9 @@ test("bootstrap build is reproducible, signed, schema-bound, and secret-free", {
 });
 
 test("bootstrap and rollback scripts avoid direct execution and preserve fixed policy", () => {
-  const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8");
+  const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8"); const builder = fs.readFileSync(path.join(root, "scripts", "build-agent-bootstrap.mjs"), "utf8");
   assert.doesNotMatch(bootstrap, /curl[^\n]*\|[^\n]*(?:bash|sh)/); assert.match(bootstrap, /manifest signature verification failed/); assert.match(bootstrap, /artifact signature verification failed/); assert.match(bootstrap, /agentId\|\|!c\.agentSecret/); assert.match(bootstrap, /bootstrap validation failed and rollback was requested/); assert.match(bootstrap, /current_version.*0\.1\.0/); assert.match(rollback, /backup marker escaped the backup root/); assert.match(bootstrap, /chmod 0600 "\$curl_config"/); assert.match(bootstrap, /} >"\$curl_config"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /CONTROL_CENTER_ENROLLMENT_TOKEN=/);
+  assert.match(builder, /"typescript", "bin", "tsc".*"packages", "shared", "tsconfig\.json"/);
 });
 
 test("bootstrap scripts pass bash syntax validation when bash is available", { skip: process.platform === "win32" }, () => { for (const name of ["bootstrap-agent-release.sh", "rollback-agent-bootstrap.sh"]) { const result = spawnSync("bash", ["-n", path.join(root, "scripts", name)], { encoding: "utf8" }); assert.equal(result.status, 0, result.stderr); } });

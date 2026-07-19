@@ -34,6 +34,7 @@ function artifact(role, filename) { const file = path.join(output, filename); re
 
 try {
   cleanOutput();
+  execFileSync(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", path.join(root, "packages", "shared", "tsconfig.json")], { cwd: root, stdio: "pipe" });
   const packageRoot = path.join(staging, "package");
   const agentOut = path.join(packageRoot, "control-center", "apps", "agent", "dist", "agent.js");
   const updaterOut = path.join(packageRoot, "control-center", "apps", "updater", "dist", "main.js");
