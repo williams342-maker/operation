@@ -6,11 +6,11 @@ Prepared 2026-07-18. This document contains identifiers and categories only. It 
 
 - Category/service: Emergent LLM API key, inferred from the `EMERGENT_LLM_KEY` variable name.
 - Path: `memory/DEPLOY_ENV.md`.
-- Introduction commit: `4bd452d09043e3c0acdf4fcf5eef312654153be0`.
-- Subsequent path commits retaining the credential: `1dffb6b304700f5ddc40dfbdea5952a7e8793288` and `06e71c30f600dfd3f9821cc173f0101fbe95a8ea`.
-- Current-tree redaction commit: `19e28fffc6ec06b375fc3de65f21fd9e348d27d2`.
-- Earliest affected commit: `4bd452d09043e3c0acdf4fcf5eef312654153be0`.
-- Latest affected commit on the validation line: `149fffec94ac4ff838d9cbb7d9b537175a83c464`, the parent of the redaction commit.
+- Introduction commit: `4bd452d09043`.
+- Subsequent path commits retaining the credential: `1dffb6b30470` and `06e71c30f600`.
+- Current-tree redaction commit: `19e28fffc6ec`.
+- Earliest affected commit: `4bd452d09043`.
+- Latest affected commit on the validation line: `149fffec94ac`, the parent of the redaction commit.
 - Revocation/rotation status: not verifiable from repository evidence; manual owner action is required before rewriting history.
 
 The following tips still contain the confirmed credential in their snapshots:
@@ -27,11 +27,11 @@ Gitleaks 8.30.1 was downloaded from its official release, verified against the p
 
 | Introduction commit | Path | Categories requiring triage |
 | --- | --- | --- |
-| `4bd452d09043e3c0acdf4fcf5eef312654153be0` | `memory/DEPLOY_ENV.md` | Emergent LLM, Brevo, Buffer, MailerSend, Mailtrap, Postmark, Cloudflare R2, Resend, Sender, Stripe API, Stripe webhook, and Stripe Connect webhook credential patterns |
-| `3f446730ec5f33fcef92ca7de63b2e61628b5d3d` | `scripts/bing_oauth_bootstrap.py` | Azure AD client-secret pattern |
-| `2ed81b40c25cd6b3ca6b9b242db17cb919c64da8` | `memory/CHANGELOG.md` | Generic API-key patterns |
-| `0bce89b59eb46402cdd2502f2405ff481acc6d98` | `backend/tests/test_iter457_workshop_floor.py` | JWT pattern |
-| `c357d0e867fe546681c6d741a9c94cfa87aaa243` | `test_reports/iteration_5.json` | Generic test-credential pattern |
+| `4bd452d09043` | `memory/DEPLOY_ENV.md` | Emergent LLM, Brevo, Buffer, MailerSend, Mailtrap, Postmark, Cloudflare R2, Resend, Sender, Stripe API, Stripe webhook, and Stripe Connect webhook credential patterns |
+| `3f446730ec5f` | `scripts/bing_oauth_bootstrap.py` | Azure AD client-secret pattern |
+| `2ed81b40c25c` | `memory/CHANGELOG.md` | Generic API-key patterns |
+| `0bce89b59eb4` | `backend/tests/test_iter457_workshop_floor.py` | JWT pattern |
+| `c357d0e867fe` | `test_reports/iteration_5.json` | Generic test-credential pattern |
 
 All five introduction commits are reachable from every current local branch, fetched remote branch, and tag listed above, including the validation branch. Test-shaped findings may be fixtures, but they must be verified before allowlisting. All service-shaped findings must be treated as live until the issuing account owner confirms revocation or rotation.
 

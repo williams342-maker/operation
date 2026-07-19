@@ -31,6 +31,7 @@ The script extracts the auth code, exchanges it for a refresh token,
 and prints the token.
 """
 from __future__ import annotations
+import os
 import sys
 import urllib.parse
 from typing import Optional
@@ -44,7 +45,7 @@ except ImportError:
 
 # ── Fill these in (or read from env) ──────────────────────────────────
 CLIENT_ID = "f33e5b3d-d8dd-4c53-b199-368c94bf60eb"
-CLIENT_SECRET = "Css8Q~Jfc0lA6ZQXnP1nOXVuaw94K3ke3t.o3b6k"
+CLIENT_SECRET = os.environ.get("BING_CLIENT_SECRET", "")
 REDIRECT_URI = "https://login.microsoftonline.com/common/oauth2/nativeclient"
 SCOPE = "https://ads.microsoft.com/msads.manage offline_access"
 
@@ -93,6 +94,10 @@ def exchange_for_refresh_token(code: str) -> dict:
 
 
 def main():
+    if not CLIENT_SECRET:
+        print("ERROR: Set BING_CLIENT_SECRET in the environment before running this script.")
+        sys.exit(1)
+
     print("=" * 70)
     print("Microsoft Advertising — Refresh-Token Bootstrap")
     print("=" * 70)
