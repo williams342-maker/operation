@@ -118,8 +118,31 @@ await db.collection("projects").insertOne({
 });
 const environment = await authenticatedApi("/configuration/environments", "POST", { projectId: projectId.toHexString(), name: "Private staging", kind: "staging", protected: false });
 assert.equal(environment.status, 201);
-const definition = await authenticatedApi("/configuration/definitions", "POST", { projectId: projectId.toHexString(), name: "E2E_FEATURE_FLAG", type: "boolean", secret: false, required: false, usage: "runtime", services: ["web"] });
-assert.equal(definition.status, 201);
+const definition = await authenticatedApi("/configuration/definitions", "POST", {
+  projectId: projectId.toHexString(),
+  name: "E2E_FEATURE_FLAG",
+  description: "Boolean feature flag used by the authenticated E2E workflow",
+  type: "boolean",
+  secret: false,
+  required: false,
+  usage: "runtime",
+  services: ["web"],
+  applicableEnvironments: ["development", "staging"],
+  validation: { type: "boolean" },
+  restartRequirement: "restart",
+  removalPermitted: true,
+  browserDisplayPermitted: true,
+  risk: "low"
+});
+assert.equal(definition.status, 201, `definition creation failed: ${definition.body?.error || "unexpected response"}`);
+const storedDefinition = await db.collection("configuration_definitions").findOne({ _id: new ObjectId(definition.body.id) });
+assert.equal(storedDefinition?.orgId.toHexString(), org._id.toHexString(), "definition remains organization scoped");
+assert.equal(storedDefinition?.projectId.toHexString(), projectId.toHexString(), "definition remains project scoped");
+assert.equal(storedDefinition?.secret, false, "definition remains non-secret");
+assert.equal("envelope" in (storedDefinition || {}), false, "definition stores no secret envelope");
+const definitionAudit = await db.collection("audit_events").findOne({ orgId: org._id, action: "configuration.definition.create", targetId: storedDefinition?._id });
+assert.equal(definitionAudit?.result, "success", "definition creation is audited");
+assert.deepEqual(definitionAudit?.metadata, { variable: "E2E_FEATURE_FLAG" }, "definition audit contains only value-free metadata");
 
 await page.getByRole("button", { name: "Configuration" }).click();
 await page.getByText("Production deployment unavailable").waitFor();
