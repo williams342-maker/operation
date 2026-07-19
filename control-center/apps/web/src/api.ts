@@ -20,6 +20,7 @@ export async function bootstrapStatus() { return (await api.get("/auth/bootstrap
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }
 export async function login(organizationSlug: string, email: string, password: string) { const { data } = await api.post("/auth/login", { organizationSlug, email, password }); sessionExpiryReported = false; localStorage.setItem("cc.csrf", data.csrfToken); return data; }
 export async function reauthenticate(password: string) { return (await api.post("/auth/reauthenticate", { password })).data as { ok: true }; }
+export async function changePassword(currentPassword: string, newPassword: string) { return (await api.post("/auth/change-password", { currentPassword, newPassword })).data as { ok: true }; }
 export async function logout() {
   try {
     await api.post("/auth/logout");
