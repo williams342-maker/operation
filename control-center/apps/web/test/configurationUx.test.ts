@@ -3,7 +3,7 @@ import test from "node:test";
 import { configurationCategory, parseEnvironmentText, plainLanguageChangeSummary } from "../src/configurationUx.js";
 
 test("environment import parses values in memory and reports duplicate or unsafe lines", () => {
-  const result = parseEnvironmentText("# local input\nSTRIPE_API_KEY=temporary-value\nPUBLIC_ORIGIN=https://example.invalid\nSTRIPE_API_KEY=replacement\nlowercase=bad");
+  const result = parseEnvironmentText("# local input\nSERVICE_API_KEY=temporary-value\nPUBLIC_ORIGIN=https://example.invalid\nSERVICE_API_KEY=replacement\nlowercase=bad");
   assert.equal(result.variables.length, 3);
   assert.equal(result.variables[0].secret, true);
   assert.equal(result.variables[0].duplicate, true);

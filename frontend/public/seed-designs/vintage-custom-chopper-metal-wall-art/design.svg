@@ -1,4 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 720" width="1600" height="720">
-  <path fill="none" stroke="#0a0a0a" stroke-width="8" d="M 200 140 Q 800 40 1400 140"/><text x="800" y="120" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="90" font-weight="900" fill="#0a0a0a" letter-spacing="6">EST. 1974</text>
-  <path fill="#0a0a0a" stroke="none" d="M 240 480 m -180 0 a 180 180 0 1 0 360 0 a 180 180 0 1 0 -360 0 M 240 480 m -90 0 a 90 90 0 1 1 180 0 a 90 90 0 1 1 -180 0 M 1320 480 m -180 0 a 180 180 0 1 0 360 0 a 180 180 0 1 0 -360 0 M 1320 480 m -90 0 a 90 90 0 1 1 180 0 a 90 90 0 1 1 -180 0 M 240 480 L 700 420 L 800 280 L 1000 280 L 1080 380 L 1240 380 L 1320 480 Z M 1080 380 L 1180 200 L 1300 200 L 1300 240 L 1200 240 L 1120 380 "/>
-</svg>

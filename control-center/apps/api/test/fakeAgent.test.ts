@@ -25,7 +25,7 @@ test("fake-agent harness signs poll requests", () => {
 test("database integration guard blocks production-like MongoDB targets", () => {
   const original = process.env.CONTROL_CENTER_RUN_DB_TESTS;
   process.env.CONTROL_CENTER_RUN_DB_TESTS = "true";
-  assert.throws(() => assertSafeTestMongoUrl("mongodb+srv://user:pass@cluster0.uxetngu.mongodb.net/craftersmarket"));
+  assert.throws(() => assertSafeTestMongoUrl("mongodb+srv://user:pass@production.example.invalid/production"));
   assert.throws(() => assertSafeTestMongoUrl("mongodb://127.0.0.1:27017/production"));
   assert.equal(assertSafeTestMongoUrl("mongodb://127.0.0.1:27017/control_center_test"), "mongodb://127.0.0.1:27017/control_center_test");
   if (original === undefined) delete process.env.CONTROL_CENTER_RUN_DB_TESTS;

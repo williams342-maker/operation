@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 600" width="1800" height="600">
-  <rect x="40" y="40" width="1720" height="520" rx="20" fill="none" stroke="#0a0a0a" stroke-width="10"/>
-  <rect x="80" y="80" width="1640" height="440" rx="10" fill="none" stroke="#0a0a0a" stroke-width="3"/>
-  <text x="900" y="240" text-anchor="middle" font-family="Anton, Impact, sans-serif" font-size="80" font-weight="900" fill="#0a0a0a" letter-spacing="6">THE MORRISON FAMILY</text>
-  <line x1="240" y1="290" x2="1560" y2="290" stroke="#0a0a0a" stroke-width="4"/>
-  <text x="900" y="430" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="110" font-weight="700" fill="#0a0a0a" letter-spacing="14">EST. 2024</text>
-</svg>

@@ -26,8 +26,8 @@ function requireNonProductionMongoUrl() {
   const url = new URL(raw);
   const host = url.hostname.toLowerCase();
   const dbName = url.pathname.replace(/^\//, "").toLowerCase();
-  const blockedHosts = ["cluster0.uxetngu.mongodb.net", "craftersmarket.org", "craftersmarketbeta.shop"];
-  const blockedDb = /(^|[-_])(prod|production|live)([-_]|$)|crafters_market_dev|craftersmarket$/;
+  const blockedHosts = ["production.example.invalid", "live.example.invalid"];
+  const blockedDb = /(^|[-_])(prod|production|live)([-_]|$)/;
   if (blockedHosts.some((blocked) => host.includes(blocked))) throw new Error("MONGO_URL points at a blocked production-like host");
   if (!dbName || blockedDb.test(dbName)) throw new Error("MONGO_URL must use a non-production control-center database name");
 }

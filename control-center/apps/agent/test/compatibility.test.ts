@@ -4,7 +4,7 @@ import { agentPollRequestSchema } from "@control-center/shared";
 import { agentConfigSchema } from "../src/config.js";
 
 test("existing agent configuration survives upgrade parsing", () => {
-  const before = { controlCenterUrl: "https://opsworkbench.org", installationId: "install-1", requestedSlug: "crafters-market", agentId: "agent-1", agentSecret: "secret-value", agentVersion: "0.1.0", allowedRoots: ["/root/Craftersmarket"], pollIntervalSeconds: 30, mongoChecks: {} };
+  const before = { controlCenterUrl: "https://opsworkbench.org", installationId: "install-1", requestedSlug: "example-app", agentId: "agent-1", agentSecret: "secret-value", agentVersion: "0.1.0", allowedRoots: ["/srv/example-app"], pollIntervalSeconds: 30, mongoChecks: {} };
   assert.deepEqual(agentConfigSchema.parse(before), before);
 });
 

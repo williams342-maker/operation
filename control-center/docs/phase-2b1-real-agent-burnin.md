@@ -1,6 +1,6 @@
 ﻿# OpsWorkbench Phase 2B.1 Real-Agent Staging Validation
 
-This runbook is for a disposable managed target only. Do not run it on the Crafters Market server or on the OpsWorkbench control-center host unless explicit approval is given.
+This runbook is for a disposable managed target only. Do not run it on any production server or on the OpsWorkbench control-center host unless explicit approval is given.
 
 ## Target prerequisites
 
@@ -8,7 +8,7 @@ This runbook is for a disposable managed target only. Do not run it on the Craft
 - Docker Engine and Docker Compose plugin.
 - Git and Node.js 22.
 - No inbound agent port. The agent uses outbound HTTPS polling only.
-- No Crafters Market credentials, data, paths, or databases.
+- No production credentials, data, paths, or databases.
 
 ## Rollback point
 

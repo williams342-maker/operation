@@ -4,7 +4,6 @@ export function configurationCategory(name: string) {
   if (/(MONGO|POSTGRES|PG_|MYSQL|DATABASE|DB_)/i.test(name)) return "Database";
   if (/(R2_|S3_|AWS_|STORAGE|BUCKET|ASSET)/i.test(name)) return "Storage";
   if (/(AUTH|SESSION|JWT|OAUTH|ENTRA|AZURE|GOOGLE_CLIENT)/i.test(name)) return "Authentication";
-  if (/(STRIPE|PAYPAL|PAYMENT)/i.test(name)) return "Payments";
   if (/(MAIL|EMAIL|SMTP|SENDGRID|BREVO|RESEND|POSTMARK)/i.test(name)) return "Email";
   if (/(ANALYTICS|GA4|GADS|PIXEL|SEGMENT)/i.test(name)) return "Analytics";
   if (/(OPENAI|ANTHROPIC|AI_|MODEL)/i.test(name)) return "AI";

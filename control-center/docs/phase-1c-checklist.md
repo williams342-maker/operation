@@ -4,12 +4,12 @@
 
 - [ ] CI passes tests, DB-backed integration tests, typecheck, lint, and builds.
 - [ ] Linux CI reports zero skipped tests, including the symlink escape test.
-- [ ] Staging host is separate from Crafters Market production.
+- [ ] Staging host is separate from every production environment.
 - [ ] DNS points to the staging host only.
 - [ ] Cloudflare Access protects the entire hostname.
 - [ ] Firewall blocks origin bypass and exposes only 80/443 publicly.
 - [ ] `deploy/env/.env.staging` exists only on the host and contains generated secrets.
-- [ ] MongoDB database name is non-production and not Crafters Market.
+- [ ] MongoDB database name is isolated and non-production.
 
 ## After deployment
 

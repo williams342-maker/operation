@@ -1,6 +1,6 @@
 ﻿# Phase 1C Private Staging Deployment
 
-This runbook prepares a private HTTPS staging deployment only. It does not install an agent on any production server, does not connect to the Crafters Market MongoDB database, and does not expose the control center without an outer access layer.
+This runbook prepares a private HTTPS staging deployment only. It does not install an agent on any production server, does not connect to any legacy production database, and does not expose the control center without an outer access layer.
 
 ## Proposed topology
 
@@ -16,7 +16,7 @@ This runbook prepares a private HTTPS staging deployment only. It does not insta
 
 ## Required DigitalOcean resources
 
-- One isolated staging Droplet, separate from the Crafters Market production host.
+- One isolated staging Droplet, separate from every production host.
 - Recommended minimum: 1 vCPU, 2 GB RAM, 50 GB disk for light staging; 2 vCPU, 4 GB RAM if multiple users will test concurrently.
 - Ubuntu 24.04 LTS.
 - DigitalOcean Cloud Firewall attached to the staging Droplet.
@@ -33,7 +33,7 @@ Create a proxied Cloudflare DNS record:
 - Value: staging Droplet public IPv4
 - Proxy status: proxied
 
-Do not point this hostname at the Crafters Market production host.
+Do not point this hostname at any production host.
 
 ## Cloudflare Access checklist
 
@@ -93,7 +93,7 @@ Required production variables:
 - `CONTROL_CENTER_CSRF_SECRET`
 - `CONTROL_CENTER_ENCRYPTION_KEY`
 
-The API refuses known Crafters Market production-like hosts and production-like database names.
+The API refuses production-like hosts and production-like database names.
 
 ## Manual deployment procedure
 
@@ -132,7 +132,7 @@ sudo systemctl reload nginx
 - `/api/auth/login`, enrollment, and agent routes are rate-limited.
 - Failed auth and authorization attempts create audit events with request IDs.
 - No secrets appear in Nginx or application logs.
-- The staging MongoDB database name is not a Crafters Market database.
+- The staging MongoDB database name is isolated and non-production.
 
 ## Rollback procedure
 
@@ -171,7 +171,7 @@ Nginx logs omit Authorization, Cookie, agent signature, nonce, MongoDB URI, and 
 
 - No automatic CI deployment.
 - No production server agent install.
-- No Crafters Market database connection.
+- No legacy or production database connection.
 - No Phase 2A CRUD management UI work.
 - No deployment, restart, rollback, environment editing, log deletion, or service-control capability.
 
