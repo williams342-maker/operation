@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
   push:
-    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**" ]
+    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**", "fix/**" ]
 
 jobs:
   verify:
