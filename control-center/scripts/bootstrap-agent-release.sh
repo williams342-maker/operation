@@ -31,7 +31,8 @@ case "$OPSWORKBENCH_RELEASE_BASE_URL" in https://*) ;; *) fail "release base URL
 [ "$(stat -c %a "$OPSWORKBENCH_TRUSTED_PUBLIC_KEY")" -le 644 ] || fail "trusted public key permissions are unsafe"
 [ -s "$CONFIG_ROOT/agent.json" ] || fail "existing enrolled agent configuration is required"
 
-install -d -m 0700 "$STATE_ROOT" "$BACKUP_ROOT"
+install -d -o root -g root -m 0711 "$STATE_ROOT"
+install -d -o root -g root -m 0700 "$BACKUP_ROOT"
 exec 9>"$STATE_ROOT/bootstrap.lock"
 flock -n 9 || fail "another bootstrap or rollback is active"
 work_dir="$(mktemp -d "$STATE_ROOT/.bootstrap.XXXXXX")"

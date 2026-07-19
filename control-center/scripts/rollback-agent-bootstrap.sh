@@ -12,7 +12,7 @@ MARKER="$BACKUP_ROOT/latest-bootstrap-backup"
 fail() { printf 'OpsWorkbench bootstrap rollback: %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || fail "run from a root shell"
 command -v flock >/dev/null 2>&1 || fail "flock is required"
-install -d -m 0700 "$STATE_ROOT"
+install -d -o root -g root -m 0711 "$STATE_ROOT"
 lock_file="$STATE_ROOT/bootstrap.lock"
 if [ "${OPSWORKBENCH_BOOTSTRAP_LOCK_HELD:-}" = "1" ]; then
   [ -e "/proc/$$/fd/9" ] || fail "inherited bootstrap lock is unavailable"
