@@ -319,7 +319,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const mergeToken = await request<{ token: string; serverId: string; installCommand: string }>("POST", "/servers/onboard", { url: "https://opsworkbench.org", expiresInMinutes: 60 }, jsonHeaders(ownerA));
     assert.equal(mergeToken.status, 201);
     assert.equal(mergeToken.body.serverId, String(legacyId), "URL-first onboarding must bind to the existing compact slug match");
-    assert.match(mergeToken.body.installCommand, /CONTROL_CENTER_SERVER_SLUG="ops-workbench"/);
+    assert.match(mergeToken.body.installCommand, /printf '%s' 'ops-workbench' >"\$INSTALL_INPUT_DIR\/server-slug"/);
     const mergedCredentials = await enroll(mergeToken.body.token, "opsworkbench");
     assert.equal(mergedCredentials.serverId, String(legacyId), "enrollment must preserve the existing ops-workbench server id");
     assert.equal(await collections.servers.countDocuments({ orgId: orgA._id, slug: "ops-workbench" }), 1, "enrollment must not create a duplicate server");

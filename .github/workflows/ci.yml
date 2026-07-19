@@ -24,7 +24,7 @@ jobs:
     env:
       CONTROL_CENTER_RUN_DB_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      CI_EXPECTED_TESTS: "25"
+      CI_EXPECTED_TESTS: "153"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
