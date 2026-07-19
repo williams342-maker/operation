@@ -1,6 +1,7 @@
 import type { ObjectId } from "mongodb";
 import type { AuditAction, AuditResult } from "@control-center/shared";
 import { collections } from "./db.js";
+import { invalidateOperationalContext } from "./aiContextBuilder.js";
 
 function isSensitiveKey(key: string) {
   return /secret|token|password|credential|key|signature|cookie|authorization|auth|mongo|uri|url/i.test(key);
@@ -35,4 +36,5 @@ export async function audit(input: {
     metadata: safeMetadata,
     createdAt: new Date()
   });
+  if (/^(health-check|mongo-check|task\.complete|ai\.settings|deployment|rollback)/.test(input.action)) invalidateOperationalContext();
 }

@@ -3478,11 +3478,11 @@ In the maker listing editor's photo grid, when a photo upload failed:
 
 ### Smoke test (preview)
 - ✅ Seeded order with `color_choice: "walnut"` → maker dashboard renders both chips
-- ✅ Set `INDEXNOW_KEY=348a067bf8d04e22be01313c6e982303` → both key-file routes return that exact value
+- ✅ Set `INDEXNOW_KEY=<redacted>` → both key-file routes return that exact value
 - ✅ ESLint + ruff clean
 
 ### What still needs production action
-- Set `INDEXNOW_KEY=348a067bf8d04e22be01313c6e982303` in prod env vars + redeploy. Then IndexNow pings from prod will be signed with the Bing-registered key → 422s should clear.
+- Set `INDEXNOW_KEY=<redacted>` in prod env vars + redeploy. Then IndexNow pings from prod will be signed with the Bing-registered key → 422s should clear.
 
 ---
 

@@ -35,7 +35,7 @@
     "/app/backend/tests/test_iter6_maker_chat.py (new — 11 tests, all pass)"
   ],
   "success_rate": {"backend": "100% (11/11)", "frontend": "~92% (closure bug on cross-channel unread after switching)"},
-  "test_credentials": "Backend tests mint maker JWTs via maker_auth.issue_magic_token + POST /api/maker/auth/verify. Buyers via issue_buyer_magic_token. Stripe paid anchor: cs_test_a1iMM98ftY3GF2JouCJbRQkPvPkMcJE9lwLYh51c946CyXqtkL5oaa0O5o (verified paid).",
+  "test_credentials": "Backend tests mint maker JWTs via maker_auth.issue_magic_token + POST /api/maker/auth/verify. Buyers via issue_buyer_magic_token. Stripe paid anchor: synthetic-paid-anchor (verified paid).",
   "seed_data_creation": "TEST_alice@example.com and TEST_bob@example.com community_users created via magic-link verify + a few chat_messages with text starting with TEST_*/regular/@TEST_alice — safe to clean if needed. mountain-range-silhouette.model_url is RESET to '' at end of every backend & frontend run (verified via /api/products/mountain-range-silhouette).",
   "retest_needed": true,
   "should_main_agent_self_test": true,

@@ -18,7 +18,8 @@ vi.mock("./api", () => ({
   isRecentAuthRequired: vi.fn(() => false),
   login: vi.fn(),
   logout: mocks.logout,
-  reauthenticate: vi.fn()
+  reauthenticate: vi.fn(),
+  SESSION_EXPIRED_EVENT: "cc:session-expired"
 }));
 
 import { Root } from "./main";

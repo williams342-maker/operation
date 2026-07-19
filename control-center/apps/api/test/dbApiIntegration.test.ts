@@ -174,11 +174,6 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const protectedOverview = await request("GET", "/overview");
     assert.equal(protectedOverview.status, 401);
 
-    const anonymousLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, { "content-type": "application/json" });
-    assert.equal(anonymousLogout.status, 200);
-    assert.equal(anonymousLogout.body.ok, true);
-    assert.match(anonymousLogout.headers.get("set-cookie") || "", /cc_session=;/);
-
     const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
     process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "disabled";
     const disabledBootstrap = await request("POST", "/auth/bootstrap", {
@@ -234,15 +229,23 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(createViewer.headers.get("cache-control")?.includes("no-store"));
     assert.ok(createViewer.body.oneTimePassword);
     const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const createAdministrator = await request<{ oneTimePassword: string }>("POST", "/org/users", {
+      email: "administrator-a@example.test",
+      name: "Administrator A",
+      role: "Administrator"
+    }, jsonHeaders(ownerA));
+    assert.equal(createAdministrator.status, 201);
+    const administratorA = await login("phase-1b-a", "administrator-a@example.test", createAdministrator.body.oneTimePassword);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
-    const viewerSessionId = new ObjectId(viewerA.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
-    const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerA.cookie });
+    const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const viewerSessionId = new ObjectId(viewerLogout.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerLogout.cookie });
     assert.equal(logoutWithoutCsrf.status, 403);
     assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 1);
 
-    const activeLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(viewerA));
+    const activeLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(viewerLogout));
     assert.equal(activeLogout.status, 200);
     assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 0);
     assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
@@ -263,6 +266,9 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const recentAuthRequired = await request<{ error: string; code: string }>("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(ownerA));
     assert.equal(recentAuthRequired.status, 403);
     assert.equal(recentAuthRequired.body.code, "RECENT_AUTH_REQUIRED");
+    const adminRecentAuthRequired = await request<{ error: string; code: string }>("POST", "/admin/enrollment/generate", { name: "Stale enrollment", expiresInMinutes: 60, maxUses: 1 }, jsonHeaders(ownerA));
+    assert.equal(adminRecentAuthRequired.status, 403);
+    assert.equal(adminRecentAuthRequired.body.code, "RECENT_AUTH_REQUIRED");
 
     const failedReauthentication = await request<{ error: string; code: string }>("POST", "/auth/reauthenticate", { password: "incorrect-password" }, jsonHeaders(ownerA));
     assert.equal(failedReauthentication.status, 403);
@@ -271,10 +277,35 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const successfulReauthentication = await request<{ ok: boolean }>("POST", "/auth/reauthenticate", { password: "owner-a-password" }, jsonHeaders(ownerA));
     assert.equal(successfulReauthentication.status, 200);
     assert.equal(successfulReauthentication.body.ok, true);
-
     const refreshedSession = await collections.sessions.findOne({ _id: ownerSessionId });
     assert.ok(refreshedSession?.authenticatedAt);
     assert.ok(Date.now() - refreshedSession.authenticatedAt.getTime() < 10_000);
+
+    const generated = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "CI enrollment", expiresInMinutes: 60, maxUses: 2, description: "integration" }, jsonHeaders(ownerA));
+    assert.equal(generated.status, 201);
+    assert.match(generated.body.token, /^owenr_/);
+    const listed = await request<{ enrollments: Array<{ _id: string; tokenHash?: string; token?: string; usesRemaining: number }> }>("GET", "/admin/enrollment", undefined, jsonHeaders(ownerA));
+    assert.equal(listed.status, 200);
+    const listedGenerated = listed.body.enrollments.find((item) => String(item._id) === String(generated.body.id));
+    assert.ok(listedGenerated);
+    assert.equal(listedGenerated.tokenHash, undefined);
+    assert.equal(listedGenerated.token, undefined);
+    assert.equal(listedGenerated.usesRemaining, 2);
+    const unavailableDownload = await request("GET", `/admin/enrollment/download/${generated.body.id}`, undefined, jsonHeaders(ownerA));
+    assert.equal(unavailableDownload.status, 410);
+    await enroll(generated.body.token, "multi-use-one");
+    await enroll(generated.body.token, "multi-use-two");
+    const maxUseRejected = await request("POST", "/agent/enroll", { enrollmentToken: generated.body.token, hostname: "multi-use-three", agentVersion: "fake-agent/1.0", capabilities: [] }, { "content-type": "application/json" });
+    assert.equal(maxUseRejected.status, 401);
+
+    const revocable = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "Revocable", expiresInMinutes: null, maxUses: null }, jsonHeaders(ownerA));
+    assert.equal(revocable.status, 201);
+    const revokeEnrollment = await request("POST", "/admin/enrollment/revoke", { id: revocable.body.id }, jsonHeaders(ownerA));
+    assert.equal(revokeEnrollment.status, 200);
+    const revokedEnrollmentUse = await request("POST", "/agent/enroll", { enrollmentToken: revocable.body.token, hostname: "revoked-enrollment", agentVersion: "fake-agent/1.0", capabilities: [] }, { "content-type": "application/json" });
+    assert.equal(revokedEnrollmentUse.status, 401);
+    const deleteEnrollment = await request("DELETE", `/admin/enrollment/${revocable.body.id}`, undefined, jsonHeaders(ownerA));
+    assert.equal(deleteEnrollment.status, 200);
 
     const enrollment = await createEnrollment(ownerA);
     const expiredToken = `expired-${crypto.randomBytes(32).toString("hex")}`;
@@ -282,10 +313,46 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(orgA?._id);
     const ownerUserA = await collections.users.findOne({ orgId: orgA._id, email: "owner-a@example.test" });
     assert.ok(ownerUserA?._id);
+    const legacyId = new ObjectId();
+    const legacyCreatedAt = new Date(Date.now() - 86_400_000);
+    await collections.servers.insertOne({ _id: legacyId, orgId: orgA._id, name: "Ops Workbench", slug: "ops-workbench", hostname: "opsworkbench", agentId: `manual-${legacyId}`, agentSecretHash: hashSecret("legacy-placeholder"), credentialVersion: 0, status: "offline", allowlistedRoots: ["/opt/opsworkbench"], createdAt: legacyCreatedAt, updatedAt: legacyCreatedAt });
+    const mergeToken = await request<{ token: string; serverId: string; installCommand: string }>("POST", "/servers/onboard", { url: "https://opsworkbench.org", expiresInMinutes: 60 }, jsonHeaders(ownerA));
+    assert.equal(mergeToken.status, 201);
+    assert.equal(mergeToken.body.serverId, String(legacyId), "URL-first onboarding must bind to the existing compact slug match");
+    assert.match(mergeToken.body.installCommand, /CONTROL_CENTER_SERVER_SLUG="ops-workbench"/);
+    const mergedCredentials = await enroll(mergeToken.body.token, "opsworkbench");
+    assert.equal(mergedCredentials.serverId, String(legacyId), "enrollment must preserve the existing ops-workbench server id");
+    assert.equal(await collections.servers.countDocuments({ orgId: orgA._id, slug: "ops-workbench" }), 1, "enrollment must not create a duplicate server");
+    const mergedServer = await collections.servers.findOne({ _id: legacyId });
+    assert.equal(mergedServer?.name, "Ops Workbench");
+    assert.deepEqual(mergedServer?.allowlistedRoots, ["/opt/opsworkbench"]);
+    assert.equal(mergedServer?.createdAt.getTime(), legacyCreatedAt.getTime());
+    const editedServer = await request<{ server: { _id: string; slug: string; primaryUrl: string; machineId?: string } }>("PATCH", `/servers/${legacyId}`, { name: "Ops Workbench", slug: "ops-workbench", primaryUrl: "https://opsworkbench.org/", notes: "integration", tags: ["production"], expectedUpdatedAt: mergedServer!.updatedAt.toISOString() }, jsonHeaders(ownerA));
+    assert.equal(editedServer.status, 200);
+    assert.equal(String(editedServer.body.server._id), String(legacyId));
+    assert.equal(editedServer.body.server.primaryUrl, "https://opsworkbench.org");
+    const statusChecked = await request<{ server_id: string; public_site_checked_at: string; agent_status: string; enrollment_status: string }>("POST", `/servers/${legacyId}/check-status`, {}, jsonHeaders(ownerA));
+    assert.equal(statusChecked.status, 200);
+    assert.equal(statusChecked.body.server_id, String(legacyId));
+    assert.ok(statusChecked.body.public_site_checked_at);
+    assert.equal(statusChecked.body.enrollment_status, "connected");
+    const pendingDelete = await request<{ serverId: string; enrollmentId: string }>("POST", "/servers/onboard", { url: "https://pending-delete.example.test", displayName: "Pending delete", slug: "pending-delete", expiresInMinutes: 60 }, jsonHeaders(ownerA));
+    assert.equal(pendingDelete.status, 201);
+    const deletedPending = await request<{ deleted: boolean; tokens_revoked: number }>("DELETE", `/servers/${pendingDelete.body.serverId}`, { mode: "remove" }, jsonHeaders(ownerA));
+    assert.equal(deletedPending.status, 200);
+    assert.equal(deletedPending.body.deleted, true);
+    assert.equal(deletedPending.body.tokens_revoked, 1);
+    assert.equal(await collections.servers.countDocuments({ _id: new ObjectId(pendingDelete.body.serverId) }), 0);
+    const revokedPendingToken = await collections.enrollments.findOne({ _id: new ObjectId(pendingDelete.body.enrollmentId) });
+    assert.ok(revokedPendingToken?.revokedAt);
     await collections.enrollments.insertOne({
       orgId: orgA._id,
       tokenHash: hashSecret(expiredToken),
+      name: "Expired test token",
       expiresAt: new Date(Date.now() - 60_000),
+      maxUses: 1,
+      uses: 0,
+      usage: [],
       createdByUserId: ownerUserA._id,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -311,6 +378,62 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
       composePath: "/srv/phase-1b/compose.yml"
     }, jsonHeaders(ownerA));
     assert.equal(project.status, 201);
+
+    const anonymousSystemHealth = await request("GET", "/system/health");
+    assert.equal(anonymousSystemHealth.status, 401);
+    for (const session of [ownerA, administratorA, viewerA]) {
+      const systemHealth = await request<any>("GET", "/system/health", undefined, jsonHeaders(session));
+      assert.equal(systemHealth.status, 200);
+      assert.equal(systemHealth.body.mongo.connected, true);
+      assert.equal(systemHealth.body.audit.status, "ready");
+      assert.equal(systemHealth.body.ai.organizationState, "disabled");
+    }
+    const diagnosticsDenied = await request("GET", "/system/diagnostics", undefined, jsonHeaders(viewerA));
+    assert.equal(diagnosticsDenied.status, 403);
+    const diagnostics = await request<any>("GET", "/system/diagnostics", undefined, jsonHeaders(ownerA));
+    assert.equal(diagnostics.status, 200);
+    assert.equal(diagnostics.body.permissions.organizationScoped, true);
+    assert.equal(JSON.stringify(diagnostics.body).includes("mongodb://"), false);
+
+    process.env.AI_ASSISTANT_ENABLED = "true";
+    process.env.AI_PROVIDER = "mock";
+    process.env.AI_MODEL = "deterministic-v1";
+    process.env.AI_ALLOWED_PROVIDERS = "mock";
+    process.env.AI_ALLOWED_MODELS = "deterministic-v1";
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { aiAssistant: { enabled: true, provider: "mock", model: "deterministic-v1", maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server", "application"], dataRetentionMode: "provider-dependent", providerDataRetentionAcknowledgedAt: new Date(), providerDataRetentionAcknowledgedBy: ownerUserA._id, updatedAt: new Date(), updatedBy: ownerUserA._id } } });
+    const aiAdminDenied = await request("GET", "/org/ai-assistant", undefined, jsonHeaders(viewerA));
+    assert.equal(aiAdminDenied.status, 403);
+    const aiSettings = await request("GET", "/org/ai-assistant", undefined, jsonHeaders(ownerA));
+    assert.equal(aiSettings.status, 200);
+    assert.equal(JSON.stringify(aiSettings.body).includes(process.env.AI_API_KEY || "impossible-secret"), false);
+    const invalidProvider = await request("PUT", "/org/ai-assistant", { enabled: true, provider: "attacker", model: "deterministic-v1", monthlyRequestLimit: null, monthlyTokenLimit: null, maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server"], retentionAcknowledged: true }, jsonHeaders(ownerA));
+    assert.equal(invalidProvider.status, 400);
+    const serverAnalysis = await request<{ result: { executedActions: unknown[] }; metadata: { noActionsExecuted: boolean } }>("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Explain this server status." }, jsonHeaders(ownerA));
+    assert.equal(serverAnalysis.status, 200);
+    assert.deepEqual(serverAnalysis.body.result.executedActions, []);
+    assert.equal(serverAnalysis.body.metadata.noActionsExecuted, true);
+    const appAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "application", id: project.body.id }, question: "Why is this application unhealthy?" }, jsonHeaders(ownerA));
+    assert.equal(appAnalysis.status, 200);
+    const unknownAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: new ObjectId().toHexString() }, question: "Explain status." }, jsonHeaders(ownerA));
+    assert.equal(unknownAnalysis.status, 404);
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.maximumRequestsPerUserPerHour": 1 } });
+    const limitedAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Explain this server again." }, jsonHeaders(ownerA));
+    assert.equal(limitedAnalysis.status, 429);
+    assert.equal((await collections.auditEvents.findOne({ orgId: orgA._id, action: "ai.assistant.rate_limited" }))?.metadata?.reason, "user_hourly");
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.maximumRequestsPerUserPerHour": 20, "aiAssistant.monthlyRequestLimit": 2 } });
+    const monthlyRequestLimited = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Monthly request limit check." }, jsonHeaders(ownerA));
+    assert.equal(monthlyRequestLimited.status, 429);
+    await collections.aiUsage.updateOne({ orgId: orgA._id, outcome: "success" }, { $set: { inputTokens: 10, outputTokens: 5 } });
+    await collections.organizations.updateOne({ _id: orgA._id }, { $unset: { "aiAssistant.monthlyRequestLimit": "" }, $set: { "aiAssistant.monthlyTokenLimit": 5 } });
+    const monthlyTokenLimited = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Monthly token limit check." }, jsonHeaders(ownerA));
+    assert.equal(monthlyTokenLimited.status, 429);
+    await collections.organizations.updateOne({ _id: orgA._id }, { $unset: { "aiAssistant.monthlyTokenLimit": "" }, $set: { "aiAssistant.maximumConcurrentRequests": 1 } });
+    const occupied = await collections.aiUsage.insertOne({ orgId: orgA._id, userId: ownerUserA._id, provider: "mock", model: "deterministic-v1", scopeType: "server", contextBytes: 1, outcome: "pending", concurrencySlot: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 60_000) });
+    const concurrentLimited = await request("POST", "/ai-assistant/analyze", { scope: { type: "server", id: credentials.serverId }, question: "Concurrent limit check." }, jsonHeaders(ownerA));
+    assert.equal(concurrentLimited.status, 429);
+    await collections.aiUsage.deleteOne({ _id: occupied.insertedId });
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.maximumConcurrentRequests": 3 } });
+    assert.equal(await collections.aiUsage.countDocuments({ orgId: orgA._id, outcome: "success" }), 2);
 
     const queuedTask = await request<{ task: { _id: string; state: string } }>("POST", "/tasks", {
       serverId: credentials.serverId,
@@ -381,6 +504,16 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(telemetry.status, 200);
     assert.ok(await collections.telemetry.countDocuments({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId) }) >= 2);
 
+    const credentialRemote = `https://user:${["not", "a", "credential"].join("-")}@example.test/org/repo.git?access=redacted#fragment`;
+    const discoveryPayload = { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, discovery: { collectedAt: new Date().toISOString(), dockerInstalled: true, nginxInstalled: true, composeProjects: [], applications: [], warnings: ["unreadable_path"], discoveryTruncated: true, truncationCategories: ["applications"], repositories: [{ path: "/srv/demo", branch: "main", commit: "a".repeat(40), remote: credentialRemote, dirty: false }] } };
+    const discoveryPoll = await poll(credentials, discoveryPayload); assert.equal(discoveryPoll.status, 200);
+    const storedDiscovery = await collections.telemetry.findOne({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId), discovery: { $exists: true } }, { sort: { collectedAt: -1 } });
+    const storedRemote = ((storedDiscovery?.discovery as { repositories?: Array<{ remote?: string }> })?.repositories || [])[0]?.remote;
+    assert.equal(storedRemote, "https://example.test/org/repo.git"); assert.equal(JSON.stringify(storedDiscovery?.discovery).includes("not-a-credential"), false);
+
+    const oversized = { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, padding: "x".repeat(1024 * 1024 + 1) };
+    const oversizedResponse = await poll(credentials, oversized); assert.equal(oversizedResponse.status, 413);
+
     const serverList = await request<{ servers: unknown[] }>("GET", "/servers", undefined, jsonHeaders(ownerA));
     assert.equal(serverList.status, 200);
     assert.equal(JSON.stringify(serverList.body).includes(credentials.agentSecret), false);
@@ -420,8 +553,18 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(revokedRejected.status, 401);
 
     const orgBResult = await collections.organizations.insertOne({ name: "Phase 1B Org B", slug: "phase-1b-b", createdAt: new Date(), updatedAt: new Date() });
-    await collections.users.insertOne({ orgId: orgBResult.insertedId, email: "owner-b@example.test", name: "Owner B", role: "Owner", passwordHash: hashPassword("owner-b-password"), createdAt: new Date(), updatedAt: new Date() });
+    const ownerBResult = await collections.users.insertOne({ orgId: orgBResult.insertedId, email: "owner-b@example.test", name: "Owner B", role: "Owner", passwordHash: hashPassword("owner-b-password"), createdAt: new Date(), updatedAt: new Date() });
+    await collections.organizations.updateOne({ _id: orgBResult.insertedId }, { $set: { aiAssistant: { enabled: true, provider: "mock", model: "deterministic-v1", maximumRequestsPerUserPerHour: 20, maximumRequestsPerOrganizationPerDay: 200, maximumConcurrentRequests: 3, allowedScopeTypes: ["server", "application"], dataRetentionMode: "provider-dependent", providerDataRetentionAcknowledgedAt: new Date(), providerDataRetentionAcknowledgedBy: ownerBResult.insertedId, updatedAt: new Date(), updatedBy: ownerBResult.insertedId } } });
     const ownerB = await login("phase-1b-b", "owner-b@example.test", "owner-b-password");
+    await collections.organizations.updateOne({ _id: orgA._id }, { $set: { "aiAssistant.enabled": false } });
+    const [orgAHealth, orgBHealth] = await Promise.all([
+      request<any>("GET", "/system/health", undefined, jsonHeaders(ownerA)),
+      request<any>("GET", "/system/health", undefined, jsonHeaders(ownerB))
+    ]);
+    assert.equal(orgAHealth.body.ai.organizationState, "disabled");
+    assert.equal(orgBHealth.body.ai.organizationState, "enabled");
+    const crossOrgAnalysis = await request("POST", "/ai-assistant/analyze", { scope: { type: "application", id: project.body.id }, question: "Explain this application." }, jsonHeaders(ownerB));
+    assert.equal(crossOrgAnalysis.status, 404);
     const orgBServers = await request<{ servers: unknown[] }>("GET", "/servers", undefined, jsonHeaders(ownerB));
     assert.equal(orgBServers.status, 200);
     assert.equal(orgBServers.body.servers.length, 0);

@@ -1,8 +1,10 @@
 ﻿import os from "node:os";
-import { agentSigningKey, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import fs from "node:fs";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
-import { collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
+import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
+import { executeConfigurationDeployment } from "./configurationDeployment.js";
 
 type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
 
@@ -11,7 +13,19 @@ async function maybeEnroll() {
   const token = process.env.CONTROL_CENTER_ENROLLMENT_TOKEN;
   if (config.agentId && config.agentSecret) return config;
   if (!token) throw new Error("Agent is not enrolled. Set CONTROL_CENTER_ENROLLMENT_TOKEN for first run.");
-  const result = await enroll(config.controlCenterUrl, token, os.hostname(), config.agentVersion);
+  const interfaces = Object.values(os.networkInterfaces()).flat().filter((entry) => entry && !entry.internal);
+  const primaryIp = interfaces.find((entry) => entry?.family === "IPv4")?.address;
+  const machineId = ["/etc/machine-id", "/var/lib/dbus/machine-id"].map((file) => { try { return fs.readFileSync(file, "utf8").trim(); } catch { return ""; } }).find(Boolean);
+  let diskBytes: number | undefined;
+  try { const stat = fs.statfsSync("/"); diskBytes = Number(stat.blocks) * Number(stat.bsize); } catch { /* optional metadata */ }
+  const result = await enroll(config.controlCenterUrl, token, {
+    requestedSlug: config.requestedSlug || process.env.CONTROL_CENTER_SERVER_SLUG || undefined,
+    machineId: machineId || undefined, agentInstallationId: config.installationId || undefined,
+    hostname: os.hostname(), primaryIp, privateIp: primaryIp,
+    osName: os.platform(), osVersion: os.release(), kernelVersion: os.release(), architecture: os.arch(),
+    cpuModel: os.cpus()[0]?.model, cpuCoreCount: os.cpus().length, memoryBytes: os.totalmem(), diskBytes,
+    agentVersion: config.agentVersion
+  });
   const nextConfig = { ...config, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
   saveConfig(nextConfig);
   return nextConfig;
@@ -65,25 +79,37 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
         mongo: await collectMongo(config, payload.mongoChecks).catch(() => [])
       };
       break;
+    case "configuration.apply":
+    case "configuration.rollback":
+      if (!payload.configurationDeployment) throw new Error("Missing typed configuration deployment payload");
+      result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion);
+      break;
     default:
       throw new Error("Unsupported task type");
   }
-  await acknowledge(config, envelope.taskId, "succeeded", result);
+  const deploymentResult = envelope.taskType === "configuration.apply" || envelope.taskType === "configuration.rollback" ? result as { phase?: string } : undefined;
+  await acknowledge(config, envelope.taskId, deploymentResult && deploymentResult.phase !== "succeeded" ? "failed" : "succeeded", result, deploymentResult ? `Configuration deployment ${deploymentResult.phase || "failed"}` : undefined);
 }
 
 async function pollOnce() {
   const config = await maybeEnroll();
   const initial = {
     heartbeat: { collectedAt: new Date().toISOString(), agentVersion: config.agentVersion },
-    metrics: await collectSystem(config.agentVersion)
+    metrics: await collectSystem(config.agentVersion),
+    docker: await collectDocker().catch(() => []),
+    discovery: await collectApplicationDiscovery(config).catch(() => undefined)
   };
-  const response = await signedPost(config, "/api/agent/poll", initial) as { tasks?: ClaimedTask[] };
+  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { tasks?: ClaimedTask[] };
   for (const task of response.tasks || []) {
     try {
       await executeTask(config, task);
     } catch (error) {
       const taskId = task?.envelope?.taskId;
-      if (taskId) await acknowledge(config, taskId, "failed", { errorCategory: "unknown" }, (error as Error).message).catch(() => undefined);
+      if (taskId) {
+        const configurationTask = task.envelope.taskType === "configuration.apply" || task.envelope.taskType === "configuration.rollback";
+        const result = configurationTask ? { phase: "failed", progress: 100, changedVariables: 0, services: [], healthChecksPassed: 0, errorCategory: "unknown" } : { errorCategory: "unknown" };
+        await acknowledge(config, taskId, "failed", result, configurationTask ? "Configuration deployment failed" : (error as Error).message).catch(() => undefined);
+      }
     }
   }
 }

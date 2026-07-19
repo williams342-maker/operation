@@ -11,12 +11,14 @@
     "pretest": "npm run build --workspace @control-center/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "smoke:staging": "node deploy/scripts/staging-smoke.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
+    "playwright": "^1.55.1",
     "typescript-eslint": "^8.64.0"
   }
 }

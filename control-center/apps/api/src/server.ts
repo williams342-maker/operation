@@ -4,11 +4,16 @@ import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { ZodError } from "zod";
 import { captureRawBody } from "./agentAuth.js";
 import { connectDb } from "./db.js";
 import { validateRuntimeSecrets } from "./crypto.js";
+import { assertValidEnvironment } from "./environmentValidation.js";
+import { initializeRuntimeReadiness, runtimeHealth } from "./runtimeReadiness.js";
 import { router } from "./routes.js";
 
+const environmentValidation = assertValidEnvironment();
+initializeRuntimeReadiness(environmentValidation);
 validateRuntimeSecrets();
 if (process.env.NODE_ENV === "production" && process.env.CONTROL_CENTER_ALLOW_INSECURE_COOKIES === "true") {
   throw new Error("Insecure cookies are not allowed in production");
@@ -43,17 +48,24 @@ app.use(compression());
 app.use(cors({ origin: process.env.CONTROL_CENTER_WEB_ORIGIN || "http://localhost:5173", credentials: true }));
 app.use(rateLimit({ windowMs: 60_000, limit: 180 }));
 app.use(express.json({ limit: "1mb", verify: captureRawBody }));
-app.get("/healthz", (_req, res) => res.json({ ok: true }));
-app.get("/readyz", (_req, res) => res.json({ ok: true }));
+app.get("/healthz", (_req, res) => res.json({ ok: true, status: "alive", version: process.env.BUILD_VERSION || "development", commit: process.env.GIT_COMMIT || "unknown" }));
+app.get("/readyz", async (_req, res) => { const health = await runtimeHealth(); res.status(health.status === "ready" ? 200 : 503).json(health); });
 app.use("/api", router);
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const message = error instanceof Error ? error.message : "Unknown error";
+  if ((error as { status?: number })?.status === 413) return res.status(413).json({ error: "Request payload exceeds the 1 MB limit", requestId: req.requestId });
+  if (error instanceof ZodError) {
+    const issue = error.issues[0];
+    const field = issue?.path.join(" ") || "request";
+    return res.status(400).json({ error: `Invalid ${field}: ${issue?.message || "invalid value"}`, requestId: req.requestId });
+  }
+  const message = process.env.NODE_ENV === "production" ? "Internal server error" : error instanceof Error ? error.message : "Unknown error";
   res.status(500).json({ error: message, requestId: req.requestId });
 });
 
 if (process.env.NODE_ENV !== "test") {
   await connectDb();
+  console.log(JSON.stringify({ event: "startup_validation", mode: environmentValidation.mode, valid: environmentValidation.valid, warnings: environmentValidation.diagnostics.filter((item) => item.level === "warning").map((item) => ({ code: item.code, variable: item.variable })), aiState: environmentValidation.ai.state }));
   app.listen(port, () => {
     console.log(`Control Center API listening on http://localhost:${port}`);
   });

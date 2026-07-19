@@ -1,6 +1,6 @@
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, logout } from "./api";
+import { api, logout, SESSION_EXPIRED_EVENT } from "./api";
 
 describe("logout API", () => {
   beforeEach(() => {
@@ -32,6 +32,40 @@ describe("logout API", () => {
     vi.spyOn(api, "post").mockRejectedValue(new Error("Logout service unavailable"));
 
     await expect(logout()).rejects.toThrow("Logout service unavailable");
+    expect(localStorage.getItem("cc.csrf")).toBe("csrf-token");
+  });
+
+  it("clears local authentication once when a protected request returns 401", async () => {
+    localStorage.setItem("cc.csrf", "csrf-token");
+    const expired = vi.fn();
+    window.addEventListener(SESSION_EXPIRED_EVENT, expired);
+    const error = new axios.AxiosError("Authentication required", "ERR_BAD_REQUEST", undefined, undefined, { status: 401 } as never);
+    const adapter = api.defaults.adapter;
+    api.defaults.adapter = async () => { throw error; };
+
+    try {
+      await expect(api.get("/me")).rejects.toBe(error);
+    } finally {
+      api.defaults.adapter = adapter;
+    }
+
+    expect(localStorage.getItem("cc.csrf")).toBeNull();
+    expect(expired).toHaveBeenCalledOnce();
+    window.removeEventListener(SESSION_EXPIRED_EVENT, expired);
+  });
+
+  it("does not clear authentication for a 403 permission denial", async () => {
+    localStorage.setItem("cc.csrf", "csrf-token");
+    const denied = new axios.AxiosError("Forbidden", "ERR_BAD_REQUEST", undefined, undefined, { status: 403 } as never);
+    const adapter = api.defaults.adapter;
+    api.defaults.adapter = async () => { throw denied; };
+
+    try {
+      await expect(api.get("/admin/enrollment")).rejects.toBe(denied);
+    } finally {
+      api.defaults.adapter = adapter;
+    }
+
     expect(localStorage.getItem("cc.csrf")).toBe("csrf-token");
   });
 });

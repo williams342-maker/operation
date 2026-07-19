@@ -18,7 +18,6 @@ import json
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://active-project-4.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImVtYWlsIjoidGVhbUBjcmFmdGVyc21hcmtldC5vcmciLCJyb2xlIjoiYWRtaW4iLCJzdiI6MCwiaWF0IjoxNzgzODAyNTUwLCJleHAiOjE3ODM4ODg5NTB9.9dDqM_PzPvyBmiCFzE6WELh8sX35S9bYtZnK_u_oC6g"
 
 
 @pytest.fixture(scope="module")
@@ -39,13 +38,25 @@ def buyer_jwt():
 
 
 @pytest.fixture(scope="module")
+def admin_jwt():
+    """Mint a fresh admin JWT via the backend helper."""
+    script = (
+        "from dotenv import load_dotenv; load_dotenv('/app/backend/.env')\n"
+        "from maker_auth import issue_session_jwt\n"
+        "print(issue_session_jwt('admin', 'team@craftersmarket.org', role='admin'))\n"
+    )
+    out = subprocess.check_output(["python3", "-c", script], cwd="/app/backend", stderr=subprocess.DEVNULL)
+    return out.decode().strip().splitlines()[-1]
+
+
+@pytest.fixture(scope="module")
 def buyer_headers(buyer_jwt):
     return {"Authorization": f"Bearer {buyer_jwt}", "Content-Type": "application/json"}
 
 
 @pytest.fixture(scope="module")
-def admin_headers():
-    return {"Authorization": f"Bearer {ADMIN_JWT}", "Content-Type": "application/json"}
+def admin_headers(admin_jwt):
+    return {"Authorization": f"Bearer {admin_jwt}", "Content-Type": "application/json"}
 
 
 # ── 1. Category list ─────────────────────────────────────────────────

@@ -1,9 +1,10 @@
 name: Control Center CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
-    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1 ]
+    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**" ]
 
 jobs:
   verify:
@@ -23,11 +24,36 @@ jobs:
         working-directory: control-center
     env:
       CONTROL_CENTER_RUN_DB_TESTS: "true"
+      CONTROL_CENTER_RUN_PRIVILEGED_FS_TESTS: "true"
+      CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      CI_EXPECTED_TESTS: "25"
+      CI_EXPECTED_TESTS: "155"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - name: Scan tracked repository content with Gitleaks 8.30.1
+        working-directory: .
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -euo pipefail
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          release_url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tool_dir="${RUNNER_TEMP}/gitleaks-${GITLEAKS_VERSION}"
+          scan_dir="${RUNNER_TEMP}/gitleaks-tracked-tree"
+          mkdir -p "${tool_dir}" "${scan_dir}"
+          curl --fail --location --silent --show-error \
+            --output "${RUNNER_TEMP}/${asset}" "${release_url}/${asset}"
+          curl --fail --location --silent --show-error \
+            --output "${RUNNER_TEMP}/gitleaks-checksums.txt" \
+            "${release_url}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep "  ${asset}$" "${RUNNER_TEMP}/gitleaks-checksums.txt" \
+            > "${RUNNER_TEMP}/gitleaks-checksum.txt"
+          (cd "${RUNNER_TEMP}" && sha256sum --check gitleaks-checksum.txt)
+          tar -xzf "${RUNNER_TEMP}/${asset}" -C "${tool_dir}" gitleaks
+          git archive --format=tar HEAD | tar -xf - -C "${scan_dir}"
+          "${tool_dir}/gitleaks" dir "${scan_dir}" \
+            --no-banner --redact --exit-code 1
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -38,22 +64,30 @@ jobs:
       - name: Verify Linux test summary has no skips
         run: |
           set -euo pipefail
-          node --import tsx --test --test-reporter=tap apps/agent/test/*.test.ts > agent.tap
-          node --import tsx --test --test-reporter=tap apps/api/test/*.test.ts > api.tap
-          node --import tsx --test --test-reporter=tap packages/shared/test/*.test.ts > shared.tap
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const files = ['agent.tap', 'api.tap', 'shared.tap'];
-          let tests = 0;
-          let skipped = 0;
-          for (const file of files) {
-            const text = fs.readFileSync(file, 'utf8');
-            tests += Number(text.match(/^# tests (\d+)/m)?.[1] ?? 0);
-            skipped += Number(text.match(/^# skipped (\d+)/m)?.[1] ?? 0);
-          }
-          if (tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${tests}`);
-          if (skipped !== 0) throw new Error(`unexpected skipped tests: ${skipped}`);
-          NODE
+          node --test scripts/summarize-tap.test.mjs
+          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap
+          (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap
+          (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap
+          (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap
+          node scripts/summarize-tap.mjs agent.tap api.tap shared.tap web.tap
+      - name: Linux agent upgrade and rollback dry run
+        run: bash scripts/linux-agent-upgrade-dry-run.sh
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present
+      - name: Verify tracked repository integrity
+        if: always()
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git diff --check
+          if ! git diff --quiet --ignore-submodules --; then
+            echo "Tracked working-tree changes were produced during validation:"
+            git diff --name-only
+            exit 1
+          fi
+          if ! git diff --cached --quiet --ignore-submodules --; then
+            echo "Staged tracked changes were produced during validation:"
+            git diff --cached --name-only
+            exit 1
+          fi

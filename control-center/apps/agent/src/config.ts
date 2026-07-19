@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
-const schema = z.object({
+export const agentConfigSchema = z.object({
   controlCenterUrl: z.string().url(),
+  installationId: z.string().default(""),
+  requestedSlug: z.string().default(""),
   agentId: z.string(),
   agentSecret: z.string(),
   agentVersion: z.string().default("0.1.0"),
@@ -12,16 +14,16 @@ const schema = z.object({
   mongoChecks: z.record(z.string()).default({})
 });
 
-export type AgentConfig = z.infer<typeof schema>;
+export type AgentConfig = z.infer<typeof agentConfigSchema>;
 
 const configPath = process.env.CONTROL_CENTER_AGENT_CONFIG || path.resolve(process.cwd(), "agent.local.json");
 
 export function loadConfig() {
   const fallback = path.resolve(process.cwd(), "agent.example.json");
   const file = fs.existsSync(configPath) ? configPath : fallback;
-  return schema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+  return agentConfigSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
 }
 
 export function saveConfig(config: AgentConfig) {
-  fs.writeFileSync(configPath, `${JSON.stringify(schema.parse(config), null, 2)}\n`, { mode: 0o600 });
+  fs.writeFileSync(configPath, `${JSON.stringify(agentConfigSchema.parse(config), null, 2)}\n`, { mode: 0o600 });
 }

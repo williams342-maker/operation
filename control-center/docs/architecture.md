@@ -40,3 +40,15 @@ Mongo connectivity checks run on the agent where possible. The browser never rec
 ## Audit
 
 Audit events include actor, organization, action, target type, target ID, timestamp, result, request correlation ID, and sanitized metadata. Secrets and raw credentials are filtered from audit metadata.
+
+## Staging readiness plane
+
+The staging topology keeps the browser behind the same HTTPS origin as the API, connects the API to a dedicated staging MongoDB database, and enrolls agents through outbound HTTPS polling. Startup validates environment shape before opening the listener, then connects MongoDB and creates required indexes.
+
+Three secret-free health surfaces have distinct purposes:
+
+- `GET /healthz` is public process liveness and returns build identity only.
+- `GET /readyz` is public deployment readiness and verifies MongoDB plus initialized subsystems.
+- `GET /api/system/health` and `GET /api/system/diagnostics` are authenticated operational reports. System health follows the established `status:view` policy (including Viewer); diagnostics requires `audit:view`. Organization-specific AI state is derived only from the authenticated organization.
+
+The API has no in-process background worker queue in this release; health reports that state as `not_configured`. The operational context cache is in memory and is intentionally reported without cached content. AI remains globally disabled unless explicitly enabled, and startup readiness checks never contact an external provider.

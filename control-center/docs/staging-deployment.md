@@ -174,3 +174,55 @@ Nginx logs omit Authorization, Cookie, agent signature, nonce, MongoDB URI, and 
 - No Crafters Market database connection.
 - No Phase 2A CRUD management UI work.
 - No deployment, restart, rollback, environment editing, log deletion, or service-control capability.
+
+## Automated staging smoke test
+
+Install the matching browser once with `npx playwright install chromium`. Provide credentials only through process environment variables:
+
+```bash
+STAGING_ORG_SLUG=staging \
+STAGING_ADMIN_EMAIL=operator@example.test \
+STAGING_ADMIN_PASSWORD='<secret>' \
+npm run smoke:staging -- https://control.example.com
+```
+
+The suite checks the homepage, authentication, liveness/readiness, MongoDB, agent/discovery payloads, projects, health UI, AI-disabled state, audit logging, diagnostics, console errors, desktop layout, and 390 px overflow. It never prints the password.
+
+## Health and diagnostics
+
+- `GET /healthz`: public liveness with build version and commit.
+- `GET /readyz`: public secret-free readiness for MongoDB, agent monitoring, AI, audit, rate limiting, cache, build identity, branch, and feature flags.
+- `GET /api/system/health`: the readiness summary, requiring `status:view`.
+- `GET /api/system/diagnostics`: environment diagnostics, permissions, startup warnings, and dependency versions, requiring `audit:view`.
+
+AI status is `disabled`, `unconfigured`, or `ready`. Credential values are never returned.
+
+## First administrator validation
+
+1. Confirm bootstrap is available only during the approved window.
+2. Create the first Owner with a unique password.
+3. Sign out and sign in again through staging.
+4. Verify Dashboard, Servers, Projects, Health, audit, and diagnostics.
+5. Set `CONTROL_CENTER_BOOTSTRAP_MODE=disabled` (or `invitation`) and restart.
+6. Confirm `/api/auth/bootstrap` reports unavailable.
+
+## AI enablement sequence (separate approval required)
+
+The first staging deployment keeps `AI_ASSISTANT_ENABLED=false`.
+
+1. Select `openai`, `anthropic`, or `mock`; configure provider/model allowlists.
+2. Install `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in the host-only secret file.
+3. Keep organizations disabled, set the global flag true, and restart.
+4. Verify `/readyz` reports `ready`; this check makes no provider request.
+5. Acknowledge retention/costs and enable one staging organization.
+6. Run one evidence-backed analysis, verify audit/usage, and rerun smoke tests.
+
+Emergency disable: set `AI_ASSISTANT_ENABLED=false`, restart, verify `/readyz` says `disabled`, and rotate the provider credential if compromise is suspected.
+
+After any rollback, rerun liveness, readiness, login, diagnostics, and smoke automation. Restoring data requires separate approval and the verified pre-deployment backup.
+
+## Supporting documents
+
+- [Readiness checklist](staging-readiness-checklist.md)
+- [Security review](staging-security-review.md)
+- [Architecture](architecture.md)

@@ -1,12 +1,24 @@
 ﻿import axios from "axios";
 
-export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api", withCredentials: true });
+export const api = axios.create({ baseURL: import.meta.env?.VITE_API_URL || "/api", withCredentials: true });
+export const SESSION_EXPIRED_EVENT = "cc:session-expired";
+let sessionExpiryReported = false;
 api.interceptors.request.use((config) => { const csrf = localStorage.getItem("cc.csrf"); if (csrf && config.method?.toUpperCase() !== "GET") config.headers["x-csrf-token"] = csrf; return config; });
+api.interceptors.response.use(undefined, (error) => {
+  if (axios.isAxiosError(error) && error.response?.status === 401 && localStorage.getItem("cc.csrf")) {
+    localStorage.removeItem("cc.csrf");
+    if (!sessionExpiryReported) {
+      sessionExpiryReported = true;
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
+  }
+  return Promise.reject(error);
+});
 export function apiError(error: unknown) { return axios.isAxiosError(error) ? String(error.response?.data?.error || error.message) : error instanceof Error ? error.message : "Unknown error"; }
 export function isRecentAuthRequired(error: unknown) { return axios.isAxiosError(error) && error.response?.status === 403 && error.response?.data?.code === "RECENT_AUTH_REQUIRED"; }
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean }; }
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }
-export async function login(organizationSlug: string, email: string, password: string) { const { data } = await api.post("/auth/login", { organizationSlug, email, password }); localStorage.setItem("cc.csrf", data.csrfToken); return data; }
+export async function login(organizationSlug: string, email: string, password: string) { const { data } = await api.post("/auth/login", { organizationSlug, email, password }); sessionExpiryReported = false; localStorage.setItem("cc.csrf", data.csrfToken); return data; }
 export async function reauthenticate(password: string) { return (await api.post("/auth/reauthenticate", { password })).data as { ok: true }; }
 export async function logout() {
   try {

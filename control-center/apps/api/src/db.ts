@@ -3,6 +3,12 @@ import type {
   AgentNonceDoc,
   AgentTaskDoc,
   AgentTaskResultDoc,
+  ConfigurationDefinitionDoc,
+  ConfigurationEnvironmentDoc,
+  ConfigurationVersionDoc,
+  ConfigurationTargetProfileDoc,
+  ConfigurationDeploymentPlanDoc,
+  AiUsageDoc,
   AuditEventDoc,
   EnrollmentDoc,
   HealthCheckDoc,
@@ -34,7 +40,13 @@ export const collections = {
   agentNonces: db.collection<AgentNonceDoc>("agent_nonces"),
   auditEvents: db.collection<AuditEventDoc>("audit_events"),
   agentTasks: db.collection<AgentTaskDoc>("agent_tasks"),
-  agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results")
+  agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results"),
+  aiUsage: db.collection<AiUsageDoc>("ai_usage"),
+  configurationEnvironments: db.collection<ConfigurationEnvironmentDoc>("configuration_environments"),
+  configurationDefinitions: db.collection<ConfigurationDefinitionDoc>("configuration_definitions"),
+  configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions"),
+  configurationTargetProfiles: db.collection<ConfigurationTargetProfileDoc>("configuration_target_profiles"),
+  configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans")
 };
 
 export async function connectDb() {
@@ -43,16 +55,24 @@ export async function connectDb() {
 }
 
 async function ensureIndexes() {
+  await collections.enrollments.updateMany({ name: { $exists: false } }, { $set: { name: "Legacy enrollment" } });
+  await collections.enrollments.updateMany({ uses: { $exists: false } }, { $set: { uses: 0 } });
+  await collections.enrollments.updateMany({ usage: { $exists: false } }, { $set: { usage: [] } });
   await Promise.all([
     collections.organizations.createIndex({ slug: 1 }, { unique: true }),
     collections.users.createIndex({ orgId: 1, email: 1 }, { unique: true }),
     collections.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.sessions.createIndex({ orgId: 1, userId: 1 }),
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),
-    collections.enrollments.createIndex({ expiresAt: 1 }),
+    collections.enrollments.createIndex({ orgId: 1, createdAt: -1 }),
     collections.servers.createIndex({ orgId: 1, agentId: 1 }, { unique: true }),
+    collections.servers.createIndex({ orgId: 1, machineId: 1 }, { unique: true, partialFilterExpression: { machineId: { $type: "string" } } }),
+    collections.servers.createIndex({ orgId: 1, agentInstallationId: 1 }, { unique: true, partialFilterExpression: { agentInstallationId: { $type: "string" } } }),
+    collections.servers.createIndex({ orgId: 1, slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: "string" } } }),
     collections.servers.createIndex({ orgId: 1, status: 1 }),
     collections.servers.createIndex({ orgId: 1, archivedAt: 1 }),
+    collections.servers.createIndex({ orgId: 1, enrollmentStatus: 1, updatedAt: -1 }),
+    collections.servers.createIndex({ orgId: 1, publicSiteCheckedAt: 1 }),
     collections.projects.createIndex({ orgId: 1, slug: 1 }, { unique: true }),
     collections.projects.createIndex({ orgId: 1, primaryServerId: 1 }),
     collections.projects.createIndex({ orgId: 1, archivedAt: 1 }),
@@ -73,7 +93,18 @@ async function ensureIndexes() {
     collections.agentTaskResults.createIndex({ orgId: 1, taskId: 1 }, { unique: true }),
     collections.agentTaskResults.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.auditEvents.createIndex({ orgId: 1, createdAt: -1 }),
-    collections.auditEvents.createIndex({ requestId: 1 })
+    collections.auditEvents.createIndex({ requestId: 1 }),
+    collections.aiUsage.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.aiUsage.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
+    collections.aiUsage.createIndex({ orgId: 1, concurrencySlot: 1 }, { unique: true, partialFilterExpression: { concurrencySlot: { $type: "number" } } }),
+    collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.configurationEnvironments.createIndex({ orgId: 1, projectId: 1, name: 1 }, { unique: true }),
+    collections.configurationDefinitions.createIndex({ orgId: 1, projectId: 1, applicationPath: 1, name: 1 }, { unique: true }),
+    collections.configurationVersions.createIndex({ orgId: 1, definitionId: 1, environmentId: 1, version: -1 }, { unique: true }),
+    collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 }),
+    collections.configurationTargetProfiles.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
+    collections.configurationDeploymentPlans.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
+    collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 })
   ]);
 }
 
