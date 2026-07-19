@@ -25,7 +25,21 @@ test("bootstrap build is reproducible, signed, schema-bound, and secret-free", {
 test("bootstrap and rollback scripts avoid direct execution and preserve fixed policy", () => {
   const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8"); const builder = fs.readFileSync(path.join(root, "scripts", "build-agent-bootstrap.mjs"), "utf8");
   assert.doesNotMatch(bootstrap, /curl[^\n]*\|[^\n]*(?:bash|sh)/); assert.match(bootstrap, /manifest signature verification failed/); assert.match(bootstrap, /artifact signature verification failed/); assert.match(bootstrap, /agentId\|\|!c\.agentSecret/); assert.match(bootstrap, /bootstrap validation failed and rollback was requested/); assert.match(bootstrap, /current_version.*0\.1\.0/); assert.match(rollback, /backup marker escaped the backup root/); assert.match(bootstrap, /chmod 0600 "\$curl_config"/); assert.match(bootstrap, /} >"\$curl_config"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /CONTROL_CENTER_ENROLLMENT_TOKEN=/);
+  assert.match(bootstrap, /OPSWORKBENCH_BOOTSTRAP_LOCK_HELD=1/); assert.match(rollback, /\/proc\/\$\$\/fd\/9/); assert.match(rollback, /inherited bootstrap lock is invalid/);
   assert.match(builder, /"typescript", "bin", "tsc".*"packages", "shared", "tsconfig\.json"/);
+});
+
+test("rollback reuses only the parent's exact inherited lock", { skip: process.platform === "win32" }, () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "opsworkbench-bootstrap-lock-"));
+  try {
+    const state = path.join(temporary, "state"); const backups = path.join(temporary, "backups"); const install = path.join(temporary, "install"); const config = path.join(temporary, "config"); const units = path.join(temporary, "units");
+    for (const directory of [state, backups, install, config, units]) fs.mkdirSync(directory);
+    const source = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8").replace('INSTALL_ROOT="/opt/opsworkbench-agent"', `INSTALL_ROOT=${JSON.stringify(install)}`).replace('CONFIG_ROOT="/etc/opsworkbench-agent"', `CONFIG_ROOT=${JSON.stringify(config)}`).replace('STATE_ROOT="/var/lib/opsworkbench-agent"', `STATE_ROOT=${JSON.stringify(state)}`).replace('BACKUP_ROOT="/var/backups/opsworkbench-agent"', `BACKUP_ROOT=${JSON.stringify(backups)}`).replace('UNIT_ROOT="/etc/systemd/system"', `UNIT_ROOT=${JSON.stringify(units)}`);
+    const script = path.join(temporary, "rollback.sh"); fs.writeFileSync(script, source, { mode: 0o700 }); const lock = path.join(state, "bootstrap.lock");
+    const inherited = spawnSync("bash", ["-c", 'exec 9>"$1"; flock -n 9; OPSWORKBENCH_BOOTSTRAP_LOCK_HELD=1 bash "$2"', "test", lock, script], { encoding: "utf8" }); assert.notEqual(inherited.status, 0); assert.match(inherited.stderr, /no bootstrap backup marker exists/); assert.doesNotMatch(inherited.stderr, /another bootstrap or rollback is active/);
+    const concurrent = spawnSync("bash", ["-c", 'exec 9>"$1"; flock -n 9; bash "$2"', "test", lock, script], { encoding: "utf8" }); assert.notEqual(concurrent.status, 0); assert.match(concurrent.stderr, /another bootstrap or rollback is active/);
+    const independent = spawnSync("bash", [script], { encoding: "utf8" }); assert.notEqual(independent.status, 0); assert.match(independent.stderr, /no bootstrap backup marker exists/); assert.doesNotMatch(independent.stderr, /another bootstrap or rollback is active/);
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
 test("bootstrap scripts pass bash syntax validation when bash is available", { skip: process.platform === "win32" }, () => { for (const name of ["bootstrap-agent-release.sh", "rollback-agent-bootstrap.sh"]) { const result = spawnSync("bash", ["-n", path.join(root, "scripts", name)], { encoding: "utf8" }); assert.equal(result.status, 0, result.stderr); } });

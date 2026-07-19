@@ -136,7 +136,7 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 if [ "$validated" != true ]; then
-  "$target/control-center/scripts/rollback-agent-bootstrap.sh" >/dev/null 2>&1 || true
+  OPSWORKBENCH_BOOTSTRAP_LOCK_HELD=1 "$target/control-center/scripts/rollback-agent-bootstrap.sh" >/dev/null 2>&1 || true
   fail "bootstrap validation failed and rollback was requested"
 fi
 printf 'OpsWorkbench agent bootstrap validated successfully for release %s.\n' "$RELEASE_VERSION"

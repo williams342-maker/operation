@@ -13,8 +13,16 @@ fail() { printf 'OpsWorkbench bootstrap rollback: %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || fail "run from a root shell"
 command -v flock >/dev/null 2>&1 || fail "flock is required"
 install -d -m 0700 "$STATE_ROOT"
-exec 9>"$STATE_ROOT/bootstrap.lock"
-flock -n 9 || fail "another bootstrap or rollback is active"
+lock_file="$STATE_ROOT/bootstrap.lock"
+if [ "${OPSWORKBENCH_BOOTSTRAP_LOCK_HELD:-}" = "1" ]; then
+  [ -e "/proc/$$/fd/9" ] || fail "inherited bootstrap lock is unavailable"
+  [ "$(readlink -f -- "/proc/$$/fd/9")" = "$(readlink -f -- "$lock_file")" ] || fail "inherited bootstrap lock is invalid"
+  flock -n 9 || fail "inherited bootstrap lock is not owned"
+else
+  exec 9>"$lock_file"
+  flock -n 9 || fail "another bootstrap or rollback is active"
+fi
+unset OPSWORKBENCH_BOOTSTRAP_LOCK_HELD
 [ -s "$MARKER" ] || fail "no bootstrap backup marker exists"
 backup="$(head -n 1 "$MARKER")"
 resolved_backup="$(readlink -f -- "$backup")"
