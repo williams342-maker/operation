@@ -175,15 +175,14 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
   );
 }
 function Login({ onLogin }: { onLogin: () => void }) {
-  const f = useForm({ organizationSlug: "", email: "", password: "" });
+  const f = useForm({ email: "", password: "" });
   const mutation = useMutation({
     mutationFn: () =>
-      login(f.values.organizationSlug, f.values.email, f.values.password),
+      login(f.values.email, f.values.password),
     onSuccess: onLogin,
   });
   return (
     <Centered title="OpsWorkbench">
-      <Field placeholder="Organization slug" {...f.field("organizationSlug")} />
       <Field
         placeholder="Email"
         autoComplete="username"
@@ -429,17 +428,16 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
   );
 }
 function OwnerReplacement({ onComplete }: { onComplete: () => void }) {
-  const f = useForm({ organizationSlug: "", ownerName: "", ownerEmail: "", password: "", confirmPassword: "" });
+  const f = useForm({ ownerName: "", ownerEmail: "", password: "", confirmPassword: "" });
   const mutation = useMutation({
     mutationFn: () => {
       if (f.values.password !== f.values.confirmPassword) throw new Error("Passwords do not match");
-      return replaceOwner({ organizationSlug: f.values.organizationSlug, ownerName: f.values.ownerName, ownerEmail: f.values.ownerEmail, password: f.values.password });
+      return replaceOwner({ ownerName: f.values.ownerName, ownerEmail: f.values.ownerEmail, password: f.values.password });
     },
     onSuccess: onComplete,
   });
   return <Centered title="One-time Owner Registration">
     <p className="text-sm text-muted">This registration replaces the existing Owner and closes permanently after completion.</p>
-    <Field placeholder="Organization slug" {...f.field("organizationSlug")} />
     <Field placeholder="New Owner name" autoComplete="name" {...f.field("ownerName")} />
     <Field placeholder="New Owner email" autoComplete="username" {...f.field("ownerEmail")} />
     <PasswordField placeholder="Create password" autoComplete="new-password" {...f.field("password")} />

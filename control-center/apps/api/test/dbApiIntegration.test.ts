@@ -215,6 +215,25 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.organizations.countDocuments(), 1);
     assert.equal(await collections.users.countDocuments({ role: "Owner" }), 1);
 
+    const sluglessLogin = await request<{ csrfToken: string }>("POST", "/auth/login", {
+      email: "owner-a@example.test",
+      password: "owner-a-password"
+    }, { "content-type": "application/json" });
+    assert.equal(sluglessLogin.status, 200);
+
+    const secondOrg = await collections.organizations.insertOne({
+      name: "Second Org",
+      slug: "second-org",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    const ambiguousSluglessLogin = await request("POST", "/auth/login", {
+      email: "owner-a@example.test",
+      password: "owner-a-password"
+    }, { "content-type": "application/json" });
+    assert.equal(ambiguousSluglessLogin.status, 401);
+    await collections.organizations.deleteOne({ _id: secondOrg.insertedId });
+
     const duplicateBootstrap = await request("POST", "/auth/bootstrap", {
       organizationName: "Duplicate Org",
       organizationSlug: "duplicate-org",

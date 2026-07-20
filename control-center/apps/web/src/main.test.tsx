@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
+  login: vi.fn(),
   replaceOwner: vi.fn(),
   bootstrapStatus: vi.fn(),
   apiGet: vi.fn()
@@ -17,7 +18,7 @@ vi.mock("./api", () => ({
   bootstrapOwner: vi.fn(),
   bootstrapStatus: mocks.bootstrapStatus,
   isRecentAuthRequired: vi.fn(() => false),
-  login: vi.fn(),
+  login: mocks.login,
   logout: mocks.logout,
   reauthenticate: vi.fn(),
   replaceOwner: mocks.replaceOwner,
@@ -52,13 +53,12 @@ describe("One-time Owner Registration", () => {
   it("collects the replacement Owner credentials", async () => {
     renderRoot();
     expect(await screen.findByRole("heading", { name: "One-time Owner Registration" })).toBeInTheDocument();
-    await userEvent.type(screen.getByPlaceholderText("Organization slug"), "phase-1b-a");
     await userEvent.type(screen.getByPlaceholderText("New Owner name"), "Replacement Owner");
     await userEvent.type(screen.getByPlaceholderText("New Owner email"), "replacement@example.test");
     await userEvent.type(screen.getByPlaceholderText("Create password"), "replacement-password");
     await userEvent.type(screen.getByPlaceholderText("Confirm password"), "replacement-password");
     await userEvent.click(screen.getByRole("button", { name: "Replace Owner" }));
-    await waitFor(() => expect(mocks.replaceOwner).toHaveBeenCalledWith({ organizationSlug: "phase-1b-a", ownerName: "Replacement Owner", ownerEmail: "replacement@example.test", password: "replacement-password" }));
+    await waitFor(() => expect(mocks.replaceOwner).toHaveBeenCalledWith({ ownerName: "Replacement Owner", ownerEmail: "replacement@example.test", password: "replacement-password" }));
   });
 
   it("rejects mismatched passwords without calling the API", async () => {
@@ -115,6 +115,28 @@ describe("Sign Out", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Logout service unavailable");
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
     expect(localStorage.getItem("cc.csrf")).toBe("csrf-token");
+  });
+});
+
+describe("Single-organization login", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.login.mockReset();
+    mocks.login.mockResolvedValue({});
+  });
+
+  afterEach(() => cleanup());
+
+  it("signs in without asking for or submitting an organization slug", async () => {
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "OpsWorkbench" })).toBeInTheDocument();
+    const email = await screen.findByPlaceholderText("Email");
+    expect(screen.queryByPlaceholderText("Organization slug")).not.toBeInTheDocument();
+    await userEvent.type(email, "owner@example.test");
+    await userEvent.type(screen.getByPlaceholderText("Password"), "owner-password-long");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(mocks.login).toHaveBeenCalledWith("owner@example.test", "owner-password-long"));
   });
 });
 

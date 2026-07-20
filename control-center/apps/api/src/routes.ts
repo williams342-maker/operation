@@ -59,6 +59,11 @@ async function ownerReplacementAvailable() {
   return await collections.users.countDocuments({ orgId: organizations[0]._id, role: "Owner", disabledAt: { $exists: false } }) === 1;
 }
 
+async function singleOrganization() {
+  const organizations = await collections.organizations.find({}).limit(2).toArray();
+  return organizations.length === 1 ? organizations[0] : null;
+}
+
 router.get("/auth/bootstrap", noStore, async (_req, res, next) => {
   try {
     const [available, replacementAvailable] = await Promise.all([bootstrapAvailable(), ownerReplacementAvailable()]);
@@ -72,10 +77,11 @@ router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
       await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "owner-replacement-unavailable" } });
       return res.status(409).json({ error: "Owner replacement is unavailable" });
     }
-    const parsed = z.object({ organizationSlug: z.string().regex(/^[a-z0-9-]+$/), ownerEmail: z.string().email(), ownerName: z.string().min(1).max(200), password: z.string().min(12).max(256) }).safeParse(req.body);
+    const parsed = z.object({ ownerEmail: z.string().email(), ownerName: z.string().min(1).max(200), password: z.string().min(12).max(256) }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid owner replacement request" });
     const body = parsed.data;
-    const org = await collections.organizations.findOne({ slug: body.organizationSlug, ownerReplacementCompletedAt: { $exists: false } });
+    const org = await singleOrganization();
+    if (org?.ownerReplacementCompletedAt) return res.status(409).json({ error: "Owner replacement is unavailable" });
     if (!org?._id) return res.status(404).json({ error: "Organization not found" });
     const owners = await collections.users.find({ orgId: org._id, role: "Owner", disabledAt: { $exists: false } }).limit(2).toArray();
     if (owners.length !== 1 || !owners[0]._id) return res.status(409).json({ error: "Owner replacement is unavailable" });
@@ -130,8 +136,10 @@ router.post("/auth/bootstrap", noStore, async (req, res, next) => {
 
 router.post("/auth/login", noStore, async (req, res, next) => {
   try {
-    const body = z.object({ organizationSlug: z.string(), email: z.string().email(), password: z.string() }).parse(req.body);
-    const org = await collections.organizations.findOne({ slug: body.organizationSlug });
+    const body = z.object({ organizationSlug: z.string().optional(), email: z.string().email(), password: z.string() }).parse(req.body);
+    const org = body.organizationSlug
+      ? await collections.organizations.findOne({ slug: body.organizationSlug })
+      : await singleOrganization();
     const user = org?._id ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
     if (!org?._id || !user?._id || !verifyPassword(body.password, user.passwordHash)) {
       await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase() } });
