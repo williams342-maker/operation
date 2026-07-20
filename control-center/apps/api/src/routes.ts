@@ -16,7 +16,7 @@ import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword 
 import { managementRouter } from "./managementRoutes.js";
 import { taskRouter } from "./taskRoutes.js";
 import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
-import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
+import { acknowledgeTask, claimTasksForAgent, taskAuditTargetId } from "./tasks.js";
 import { calculateAgentStatus } from "./serverStatus.js";
 import { aiAssistantRouter } from "./aiAssistantRoutes.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -286,7 +286,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
     invalidateOperationalContext(server._id.toHexString());
     noStore(req, res, () => undefined);
     const claimed = await claimTasksForAgent(server);
-    await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: task.type } })));
+    await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: taskAuditTargetId(task._id), result: "success", requestId: req.requestId, metadata: { type: task.type } })));
     res.json({ serverId: server._id.toHexString(), tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
   } catch (error) { next(error); }
 });
@@ -297,7 +297,7 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
     const result = await acknowledgeTask(req.agentServer!, body);
     if (result.status === 200 && result.shouldAudit !== false) {
       const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : body.event === "succeeded" || body.event === "failed" ? "task.complete" : "task.claim";
-      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: body.taskId, result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
+      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: taskAuditTargetId(body.taskId), result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
     }
     res.status(result.status).json(result.body);
   } catch (error) { next(error); }

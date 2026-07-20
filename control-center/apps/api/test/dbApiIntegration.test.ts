@@ -482,8 +482,31 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(duplicateClaim.status, 200);
     assert.equal(((duplicateClaim.body as { tasks: unknown[] }).tasks).length, 0);
 
+    const taskId = queuedTask.body.task._id;
+    const claimedVersion = (await collections.agentTasks.findOne({ _id: new ObjectId(taskId), orgId: orgA._id }))?.version;
+    const claimAudit = await collections.auditEvents.find({ orgId: orgA._id, action: "task.claim", targetId: taskId }).toArray();
+    assert.equal(claimAudit.length, 1);
+    assert.equal(typeof claimAudit[0].targetId, "string");
+    assert.equal(claimAudit[0].actorType, "agent");
+    assert.equal(claimAudit[0].actorId, credentials.agentId);
+    assert.deepEqual(claimAudit[0].metadata, { type: "collect.system" });
+
+    const replayTimestamp = new Date().toISOString();
+    const replayNonce = crypto.randomUUID();
+    const claimedAck = await ack(credentials, { taskId, event: "claimed" }, { timestamp: replayTimestamp, nonce: replayNonce });
+    assert.equal(claimedAck.status, 200);
+    const replayedClaimedAck = await ack(credentials, { taskId, event: "claimed" }, { timestamp: replayTimestamp, nonce: replayNonce });
+    assert.equal(replayedClaimedAck.status, 401);
+    assert.equal((await collections.agentTasks.findOne({ _id: new ObjectId(taskId), orgId: orgA._id }))?.version, claimedVersion);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.claim", targetId: taskId }), 1);
+
+    const malformedAck = await ack(credentials, { taskId, event: "started", status: "failed" });
+    assert.equal(malformedAck.status, 400);
+
     const startedTask = await ack(credentials, { taskId: queuedTask.body.task._id, event: "started" });
     assert.equal(startedTask.status, 200);
+    const contradictoryClaim = await ack(credentials, { taskId, event: "claimed" });
+    assert.equal(contradictoryClaim.status, 409);
     const completedTask = await ack(credentials, { taskId: queuedTask.body.task._id, event: "succeeded", result: { metrics: { ok: true }, secret: "should-redact" } });
     assert.equal(completedTask.status, 200);
     const storedTask = await collections.agentTasks.findOne({ _id: new ObjectId(queuedTask.body.task._id), orgId: orgA._id });
@@ -499,6 +522,17 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.complete", targetId: queuedTask.body.task._id, result: "success" }), completionAuditCount);
     const contradictoryCompletion = await ack(credentials, { taskId: queuedTask.body.task._id, event: "failed", result: { error: "late contradiction" } });
     assert.equal(contradictoryCompletion.status, 409);
+
+    const lifecycle = await collections.auditEvents.find({ orgId: orgA._id, targetType: "agent_task", targetId: taskId }).sort({ createdAt: 1 }).toArray();
+    assert.equal(lifecycle.every((event) => typeof event.targetId === "string"), true);
+    assert.equal(lifecycle.filter((event) => event.action === "task.claim").length, 1);
+    assert.equal(lifecycle.filter((event) => event.action === "task.start").length, 1);
+    assert.equal(lifecycle.filter((event) => event.action === "task.complete").length, 1);
+    assert.deepEqual(lifecycle.map((event) => event.action), ["task.create", "task.claim", "task.start", "task.complete"]);
+    assert.equal(lifecycle.every((event) => event.orgId?.equals(orgA._id)), true);
+    assert.equal(lifecycle.filter((event) => event.action === "task.create").every((event) => event.actorType === "user" && event.actorId instanceof ObjectId && event.actorId.equals(ownerUserA._id!)), true);
+    assert.equal(lifecycle.filter((event) => event.action !== "task.create").every((event) => event.actorType === "agent" && event.actorId === credentials.agentId), true);
+    assert.doesNotMatch(JSON.stringify(lifecycle.map((event) => event.metadata)), /secret|token|password|credential|signature|cookie|authorization|mongodb:\/\//i);
 
     const cancelDone = await request("POST", `/tasks/${queuedTask.body.task._id}/cancel`, {}, jsonHeaders(ownerA));
     assert.equal(cancelDone.status, 404);

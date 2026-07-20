@@ -16,6 +16,9 @@ export const taskRegistry: Record<TaskType, { timeoutMs: number; outputCapBytes:
 
 export function isConfigurationMutationTask(type: TaskType) { return type === "configuration.apply" || type === "configuration.rollback"; }
 
+/** Agent-task audit targets are canonical lowercase ObjectId hex strings. */
+export function taskAuditTargetId(id: ObjectId | string) { return typeof id === "string" ? new ObjectId(id).toHexString() : id.toHexString(); }
+
 export function taskSigningKeyVersion() {
   return process.env.CONTROL_CENTER_TASK_SIGNING_KEY_VERSION || "v1";
 }
@@ -101,10 +104,10 @@ export async function createTask(input: { orgId: ObjectId; server: ServerDoc & {
     const result = await collections.agentTasks.insertOne(doc);
     invalidateOperationalContext(input.server._id.toHexString());
     if (input.projectId) invalidateOperationalContext(input.projectId.toHexString());
-    return { ...doc, _id: result.insertedId };
+    return { ...doc, _id: result.insertedId, auditCreation: true as const };
   } catch (error) {
     const existing = await collections.agentTasks.findOne({ orgId: input.orgId, idempotencyKey: input.idempotencyKey });
-    if (existing) return existing;
+    if (existing) return { ...existing, auditCreation: false as const };
     throw error;
   }
 }
@@ -151,6 +154,13 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   if (task.state === "succeeded" || task.state === "failed") {
     if (body.event === task.state) return { status: 200, body: { ok: true }, shouldAudit: false };
     return { status: 409, body: { error: "Task already has a different terminal state" } };
+  }
+  // The atomic queued -> claimed database transition in claimTasksForAgent is
+  // authoritative. The agent acknowledgement confirms receipt but must not
+  // mutate the task or emit a second claim audit event.
+  if (body.event === "claimed") {
+    if (task.state !== "claimed") return { status: 409, body: { error: "Task is not awaiting claim acknowledgement" } };
+    return { status: 200, body: { ok: true }, shouldAudit: false };
   }
   if (task.expiresAt <= now) {
     await collections.agentTasks.updateOne({ _id: id, state: { $ne: "expired" } }, { $set: { state: "expired", completedAt: now, updatedAt: now }, $inc: { version: 1 } });
