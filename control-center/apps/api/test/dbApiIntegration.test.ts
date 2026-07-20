@@ -1,4 +1,5 @@
 ﻿import crypto from "node:crypto";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,12 @@ import { agentSigningKey, signRequest } from "@control-center/shared";
 import { isolatedTestMongoUrl } from "../src/testDbGuard.js";
 
 const enabled = process.env.CONTROL_CENTER_RUN_DB_TESTS === "true" && Boolean(process.env.MONGO_URL_TEST);
+const diagnosticsFile = process.env.CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE;
+
+function diagnostic(event: string, details: Record<string, string | number> = {}) {
+  if (!diagnosticsFile) return;
+  fsSync.appendFileSync(diagnosticsFile, `${JSON.stringify({ timestamp: new Date().toISOString(), event, ...details })}\n`, { mode: 0o600 });
+}
 
 type TestResponse<T = Record<string, unknown>> = {
   status: number;
@@ -83,7 +90,8 @@ async function assertIndex(collection: { indexes(): Promise<Array<{ key: Record<
   if (options.ttl !== undefined) assert.equal(found.expireAfterSeconds, options.ttl);
 }
 
-test("database-backed Phase 1B API and fake-agent verification", { skip: !enabled }, async () => {
+test("database-backed Phase 1B API and fake-agent verification", { skip: !enabled, timeout: 120_000 }, async () => {
+  diagnostic("test.start");
   process.env.NODE_ENV = "test";
   process.env.CONTROL_CENTER_ALLOW_INSECURE_COOKIES = "true";
   const isolated = isolatedTestMongoUrl();
@@ -105,14 +113,18 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
   assert.ok(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
   const tempCredentialFile = path.join(os.tmpdir(), `control-center-fake-agent-${crypto.randomUUID()}.json`);
+  let requestCount = 0;
 
   async function request<T = Record<string, unknown>>(method: string, route: string, body?: unknown, headers?: Record<string, string>): Promise<TestResponse<T>> {
+    const startedAt = Date.now();
     const response = await fetch(`${baseUrl}${route}`, {
       method,
       headers: headers ?? (body ? { "content-type": "application/json" } : undefined),
       body: body === undefined ? undefined : JSON.stringify(body)
     });
     const text = await response.text();
+    requestCount += 1;
+    diagnostic("request.complete", { count: requestCount, status: response.status, durationMs: Date.now() - startedAt });
     return { status: response.status, headers: response.headers, body: text ? JSON.parse(text) as T : {} as T };
   }
 
@@ -155,6 +167,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
   }
 
   try {
+    diagnostic("test.body.start");
     await assertIndex(collections.enrollments, { orgId: 1, tokenHash: 1 }, { unique: true });
     await assertIndex(collections.agentNonces, { orgId: 1, agentId: 1, nonce: 1 }, { unique: true });
     await assertIndex(collections.telemetry, { expiresAt: 1 }, { ttl: 0 });
@@ -619,10 +632,17 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const auditFailure = await collections.auditEvents.findOne({ action: "authorization.failure", result: "denied" });
     assert.ok(auditFailure?.requestId);
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
+    diagnostic("test.body.complete", { requestCount });
   } finally {
-    await fs.rm(tempCredentialFile, { force: true });
-    await client.db(isolated.dbName).dropDatabase();
-    await client.close();
+    diagnostic("cleanup.http.start", { requestCount });
+    server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    diagnostic("cleanup.http.complete");
+    await fs.rm(tempCredentialFile, { force: true });
+    diagnostic("cleanup.file.complete");
+    await client.db(isolated.dbName).dropDatabase();
+    diagnostic("cleanup.database.complete");
+    await client.close();
+    diagnostic("cleanup.client.complete");
   }
 });

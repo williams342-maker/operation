@@ -72,9 +72,10 @@ jobs:
       CONTROL_CENTER_RUN_PRIVILEGED_FS_TESTS: "true"
       CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # Linux TAP inventory: agent 38 + API 63 + shared 52 + web 26 = 179.
-      CI_EXPECTED_TEST_SUITES: "agent=38,api=63,shared=52,web=26"
-      CI_EXPECTED_TESTS: "179"
+      CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
+      # Linux TAP inventory: agent 39 + API 63 + shared 52 + web 26 = 180.
+      CI_EXPECTED_TEST_SUITES: "agent=39,api=63,shared=52,web=26"
+      CI_EXPECTED_TESTS: "180"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
@@ -112,6 +113,14 @@ jobs:
         run: npm audit --audit-level=high
       - name: Test with disposable MongoDB
         run: npm test
+      - name: Retain value-safe database timeout diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: database-integration-diagnostics
+          path: /tmp/control-center-db-test-diagnostics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify Linux test summary has no skips
         run: |
           set -euo pipefail
