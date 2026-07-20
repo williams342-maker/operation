@@ -603,6 +603,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await collections.servers.updateOne({ _id: new ObjectId(credentials.serverId), orgId: orgA._id }, { $set: { status: "online", lastHeartbeatAt: new Date(Date.now() - 10 * 60_000) } });
     const overview = await request("GET", "/overview", undefined, jsonHeaders(ownerA));
     assert.equal(overview.status, 200);
+    assert.match(overview.headers.get("content-type") || "", /^application\/json\b/i);
     const staleServer = await collections.servers.findOne({ _id: new ObjectId(credentials.serverId), orgId: orgA._id });
     assert.equal(staleServer?.status, "offline");
 
