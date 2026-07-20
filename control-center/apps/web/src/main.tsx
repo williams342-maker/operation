@@ -54,6 +54,7 @@ import { AiSettingsCard } from "./AiSettingsCard";
 import { SystemHealthCard } from "./SystemHealthCard";
 import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
+import { TaskResultSummary } from "./TaskResultSummary";
 import {
   Badge,
   Button,
@@ -1590,6 +1591,10 @@ function TasksPage({ toast }: { toast: (m: string) => void }) {
               <div>
                 <span className="text-muted">Completed</span>
                 <div>{fmt(detail.data?.task?.completedAt)}</div>
+              </div>
+              <div>
+                <span className="text-muted">Summary</span>
+                <TaskResultSummary state={detail.data?.task?.state} summary={detail.data?.task?.resultSummary} />
               </div>
               <div>
                 <span className="text-muted">Updated</span>

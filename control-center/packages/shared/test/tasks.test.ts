@@ -1,6 +1,6 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, verifyTaskEnvelope, isTaskExpired } from "../src/tasks.js";
+import { payloadDigest, signTaskEnvelope, taskAckSchema, taskPayloadSchema, taskProtocolVersion, verifyTaskEnvelope, isTaskExpired } from "../src/tasks.js";
 
 function envelope(payload: unknown) {
   const unsigned = {
@@ -31,6 +31,14 @@ test("task envelope signature verifies bound task fields and payload digest", ()
 test("task expiry rejects stale envelopes", () => {
   assert.equal(isTaskExpired(new Date(Date.now() - 1_000).toISOString()), true);
   assert.equal(isTaskExpired(new Date(Date.now() + 60_000).toISOString()), false);
+});
+
+test("task acknowledgements reject malformed events and contradictory status fields", () => {
+  assert.equal(taskAckSchema.safeParse({ taskId: "task-1", event: "succeeded" }).success, true);
+  assert.equal(taskAckSchema.safeParse({ taskId: "task-1", event: "timeout" }).success, false);
+  assert.equal(taskAckSchema.safeParse({ taskId: "task-1", event: "rejected" }).success, false);
+  assert.equal(taskAckSchema.safeParse({ taskId: "task-1", event: "succeeded", status: "failed" }).success, false);
+  assert.equal(taskAckSchema.safeParse({ taskId: "task-1" }).success, false);
 });
 
 test("agent upgrade payload accepts only a typed immutable manifest", () => {

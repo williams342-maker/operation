@@ -37,7 +37,7 @@ export const taskAckSchema = z.object({
   message: z.string().max(500).optional(),
   progress: z.number().min(0).max(100).optional(),
   result: z.unknown().optional()
-});
+}).strict();
 
 export type TaskType = z.infer<typeof taskEnvelopeSchema>["taskType"];
 export type TaskEnvelope = z.infer<typeof taskEnvelopeSchema>;

@@ -49,13 +49,28 @@ export function ensureBounded(value: unknown) {
   return sanitized;
 }
 
-export function safeTaskSummary(type: string, message: unknown, result: unknown) {
-  if (type === "configuration.apply" || type === "configuration.rollback" || type === "agent.upgrade") {
+export function safeTaskSummary(type: string, outcome: "succeeded" | "failed", message: unknown, result: unknown) {
+  if (outcome === "failed" && (type === "configuration.apply" || type === "configuration.rollback" || type === "agent.upgrade")) {
     const category = result && typeof result === "object" && typeof (result as Record<string, unknown>).errorCategory === "string" ? (result as Record<string, unknown>).errorCategory : "unknown";
     return `${type === "agent.upgrade" ? "Agent upgrade" : "Configuration deployment"} failed (${String(category).replace(/[^a-z_]/g, "").slice(0, 32) || "unknown"})`;
   }
-  const sanitized = sanitizeResult(typeof message === "string" ? message : "Task failed");
-  return [...String(sanitized)].map((character) => { const code = character.charCodeAt(0); return code < 32 || code === 127 ? " " : character; }).join("").replace(/\s+/g, " ").slice(0, 500);
+  const fallback = outcome === "succeeded" ? "Task completed successfully" : "Task failed";
+  const oppositeFallback = outcome === "succeeded" ? "Task failed" : "Task completed successfully";
+  const sanitized = sanitizeResult(typeof message === "string" && message.trim() ? message : fallback);
+  const bounded = [...String(sanitized)].map((character) => { const code = character.charCodeAt(0); return code < 32 || code === 127 ? " " : character; }).join("").replace(/\s+/g, " ").trim().slice(0, 500);
+  // Only normalize the protocol's reserved opposite fallback. Arbitrary agent text
+  // is never classified as success or failure; the explicit terminal event is authoritative.
+  return bounded.toLowerCase() === oppositeFallback.toLowerCase() ? fallback : bounded || fallback;
+}
+
+export function taskSummaryForState(state: AgentTaskDoc["state"], storedSummary: unknown) {
+  const terminalFallbacks = { succeeded: "Task completed successfully", failed: "Task failed", expired: "Task expired", cancelled: "Task cancelled" } as const;
+  if (!(state in terminalFallbacks)) return undefined;
+  const fallback = terminalFallbacks[state as keyof typeof terminalFallbacks];
+  if (state === "expired" || state === "cancelled") return fallback;
+  if (typeof storedSummary !== "string" || !storedSummary.trim()) return fallback;
+  const opposite = state === "succeeded" ? terminalFallbacks.failed : terminalFallbacks.succeeded;
+  return storedSummary.trim().toLowerCase() === opposite.toLowerCase() ? fallback : storedSummary.trim();
 }
 
 export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
@@ -133,12 +148,16 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   if (!task) return { status: 404, body: { error: "Task not found" } };
   const now = new Date();
   if (task.state === "cancelled" || task.state === "expired") return { status: 409, body: { error: "Task is no longer active" } };
+  if (task.state === "succeeded" || task.state === "failed") {
+    if (body.event === task.state) return { status: 200, body: { ok: true }, shouldAudit: false };
+    return { status: 409, body: { error: "Task already has a different terminal state" } };
+  }
   if (task.expiresAt <= now) {
     await collections.agentTasks.updateOne({ _id: id, state: { $ne: "expired" } }, { $set: { state: "expired", completedAt: now, updatedAt: now }, $inc: { version: 1 } });
     return { status: 409, body: { error: "Task expired" } };
   }
   const set: Record<string, unknown> = { updatedAt: now };
-  let nextState = task.state;
+  let nextState: AgentTaskDoc["state"] = task.state;
   if (body.event === "started") { nextState = "running"; set.startedAt = task.startedAt || now; }
   if (body.event === "progress") { set.progress = body.progress ?? task.progress ?? 0; }
   if (body.event === "succeeded" || body.event === "failed") {
@@ -147,7 +166,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
     nextState = body.event;
     set.completedAt = now;
     set.result = ensureBounded(body.result ?? {});
-    set.resultSummary = safeTaskSummary(task.type, body.message, set.result);
+    set.resultSummary = safeTaskSummary(task.type, body.event, body.message, set.result);
     await collections.agentTaskResults.updateOne({ orgId: task.orgId, taskId: id }, { $setOnInsert: { orgId: task.orgId, taskId: id, serverId: task.serverId, projectId: task.projectId, agentId: task.agentId, state: nextState, result: set.result, completedAt: now, expiresAt: task.historyExpiresAt, createdAt: now, updatedAt: now } }, { upsert: true });
   }
   set.state = nextState;

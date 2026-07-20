@@ -4,13 +4,13 @@ import { taskTypes, type TaskType } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections, oid } from "./db.js";
-import { createTask, createTaskSchema, isConfigurationMutationTask, taskRegistry } from "./tasks.js";
+import { createTask, createTaskSchema, isConfigurationMutationTask, taskRegistry, taskSummaryForState } from "./tasks.js";
 
 export const taskRouter = express.Router();
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }
-function redactTask(task: Record<string, unknown>) { const copy = { ...task }; delete copy["payloadDigest"]; return copy; }
+function redactTask(task: Record<string, unknown>) { const copy = { ...task }; delete copy["payloadDigest"]; const state = copy["state"] as Parameters<typeof taskSummaryForState>[0]; const summary = taskSummaryForState(state, copy["resultSummary"]); if (summary) copy["resultSummary"] = summary; return copy; }
 
 const projection = { payload: 0 };
 
