@@ -21,7 +21,8 @@ import type {
   UserDoc,
   AgentReleaseDoc,
   AgentUpgradePlanDoc,
-  AgentRolloutDoc
+  AgentRolloutDoc,
+  CloudflareAccessIntegrationDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -35,6 +36,7 @@ export const collections = {
   users: db.collection<UserDoc>("users"),
   sessions: db.collection<SessionDoc>("sessions"),
   enrollments: db.collection<EnrollmentDoc>("enrollments"),
+  cloudflareAccessIntegrations: db.collection<CloudflareAccessIntegrationDoc>("cloudflare_access_integrations"),
   servers: db.collection<ServerDoc>("servers"),
   projects: db.collection<ProjectDoc>("projects"),
   healthChecks: db.collection<HealthCheckDoc>("health_checks"),
@@ -71,6 +73,7 @@ async function ensureIndexes() {
     collections.sessions.createIndex({ orgId: 1, userId: 1 }),
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),
     collections.enrollments.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.cloudflareAccessIntegrations.createIndex({ orgId: 1 }, { unique: true }),
     collections.servers.createIndex({ orgId: 1, agentId: 1 }, { unique: true }),
     collections.servers.createIndex({ orgId: 1, machineId: 1 }, { unique: true, partialFilterExpression: { machineId: { $type: "string" } } }),
     collections.servers.createIndex({ orgId: 1, agentInstallationId: 1 }, { unique: true, partialFilterExpression: { agentInstallationId: { $type: "string" } } }),

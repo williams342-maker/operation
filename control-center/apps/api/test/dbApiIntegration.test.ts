@@ -94,6 +94,9 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
   diagnostic("test.start");
   process.env.NODE_ENV = "test";
   process.env.CONTROL_CENTER_ALLOW_INSECURE_COOKIES = "true";
+  process.env.CONTROL_CENTER_ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
+  process.env.CONTROL_CENTER_AGENT_REVISION = "a".repeat(40);
+  process.env.CONTROL_CENTER_AGENT_ARCHIVE_SHA256 = "b".repeat(64);
   const isolated = isolatedTestMongoUrl();
   process.env.MONGO_URL = isolated.url;
   process.env.CONTROL_CENTER_DB = isolated.dbName;
@@ -313,9 +316,29 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(refreshedSession?.authenticatedAt);
     assert.ok(Date.now() - refreshedSession.authenticatedAt.getTime() < 10_000);
 
+    const accessClientId = "integration-client-id"; const accessClientSecret = "integration-client-secret";
+    const accessIntegration = await request<{ id: string }>("POST", "/admin/integrations/cloudflare-access", { name: "Staging Access", clientId: accessClientId, clientSecret: accessClientSecret }, jsonHeaders(ownerA));
+    assert.equal(accessIntegration.status, 201);
+    const storedAccess = await collections.cloudflareAccessIntegrations.findOne({ _id: new ObjectId(accessIntegration.body.id) });
+    assert.ok(storedAccess);
+    assert.doesNotMatch(JSON.stringify(storedAccess), new RegExp(`${accessClientId}|${accessClientSecret}`));
+    const accessList = await request<{ integrations: Array<Record<string, unknown>> }>("GET", "/admin/integrations/cloudflare-access", undefined, jsonHeaders(ownerA));
+    assert.equal(accessList.status, 200);
+    assert.equal(accessList.body.integrations[0]?.configured, true);
+    assert.equal(accessList.body.integrations[0]?.clientIdEnvelope, undefined);
+    assert.equal(accessList.body.integrations[0]?.clientSecretEnvelope, undefined);
+
     const generated = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "CI enrollment", expiresInMinutes: 60, maxUses: 2, description: "integration" }, jsonHeaders(ownerA));
     assert.equal(generated.status, 201);
     assert.match(generated.body.token, /^owenr_/);
+    const bootstrapEnrollment = await request<{ id: string; token: string; bootstrapDownloadToken: string }>("POST", "/admin/enrollment/generate", { name: "Bootstrap enrollment", expiresInMinutes: 60, maxUses: 1, cloudflareAccessIntegrationId: accessIntegration.body.id }, jsonHeaders(ownerA));
+    assert.equal(bootstrapEnrollment.status, 201);
+    const bootstrapResponse = await fetch(`${baseUrl}/admin/enrollment/bootstrap/${bootstrapEnrollment.body.id}`, { method: "POST", headers: jsonHeaders(ownerA), body: JSON.stringify({ downloadToken: bootstrapEnrollment.body.bootstrapDownloadToken, enrollmentToken: bootstrapEnrollment.body.token }) });
+    assert.equal(bootstrapResponse.status, 200); assert.match(bootstrapResponse.headers.get("content-type") || "", /^text\/x-shellscript/);
+    const bootstrapScript = await bootstrapResponse.text();
+    assert.doesNotMatch(bootstrapScript, new RegExp(`${accessClientId}|${accessClientSecret}|${bootstrapEnrollment.body.token}`));
+    const replayResponse = await fetch(`${baseUrl}/admin/enrollment/bootstrap/${bootstrapEnrollment.body.id}`, { method: "POST", headers: jsonHeaders(ownerA), body: JSON.stringify({ downloadToken: bootstrapEnrollment.body.bootstrapDownloadToken, enrollmentToken: bootstrapEnrollment.body.token }) });
+    assert.equal(replayResponse.status, 410);
     const listed = await request<{ enrollments: Array<{ _id: string; tokenHash?: string; token?: string; usesRemaining: number }> }>("GET", "/admin/enrollment", undefined, jsonHeaders(ownerA));
     assert.equal(listed.status, 200);
     const listedGenerated = listed.body.enrollments.find((item) => String(item._id) === String(generated.body.id));

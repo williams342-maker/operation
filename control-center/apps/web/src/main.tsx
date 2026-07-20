@@ -1960,7 +1960,9 @@ export function Root() {
 
 type SetupResult = {
   serverId: string;
+  enrollmentId: string;
   token: string;
+  bootstrapDownloadToken: string;
   installCommand: string;
   expiresAt: string;
   server: { name: string; slug: string; primaryUrl: string };
@@ -2279,7 +2281,8 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
   const [deleting, setDeleting] = useState<any>(null);
   const [deleteMode, setDeleteMode] = useState("remove");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const f = useForm({ url: "", displayName: "", slug: "" });
+  const f = useForm({ url: "", displayName: "", slug: "", cloudflareAccessIntegrationId: "" });
+  const cloudflare = useForm({ name: "OpsWorkbench Access", clientId: "", clientSecret: "" });
   const edit = useForm({
     name: "",
     primaryUrl: "",
@@ -2292,10 +2295,24 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
     queryFn: () => api.get("/servers").then((r) => r.data.servers),
     refetchInterval: 5000,
   });
+  const integrations = useQuery({
+    queryKey: ["cloudflare-access-integrations"],
+    queryFn: () => api.get("/admin/integrations/cloudflare-access").then((r) => r.data?.integrations || []),
+  });
+  const saveCloudflare = useMutation({
+    mutationFn: () => api.post("/admin/integrations/cloudflare-access", cloudflare.values).then((r) => r.data),
+    onSuccess: async (value) => {
+      await integrations.refetch();
+      f.setValues({ ...f.values, cloudflareAccessIntegrationId: value.id });
+      cloudflare.setValues({ name: "OpsWorkbench Access", clientId: "", clientSecret: "" });
+      toast("Cloudflare Access service token stored securely");
+    },
+  });
   const derive = () => {
     try {
       const value = deriveWebsiteInput(f.values.url);
       f.setValues({
+        ...f.values,
         url: value.normalizedUrl,
         displayName: f.values.displayName || value.displayName,
         slug: f.values.slug || value.slug,
@@ -2312,6 +2329,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
     onSuccess: (value) => {
       setDiscovery(value);
       f.setValues({
+        ...f.values,
         url: value.normalizedUrl,
         displayName: f.values.displayName || value.displayName,
         slug: f.values.slug || value.slug,
@@ -2327,6 +2345,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
           slug: f.values.slug || undefined,
           detectedPublicIps: discovery?.addresses || [],
           expiresInMinutes: 60,
+          cloudflareAccessIntegrationId: f.values.cloudflareAccessIntegrationId,
         })
         .then((r) => r.data),
     onSuccess: (value) => {
@@ -2339,7 +2358,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
   const regenerate = useMutation({
     mutationFn: (server: any) =>
       api
-        .post(`/servers/${server._id}/enrollment`)
+        .post(`/servers/${server._id}/enrollment`, { cloudflareAccessIntegrationId: f.values.cloudflareAccessIntegrationId || integrations.data?.[0]?.id })
         .then((r) => ({
           ...r.data,
           server: {
@@ -2406,9 +2425,12 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
       toast("Server removed from OpsWorkbench");
     },
   });
-  const copy = async (value: string) => {
-    await navigator.clipboard.writeText(value);
-    toast("Install command copied");
+  const downloadBootstrap = async () => {
+    if (!setup) return;
+    const response = await api.post(`/admin/enrollment/bootstrap/${setup.enrollmentId}`, { downloadToken: setup.bootstrapDownloadToken, enrollmentToken: setup.token }, { responseType: "blob" });
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement("a"); link.href = url; link.download = `opsworkbench-bootstrap-${setup.server.slug}.sh`; link.click(); URL.revokeObjectURL(url);
+    toast("One-time protected bootstrap downloaded");
   };
   const beginEdit = (server: any) => {
     setEditing(server);
@@ -2447,15 +2469,12 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
         {!connected && (
           <>
             <p className="mt-4 text-sm text-warning">
-              This one-time command disappears when this screen closes.
+              Download once, transfer securely, and run from a root shell. The protected bootstrap deletes itself after use and cannot be downloaded again.
             </p>
-            <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-background p-3 text-xs">
-              {setup.installCommand}
-            </pre>
             <div className="mt-3 flex gap-2">
-              <Button onClick={() => copy(setup.installCommand)}>
-                <Copy className="h-4 w-4" />
-                Copy command
+              <Button onClick={downloadBootstrap}>
+                <Download className="h-4 w-4" />
+                Download protected bootstrap
               </Button>
               <GhostButton onClick={() => setSetup(null)}>
                 Close permanently
@@ -2531,7 +2550,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
         <GhostButton onClick={() => setViewing(s)}>View</GhostButton>
       )}
       {s.enrollmentStatus === "pending" && (
-        <Button onClick={() => regenerate.mutate(s)}>Install Agent</Button>
+        <Button disabled={!f.values.cloudflareAccessIntegrationId && !integrations.data?.length} onClick={() => regenerate.mutate(s)}>Install Agent</Button>
       )}
       <Button
         disabled={check.isPending && check.variables?._id === s._id}
@@ -2610,6 +2629,23 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
                 <Field className="mt-1" {...f.field("slug")} />
               </label>
             )}
+            <div className="rounded-md border border-border bg-background p-3">
+              <label className="block text-sm">
+                Cloudflare Access service token
+                <Select className="mt-1" {...f.field("cloudflareAccessIntegrationId")}>
+                  <option value="">Select a configured integration</option>
+                  {(integrations.data || []).map((integration: any) => <option key={integration.id} value={integration.id}>{integration.name}</option>)}
+                </Select>
+              </label>
+              {!integrations.data?.length && <div className="mt-3 grid gap-2 md:grid-cols-3">
+                <Field aria-label="Integration name" placeholder="Integration name" {...cloudflare.field("name")} />
+                <Field aria-label="Cloudflare Access client ID" placeholder="Access Client ID" autoComplete="off" {...cloudflare.field("clientId")} />
+                <Field aria-label="Cloudflare Access client secret" placeholder="Access Client Secret" type="password" autoComplete="new-password" {...cloudflare.field("clientSecret")} />
+                <Button disabled={!cloudflare.values.clientId || !cloudflare.values.clientSecret || saveCloudflare.isPending} onClick={() => saveCloudflare.mutate()}>Save encrypted integration</Button>
+              </div>}
+              <p className="mt-2 text-xs text-muted">The secret is encrypted at rest and included only in the one-time protected bootstrap. It is never placed in copied commands or URLs.</p>
+              <ErrorText error={saveCloudflare.error} />
+            </div>
             {discovery && (
               <div className="rounded-md border border-border bg-background p-3 text-sm">
                 <div>Domain: {discovery.domain}</div>
@@ -2639,12 +2675,12 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
                 {inspect.isPending ? "Inspecting..." : "Inspect public URL"}
               </GhostButton>
               <Button
-                disabled={!f.values.url || onboard.isPending}
+                disabled={!f.values.url || !f.values.cloudflareAccessIntegrationId || onboard.isPending}
                 onClick={() => onboard.mutate()}
               >
                 {onboard.isPending
                   ? "Creating..."
-                  : "Create and generate command"}
+                  : "Create and generate bootstrap"}
               </Button>
             </div>
             <ErrorText error={inspect.error || onboard.error} />

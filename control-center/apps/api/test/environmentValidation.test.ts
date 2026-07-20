@@ -7,6 +7,14 @@ test("development startup has no production-only required variables", () => { co
 test("production reports every missing required variable without values", () => { const result = validateEnvironment({ NODE_ENV: "production" }); assert.equal(result.valid, false); assert.equal(result.diagnostics.filter((item) => item.code === "missing_required").length, 9); assert.ok(result.diagnostics.every((item) => !item.message.includes("mongodb://"))); });
 test("valid staging environment passes with AI disabled", () => { const result = assertValidEnvironment(production); assert.equal(result.valid, true); assert.equal(result.ai.state, "disabled"); });
 test("unknown OpsWorkbench variables are warnings", () => { const result = validateEnvironment({ ...production, CONTROL_CENTER_TYPO: "secret-value" }); const warning = result.diagnostics.find((item) => item.code === "unknown_variable"); assert.equal(warning?.variable, "CONTROL_CENTER_TYPO"); assert.equal(warning?.message.includes("secret-value"), false); });
+test("agent bootstrap release identity is exact and configured as a pair", () => {
+  const incomplete = validateEnvironment({ ...production, CONTROL_CENTER_AGENT_REVISION: "a".repeat(40) });
+  assert.equal(incomplete.valid, false);
+  assert.ok(incomplete.diagnostics.some((item) => item.code === "incomplete_agent_release_identity"));
+  const exact = validateEnvironment({ ...production, CONTROL_CENTER_AGENT_REVISION: "a".repeat(40), CONTROL_CENTER_AGENT_ARCHIVE_SHA256: "b".repeat(64) });
+  assert.equal(exact.valid, true);
+  assert.equal(exact.diagnostics.some((item) => item.code === "unknown_variable"), false);
+});
 test("deprecated and conflicting AI variables are diagnosed", () => { const result = validateEnvironment({ ...production, AI_PROVIDER: "openai", AI_DEFAULT_PROVIDER: "anthropic" }); assert.ok(result.diagnostics.some((item) => item.code === "deprecated_variable")); assert.ok(result.diagnostics.some((item) => item.code === "conflicting_variables")); });
 test("unsafe production cookie and bootstrap defaults are diagnosed", () => { const result = validateEnvironment({ ...production, CONTROL_CENTER_SECURE_COOKIES: "false", CONTROL_CENTER_ALLOW_INSECURE_COOKIES: "true", CONTROL_CENTER_BOOTSTRAP_MODE: "manual" }); assert.equal(result.valid, false); assert.equal(result.diagnostics.filter((item) => item.code === "unsafe_default").length, 2); assert.ok(result.diagnostics.some((item) => item.code === "bootstrap_open")); });
 test("OpenAI readiness requires an allowlisted model and credential", () => { const base = { ...production, AI_ASSISTANT_ENABLED: "true", AI_DEFAULT_PROVIDER: "openai", AI_DEFAULT_MODEL: "gpt-test", AI_ALLOWED_PROVIDERS: "openai", AI_ALLOWED_MODELS: "gpt-test" }; assert.equal(validateEnvironment(base).ai.state, "invalid"); assert.equal(validateEnvironment({ ...base, OPENAI_API_KEY: "present" }).ai.state, "ready"); });

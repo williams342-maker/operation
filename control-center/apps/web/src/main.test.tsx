@@ -9,11 +9,12 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   replaceOwner: vi.fn(),
   bootstrapStatus: vi.fn(),
-  apiGet: vi.fn()
+  apiGet: vi.fn(),
+  apiPost: vi.fn()
 }));
 
 vi.mock("./api", () => ({
-  api: { get: mocks.apiGet, post: vi.fn(), patch: vi.fn() },
+  api: { get: mocks.apiGet, post: mocks.apiPost, patch: vi.fn() },
   apiError: (error: unknown) => error instanceof Error ? error.message : "Unexpected logout failure",
   bootstrapOwner: vi.fn(),
   bootstrapStatus: mocks.bootstrapStatus,
@@ -217,5 +218,17 @@ describe("Responsive navigation", () => {
       expect(control.className).toContain("min-h-11");
       expect(control.className).toContain("focus-visible:ring-2");
     }
+  });
+
+  it("collects Cloudflare Access credentials inside server onboarding without exposing the secret", async () => {
+    renderRoot();
+    const trigger = await screen.findByRole("button", { name: "Open navigation" });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("button", { name: /^Servers$/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add Server" }));
+    expect(await screen.findByLabelText("Cloudflare Access client ID")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("Cloudflare Access client secret")).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "Create and generate bootstrap" })).toBeDisabled();
+    expect(screen.queryByText(/CF-Access-Client-Secret:/)).not.toBeInTheDocument();
   });
 });
