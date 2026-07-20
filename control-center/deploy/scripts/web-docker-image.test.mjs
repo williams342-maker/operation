@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
@@ -14,6 +15,8 @@ function docker(args, options = {}) {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return result.stdout.trim();
 }
+
+function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
 
 test("web Docker build preserves the canonical shared-before-web workspace order", () => {
   const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
@@ -45,6 +48,10 @@ test("production API and web images build from a clean context and contain only 
     const command = JSON.parse(docker(["image", "inspect", "--format", "{{json .Config.Cmd}}", webImage]));
     assert.deepEqual(command, ["nginx", "-g", "daemon off;"]);
     docker(["run", "--rm", "--entrypoint", "sh", webImage, "-c", "test -f /usr/share/nginx/html/index.html && find /usr/share/nginx/html/assets -type f -print -quit | grep -q . && ! find /usr/share/nginx/html -type f \\( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' -o -name '*backup*' -o -name '*triage-report*' \\) | grep -q ."]);
+    const committedInstaller = spawnSync("git", ["cat-file", "blob", "HEAD:control-center/apps/web/public/install.sh"], { cwd: path.resolve(root, ".."), encoding: null });
+    assert.equal(committedInstaller.status, 0, committedInstaller.stderr?.toString());
+    const imageInstallerHash = docker(["run", "--rm", "--entrypoint", "sha256sum", webImage, "/usr/share/nginx/html/install.sh"]).split(/\s+/, 1)[0];
+    assert.equal(imageInstallerHash, sha256(committedInstaller.stdout), "web image installer must match the exact Git blob");
 
     const history = docker(["image", "history", "--no-trunc", "--format", "{{.CreatedBy}}", webImage]);
     assert.doesNotMatch(history, /(?:TOKEN|SECRET|PASSWORD|PRIVATE_KEY)=[^\s]+/i);

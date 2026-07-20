@@ -1,0 +1,2 @@
+# Linux shell entry points must retain the exact LF bytes stored in Git on every platform.
+*.sh text eol=lf

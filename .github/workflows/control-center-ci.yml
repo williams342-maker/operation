@@ -7,6 +7,51 @@ on:
     branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**", "fix/**" ]
 
 jobs:
+  archive-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Verify checkout shell bytes on Windows
+        run: node control-center/scripts/verify-shell-scripts.mjs
+      - name: Build exact-commit deployment archive on Windows
+        run: node control-center/scripts/build-deployment-archive.mjs --commit "${{ github.sha }}" --output archive-output
+      - uses: actions/upload-artifact@v6
+        with:
+          name: deployment-archive-windows-${{ github.sha }}
+          path: archive-output/
+          if-no-files-found: error
+          compression-level: 0
+
+  archive-linux-verify:
+    needs: archive-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v7
+        with:
+          name: deployment-archive-windows-${{ github.sha }}
+          path: archive-output
+      - name: Verify Windows archive against Git blobs on Linux
+        run: |
+          set -euo pipefail
+          archive="archive-output/opsworkbench-${GITHUB_SHA:0:12}.tar.gz"
+          manifest="archive-output/opsworkbench-${GITHUB_SHA:0:12}.integrity.json"
+          node control-center/scripts/verify-deployment-archive.mjs --archive "$archive" --manifest "$manifest"
+          mkdir extracted
+          tar -xzf "$archive" -C extracted
+          bash -n extracted/control-center/apps/web/public/install.sh
+          test "$(sha256sum extracted/control-center/apps/web/public/install.sh | cut -d' ' -f1)" = "$(git cat-file blob "$GITHUB_SHA:control-center/apps/web/public/install.sh" | sha256sum | cut -d' ' -f1)"
+
   verify:
     runs-on: ubuntu-latest
     services:
@@ -61,6 +106,8 @@ jobs:
           cache: npm
           cache-dependency-path: control-center/package-lock.json
       - run: npm ci
+      - name: Verify shell bytes and Bash syntax
+        run: node scripts/verify-shell-scripts.mjs --require-bash
       - name: Audit production dependencies
         run: npm audit --audit-level=high
       - name: Test with disposable MongoDB
