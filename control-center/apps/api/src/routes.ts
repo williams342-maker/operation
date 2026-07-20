@@ -48,13 +48,50 @@ const bootstrapSchema = z.object({
 });
 
 async function bootstrapAvailable() {
-  if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE === "disabled") return false;
+  if (!["manual", "invitation"].includes(process.env.CONTROL_CENTER_BOOTSTRAP_MODE || "")) return false;
   return await collections.organizations.countDocuments() === 0;
+}
+
+async function ownerReplacementAvailable() {
+  if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE !== "replacement") return false;
+  const organizations = await collections.organizations.find({ ownerReplacementCompletedAt: { $exists: false } }, { projection: { _id: 1 } }).limit(2).toArray();
+  if (organizations.length !== 1) return false;
+  return await collections.users.countDocuments({ orgId: organizations[0]._id, role: "Owner", disabledAt: { $exists: false } }) === 1;
 }
 
 router.get("/auth/bootstrap", noStore, async (_req, res, next) => {
   try {
-    res.json({ available: await bootstrapAvailable() });
+    const [available, replacementAvailable] = await Promise.all([bootstrapAvailable(), ownerReplacementAvailable()]);
+    res.json({ available, replacementAvailable });
+  } catch (error) { next(error); }
+});
+
+router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
+  try {
+    if (!await ownerReplacementAvailable()) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "owner-replacement-unavailable" } });
+      return res.status(409).json({ error: "Owner replacement is unavailable" });
+    }
+    const parsed = z.object({ organizationSlug: z.string().regex(/^[a-z0-9-]+$/), ownerEmail: z.string().email(), ownerName: z.string().min(1).max(200), password: z.string().min(12).max(256) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid owner replacement request" });
+    const body = parsed.data;
+    const org = await collections.organizations.findOne({ slug: body.organizationSlug, ownerReplacementCompletedAt: { $exists: false } });
+    if (!org?._id) return res.status(404).json({ error: "Organization not found" });
+    const owners = await collections.users.find({ orgId: org._id, role: "Owner", disabledAt: { $exists: false } }).limit(2).toArray();
+    if (owners.length !== 1 || !owners[0]._id) return res.status(409).json({ error: "Owner replacement is unavailable" });
+    const duplicateEmail = await collections.users.findOne({ orgId: org._id, email: body.ownerEmail.toLowerCase(), _id: { $ne: owners[0]._id } }, { projection: { _id: 1 } });
+    if (duplicateEmail) return res.status(409).json({ error: "Email is already assigned to another user" });
+    const now = new Date();
+    const claimed = await collections.organizations.updateOne({ _id: org._id, ownerReplacementCompletedAt: { $exists: false } }, { $set: { ownerReplacementCompletedAt: now, updatedAt: now } });
+    if (claimed.modifiedCount !== 1) return res.status(409).json({ error: "Owner replacement is unavailable" });
+    await collections.users.updateOne({ _id: owners[0]._id, orgId: org._id }, { $set: { email: body.ownerEmail.toLowerCase(), name: body.ownerName, passwordHash: hashPassword(body.password), updatedAt: now }, $unset: { disabledAt: "", inviteIssuedAt: "", mustChangePassword: "" } });
+    await collections.sessions.deleteMany({ orgId: org._id });
+    const user = await collections.users.findOne({ _id: owners[0]._id, orgId: org._id });
+    if (!user) throw new Error("Replaced owner is unavailable");
+    const session = await createSession(user);
+    setSessionCookie(res, session.sessionId);
+    await audit({ orgId: org._id, actorType: "system", action: "user.password.change", targetType: "user", targetId: user._id, result: "success", requestId: req.requestId, metadata: { oneTimeOwnerReplacement: true } });
+    res.status(201).json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
 });
 

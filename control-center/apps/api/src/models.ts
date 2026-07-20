@@ -5,7 +5,7 @@ import type { EnvelopeCiphertext } from "./configurationVault.js";
 export type BaseDoc = { _id?: ObjectId; orgId: ObjectId; createdAt: Date; updatedAt: Date };
 
 export type AiOrganizationSettings = { enabled: boolean; provider?: string; model?: string; monthlyRequestLimit?: number; monthlyTokenLimit?: number; maximumRequestsPerUserPerHour: number; maximumRequestsPerOrganizationPerDay: number; maximumConcurrentRequests: number; allowedScopeTypes: Array<"server" | "application">; dataRetentionMode: "provider-dependent"; providerDataRetentionAcknowledgedAt?: Date; providerDataRetentionAcknowledgedBy?: ObjectId; updatedAt: Date; updatedBy: ObjectId };
-export type OrganizationDoc = { _id?: ObjectId; name: string; slug: string; defaultTimezone?: string; status?: "active" | "suspended"; aiAssistant?: AiOrganizationSettings; createdAt: Date; updatedAt: Date };
+export type OrganizationDoc = { _id?: ObjectId; name: string; slug: string; defaultTimezone?: string; status?: "active" | "suspended"; ownerReplacementCompletedAt?: Date; aiAssistant?: AiOrganizationSettings; createdAt: Date; updatedAt: Date };
 export type UserDoc = BaseDoc & { email: string; name: string; role: Role; passwordHash: string; disabledAt?: Date; inviteIssuedAt?: Date; mustChangePassword?: boolean };
 export type SessionDoc = BaseDoc & { userId: ObjectId; csrfTokenHash: string; authenticatedAt: Date; expiresAt: Date; lastSeenAt: Date };
 export type EnrollmentUsage = { usedAt: Date; serverId: ObjectId; agentId: string; hostname: string };

@@ -46,6 +46,7 @@ import {
   login,
   logout,
   reauthenticate,
+  replaceOwner,
   SESSION_EXPIRED_EVENT,
 } from "./api";
 import { discoveryUiState } from "./discoveryState";
@@ -426,6 +427,26 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     </Card>
     </div>
   );
+}
+function OwnerReplacement({ onComplete }: { onComplete: () => void }) {
+  const f = useForm({ organizationSlug: "", ownerName: "", ownerEmail: "", password: "", confirmPassword: "" });
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (f.values.password !== f.values.confirmPassword) throw new Error("Passwords do not match");
+      return replaceOwner({ organizationSlug: f.values.organizationSlug, ownerName: f.values.ownerName, ownerEmail: f.values.ownerEmail, password: f.values.password });
+    },
+    onSuccess: onComplete,
+  });
+  return <Centered title="One-time Owner Registration">
+    <p className="text-sm text-muted">This registration replaces the existing Owner and closes permanently after completion.</p>
+    <Field placeholder="Organization slug" {...f.field("organizationSlug")} />
+    <Field placeholder="New Owner name" autoComplete="name" {...f.field("ownerName")} />
+    <Field placeholder="New Owner email" autoComplete="username" {...f.field("ownerEmail")} />
+    <PasswordField placeholder="Create password" autoComplete="new-password" {...f.field("password")} />
+    <PasswordField placeholder="Confirm password" autoComplete="new-password" {...f.field("confirmPassword")} />
+    <Button className="w-full" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Replace Owner</Button>
+    <ErrorText error={mutation.error} />
+  </Centered>;
 }
 function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
   const f = useForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -1930,6 +1951,8 @@ export function Root() {
     );
   if (!authed && !bootstrapComplete && status.data?.available)
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
+  if (!authed && status.data?.replacementAvailable)
+    return <OwnerReplacement onComplete={() => setAuthed(true)} />;
   return authed ? (
     <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
   ) : (

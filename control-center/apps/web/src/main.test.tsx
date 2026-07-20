@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
+  replaceOwner: vi.fn(),
   bootstrapStatus: vi.fn(),
   apiGet: vi.fn()
 }));
@@ -19,6 +20,7 @@ vi.mock("./api", () => ({
   login: vi.fn(),
   logout: mocks.logout,
   reauthenticate: vi.fn(),
+  replaceOwner: mocks.replaceOwner,
   SESSION_EXPIRED_EVENT: "cc:session-expired"
 }));
 
@@ -35,6 +37,40 @@ function authenticatedApi(path: string) {
   if (path === "/projects") return Promise.resolve({ data: { projects: [] } });
   return Promise.resolve({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
 }
+
+describe("One-time Owner Registration", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.bootstrapStatus.mockResolvedValue({ available: false, replacementAvailable: true });
+    mocks.replaceOwner.mockReset();
+    mocks.replaceOwner.mockResolvedValue({});
+    mocks.apiGet.mockResolvedValue({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
+  });
+
+  afterEach(() => cleanup());
+
+  it("collects the replacement Owner credentials", async () => {
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "One-time Owner Registration" })).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText("Organization slug"), "phase-1b-a");
+    await userEvent.type(screen.getByPlaceholderText("New Owner name"), "Replacement Owner");
+    await userEvent.type(screen.getByPlaceholderText("New Owner email"), "replacement@example.test");
+    await userEvent.type(screen.getByPlaceholderText("Create password"), "replacement-password");
+    await userEvent.type(screen.getByPlaceholderText("Confirm password"), "replacement-password");
+    await userEvent.click(screen.getByRole("button", { name: "Replace Owner" }));
+    await waitFor(() => expect(mocks.replaceOwner).toHaveBeenCalledWith({ organizationSlug: "phase-1b-a", ownerName: "Replacement Owner", ownerEmail: "replacement@example.test", password: "replacement-password" }));
+  });
+
+  it("rejects mismatched passwords without calling the API", async () => {
+    renderRoot();
+    await screen.findByRole("heading", { name: "One-time Owner Registration" });
+    await userEvent.type(screen.getByPlaceholderText("Create password"), "replacement-password");
+    await userEvent.type(screen.getByPlaceholderText("Confirm password"), "different-password");
+    await userEvent.click(screen.getByRole("button", { name: "Replace Owner" }));
+    expect(await screen.findByText("Passwords do not match")).toBeInTheDocument();
+    expect(mocks.replaceOwner).not.toHaveBeenCalled();
+  });
+});
 
 describe("Sign Out", () => {
   beforeEach(() => {
