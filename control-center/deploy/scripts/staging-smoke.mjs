@@ -27,7 +27,7 @@ async function browserPass(label, viewport) {
   const projects = await api("/api/projects"); check(`${label} application listing`, projects.status === 200 && Array.isArray(projects.body.projects));
   const ai = await api("/api/ai-assistant/status"); check(`${label} AI disabled state`, ai.status === 200 && ai.body.enabled === false && ai.body.globalEnabled === false);
   const diagnostics = await api("/api/system/diagnostics"); check(`${label} diagnostics`, diagnostics.status === 200 && diagnostics.body.environment?.valid === true);
-  await page.getByRole("button", { name: "Projects" }).click(); await page.getByRole("heading", { name: "Projects" }).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Projects" }).click(); await page.getByRole("heading", { name: "Projects", level: 1 }).waitFor({ state: "visible" });
   await page.getByRole("button", { name: "Health" }).click(); await page.getByRole("heading", { name: "Health Checks" }).waitFor({ state: "visible" });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1); check(`${label} horizontal overflow`, !overflow); check(`${label} console errors`, errors.length === 0, errors.slice(0, 3).join("; "));
   await context.close();

@@ -42,3 +42,10 @@ test("staging smoke uses the supported overview contract", () => {
   assert.doesNotMatch(source, /\/api\/dashboard/);
   assert.match(source, /parseEndpointJson\(path, response, \{ authenticated: true \}\)/);
 });
+
+test("staging smoke targets the page-level Projects heading semantically", () => {
+  const source = fs.readFileSync(new URL("./staging-smoke.mjs", import.meta.url), "utf8");
+  assert.match(source, /getByRole\("heading", \{ name: "Projects", level: 1 \}\)/);
+  assert.doesNotMatch(source, /getByRole\("heading", \{ name: "Projects" \}\)/);
+  assert.doesNotMatch(source, /getByRole\("heading", \{ name: "Projects"[^}]*\}\)\.(?:first|last|nth)\(/);
+});
