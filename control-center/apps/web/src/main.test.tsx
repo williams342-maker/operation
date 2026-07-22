@@ -29,6 +29,13 @@ function renderRoot() {
   return render(<QueryClientProvider client={client}><Root /></QueryClientProvider>);
 }
 
+function authenticatedApi(path: string) {
+  if (path === "/me") return Promise.resolve({ data: { user: { role: "Owner" } } });
+  if (path === "/servers") return Promise.resolve({ data: { servers: [] } });
+  if (path === "/projects") return Promise.resolve({ data: { projects: [] } });
+  return Promise.resolve({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
+}
+
 describe("Sign Out", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -72,5 +79,85 @@ describe("Sign Out", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Logout service unavailable");
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
     expect(localStorage.getItem("cc.csrf")).toBe("csrf-token");
+  });
+});
+
+describe("Responsive navigation", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("cc.csrf", "csrf-token");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockImplementation(authenticatedApi);
+    mocks.logout.mockReset();
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: false,
+      media: "(min-width: 768px)",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("uses one complete navigation tree for desktop and mobile", async () => {
+    renderRoot();
+    const trigger = await screen.findByRole("button", { name: "Open navigation" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveAttribute("aria-controls", "primary-navigation");
+    await userEvent.click(trigger);
+
+    const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
+    expect(screen.getAllByRole("complementary", { name: "Primary navigation" })).toHaveLength(1);
+    for (const destination of ["Overview", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
+      expect(navigation).toHaveTextContent(destination);
+    }
+    expect(screen.getByRole("button", { name: "Close navigation" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Close navigation" }).className).toContain("z-[60]");
+    expect(screen.getByRole("button", { name: "Dismiss navigation" })).toBeInTheDocument();
+  });
+
+  it("manages focus, traps Tab, closes with Escape, and restores trigger focus", async () => {
+    renderRoot();
+    const trigger = await screen.findByRole("button", { name: "Open navigation" });
+    await userEvent.click(trigger);
+    const overview = screen.getByRole("button", { name: /^Overview$/ });
+    await waitFor(() => expect(overview).toHaveFocus());
+    await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(screen.getByRole("button", { name: /sign out/i })).toHaveFocus();
+    await userEvent.tab();
+    expect(overview).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("navigates through the shared page state and closes the mobile drawer", async () => {
+    renderRoot();
+    const trigger = await screen.findByRole("button", { name: "Open navigation" });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("button", { name: /^Projects$/ }));
+    expect(await screen.findByRole("heading", { name: "Projects", level: 1 })).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("button", { name: /^Servers$/ }));
+    expect(await screen.findByRole("heading", { name: "Servers", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Servers$/ })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("provides visible focus treatment and touch-sized navigation controls", async () => {
+    renderRoot();
+    await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
+    for (const control of [screen.getByRole("button", { name: /^Overview$/ }), screen.getByRole("button", { name: /sign out/i })]) {
+      expect(control.className).toContain("min-h-11");
+      expect(control.className).toContain("focus-visible:ring-2");
+    }
   });
 });

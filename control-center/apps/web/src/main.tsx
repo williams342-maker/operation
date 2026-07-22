@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
   QueryClient,
@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   LogOut,
   ListChecks,
+  Menu,
   Pencil,
   QrCode,
   RefreshCw,
@@ -1745,6 +1746,9 @@ function Header({
 function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
   const toast = useToast();
   const [page, setPage] = useState<Page>("overview");
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const mobileNavigation = useRef<HTMLElement>(null);
+  const mobileNavigationTrigger = useRef<HTMLButtonElement>(null);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api.get("/me").then((response) => response.data),
@@ -1767,17 +1771,76 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     page === "enrollments"
       ? "Administration / Enrollment"
       : nav.find(([key]) => key === page)?.[1] || "Not Found";
+  const closeMobileNavigation = (restoreFocus = true) => {
+    setMobileNavigationOpen(false);
+    if (restoreFocus) window.setTimeout(() => mobileNavigationTrigger.current?.focus(), 0);
+  };
+  const navigate = (destination: Page) => {
+    setPage(destination);
+    closeMobileNavigation(false);
+  };
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const navigation = mobileNavigation.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    navigation?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMobileNavigation();
+        return;
+      }
+      if (event.key !== "Tab" || !navigation) return;
+      const focusable = Array.from(navigation.querySelectorAll<HTMLElement>("button:not([disabled])"));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    const media = window.matchMedia?.("(min-width: 768px)");
+    const onDesktop = (event: MediaQueryListEvent) => { if (event.matches) closeMobileNavigation(false); };
+    document.addEventListener("keydown", onKeyDown);
+    media?.addEventListener("change", onDesktop);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      media?.removeEventListener("change", onDesktop);
+    };
+  }, [mobileNavigationOpen]);
   return (
     <div className="min-h-screen md:pl-64">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto border-r border-border bg-panel p-3 md:block">
+      <div className="flex items-center justify-between border-b border-border bg-panel p-3 md:hidden">
+        <div className="flex items-center gap-2 font-semibold"><Activity className="h-5 w-5 text-primary" /> OpsWorkbench</div>
+        <button
+          ref={mobileNavigationTrigger}
+          type="button"
+          aria-label={mobileNavigationOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileNavigationOpen}
+          aria-controls="primary-navigation"
+          className="relative z-[60] inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          onClick={() => mobileNavigationOpen ? closeMobileNavigation() : setMobileNavigationOpen(true)}
+        >
+          {mobileNavigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+      {mobileNavigationOpen && <button type="button" aria-label="Dismiss navigation" className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => closeMobileNavigation()} />}
+      <aside
+        ref={mobileNavigation}
+        id="primary-navigation"
+        aria-label="Primary navigation"
+        className={`${mobileNavigationOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-panel p-3 shadow-xl md:flex md:w-64 md:max-w-none md:shadow-none`}
+      >
         <div className="mb-4 flex items-center gap-2 px-2 font-semibold">
           <Activity className="h-5 w-5 text-primary" /> OpsWorkbench
         </div>
         {nav.map(([key, label, Icon]) => (
           <button
             key={key}
-            onClick={() => setPage(key)}
-            className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${page === key ? "bg-background text-text" : "text-muted hover:bg-background"}`}
+            onClick={() => navigate(key)}
+            aria-current={page === key ? "page" : undefined}
+            className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0 ${page === key ? "bg-background text-text" : "text-muted hover:bg-background"}`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -1790,8 +1853,9 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
               Administration
             </div>
             <button
-              onClick={() => setPage("enrollments")}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${page === "enrollments" ? "bg-background text-text" : "text-muted hover:bg-background"}`}
+              onClick={() => navigate("enrollments")}
+              aria-current={page === "enrollments" ? "page" : undefined}
+              className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0 ${page === "enrollments" ? "bg-background text-text" : "text-muted hover:bg-background"}`}
             >
               <KeyRound className="h-4 w-4" />
               Enrollment
@@ -1802,7 +1866,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           type="button"
           disabled={logoutPending}
           onClick={onLogout}
-          className="mt-4 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background"
+          className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
         >
           <LogOut className="h-4 w-4" />
           {logoutPending ? "Signing out..." : "Sign out"}
