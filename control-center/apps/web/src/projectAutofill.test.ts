@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { discoveredGithubRepositories, normalizeGithubRepository, projectLocationChoices, projectSlug, repositoryName } from "./projectAutofill";
+import { clearProjectDiscoveryValues, discoveredGithubRepositories, eligibleProjectServers, isEligibleProjectServer, normalizeGithubRepository, projectLocationChoices, projectSlug, repositoryName } from "./projectAutofill";
+
+const now = Date.parse("2026-07-21T18:00:00.000Z");
+const currentDiscovery = {
+  collectedAt: new Date(now - 30_000).toISOString(),
+  dockerInstalled: true,
+  nginxInstalled: true,
+  repositories: [{ path: "/srv/app", branch: "main", remote: "https://github.com/acme/app.git" }],
+  composeProjects: [{ name: "app", configPath: "/srv/app/compose.yml", services: ["web"] }],
+  applications: [{ path: "/srv/app", type: "node" as const, name: "app" }],
+  settings: [],
+  warnings: [],
+  discoveryTruncated: false,
+  truncationCategories: [],
+};
+const eligibleServer = {
+  _id: "server-a",
+  orgId: "org-a",
+  enrollmentStatus: "connected",
+  agentStatus: "online",
+  lastHeartbeatAt: new Date(now - 30_000).toISOString(),
+  currentState: { discovery: currentDiscovery },
+};
 
 describe("project discovery autofill", () => {
   it("normalizes safe GitHub shorthand, HTTPS, and SSH remotes", () => {
@@ -48,5 +70,40 @@ describe("project discovery autofill", () => {
     const discovery = { repositories: [{ path: "/srv/app", remote: "https://github.com/acme/app.git" }] };
     expect(projectLocationChoices(discovery, "acme/missing")).toEqual([]);
     expect(projectLocationChoices(discovery, "not a repository")).toEqual([]);
+  });
+
+  it("accepts only a connected server with fresh heartbeat and current usable discovery", () => {
+    expect(isEligibleProjectServer(eligibleServer, "org-a", now)).toBe(true);
+    expect(isEligibleProjectServer({ ...eligibleServer, enrollmentStatus: "pending" }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, revokedAt: new Date(now).toISOString() }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, archivedAt: new Date(now).toISOString() }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, agentStatus: "offline" }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, lastHeartbeatAt: new Date(now - 91_000).toISOString() }, "org-a", now)).toBe(false);
+  });
+
+  it("excludes missing, malformed, empty, and stale discovery inventories", () => {
+    expect(isEligibleProjectServer({ ...eligibleServer, currentState: undefined }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, currentState: {} }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, currentState: { discovery: { collectedAt: "invalid" } } }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, currentState: { discovery: { ...currentDiscovery, dockerInstalled: false, nginxInstalled: false, repositories: [], composeProjects: [], applications: [] } } }, "org-a", now)).toBe(false);
+    expect(isEligibleProjectServer({ ...eligibleServer, currentState: { discovery: { ...currentDiscovery, collectedAt: new Date(now - 120_001).toISOString() } } }, "org-a", now)).toBe(false);
+  });
+
+  it("enforces organization and independent server discovery isolation", () => {
+    const serverB = { ...eligibleServer, _id: "server-b", currentState: { discovery: { ...currentDiscovery, repositories: [{ path: "/srv/other", remote: "https://github.com/acme/other.git" }] } } };
+    const crossOrg = { ...eligibleServer, _id: "server-cross", orgId: "org-b" };
+    expect(eligibleProjectServers([eligibleServer, serverB, crossOrg], "org-a", now).map((server) => server._id)).toEqual(["server-a", "server-b"]);
+    expect(discoveredGithubRepositories(eligibleServer.currentState.discovery)).toEqual(["acme/app"]);
+    expect(discoveredGithubRepositories(serverB.currentState.discovery)).toEqual(["acme/other"]);
+  });
+
+  it("keeps a current connected server without a valid GitHub remote safely non-actionable", () => {
+    const server = { ...eligibleServer, currentState: { discovery: { ...currentDiscovery, repositories: [{ path: "/srv/app", remote: "https://example.test/acme/app.git" }] } } };
+    expect(isEligibleProjectServer(server, "org-a", now)).toBe(true);
+    expect(discoveredGithubRepositories(server.currentState.discovery)).toEqual([]);
+  });
+
+  it("clears every server-derived value when eligibility or organization changes", () => {
+    expect(clearProjectDiscoveryValues({ name: "App", slug: "app", primaryServerId: "server-a", githubRepository: "acme/app", branch: "beta", repoPath: "/srv/app", composePath: "/srv/app/compose.yml", serviceNames: "web" })).toEqual({ name: "", slug: "", primaryServerId: "", githubRepository: "", branch: "main", repoPath: "", composePath: "", serviceNames: "web" });
   });
 });

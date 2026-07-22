@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
   QueryClient,
@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { enrollmentInstallCommand } from "@control-center/shared";
-import { discoveredGithubRepositories, normalizeGithubRepository, projectLocationChoices, projectSlug, repositoryName } from "./projectAutofill";
+import { clearProjectDiscoveryValues, discoveredGithubRepositories, eligibleProjectServers, normalizeGithubRepository, projectLocationChoices, projectServerDiscovery, projectSlug, repositoryName } from "./projectAutofill";
 import {
   api,
   apiError,
@@ -687,14 +687,16 @@ function ServersPage({ toast }: { toast: (m: string) => void }) {
     </Card>
   );
 }
-function ProjectsPage({ toast }: { toast: (m: string) => void }) {
+export function ProjectsPage({ toast }: { toast: (m: string) => void }) {
   const qc = useQueryClient();
   const [showHelp, setShowHelp] = useState(false);
   const [viewing, setViewing] = useState<any>(null);
   const servers = useQuery({
     queryKey: ["servers"],
     queryFn: () => api.get("/servers").then((r) => r.data.servers),
+    refetchInterval: 30_000,
   });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get("/me").then((r) => r.data) });
   const q = useQuery({
     queryKey: ["projects"],
     queryFn: () => api.get("/projects").then((r) => r.data.projects),
@@ -709,15 +711,15 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
     composePath: "",
     serviceNames: "",
   });
-  const selectedServer = useQuery({
-    queryKey: ["project-server-discovery", f.values.primaryServerId],
-    queryFn: () => api.get(`/servers/${f.values.primaryServerId}`).then((r) => r.data.server),
-    enabled: Boolean(f.values.primaryServerId),
-  });
-  const discovery = selectedServer.data?.currentState?.discovery;
+  const eligibleServers = eligibleProjectServers(servers.data, me.data?.orgId);
+  const selectedServer = eligibleServers.find((server) => server._id === f.values.primaryServerId);
+  const discovery = projectServerDiscovery(selectedServer);
   const repositoryOptions = discoveredGithubRepositories(discovery);
   const locationChoices = projectLocationChoices(discovery, f.values.githubRepository);
   const selectedLocation = locationChoices.find((choice) => choice.repoPath === f.values.repoPath);
+  useEffect(() => {
+    if (f.values.primaryServerId && !selectedServer && !servers.isLoading && !me.isLoading) f.setValues(clearProjectDiscoveryValues);
+  }, [f.values.primaryServerId, me.isLoading, selectedServer, servers.isLoading, f.setValues]);
   const selectRepository = (repository: string) => {
     const normalized = normalizeGithubRepository(repository) || repository;
     const name = repositoryName(normalized);
@@ -833,16 +835,16 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
       <div className="mb-4 mt-3 grid gap-2 md:grid-cols-4">
         <Field placeholder="Name" {...f.field("name")} />
         <Field placeholder="Slug" {...f.field("slug")} />
-        <Select value={f.values.primaryServerId} onChange={(event) => f.setValues((values) => ({ ...values, primaryServerId: event.target.value, githubRepository: "", repoPath: "", composePath: "" }))}>
+        <Select aria-label="Eligible server" value={f.values.primaryServerId} onChange={(event) => f.setValues((values) => ({ ...clearProjectDiscoveryValues(values), primaryServerId: event.target.value }))} disabled={servers.isLoading || me.isLoading || eligibleServers.length === 0}>
           <option value="">Server</option>
-          {servers.data?.map((s: any) => (
+          {eligibleServers.map((s: any) => (
             <option key={s._id} value={s._id}>
               {s.name}
             </option>
           ))}
         </Select>
-        <Select aria-label="GitHub repository" value={f.values.githubRepository} onChange={(event) => selectRepository(event.target.value)} disabled={!f.values.primaryServerId || selectedServer.isLoading}>
-          <option value="">{selectedServer.isLoading ? "Loading discovered repositories..." : "GitHub repository"}</option>
+        <Select aria-label="GitHub repository" value={f.values.githubRepository} onChange={(event) => selectRepository(event.target.value)} disabled={!selectedServer}>
+          <option value="">GitHub repository</option>
           {repositoryOptions.map((repository) => <option key={repository} value={repository}>{repository}</option>)}
         </Select>
         <Field placeholder="Branch" {...f.field("branch")} />
@@ -850,9 +852,9 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
         {(selectedLocation?.composePaths.length || 0) > 1 ? <Select aria-label="Compose path" value={f.values.composePath} onChange={(event) => f.setValues((values) => ({ ...values, composePath: event.target.value }))}><option value="">Choose Compose path</option>{selectedLocation?.composePaths.map((composePath) => <option key={composePath} value={composePath}>{composePath}</option>)}</Select> : <Field aria-label="Compose path" placeholder="Compose path" readOnly value={f.values.composePath} />}
         <Button disabled={!f.values.name || !f.values.slug || !f.values.primaryServerId || !f.values.githubRepository || !f.values.repoPath || !f.values.composePath} onClick={() => create.mutate()}>Create</Button>
       </div>
-      {f.values.primaryServerId && !selectedServer.isLoading && !selectedServer.isError && repositoryOptions.length === 0 && <p className="mb-3 text-sm text-warning">No GitHub repositories were found in this server's allowlisted roots. Refresh agent discovery after confirming the repository is already checked out.</p>}
+      {!servers.isLoading && !me.isLoading && eligibleServers.length === 0 && <p className="mb-3 text-sm text-warning">Project autofill requires an enrolled, connected server with current application discovery. Pending, offline, stale, and unavailable servers cannot be selected.</p>}
+      {selectedServer && repositoryOptions.length === 0 && <p className="mb-3 text-sm text-warning">No GitHub repositories were found in this server's allowlisted roots. Refresh agent discovery after confirming the repository is already checked out.</p>}
       {f.values.githubRepository && locationChoices.length === 0 && <p className="mb-3 text-sm text-warning">The selected repository was not found in this server's allowlisted roots.</p>}
-      {selectedServer.isError && <p className="mb-3 text-sm text-danger">Server discovery could not be loaded. No paths were guessed.</p>}
       <ErrorText error={create.error} />
       {q.isLoading ? (
         <Skeleton />

@@ -1,3 +1,6 @@
+import { applicationDiscoverySchema, isHeartbeatStale } from "@control-center/shared";
+import { discoveryUiState } from "./discoveryState";
+
 export type DiscoveredRepository = {
   path: string;
   branch?: string;
@@ -18,6 +21,52 @@ export type ProjectLocationChoice = {
   branch: string;
   composePaths: string[];
 };
+
+export type ProjectServer = {
+  _id: string;
+  orgId?: string;
+  enrollmentStatus?: string;
+  agentStatus?: string;
+  lastHeartbeatAt?: string;
+  archivedAt?: string;
+  revokedAt?: string;
+  currentState?: { discovery?: unknown };
+};
+
+export type ProjectFormValues = {
+  name: string;
+  slug: string;
+  primaryServerId: string;
+  githubRepository: string;
+  branch: string;
+  repoPath: string;
+  composePath: string;
+  serviceNames: string;
+};
+
+export function isEligibleProjectServer(server: ProjectServer, orgId: string, now = Date.now()) {
+  if (!orgId || server.orgId !== orgId || server.archivedAt || server.revokedAt) return false;
+  if (server.enrollmentStatus !== "connected" || server.agentStatus !== "online") return false;
+  if (isHeartbeatStale(server.lastHeartbeatAt, new Date(now))) return false;
+  const parsed = applicationDiscoverySchema.safeParse(server.currentState?.discovery);
+  if (!parsed.success) return false;
+  const state = discoveryUiState({ agentStatus: server.agentStatus, discovery: parsed.data, now });
+  return state === "success" || state === "partial" || state === "truncated";
+}
+
+export function eligibleProjectServers(servers: ProjectServer[] | undefined, orgId: string | undefined, now = Date.now()) {
+  if (!orgId) return [];
+  return (servers || []).filter((server) => isEligibleProjectServer(server, orgId, now));
+}
+
+export function projectServerDiscovery(server: ProjectServer | undefined): ProjectDiscovery | undefined {
+  const parsed = applicationDiscoverySchema.safeParse(server?.currentState?.discovery);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export function clearProjectDiscoveryValues(values: ProjectFormValues): ProjectFormValues {
+  return { ...values, name: "", slug: "", primaryServerId: "", githubRepository: "", branch: "main", repoPath: "", composePath: "" };
+}
 
 export function normalizeGithubRepository(value?: string): string | undefined {
   const raw = value?.trim();
