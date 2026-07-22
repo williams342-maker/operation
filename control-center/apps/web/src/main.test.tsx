@@ -36,6 +36,15 @@ function authenticatedApi(path: string) {
   return Promise.resolve({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
 }
 
+const projectOverview = {
+  schemaVersion: "project-overview-v1", generatedAt: new Date().toISOString(),
+  project: { id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Direct Project", slug: "direct-project", archived: false },
+  environment: { state: "not-configured" },
+  server: { enrollmentStatus: "pending", agentStatus: "never_connected", freshness: "unavailable", capabilities: [], limitations: [] },
+  revision: { confidence: "unavailable", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [] },
+  availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations: []
+};
+
 describe("Sign Out", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -159,5 +168,53 @@ describe("Responsive navigation", () => {
       expect(control.className).toContain("min-h-11");
       expect(control.className).toContain("focus-visible:ring-2");
     }
+  });
+});
+
+describe("Durable project routes", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockImplementation((path: string) => path === "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview" ? Promise.resolve({ data: projectOverview }) : authenticatedApi(path));
+  });
+  afterEach(() => { cleanup(); window.history.replaceState({}, "", "/"); });
+
+  it("loads the base and explicit overview project URLs directly", async () => {
+    for (const path of ["/projects/aaaaaaaaaaaaaaaaaaaaaaaa", "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview"]) {
+      cleanup();
+      window.history.replaceState({}, "", path);
+      renderRoot();
+      expect(await screen.findByRole("heading", { name: "Direct Project" })).toBeInTheDocument();
+    }
+  });
+
+  it("preserves project routes across refresh-equivalent remounts", async () => {
+    window.history.replaceState({}, "", "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview");
+    const first = renderRoot();
+    expect(await screen.findByRole("heading", { name: "Direct Project" })).toBeInTheDocument();
+    first.unmount();
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Direct Project" })).toBeInTheDocument();
+  });
+
+  it("responds to browser back and forward popstate navigation", async () => {
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Overview", level: 1 })).toBeInTheDocument();
+    window.history.pushState({}, "", "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByRole("heading", { name: "Direct Project" })).toBeInTheDocument();
+    window.history.pushState({}, "", "/projects");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByRole("heading", { name: "Projects", level: 1 })).toBeInTheDocument();
+  });
+
+  it("handles invalid project identifiers without falling through to Overview", async () => {
+    window.history.replaceState({}, "", "/projects/not-an-object-id/overview");
+    mocks.apiGet.mockImplementation((path: string) => path.includes("not-an-object-id") ? Promise.reject(new Error("Project not found")) : authenticatedApi(path));
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Project unavailable" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Overview", level: 1 })).not.toBeInTheDocument();
   });
 });

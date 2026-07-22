@@ -505,11 +505,36 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(await collections.telemetry.countDocuments({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId) }) >= 2);
 
     const credentialRemote = `https://user:${["not", "a", "credential"].join("-")}@example.test/org/repo.git?access=redacted#fragment`;
-    const discoveryPayload = { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, discovery: { collectedAt: new Date().toISOString(), dockerInstalled: true, nginxInstalled: true, composeProjects: [], applications: [], warnings: ["unreadable_path"], discoveryTruncated: true, truncationCategories: ["applications"], repositories: [{ path: "/srv/demo", branch: "main", commit: "a".repeat(40), remote: credentialRemote, dirty: false }] } };
+    const discoveryPayload = { ...telemetryPayload, heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, discovery: { collectedAt: new Date().toISOString(), dockerInstalled: true, nginxInstalled: true, composeProjects: [], applications: [], warnings: ["unreadable_path"], discoveryTruncated: true, truncationCategories: ["applications"], repositories: [{ path: "/srv/phase-1b", branch: "main", commit: "a".repeat(40), remote: credentialRemote, dirty: false }] } };
     const discoveryPoll = await poll(credentials, discoveryPayload); assert.equal(discoveryPoll.status, 200);
     const storedDiscovery = await collections.telemetry.findOne({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId), discovery: { $exists: true } }, { sort: { collectedAt: -1 } });
     const storedRemote = ((storedDiscovery?.discovery as { repositories?: Array<{ remote?: string }> })?.repositories || [])[0]?.remote;
     assert.equal(storedRemote, "https://example.test/org/repo.git"); assert.equal(JSON.stringify(storedDiscovery?.discovery).includes("not-a-credential"), false);
+
+    const ownerProjectOverview = await request<any>("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(ownerA));
+    assert.equal(ownerProjectOverview.status, 200);
+    assert.equal(ownerProjectOverview.body.schemaVersion, "project-overview-v1");
+    assert.equal(ownerProjectOverview.body.project.id, project.body.id);
+    assert.equal(ownerProjectOverview.body.project.paths.repository, "/srv/phase-1b");
+    assert.equal(ownerProjectOverview.body.revision.observedBranch, "main");
+    assert.equal(ownerProjectOverview.body.revision.confidence, "conflicting");
+    assert.ok(ownerProjectOverview.body.revision.conflicts.includes("revision-evidence-conflict"));
+    assert.equal(ownerProjectOverview.body.services[0].name, "web");
+    assert.equal(ownerProjectOverview.body.health[0].success, false);
+    assert.ok(ownerProjectOverview.body.recent.tasks.length <= 5);
+    assert.ok(ownerProjectOverview.body.recent.audit.length <= 5);
+    assert.deepEqual(ownerProjectOverview.body.availability, { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" });
+    const serializedOverview = JSON.stringify(ownerProjectOverview.body);
+    for (const forbidden of [credentials.agentSecret, "not-a-credential", "mongodb://", "agentSecretHash", "encryptedConnectionString", "payload"]) assert.equal(serializedOverview.includes(forbidden), false);
+
+    const overviewViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const viewerProjectOverview = await request<any>("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(overviewViewer));
+    assert.equal(viewerProjectOverview.status, 200, JSON.stringify(viewerProjectOverview.body));
+    assert.equal(viewerProjectOverview.body.project.paths, undefined);
+    assert.equal(viewerProjectOverview.body.recent.audit, null);
+    assert.ok(Array.isArray(viewerProjectOverview.body.recent.tasks));
+    const invalidProjectOverview = await request("GET", "/projects/not-an-object-id/overview", undefined, jsonHeaders(ownerA));
+    assert.equal(invalidProjectOverview.status, 404);
 
     const oversized = { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, padding: "x".repeat(1024 * 1024 + 1) };
     const oversizedResponse = await poll(credentials, oversized); assert.equal(oversizedResponse.status, 413);
@@ -573,6 +598,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(orgBProjects.body.projects.length, 0);
     const crossProject = await request("GET", `/projects/${project.body.id}/status`, undefined, jsonHeaders(ownerB));
     assert.equal(crossProject.status, 404);
+    const crossProjectOverview = await request("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(ownerB));
+    assert.equal(crossProjectOverview.status, 404);
     const orgBAudit = await request<{ events: unknown[] }>("GET", "/org/audit", undefined, jsonHeaders(ownerB));
     assert.equal(orgBAudit.status, 200);
     assert.equal(JSON.stringify(orgBAudit.body).includes(project.body.id), false);

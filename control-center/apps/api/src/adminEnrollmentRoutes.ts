@@ -7,7 +7,7 @@ import { collections } from "./db.js";
 import { hashSecret, randomToken } from "./crypto.js";
 
 export const adminEnrollmentRouter = express.Router();
-adminEnrollmentRouter.use(requirePermission("servers:enroll"));
+adminEnrollmentRouter.use("/admin/enrollment", requirePermission("servers:enroll"));
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }
