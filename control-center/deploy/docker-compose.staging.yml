@@ -3,6 +3,8 @@
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:?SOURCE_COMMIT is required}
     image: control-center-api:staging
     env_file:
       - ./env/.env.staging

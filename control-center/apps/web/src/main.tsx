@@ -2013,6 +2013,7 @@ function ServerDetail({
     queryFn: () => api.get(`/servers/${server._id}`).then((r) => r.data),
     refetchInterval: 10000,
   });
+  const connectivity = useQuery<any>({ queryKey: ["server-connectivity", server._id], queryFn: () => api.get(`/servers/${server._id}/connectivity`).then((r) => r.data), refetchInterval: 10000 });
   const importProject = useMutation({
     mutationFn: (candidate: any) =>
       api.post(`/servers/${server._id}/discovery/import`, candidate),
@@ -2022,6 +2023,7 @@ function ServerDetail({
       toast("Application imported as a managed project");
     },
   });
+  const replaceConnectivitySecret = useMutation({ mutationFn: (value: Record<string, string>) => api.patch(`/servers/${server._id}/connectivity/cloudflare`, value), onSuccess: () => { connectivity.refetch(); toast("Cloudflare credential replaced"); } });
   const state = detail.data?.server?.currentState;
   const metrics = state?.metrics;
   const found = state?.discovery;
@@ -2089,6 +2091,7 @@ function ServerDetail({
           <GhostButton onClick={onClose}>Close</GhostButton>
         </div>
         <div className="mt-4 space-y-4">
+          {connectivity.data?.configuration?.enabled && <div className="rounded-md border border-border p-3"><div className="flex items-center justify-between"><h3 className="font-semibold">Cloudflare</h3><Badge tone={connectivity.data?.status?.state === "connected" ? "success" : "danger"}>{connectivity.data?.status?.state === "connected" ? "Connected" : "Disconnected"}</Badge></div><dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Version</dt><dd>{connectivity.data?.status?.service?.version || "Unknown"}</dd></div><div><dt className="text-muted">Service</dt><dd>{connectivity.data?.status?.service?.active ? "Active" : "Inactive"}</dd></div><div><dt className="text-muted">Uptime</dt><dd>{connectivity.data?.status?.service?.uptimeSeconds ?? "Unknown"}</dd></div><div><dt className="text-muted">Last reconnect</dt><dd>{fmt(connectivity.data?.status?.service?.lastReconnectAt)}</dd></div><div><dt className="text-muted">Tunnel identifier</dt><dd>{connectivity.data?.status?.tunnel?.identifier || "Unavailable"}</dd></div></dl><div className="mt-3 flex flex-wrap gap-2"><GhostButton onClick={() => { const value = window.prompt("Enter replacement Cloudflare Tunnel Token"); if (value) replaceConnectivitySecret.mutate({ tunnelToken: value }); }}>Replace Tunnel Token</GhostButton><GhostButton onClick={() => { const value = window.prompt("Enter replacement Cloudflare Access Client ID"); if (value) replaceConnectivitySecret.mutate({ accessClientId: value }); }}>Replace Client ID</GhostButton><GhostButton onClick={() => { const value = window.prompt("Enter replacement Cloudflare Access Client Secret"); if (value) replaceConnectivitySecret.mutate({ accessClientSecret: value }); }}>Replace Client Secret</GhostButton></div></div>}
           <DiscoveryStatusPanel
             state={viewState}
             collectedAt={found?.collectedAt}
@@ -2312,7 +2315,10 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
   const [deleting, setDeleting] = useState<any>(null);
   const [deleteMode, setDeleteMode] = useState("remove");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const f = useForm({ url: "", displayName: "", slug: "" });
+  const f = useForm({ url: "", displayName: "", slug: "", environment: "staging", sshHost: "", sshUser: "root", tunnelToken: "", accessClientId: "", accessClientSecret: "" });
+  const [cloudflareEnabled, setCloudflareEnabled] = useState(false);
+  const [tunnelEnabled, setTunnelEnabled] = useState(false);
+  const [accessEnabled, setAccessEnabled] = useState(false);
   const edit = useForm({
     name: "",
     primaryUrl: "",
@@ -2329,6 +2335,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
     try {
       const value = deriveWebsiteInput(f.values.url);
       f.setValues({
+        ...f.values,
         url: value.normalizedUrl,
         displayName: f.values.displayName || value.displayName,
         slug: f.values.slug || value.slug,
@@ -2345,6 +2352,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
     onSuccess: (value) => {
       setDiscovery(value);
       f.setValues({
+        ...f.values,
         url: value.normalizedUrl,
         displayName: f.values.displayName || value.displayName,
         slug: f.values.slug || value.slug,
@@ -2358,11 +2366,20 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
           url: f.values.url,
           displayName: f.values.displayName || undefined,
           slug: f.values.slug || undefined,
+          environment: f.values.environment,
+          sshHost: f.values.sshHost || undefined,
+          sshUser: f.values.sshUser || undefined,
           detectedPublicIps: discovery?.addresses || [],
           expiresInMinutes: 60,
+          cloudflare: {
+            enabled: cloudflareEnabled,
+            tunnel: { enabled: tunnelEnabled, token: tunnelEnabled ? f.values.tunnelToken : undefined },
+            access: { enabled: accessEnabled, clientId: accessEnabled ? f.values.accessClientId : undefined, clientSecret: accessEnabled ? f.values.accessClientSecret : undefined },
+          },
         })
         .then((r) => r.data),
     onSuccess: (value) => {
+      f.setValues({ ...f.values, tunnelToken: "", accessClientId: "", accessClientSecret: "" });
       setSetup(value);
       setOpen(false);
       qc.invalidateQueries({ queryKey: ["servers"] });
@@ -2631,6 +2648,22 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
               Display name (optional)
               <Field className="mt-1" {...f.field("displayName")} />
             </label>
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="block text-sm">Environment<Select className="mt-1" {...f.field("environment")}><option value="staging">Staging</option><option value="production">Production</option><option value="development">Development</option></Select></label>
+              <label className="block text-sm">SSH host (optional)<Field className="mt-1" {...f.field("sshHost")} /></label>
+              <label className="block text-sm">SSH user (optional)<Field className="mt-1" {...f.field("sshUser")} /></label>
+            </div>
+            <fieldset className="rounded-md border border-border p-3">
+              <legend className="px-1 font-semibold">Connectivity provider</legend>
+              <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={cloudflareEnabled} onChange={(event) => { setCloudflareEnabled(event.target.checked); if (!event.target.checked) { setTunnelEnabled(false); setAccessEnabled(false); } }} /> Enable Cloudflare</label>
+              {cloudflareEnabled && <div className="mt-2 space-y-3">
+                <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={tunnelEnabled} onChange={(event) => setTunnelEnabled(event.target.checked)} /> Enable Cloudflare Tunnel</label>
+                {tunnelEnabled && <label className="block text-sm">Cloudflare Tunnel Token<Field type="password" autoComplete="off" className="mt-1" {...f.field("tunnelToken")} /></label>}
+                <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={accessEnabled} onChange={(event) => setAccessEnabled(event.target.checked)} /> Enable Cloudflare Access</label>
+                {accessEnabled && <div className="grid gap-3 md:grid-cols-2"><label className="block text-sm">Cloudflare Client ID<Field type="password" autoComplete="off" className="mt-1" {...f.field("accessClientId")} /></label><label className="block text-sm">Cloudflare Client Secret<Field type="password" autoComplete="new-password" className="mt-1" {...f.field("accessClientSecret")} /></label></div>}
+                <p className="text-xs text-muted">Credentials are encrypted at rest, delivered once during enrollment, and never shown again. Use Edit server to replace a credential.</p>
+              </div>}
+            </fieldset>
             <button
               className="text-sm text-primary"
               onClick={() => setAdvanced((v) => !v)}

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import express from "express";
 import { z } from "zod";
 import {
@@ -24,6 +25,8 @@ import { aiSettingsRouter } from "./aiSettingsRoutes.js";
 import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
+import { revealConnectivity } from "./connectivityVault.js";
+import { bootstrapArtifactMetadata } from "./bootstrapArtifact.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 
 export const router = express.Router();
@@ -171,6 +174,38 @@ function compactServerIdentity(value: string) {
   return serverSlug(value).replace(/-/g, "");
 }
 
+router.post("/agent/bootstrap/artifact", noStore, async (req, res, next) => {
+  try {
+    const body = z.object({ enrollmentToken: z.string().min(16).max(4096) }).parse(req.body);
+    const artifact = await bootstrapArtifactMetadata();
+    const now = new Date();
+    const enrollment = await collections.enrollments.findOneAndUpdate({ tokenHash: hashSecret(body.enrollmentToken), serverId: { $exists: true }, revokedAt: { $exists: false }, artifactDeliveredAt: { $exists: false }, connectivityDeliveredAt: { $exists: false }, $and: [{ $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: now } }] }, { $or: [{ maxUses: { $exists: false } }, { $expr: { $lt: [{ $ifNull: ["$uses", 0] }, "$maxUses"] } }] }] }, { $set: { artifactDeliveredAt: now, updatedAt: now } }, { returnDocument: "after" });
+    if (!enrollment?.serverId) return res.status(410).json({ error: "Bootstrap authorization is unavailable" });
+    await audit({ orgId: enrollment.orgId, actorType: "anonymous", action: "enrollment.use", targetType: "server", targetId: enrollment.serverId, result: "success", requestId: req.requestId, metadata: { purpose: "artifact-delivery", sourceCommit: artifact.sourceCommit, artifactSha256: artifact.digest, artifactSize: artifact.size } });
+    res.setHeader("Cache-Control", "no-store, private");
+    res.setHeader("Content-Type", "application/gzip");
+    res.setHeader("Content-Length", String(artifact.size));
+    res.setHeader("Content-Disposition", 'attachment; filename="opsworkbench-agent-source.tar.gz"');
+    res.setHeader("X-OpsWorkbench-Artifact-SHA256", artifact.digest);
+    res.setHeader("X-OpsWorkbench-Source-Commit", artifact.sourceCommit);
+    fs.createReadStream(artifact.artifactPath).on("error", next).pipe(res);
+  } catch (error) { next(error); }
+});
+
+router.post("/agent/bootstrap/connectivity", noStore, async (req, res, next) => {
+  try {
+    const body = z.object({ enrollmentToken: z.string().min(16).max(4096) }).parse(req.body);
+    const now = new Date();
+    const enrollment = await collections.enrollments.findOneAndUpdate({ tokenHash: hashSecret(body.enrollmentToken), serverId: { $exists: true }, revokedAt: { $exists: false }, artifactDeliveredAt: { $exists: true }, connectivityDeliveredAt: { $exists: false }, $and: [{ $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: now } }] }, { $or: [{ maxUses: { $exists: false } }, { $expr: { $lt: [{ $ifNull: ["$uses", 0] }, "$maxUses"] } }] }] }, { $set: { connectivityDeliveredAt: now, updatedAt: now } }, { returnDocument: "after" });
+    if (!enrollment?.serverId) return res.status(410).json({ error: "Bootstrap authorization is unavailable" });
+    const configs = await collections.connectivityConfigs.find({ orgId: enrollment.orgId, serverId: enrollment.serverId, enabled: true }).toArray();
+    const providers = configs.map(revealConnectivity);
+    await audit({ orgId: enrollment.orgId, actorType: "anonymous", action: "enrollment.use", targetType: "server", targetId: enrollment.serverId, result: "success", requestId: req.requestId, metadata: { purpose: "connectivity-handoff", providers: providers.length } });
+    res.setHeader("Cache-Control", "no-store, private");
+    res.json({ providers });
+  } catch (error) { next(error); }
+});
+
 router.post("/agent/enroll", noStore, async (req, res, next) => {
   try {
     const body = agentEnrollmentRequestSchema.parse(req.body);
@@ -250,6 +285,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
       compose: body.compose || [],
       git: body.git || [],
       discovery,
+      connectivity: body.connectivity || [],
       httpHealth: body.httpHealth || [],
       mongo: body.mongo || [],
       expiresAt,
@@ -276,6 +312,7 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
           compose: body.compose || [],
           git: body.git || [],
           discovery,
+          connectivity: body.connectivity || [],
           httpHealth: body.httpHealth || [],
           mongo: body.mongo || [],
           collectedAt: new Date(body.heartbeat.collectedAt)

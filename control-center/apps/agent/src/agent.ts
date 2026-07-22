@@ -7,6 +7,7 @@ import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
 import { executeConfigurationDeployment } from "./configurationDeployment.js";
 import { handoffUpgrade } from "./upgradeHandoff.js";
+import { collectConnectivity } from "./connectivity.js";
 
 const advertisedCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
@@ -114,7 +115,8 @@ async function pollOnce() {
     heartbeat: { collectedAt: new Date().toISOString(), agentVersion: config.agentVersion, protocolVersion: config.protocolVersion, packageType: config.packageType, releaseChannel: config.releaseChannel, binarySha256: config.binarySha256, capabilities: [...advertisedCapabilities] },
     metrics: await collectSystem(config.agentVersion),
     docker: await collectDocker().catch(() => []),
-    discovery: await collectApplicationDiscovery(config).catch(() => undefined)
+    discovery: await collectApplicationDiscovery(config).catch(() => undefined),
+    connectivity: collectConnectivity()
   };
   const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { serverId?: string; tasks?: ClaimedTask[] };
   if (!config.serverId && response.serverId) { config.serverId = response.serverId; saveConfig(config); }

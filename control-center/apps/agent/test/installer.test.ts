@@ -14,6 +14,17 @@ test("installer provisions and verifies the systemd agent", () => {
   assert.match(source, /machine-auth\.env/);
   assert.match(source, /CF_ACCESS_CLIENT_ID/);
   assert.match(source, /CF_ACCESS_CLIENT_SECRET/);
+  assert.match(source, /\/api\/agent\/bootstrap\/connectivity/);
+  assert.match(source, /\/api\/agent\/bootstrap\/artifact/);
+  assert.match(source, /X-OpsWorkbench-Artifact-SHA256/);
+  assert.match(source, /agent artifact digest verification failed/);
+  assert.match(source, /\.opsworkbench-source-commit/);
+  assert.doesNotMatch(source, /github\.com\/.*\/archive\//, "installer must not depend on an unpublished GitHub source archive");
+  assert.match(source, /connectivityDeliveredAt|connectivity-request\.json/);
+  assert.match(source, /cloudflared tunnel run --token-file/);
+  assert.match(source, /systemctl is-active --quiet cloudflared\.service/);
+  assert.doesNotMatch(source, /cloudflared service install "\$CF_TUNNEL_TOKEN"/, "tunnel token must not be passed in process arguments");
+  assert.doesNotMatch(source, /curl_args.*CF_ACCESS_CLIENT_SECRET/, "Access credentials must not be passed in process arguments");
   assert.match(source, /installation_id=/);
   assert.match(source, /CONTROL_CENTER_SERVER_SLUG/);
   assert.match(source, /useradd --system/);

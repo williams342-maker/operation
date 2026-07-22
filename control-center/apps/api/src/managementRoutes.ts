@@ -2,7 +2,7 @@
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { gzipSync } from "node:zlib";
-import { deriveWebsiteTarget, enrollmentInstallCommand, isSafeHttpCheckUrl, validateConfiguredPath } from "@control-center/shared";
+import { cloudflareOnboardingSchema, deriveWebsiteTarget, enrollmentInstallCommand, isSafeHttpCheckUrl, validateConfiguredPath } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission, requireRecentAuth } from "./auth.js";
 import { collections, oid } from "./db.js";
@@ -12,6 +12,7 @@ import { discoverWebsite, websiteFailureStatus } from "./urlDiscovery.js";
 import { calculateAgentStatus, publicSiteStatus } from "./serverStatus.js";
 import { buildProjectOverview } from "./projectOverview.js";
 import { projectDeploymentHistory, projectRollbackHistory } from "./projectHistory.js";
+import { safeConnectivity, storeCloudflareConnectivity } from "./connectivityVault.js";
 
 export const managementRouter = express.Router();
 const roles = ["Owner", "Administrator", "Developer", "Viewer"] as const;
@@ -124,7 +125,7 @@ managementRouter.post("/servers/discover", requirePermission("servers:manage"), 
 
 managementRouter.post("/servers/onboard", noStore, requirePermission("servers:manage"), async (req, res, next) => {
   try {
-    const body = z.object({ url: z.string().min(1).max(2048), displayName: z.string().trim().min(1).max(120).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), detectedPublicIps: z.array(z.string()).max(20).default([]), expiresInMinutes: z.number().int().min(5).max(43_200).default(60) }).parse(req.body);
+    const body = z.object({ url: z.string().min(1).max(2048), displayName: z.string().trim().min(1).max(120).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), environment: z.enum(["production", "staging", "development"]).default("staging"), sshHost: z.string().trim().max(255).optional(), sshUser: z.string().regex(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/).optional(), detectedPublicIps: z.array(z.string()).max(20).default([]), expiresInMinutes: z.number().int().min(5).max(43_200).default(60), cloudflare: cloudflareOnboardingSchema.optional() }).parse(req.body);
     const derived = deriveWebsiteTarget(body.url); const org = orgId(req); const slugBase = body.slug || derived.slug;
     let target = await collections.servers.findOne({ orgId: org, archivedAt: { $exists: false }, slug: slugBase });
     if (!target) {
@@ -134,18 +135,27 @@ managementRouter.post("/servers/onboard", noStore, requirePermission("servers:ma
     }
     const now = new Date();
     if (target?._id) {
-      await collections.servers.updateOne({ _id: target._id, orgId: org }, { $set: { primaryUrl: derived.normalizedUrl, detectedPublicIps: body.detectedPublicIps, enrollmentStatus: "pending", agentStatus: target.lastHeartbeatAt ? "offline" : "never_connected", updatedAt: now } });
+      await collections.servers.updateOne({ _id: target._id, orgId: org }, { $set: { primaryUrl: derived.normalizedUrl, detectedPublicIps: body.detectedPublicIps, environmentKind: body.environment, metadata: { ...(target.metadata || {}), ...(body.sshHost ? { sshHost: body.sshHost } : {}), ...(body.sshUser ? { sshUser: body.sshUser } : {}) }, enrollmentStatus: "pending", agentStatus: target.lastHeartbeatAt ? "offline" : "never_connected", updatedAt: now } });
     } else {
       let slug = slugBase; let suffix = 2; while (await collections.servers.findOne({ orgId: org, slug })) slug = `${slugBase}-${suffix++}`;
-      const created = await collections.servers.insertOne({ orgId: org, name: body.displayName || derived.displayName, slug, primaryUrl: derived.normalizedUrl, detectedPublicIps: body.detectedPublicIps, enrollmentStatus: "pending", agentStatus: "never_connected", hostname: "", agentId: `pending-${randomToken(12)}`, agentSecretHash: hashAgentSecret(randomToken(48)), credentialVersion: 0, status: "offline", allowlistedRoots: ["/srv"], createdAt: now, updatedAt: now });
+      const created = await collections.servers.insertOne({ orgId: org, name: body.displayName || derived.displayName, slug, primaryUrl: derived.normalizedUrl, detectedPublicIps: body.detectedPublicIps, environmentKind: body.environment, metadata: { ...(body.sshHost ? { sshHost: body.sshHost } : {}), ...(body.sshUser ? { sshUser: body.sshUser } : {}) }, enrollmentStatus: "pending", agentStatus: "never_connected", hostname: "", agentId: `pending-${randomToken(12)}`, agentSecretHash: hashAgentSecret(randomToken(48)), credentialVersion: 0, status: "offline", allowlistedRoots: ["/srv"], createdAt: now, updatedAt: now });
       target = await collections.servers.findOne({ _id: created.insertedId, orgId: org });
     }
     if (!target?._id) throw new Error("Pending server could not be created");
+    if (body.cloudflare) await storeCloudflareConnectivity(org, target._id, actorId(req), body.cloudflare);
     const token = `owenr_${randomToken(36)}`; const expiresAt = new Date(now.getTime() + body.expiresInMinutes * 60_000);
     const enrollment = await collections.enrollments.insertOne({ orgId: org, serverId: target._id, tokenHash: hashSecret(token), name: `Setup ${target.name}`, description: `URL-first onboarding for ${derived.normalizedUrl}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.create", targetType: "server", targetId: target._id, result: "success", requestId: req.requestId, metadata: { slug: target.slug || slugBase, url: derived.normalizedUrl } });
     res.status(201).json({ serverId: target._id, enrollmentId: enrollment.insertedId, token, expiresAt, server: { _id: target._id, name: target.name, slug: target.slug, primaryUrl: derived.normalizedUrl, enrollmentStatus: "pending" }, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", target.slug) });
   } catch (error) { next(error); }
+});
+
+managementRouter.get("/servers/:id/connectivity", noStore, requirePermission("status:view"), async (req, res, next) => {
+  try { const serverId = oid(String(req.params.id)); if (!await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } })) return res.status(404).json({ error: "Server not found" }); const config = await collections.connectivityConfigs.findOne({ orgId: orgId(req), serverId, provider: "cloudflare" }); const telemetry = await collections.telemetry.findOne({ orgId: orgId(req), serverId }, { sort: { collectedAt: -1 }, projection: { connectivity: 1, collectedAt: 1 } }); res.json({ configuration: safeConnectivity(config), status: Array.isArray(telemetry?.connectivity) ? telemetry.connectivity[0] || null : null }); } catch (error) { next(error); }
+});
+
+managementRouter.patch("/servers/:id/connectivity/cloudflare", noStore, requirePermission("servers:manage"), requireRecentAuth, async (req, res, next) => {
+  try { const serverId = oid(String(req.params.id)); if (!await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } })) return res.status(404).json({ error: "Server not found" }); const body = z.object({ tunnelToken: z.string().min(16).max(8192).optional(), accessClientId: z.string().min(3).max(2048).optional(), accessClientSecret: z.string().min(8).max(8192).optional() }).refine((value) => Object.values(value).some(Boolean), "A replacement secret is required").parse(req.body); const existing = await collections.connectivityConfigs.findOne({ orgId: orgId(req), serverId, provider: "cloudflare" }); if (!existing) return res.status(404).json({ error: "Cloudflare connectivity is not configured" }); await storeCloudflareConnectivity(orgId(req), serverId, actorId(req), { enabled: existing.enabled, tunnel: { enabled: existing.tunnelEnabled, token: body.tunnelToken }, access: { enabled: existing.accessEnabled, clientId: body.accessClientId, clientSecret: body.accessClientSecret } }); const config = await collections.connectivityConfigs.findOne({ orgId: orgId(req), serverId, provider: "cloudflare" }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "server.update", targetType: "server", targetId: serverId, result: "success", requestId: req.requestId, metadata: { connectivityProvider: "cloudflare", replacedTunnelToken: Boolean(body.tunnelToken), replacedAccessClientId: Boolean(body.accessClientId), replacedAccessClientSecret: Boolean(body.accessClientSecret) } }); res.json({ configuration: safeConnectivity(config) }); } catch (error) { next(error); }
 });
 
 managementRouter.get("/servers/:id/onboarding-status", requirePermission("status:view"), async (req, res, next) => {
@@ -214,6 +224,7 @@ managementRouter.delete("/servers/:id", requirePermission("servers:manage"), asy
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.delete_requested", targetType: "server", targetId: id, result: "success", requestId: req.requestId, metadata: { mode: body.mode, pending } });
     const revokedTokens = await collections.enrollments.updateMany({ orgId: org, serverId: id, revokedAt: { $exists: false }, usedAt: { $exists: false } }, { $set: { revokedAt: now, updatedAt: now } });
     if (revokedTokens.modifiedCount) await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "enrollment.tokens_revoked", targetType: "server", targetId: id, result: "success", requestId: req.requestId, metadata: { count: revokedTokens.modifiedCount } });
+    await collections.connectivityConfigs.deleteMany({ orgId: org, serverId: id });
     if (pending) await collections.servers.deleteOne({ _id: id, orgId: org });
     else {
       await collections.servers.updateOne({ _id: id, orgId: org }, { $set: { archivedAt: now, revokedAt: now, enrollmentStatus: "revoked", agentStatus: "revoked", status: "revoked", updatedAt: now } });

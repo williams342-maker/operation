@@ -7,11 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
   bootstrapStatus: vi.fn(),
-  apiGet: vi.fn()
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+  apiPatch: vi.fn()
 }));
 
 vi.mock("./api", () => ({
-  api: { get: mocks.apiGet, post: vi.fn(), patch: vi.fn() },
+  api: { get: mocks.apiGet, post: mocks.apiPost, patch: mocks.apiPatch },
   apiError: (error: unknown) => error instanceof Error ? error.message : "Unexpected logout failure",
   bootstrapOwner: vi.fn(),
   bootstrapStatus: mocks.bootstrapStatus,
@@ -216,5 +218,44 @@ describe("Durable project routes", () => {
     renderRoot();
     expect(await screen.findByRole("heading", { name: "Project unavailable" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Overview", level: 1 })).not.toBeInTheDocument();
+  });
+});
+
+describe("Cloudflare server onboarding", () => {
+  beforeEach(() => {
+    localStorage.clear(); localStorage.setItem("cc.csrf", "csrf-token"); window.history.replaceState({}, "", "/servers");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false }); mocks.apiPost.mockReset(); mocks.apiPatch.mockReset();
+    mocks.apiGet.mockImplementation(authenticatedApi);
+  });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState({}, "", "/"); });
+
+  it("keeps Cloudflare optional and submits enabled credentials only once", async () => {
+    mocks.apiPost.mockResolvedValue({ data: { serverId: "aaaaaaaaaaaaaaaaaaaaaaaa", token: "synthetic", installCommand: "safe command", expiresAt: new Date().toISOString(), server: { name: "Example", slug: "example", primaryUrl: "https://example.test" } } });
+    renderRoot();
+    await userEvent.click(await screen.findByRole("button", { name: "Add Server" }));
+    expect(screen.queryByLabelText("Cloudflare Tunnel Token")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Website URL"), "https://example.test");
+    await userEvent.click(screen.getByLabelText("Enable Cloudflare"));
+    await userEvent.click(screen.getByLabelText("Enable Cloudflare Tunnel"));
+    await userEvent.type(screen.getByLabelText("Cloudflare Tunnel Token"), "synthetic-tunnel-token-value");
+    await userEvent.click(screen.getByLabelText("Enable Cloudflare Access"));
+    await userEvent.type(screen.getByLabelText("Cloudflare Client ID"), "synthetic-client-id");
+    await userEvent.type(screen.getByLabelText("Cloudflare Client Secret"), "synthetic-client-secret-value");
+    await userEvent.click(screen.getByRole("button", { name: "Create and generate command" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/servers/onboard", expect.objectContaining({ cloudflare: { enabled: true, tunnel: { enabled: true, token: "synthetic-tunnel-token-value" }, access: { enabled: true, clientId: "synthetic-client-id", clientSecret: "synthetic-client-secret-value" } } })));
+    expect(await screen.findByText("safe command")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("synthetic-tunnel-token-value")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("synthetic-client-secret-value");
+  });
+
+  it("replaces a saved secret without retrieving the previous value", async () => {
+    const server = { _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Example", slug: "example", enrollmentStatus: "connected", agentStatus: "online", currentState: {} };
+    mocks.apiGet.mockImplementation((path: string) => path === "/servers" ? Promise.resolve({ data: { servers: [server] } }) : path === `/servers/${server._id}` ? Promise.resolve({ data: { server, projects: [] } }) : path === `/servers/${server._id}/connectivity` ? Promise.resolve({ data: { configuration: { enabled: true, secrets: { tunnelToken: "configured" } }, status: { state: "connected", service: { active: true }, tunnel: {} } } }) : authenticatedApi(path));
+    mocks.apiPatch.mockResolvedValue({ data: { configuration: { enabled: true, secrets: { tunnelToken: "configured" } } } });
+    vi.spyOn(window, "prompt").mockReturnValue("synthetic-replacement-token");
+    renderRoot(); await userEvent.click(await screen.findByRole("button", { name: "View" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Replace Tunnel Token" }));
+    await waitFor(() => expect(mocks.apiPatch).toHaveBeenCalledWith(`/servers/${server._id}/connectivity/cloudflare`, { tunnelToken: "synthetic-replacement-token" }));
+    expect(document.body.textContent).not.toContain("synthetic-replacement-token");
   });
 });

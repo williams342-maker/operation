@@ -86,6 +86,11 @@ async function assertIndex(collection: { indexes(): Promise<Array<{ key: Record<
 test("database-backed Phase 1B API and fake-agent verification", { skip: !enabled }, async () => {
   process.env.NODE_ENV = "test";
   process.env.CONTROL_CENTER_ALLOW_INSECURE_COOKIES = "true";
+  const tempArtifactFile = path.join(os.tmpdir(), `control-center-agent-artifact-${crypto.randomUUID()}.tar.gz`);
+  const artifactBytes = Buffer.from("synthetic-disposable-agent-artifact");
+  await fs.writeFile(tempArtifactFile, artifactBytes, { mode: 0o600 });
+  process.env.CONTROL_CENTER_AGENT_ARTIFACT_PATH = tempArtifactFile;
+  process.env.CONTROL_CENTER_SOURCE_COMMIT = "a".repeat(40);
   const isolated = isolatedTestMongoUrl();
   process.env.MONGO_URL = isolated.url;
   process.env.CONTROL_CENTER_DB = isolated.dbName;
@@ -114,6 +119,11 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     });
     const text = await response.text();
     return { status: response.status, headers: response.headers, body: text ? JSON.parse(text) as T : {} as T };
+  }
+
+  async function requestBinary(method: string, route: string, body: unknown) {
+    const response = await fetch(`${baseUrl}${route}`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: response.status, headers: response.headers, body: Buffer.from(await response.arrayBuffer()) };
   }
 
   async function login(slug: string, email: string, password: string): Promise<Session> {
@@ -345,6 +355,36 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.servers.countDocuments({ _id: new ObjectId(pendingDelete.body.serverId) }), 0);
     const revokedPendingToken = await collections.enrollments.findOne({ _id: new ObjectId(pendingDelete.body.enrollmentId) });
     assert.ok(revokedPendingToken?.revokedAt);
+    const syntheticTunnelToken = "synthetic-disposable-tunnel-token-value";
+    const syntheticClientId = "synthetic-disposable-client-id";
+    const syntheticClientSecret = "synthetic-disposable-client-secret-value";
+    const connectivityOnboard = await request<{ serverId: string; token: string }>("POST", "/servers/onboard", { url: "https://connectivity-disposable.example.test", displayName: "Connectivity disposable", slug: "connectivity-disposable", expiresInMinutes: 60, cloudflare: { enabled: true, tunnel: { enabled: true, token: syntheticTunnelToken }, access: { enabled: true, clientId: syntheticClientId, clientSecret: syntheticClientSecret } } }, jsonHeaders(ownerA));
+    assert.equal(connectivityOnboard.status, 201);
+    const connectivityServerId = new ObjectId(connectivityOnboard.body.serverId);
+    const encryptedConnectivity = await collections.connectivityConfigs.findOne({ orgId: orgA._id, serverId: connectivityServerId, provider: "cloudflare" });
+    assert.ok(encryptedConnectivity?.tunnelToken && encryptedConnectivity.accessClientId && encryptedConnectivity.accessClientSecret);
+    const storedConnectivity = JSON.stringify(encryptedConnectivity);
+    for (const value of [syntheticTunnelToken, syntheticClientId, syntheticClientSecret]) assert.equal(storedConnectivity.includes(value), false, "connectivity values must be encrypted at rest");
+    const safeConnectivity = await request<any>("GET", `/servers/${connectivityServerId}/connectivity`, undefined, jsonHeaders(ownerA));
+    assert.equal(safeConnectivity.status, 200); assert.equal(safeConnectivity.body.configuration.secrets.tunnelToken, "configured");
+    for (const value of [syntheticTunnelToken, syntheticClientId, syntheticClientSecret]) assert.equal(JSON.stringify(safeConnectivity.body).includes(value), false);
+    const outOfOrderConnectivity = await request("POST", "/agent/bootstrap/connectivity", { enrollmentToken: connectivityOnboard.body.token }, { "content-type": "application/json" });
+    assert.equal(outOfOrderConnectivity.status, 410);
+    const artifact = await requestBinary("POST", "/agent/bootstrap/artifact", { enrollmentToken: connectivityOnboard.body.token });
+    assert.equal(artifact.status, 200);
+    assert.deepEqual(artifact.body, artifactBytes);
+    assert.equal(artifact.headers.get("x-opsworkbench-artifact-sha256"), crypto.createHash("sha256").update(artifactBytes).digest("hex"));
+    assert.equal(artifact.headers.get("x-opsworkbench-source-commit"), "a".repeat(40));
+    const artifactReplay = await request("POST", "/agent/bootstrap/artifact", { enrollmentToken: connectivityOnboard.body.token }, { "content-type": "application/json" });
+    assert.equal(artifactReplay.status, 410);
+    const delivered = await request<any>("POST", "/agent/bootstrap/connectivity", { enrollmentToken: connectivityOnboard.body.token }, { "content-type": "application/json" });
+    assert.equal(delivered.status, 200); assert.equal(delivered.body.providers[0].tunnel.token, syntheticTunnelToken); assert.equal(delivered.body.providers[0].access.clientSecret, syntheticClientSecret);
+    const replayed = await request("POST", "/agent/bootstrap/connectivity", { enrollmentToken: connectivityOnboard.body.token }, { "content-type": "application/json" });
+    assert.equal(replayed.status, 410);
+    const replacement = await request<any>("PATCH", `/servers/${connectivityServerId}/connectivity/cloudflare`, { tunnelToken: "synthetic-disposable-replacement-token" }, jsonHeaders(ownerA));
+    assert.equal(replacement.status, 200); assert.equal(replacement.body.configuration.secrets.tunnelToken, "configured"); assert.equal(JSON.stringify(replacement.body).includes("synthetic-disposable-replacement-token"), false);
+    const deleteConnectivity = await request("DELETE", `/servers/${connectivityServerId}`, { mode: "remove" }, jsonHeaders(ownerA));
+    assert.equal(deleteConnectivity.status, 200); assert.equal(await collections.connectivityConfigs.countDocuments({ serverId: connectivityServerId }), 0);
     await collections.enrollments.insertOne({
       orgId: orgA._id,
       tokenHash: hashSecret(expiredToken),
@@ -673,6 +713,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
   } finally {
     await fs.rm(tempCredentialFile, { force: true });
+    await fs.rm(tempArtifactFile, { force: true });
     await client.db(isolated.dbName).dropDatabase();
     await client.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

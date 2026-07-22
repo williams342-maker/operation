@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { connectivityStatusSchema } from "./connectivity.js";
 import { discoveredSettingSchema } from "./configuration.js";
 
 export const objectIdSchema = z.string().min(12).max(64);
@@ -125,7 +126,8 @@ export const agentPollRequestSchema = z.object({
   git: z.array(gitStatusSchema).max(100).optional(),
   httpHealth: z.array(httpHealthResultSchema).optional(),
   mongo: z.array(mongoCheckResultSchema).optional(),
-  discovery: applicationDiscoverySchema.optional()
+  discovery: applicationDiscoverySchema.optional(),
+  connectivity: z.array(connectivityStatusSchema).max(10).optional()
 });
 
 export const agentTaskSchema = z.object({
