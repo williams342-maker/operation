@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { enrollmentInstallCommand } from "@control-center/shared";
+import { discoveredGithubRepositories, normalizeGithubRepository, projectLocationChoices, projectSlug, repositoryName } from "./projectAutofill";
 import {
   api,
   apiError,
@@ -708,6 +709,35 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
     composePath: "",
     serviceNames: "",
   });
+  const selectedServer = useQuery({
+    queryKey: ["project-server-discovery", f.values.primaryServerId],
+    queryFn: () => api.get(`/servers/${f.values.primaryServerId}`).then((r) => r.data.server),
+    enabled: Boolean(f.values.primaryServerId),
+  });
+  const discovery = selectedServer.data?.currentState?.discovery;
+  const repositoryOptions = discoveredGithubRepositories(discovery);
+  const locationChoices = projectLocationChoices(discovery, f.values.githubRepository);
+  const selectedLocation = locationChoices.find((choice) => choice.repoPath === f.values.repoPath);
+  const selectRepository = (repository: string) => {
+    const normalized = normalizeGithubRepository(repository) || repository;
+    const name = repositoryName(normalized);
+    const choices = projectLocationChoices(discovery, normalized);
+    const onlyLocation = choices.length === 1 ? choices[0] : undefined;
+    const onlyCompose = onlyLocation?.composePaths.length === 1 ? onlyLocation.composePaths[0] : "";
+    f.setValues((values) => ({
+      ...values,
+      githubRepository: normalized,
+      name,
+      slug: projectSlug(name),
+      branch: onlyLocation?.branch || "main",
+      repoPath: onlyLocation?.repoPath || "",
+      composePath: onlyCompose,
+    }));
+  };
+  const selectLocation = (repoPath: string) => {
+    const choice = locationChoices.find((item) => item.repoPath === repoPath);
+    f.setValues((values) => ({ ...values, repoPath, branch: choice?.branch || values.branch, composePath: choice?.composePaths.length === 1 ? choice.composePaths[0] : "" }));
+  };
   const create = useMutation({
     mutationFn: () =>
       api.post("/projects", {
@@ -803,7 +833,7 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
       <div className="mb-4 mt-3 grid gap-2 md:grid-cols-4">
         <Field placeholder="Name" {...f.field("name")} />
         <Field placeholder="Slug" {...f.field("slug")} />
-        <Select {...f.field("primaryServerId")}>
+        <Select value={f.values.primaryServerId} onChange={(event) => f.setValues((values) => ({ ...values, primaryServerId: event.target.value, githubRepository: "", repoPath: "", composePath: "" }))}>
           <option value="">Server</option>
           {servers.data?.map((s: any) => (
             <option key={s._id} value={s._id}>
@@ -811,12 +841,18 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
             </option>
           ))}
         </Select>
-        <Field placeholder="GitHub repo" {...f.field("githubRepository")} />
+        <Select aria-label="GitHub repository" value={f.values.githubRepository} onChange={(event) => selectRepository(event.target.value)} disabled={!f.values.primaryServerId || selectedServer.isLoading}>
+          <option value="">{selectedServer.isLoading ? "Loading discovered repositories..." : "GitHub repository"}</option>
+          {repositoryOptions.map((repository) => <option key={repository} value={repository}>{repository}</option>)}
+        </Select>
         <Field placeholder="Branch" {...f.field("branch")} />
-        <Field placeholder="Repo path" {...f.field("repoPath")} />
-        <Field placeholder="Compose path" {...f.field("composePath")} />
-        <Button onClick={() => create.mutate()}>Create</Button>
+        {locationChoices.length > 1 ? <Select aria-label="Repository path" value={f.values.repoPath} onChange={(event) => selectLocation(event.target.value)}><option value="">Choose repository path</option>{locationChoices.map((choice) => <option key={choice.repoPath} value={choice.repoPath}>{choice.repoPath}</option>)}</Select> : <Field aria-label="Repository path" placeholder="Repo path" readOnly value={f.values.repoPath} />}
+        {(selectedLocation?.composePaths.length || 0) > 1 ? <Select aria-label="Compose path" value={f.values.composePath} onChange={(event) => f.setValues((values) => ({ ...values, composePath: event.target.value }))}><option value="">Choose Compose path</option>{selectedLocation?.composePaths.map((composePath) => <option key={composePath} value={composePath}>{composePath}</option>)}</Select> : <Field aria-label="Compose path" placeholder="Compose path" readOnly value={f.values.composePath} />}
+        <Button disabled={!f.values.name || !f.values.slug || !f.values.primaryServerId || !f.values.githubRepository || !f.values.repoPath || !f.values.composePath} onClick={() => create.mutate()}>Create</Button>
       </div>
+      {f.values.primaryServerId && !selectedServer.isLoading && !selectedServer.isError && repositoryOptions.length === 0 && <p className="mb-3 text-sm text-warning">No GitHub repositories were found in this server's allowlisted roots. Refresh agent discovery after confirming the repository is already checked out.</p>}
+      {f.values.githubRepository && locationChoices.length === 0 && <p className="mb-3 text-sm text-warning">The selected repository was not found in this server's allowlisted roots.</p>}
+      {selectedServer.isError && <p className="mb-3 text-sm text-danger">Server discovery could not be loaded. No paths were guessed.</p>}
       <ErrorText error={create.error} />
       {q.isLoading ? (
         <Skeleton />
