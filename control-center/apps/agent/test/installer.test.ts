@@ -47,6 +47,11 @@ test("enrollment download and copy-command formats are stable", () => {
   assert.doesNotMatch(command, /owenr_test-token/, "generated commands must not embed enrollment tokens");
   assert.match(command, /read -rsp 'Enrollment token:/);
   assert.match(command, /curl --config curl\.conf/);
+  assert.match(command, /curl --config curl\.conf >"\$INSTALL_INPUT_DIR\/curl\.status"/);
+  assert.match(command, /read -r HTTP_STATUS CONTENT_TYPE <"\$INSTALL_INPUT_DIR\/curl\.status"/);
+  assert.doesNotMatch(command, /< <\(curl/, "the interactive command must wait for curl without process substitution");
+  assert.ok(command.includes("sed -i 's/\\r$//' installer.sh"));
+  assert.ok(command.includes("! grep -q $'\\r' installer.sh"));
   assert.match(command, /bash -n installer\.sh/);
   assert.match(command, /inspect before continuing/);
   assert.match(command, /OPSWORKBENCH_INSTALL_INPUT_DIR=/);
@@ -62,6 +67,11 @@ test("enrollment download and copy-command formats are stable", () => {
   assert.match(script, /chmod 0600/);
   assert.match(script, /rm -f -- "\$SELF_PATH"/, "the one-time script removes itself");
   assert.match(script, /OPSWORKBENCH_INSTALL_INPUT_DIR=/);
+  assert.match(script, /curl --config curl\.conf >"\$INSTALL_INPUT_DIR\/curl\.status"/);
+  assert.match(script, /read -r HTTP_STATUS CONTENT_TYPE <"\$INSTALL_INPUT_DIR\/curl\.status"/);
+  assert.doesNotMatch(script, /< <\(curl/, "the protected script must not block on process substitution under noninteractive SSH");
+  assert.ok(script.includes("sed -i 's/\\r$//' installer.sh"));
+  assert.ok(script.includes("! grep -q $'\\r' installer.sh"));
 });
 
 test("installer has valid shell syntax when bash is available", { skip: process.platform === "win32" }, () => {
