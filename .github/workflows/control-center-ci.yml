@@ -168,6 +168,14 @@ jobs:
             sleep 1
           done
           npm run test:e2e:authenticated
+      - name: Retain authenticated browser failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: authenticated-browser-e2e-failure
+          path: ${{ runner.temp }}/authenticated-e2e-failure.png
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present

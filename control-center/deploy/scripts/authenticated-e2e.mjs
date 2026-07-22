@@ -1,5 +1,7 @@
 /* global console, fetch, localStorage, process */
 import assert from "node:assert/strict";
+import path from "node:path";
+import { URL } from "node:url";
 import { chromium } from "playwright";
 import { MongoClient, ObjectId } from "mongodb";
 import { createBrowserErrorTracker } from "./e2e-browser-errors.mjs";
@@ -15,6 +17,11 @@ const client = new MongoClient(mongoUrl);
 await client.connect();
 const db = client.db();
 await db.dropDatabase();
+assert.equal(await db.collection("organizations").countDocuments(), 0, "disposable E2E database starts without an organization");
+
+const initialBootstrapStatus = await fetch(`${apiUrl}/api/auth/bootstrap`);
+assert.equal(initialBootstrapStatus.status, 200, "bootstrap status is available");
+assert.equal((await initialBootstrapStatus.json()).available, true, "manual bootstrap is available for the empty disposable database");
 
 const bootstrap = await fetch(`${apiUrl}/api/auth/bootstrap`, {
   method: "POST",
@@ -22,26 +29,69 @@ const bootstrap = await fetch(`${apiUrl}/api/auth/bootstrap`, {
   body: JSON.stringify({ organizationName: "E2E Organization", organizationSlug, ownerEmail: email, ownerName: "E2E Owner", password })
 });
 assert.equal(bootstrap.status, 201, "bootstrap succeeds");
+assert.equal(await db.collection("organizations").countDocuments(), 1, "bootstrap creates exactly one organization");
+assert.equal(await db.collection("users").countDocuments(), 1, "bootstrap creates exactly one owner");
+const completedBootstrapStatus = await fetch(`${apiUrl}/api/auth/bootstrap`);
+assert.equal(completedBootstrapStatus.status, 200, "completed bootstrap status is available");
+assert.equal((await completedBootstrapStatus.json()).available, false, "bootstrap closes after the owner is created");
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
 const page = await context.newPage();
+const navigationHistory = [];
+const consoleErrors = [];
+const failedRequests = [];
 const browserErrors = createBrowserErrorTracker([
   { phase: "recent-auth enrollment", method: "POST", path: "/api/admin/enrollment/generate", status: 403, count: 1 },
   { phase: "expired session", method: "GET", path: "/api/me", status: 401, count: 1 },
   { phase: "expired session", method: "GET", path: "/api/overview", status: 401, count: 1 },
 ]);
-page.on("console", (message) => browserErrors.console({ type: message.type(), text: message.text() }));
-page.on("pageerror", (error) => browserErrors.console({ type: "error", text: error.message }));
+page.on("console", (message) => {
+  browserErrors.console({ type: message.type(), text: message.text() });
+  if (message.type() === "error") consoleErrors.push(message.text());
+});
+page.on("pageerror", (error) => {
+  browserErrors.console({ type: "error", text: error.message });
+  consoleErrors.push(error.message);
+});
 page.on("response", (response) => browserErrors.response({ method: response.request().method(), url: response.url(), status: response.status() }));
+page.on("requestfailed", (request) => failedRequests.push({ method: request.method(), url: request.url(), error: request.failure()?.errorText || "unknown" }));
+page.on("framenavigated", (frame) => { if (frame === page.mainFrame()) navigationHistory.push(frame.url()); });
+
+async function reportBrowserFailure(error) {
+  const screenshotPath = path.join(process.env.RUNNER_TEMP || process.cwd(), "authenticated-e2e-failure.png");
+  await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => undefined);
+  const [apiHealth, frontendHealth] = await Promise.all([
+    fetch(`${apiUrl}/healthz`).then((response) => response.status).catch(() => "unreachable"),
+    fetch(baseUrl).then((response) => response.status).catch(() => "unreachable"),
+  ]);
+  console.error(JSON.stringify({
+    message: error instanceof Error ? error.message : String(error),
+    url: page.url(),
+    title: await page.title().catch(() => "unavailable"),
+    headings: await page.getByRole("heading").allTextContents().catch(() => []),
+    apiHealth,
+    frontendHealth,
+    navigationHistory,
+    consoleErrors,
+    failedRequests,
+    screenshotPath,
+  }));
+}
 
 async function login() {
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.getByPlaceholder("Organization slug").fill(organizationSlug);
-  await page.getByPlaceholder("Email").fill(email);
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: "Overview" }).waitFor();
+  try {
+    const response = await page.goto(baseUrl, { waitUntil: "networkidle" });
+    assert.equal(response?.status(), 200, "login page loads successfully");
+    assert.equal(new URL(page.url()).pathname, "/", "browser reaches the supported login route");
+    await page.locator('input[autocomplete="username"]').fill(email);
+    await page.locator('input[autocomplete="current-password"]').fill(password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Overview" }).waitFor();
+  } catch (error) {
+    await reportBrowserFailure(error);
+    throw error;
+  }
 }
 
 async function authenticatedApi(path, method = "GET", body) {
