@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { enrollmentEnv, enrollmentInstallCommand } from "@control-center/shared";
+import { enrollmentEnv, enrollmentInstallCommand, enrollmentInstallScript } from "@control-center/shared";
 
 const installer = fileURLToPath(new URL("../../web/public/install.sh", import.meta.url));
 
@@ -52,6 +52,16 @@ test("enrollment download and copy-command formats are stable", () => {
   assert.match(command, /OPSWORKBENCH_INSTALL_INPUT_DIR=/);
   assert.doesNotMatch(command, /sudo env|curl .*\|.*bash/);
   assert.doesNotMatch(command, /\\ +\n/, "continuation backslashes may not have trailing whitespace");
+
+  const script = enrollmentInstallScript(token, "https://opsworkbench.org", "opsworkbench");
+  assert.match(script, /^#!\/usr\/bin\/env bash\n/);
+  assert.match(script, /ENROLLMENT_TOKEN='owenr_test-token'/, "the protected download carries only the short-lived authorization");
+  assert.doesNotMatch(script, /read\s+-[^\n]*p/, "the downloaded script must be non-interactive");
+  assert.doesNotMatch(script, /CF-Access-Client-(?:Id|Secret)/, "long-lived Access credentials must not be embedded");
+  assert.doesNotMatch(script, /CF_ACCESS_CLIENT_SECRET=/, "long-lived Access secrets must not be embedded");
+  assert.match(script, /chmod 0600/);
+  assert.match(script, /rm -f -- "\$SELF_PATH"/, "the one-time script removes itself");
+  assert.match(script, /OPSWORKBENCH_INSTALL_INPUT_DIR=/);
 });
 
 test("installer has valid shell syntax when bash is available", { skip: process.platform === "win32" }, () => {

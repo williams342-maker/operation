@@ -925,11 +925,8 @@ function downloadText(filename: string, value: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
-function downloadInstallScript(slug: string, installCommand: string) {
-  downloadText(
-    `${slug}-install-agent.sh`,
-    `#!/usr/bin/env bash\nset -euo pipefail\n${installCommand}\n`,
-  );
+function downloadInstallScript(slug: string, installScript: string) {
+  downloadText(`${slug}-install-agent.sh`, installScript);
 }
 function EnrollmentSuccess({
   generated,
@@ -2001,6 +1998,7 @@ type SetupResult = {
   serverId: string;
   token: string;
   installCommand: string;
+  installScript: string;
   expiresAt: string;
   server: { name: string; slug: string; primaryUrl: string };
 };
@@ -2513,7 +2511,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
                 onClick={() =>
                   downloadInstallScript(
                     setup.server.slug,
-                    setup.installCommand,
+                    setup.installScript,
                   )
                 }
               >

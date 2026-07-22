@@ -230,7 +230,7 @@ describe("Cloudflare server onboarding", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState({}, "", "/"); });
 
   it("keeps Cloudflare optional and submits enabled credentials only once", async () => {
-    mocks.apiPost.mockResolvedValue({ data: { serverId: "aaaaaaaaaaaaaaaaaaaaaaaa", token: "synthetic", installCommand: "safe command", expiresAt: new Date().toISOString(), server: { name: "Example", slug: "example", primaryUrl: "https://example.test" } } });
+    mocks.apiPost.mockResolvedValue({ data: { serverId: "aaaaaaaaaaaaaaaaaaaaaaaa", token: "synthetic", installCommand: "safe command", installScript: "#!/usr/bin/env bash\n# synthetic protected download\n", expiresAt: new Date().toISOString(), server: { name: "Example", slug: "example", primaryUrl: "https://example.test" } } });
     renderRoot();
     await userEvent.click(await screen.findByRole("button", { name: "Add Server" }));
     expect(screen.queryByLabelText("Cloudflare Tunnel Token")).not.toBeInTheDocument();

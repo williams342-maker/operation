@@ -2,7 +2,7 @@
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { gzipSync } from "node:zlib";
-import { cloudflareOnboardingSchema, deriveWebsiteTarget, enrollmentInstallCommand, isSafeHttpCheckUrl, validateConfiguredPath } from "@control-center/shared";
+import { cloudflareOnboardingSchema, deriveWebsiteTarget, enrollmentInstallCommand, enrollmentInstallScript, isSafeHttpCheckUrl, validateConfiguredPath } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission, requireRecentAuth } from "./auth.js";
 import { collections, oid } from "./db.js";
@@ -146,7 +146,8 @@ managementRouter.post("/servers/onboard", noStore, requirePermission("servers:ma
     const token = `owenr_${randomToken(36)}`; const expiresAt = new Date(now.getTime() + body.expiresInMinutes * 60_000);
     const enrollment = await collections.enrollments.insertOne({ orgId: org, serverId: target._id, tokenHash: hashSecret(token), name: `Setup ${target.name}`, description: `URL-first onboarding for ${derived.normalizedUrl}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.create", targetType: "server", targetId: target._id, result: "success", requestId: req.requestId, metadata: { slug: target.slug || slugBase, url: derived.normalizedUrl } });
-    res.status(201).json({ serverId: target._id, enrollmentId: enrollment.insertedId, token, expiresAt, server: { _id: target._id, name: target.name, slug: target.slug, primaryUrl: derived.normalizedUrl, enrollmentStatus: "pending" }, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", target.slug) });
+    const publicUrl = process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org";
+    res.status(201).json({ serverId: target._id, enrollmentId: enrollment.insertedId, token, expiresAt, server: { _id: target._id, name: target.name, slug: target.slug, primaryUrl: derived.normalizedUrl, enrollmentStatus: "pending" }, installCommand: enrollmentInstallCommand(token, publicUrl, target.slug), installScript: enrollmentInstallScript(token, publicUrl, target.slug) });
   } catch (error) { next(error); }
 });
 
@@ -193,7 +194,7 @@ managementRouter.post("/servers/:id/check-status", requirePermission("servers:ma
 });
 
 managementRouter.post("/servers/:id/enrollment", noStore, requirePermission("servers:enroll"), async (req, res, next) => {
-  try { const serverId = oid(String(req.params.id)); const server = await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } }); if (!server) return res.status(404).json({ error: "Server not found" }); const token = `owenr_${randomToken(36)}`; const now = new Date(); const expiresAt = new Date(now.getTime() + 60 * 60_000); const result = await collections.enrollments.insertOne({ orgId: orgId(req), serverId, tokenHash: hashSecret(token), name: `Setup ${server.name}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now }); await collections.servers.updateOne({ _id: serverId, orgId: orgId(req) }, { $set: { enrollmentStatus: "pending", updatedAt: now } }); res.status(201).json({ id: result.insertedId, token, expiresAt, serverId, slug: server.slug, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", server.slug) }); } catch (error) { next(error); }
+  try { const serverId = oid(String(req.params.id)); const server = await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } }); if (!server) return res.status(404).json({ error: "Server not found" }); const token = `owenr_${randomToken(36)}`; const now = new Date(); const expiresAt = new Date(now.getTime() + 60 * 60_000); const result = await collections.enrollments.insertOne({ orgId: orgId(req), serverId, tokenHash: hashSecret(token), name: `Setup ${server.name}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now }); await collections.servers.updateOne({ _id: serverId, orgId: orgId(req) }, { $set: { enrollmentStatus: "pending", updatedAt: now } }); const publicUrl = process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org"; res.status(201).json({ id: result.insertedId, token, expiresAt, serverId, slug: server.slug, installCommand: enrollmentInstallCommand(token, publicUrl, server.slug), installScript: enrollmentInstallScript(token, publicUrl, server.slug) }); } catch (error) { next(error); }
 });
 managementRouter.get("/servers/:id", requirePermission("status:view"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const org = orgId(req); const [server, projects, telemetry] = await Promise.all([collections.servers.findOne({ _id: id, orgId: org }, { projection: { agentSecretHash: 0 } }), collections.projects.find({ orgId: org, primaryServerId: id, ...notArchived }).toArray(), collections.telemetry.find({ orgId: org, serverId: id }).sort({ collectedAt: -1 }).limit(25).toArray()]); if (!server) return res.status(404).json({ error: "Server not found" }); res.json({ server, projects, telemetry }); } catch (error) { next(error); } });
 managementRouter.post("/servers/:id/discovery/import", requirePermission("projects:manage"), async (req, res, next) => {
