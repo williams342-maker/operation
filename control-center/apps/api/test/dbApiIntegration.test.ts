@@ -91,6 +91,8 @@ async function assertIndex(collection: { indexes(): Promise<Array<{ key: Record<
 }
 
 test("database-backed Phase 1B API and fake-agent verification", { skip: !enabled, timeout: 120_000 }, async () => {
+  const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
+  process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "manual";
   diagnostic("test.start");
   process.env.NODE_ENV = "test";
   process.env.CONTROL_CENTER_ALLOW_INSECURE_COOKIES = "true";
@@ -190,7 +192,6 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const protectedOverview = await request("GET", "/overview");
     assert.equal(protectedOverview.status, 401);
 
-    const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
     process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "disabled";
     const disabledBootstrap = await request("POST", "/auth/bootstrap", {
       organizationName: "Disabled Org",
@@ -721,6 +722,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
     diagnostic("test.body.complete", { requestCount });
   } finally {
+    if (originalBootstrapMode === undefined) delete process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
+    else process.env.CONTROL_CENTER_BOOTSTRAP_MODE = originalBootstrapMode;
     diagnostic("cleanup.http.start", { requestCount });
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

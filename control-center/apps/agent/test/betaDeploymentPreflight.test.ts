@@ -3,21 +3,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { BETA_STARTUP_SAFETY_FLAGS, runBetaDeploymentPreflight, serializePreflightReport, type BetaDeploymentPreflightInput, type ImageInspection } from "../src/betaDeploymentPreflight.js";
+import { BETA_STARTUP_SAFETY_FLAGS, runBetaDeploymentPreflight, serializePreflightReport, withBetaPreflightTemporaryFiles, type BetaDeploymentPreflightInput, type ImageInspection } from "../src/betaDeploymentPreflight.js";
 
 const flags = Object.fromEntries(BETA_STARTUP_SAFETY_FLAGS.map((name) => [name, "false"]));
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "opsworkbench-beta-preflight-"));
   const env = path.join(root, ".env.beta");
   const compose = path.join(root, "compose.yml");
+  const override = path.join(root, "opsworkbench-images.json");
   fs.writeFileSync(env, `APP_ENV=beta\nENVIRONMENT=beta\n${BETA_STARTUP_SAFETY_FLAGS.map((name) => `${name}=false`).join("\n")}\n`);
   fs.writeFileSync(compose, "services:\n  backend:\n    image: candidate-backend\n    environment:\n      APP_ENV: ${APP_ENV:-production}\n      ENVIRONMENT: ${ENVIRONMENT:-production}\n  frontend:\n    image: candidate-frontend\n  mongo:\n    image: mongo:7\n");
+  fs.writeFileSync(override, `${JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "candidate-frontend" } } }, null, 2)}\n`);
   const input: BetaDeploymentPreflightInput = {
     targetEnvironment: "beta", composeWorkingDirectory: root, composeProjectName: "craftersmarket",
-    composeFilePath: compose, environmentFilePath: env, authorizedBackendImage: "candidate-backend",
+    composeFilePath: compose, environmentFilePath: env, composeOverrideFilePath: override, authorizedBackendImage: "candidate-backend",
     authorizedFrontendImage: "candidate-frontend", rollbackBackendImage: "rollback-backend",
     rollbackFrontendImage: "rollback-frontend", authorizedServices: ["backend", "frontend"],
     allowedComposeServices: ["backend", "frontend", "mongo"], allowedHostnames: ["craftersmarketbeta.shop"],
+    allowedDatabaseDestinations: [{ hostname: "mongo", databaseName: "craftersmarket" }],
   };
   const model = { name: "craftersmarket", services: {
     backend: { image: "candidate-backend", environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/craftersmarket" }, healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
@@ -36,13 +39,13 @@ function fixture() {
     composeConfig: async (received: string[]) => { calls += 1; args = received; return { code: 0, stdout: JSON.stringify(model), stderr: "" }; },
     inspectImage: async (image: string) => images[image] || null,
   };
-  return { root, env, compose, input, model, images, hooks, get calls() { return calls; }, get args() { return args; } };
+  return { root, env, compose, override, input, model, images, hooks, get calls() { return calls; }, get args() { return args; } };
 }
 
 test("passes with explicit beta env and stops at operator approval", async () => {
   const item = fixture(); const result = await runBetaDeploymentPreflight(item.input, item.hooks);
   assert.equal(result.status, "PASS — awaiting operator approval");
-  assert.equal(item.calls, 1); assert.deepEqual(item.args.slice(0, 7), ["compose", "--project-name", "craftersmarket", "--env-file", item.env, "-f", item.compose]);
+  assert.equal(item.calls, 1); assert.deepEqual(item.args.slice(0, 9), ["compose", "--project-name", "craftersmarket", "--env-file", item.env, "-f", item.compose, "-f", item.override]);
   assert.match(result.report.deploymentCommand!, /--no-build --no-deps --force-recreate 'backend' 'frontend'$/);
   assert.match(result.report.rollbackCommand!, /docker image tag 'rollback-backend' 'candidate-backend'/);
   assert.equal(result.report.mongoDbRecreation, "blocked"); assert.equal(result.report.mongoDbServiceIncluded, "no"); assert.equal(result.report.volumeRecreation, "no");
@@ -76,6 +79,49 @@ test("blocks production frontend, MongoDB, and live-mode destinations", async ()
     (item: ReturnType<typeof fixture>) => { item.model.services.backend.environment.STRIPE_MODE = "live"; },
   ];
   for (const mutate of cases) { const item = fixture(); mutate(item); assert.equal((await runBetaDeploymentPreflight(item.input, item.hooks)).status, "BLOCKED"); }
+});
+
+test("parses comma-delimited URL values as independent destinations", async () => {
+  const item = fixture();
+  (item.model.services.backend.environment as Record<string, string>).CORS_ORIGINS = "https://craftersmarketbeta.shop, https://craftersmarketbeta.shop";
+  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
+  assert.equal(result.status, "PASS — awaiting operator approval");
+  assert.equal(result.checks.some((check) => check.detail.includes("malformed")), false);
+});
+
+test("database destination requires an exact hostname and database fingerprint", async () => {
+  const item = fixture();
+  item.input.allowedDatabaseDestinations = [];
+  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
+  assert.equal(result.status, "BLOCKED");
+  assert.deepEqual(result.report.databaseDestination, { sourceVariable: "MONGO_URL", hostname: "mongo", databaseName: "craftersmarket", classification: "blocked" });
+});
+
+test("image override must contain exactly the two authorized image bindings", async () => {
+  const item = fixture();
+  fs.writeFileSync(item.override, JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "candidate-frontend" }, mongo: { image: "mongo:7" } } }));
+  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(item.calls, 0);
+});
+
+test("temporary image override and service env reference are always removed", async () => {
+  const item = fixture();
+  fs.rmSync(item.override);
+  const reference = path.join(item.root, "backend", ".env");
+  fs.mkdirSync(path.dirname(reference));
+  item.input.serviceEnvironmentReferencePath = reference;
+  const hooks = {
+    createReference: (target: string, destination: string) => fs.writeFileSync(destination, target),
+    readReference: (destination: string) => fs.readFileSync(destination, "utf8"),
+  };
+  await assert.rejects(withBetaPreflightTemporaryFiles(item.input, async () => {
+    assert.equal(fs.readFileSync(reference, "utf8"), item.env);
+    assert.equal(fs.existsSync(item.override), true);
+    throw new Error("synthetic failure");
+  }, hooks), /synthetic failure/);
+  assert.equal(fs.existsSync(reference), false);
+  assert.equal(fs.existsSync(item.override), false);
 });
 
 test("blocks MongoDB authorization and unexpected Compose services", async () => {

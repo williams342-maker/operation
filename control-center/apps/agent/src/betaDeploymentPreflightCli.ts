@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { runBetaDeploymentPreflight, serializePreflightReport, type BetaDeploymentPreflightInput } from "./betaDeploymentPreflight.js";
+import { runBetaDeploymentPreflight, serializePreflightReport, withBetaPreflightTemporaryFiles, type BetaDeploymentPreflightInput } from "./betaDeploymentPreflight.js";
 
 const inputPath = process.argv[2];
 if (!inputPath) {
@@ -8,7 +8,7 @@ if (!inputPath) {
 } else {
   try {
     const input = JSON.parse(fs.readFileSync(inputPath, "utf8")) as BetaDeploymentPreflightInput;
-    const result = await runBetaDeploymentPreflight(input);
+    const result = await withBetaPreflightTemporaryFiles(input, () => runBetaDeploymentPreflight(input));
     process.stdout.write(serializePreflightReport(result));
     process.exitCode = result.status.startsWith("PASS") ? 0 : 1;
   } catch {
