@@ -21,7 +21,9 @@ import type {
   UserDoc,
   AgentReleaseDoc,
   AgentUpgradePlanDoc,
-  AgentRolloutDoc
+  AgentRolloutDoc,
+  ProjectDeploymentDoc,
+  ProjectRollbackDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -52,7 +54,9 @@ export const collections = {
   configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans"),
   agentReleases: db.collection<AgentReleaseDoc>("agent_releases"),
   agentUpgradePlans: db.collection<AgentUpgradePlanDoc>("agent_upgrade_plans"),
-  agentRollouts: db.collection<AgentRolloutDoc>("agent_rollouts")
+  agentRollouts: db.collection<AgentRolloutDoc>("agent_rollouts"),
+  projectDeployments: db.collection<ProjectDeploymentDoc>("project_deployments"),
+  projectRollbacks: db.collection<ProjectRollbackDoc>("project_rollbacks")
 };
 
 export async function connectDb() {
@@ -115,7 +119,12 @@ async function ensureIndexes() {
     collections.agentReleases.createIndex({ orgId: 1, channel: 1, publicationStatus: 1, revoked: 1, version: -1 }),
     collections.agentUpgradePlans.createIndex({ orgId: 1, serverId: 1, createdAt: -1 }),
     collections.agentUpgradePlans.createIndex({ orgId: 1, planDigest: 1 }, { unique: true }),
-    collections.agentRollouts.createIndex({ orgId: 1, state: 1, createdAt: -1 })
+    collections.agentRollouts.createIndex({ orgId: 1, state: 1, createdAt: -1 }),
+    collections.projectDeployments.createIndex({ orgId: 1, projectId: 1, createdAt: -1, _id: -1 }),
+    collections.projectDeployments.createIndex({ orgId: 1, taskId: 1 }, { unique: true }),
+    collections.projectRollbacks.createIndex({ orgId: 1, projectId: 1, createdAt: -1, _id: -1 }),
+    collections.projectRollbacks.createIndex({ orgId: 1, taskId: 1 }, { unique: true }),
+    collections.projectRollbacks.createIndex({ orgId: 1, sourceDeploymentId: 1 })
   ]);
 }
 

@@ -41,7 +41,7 @@ const projectOverview = {
   project: { id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Direct Project", slug: "direct-project", archived: false },
   environment: { state: "not-configured" },
   server: { enrollmentStatus: "pending", agentStatus: "never_connected", freshness: "unavailable", capabilities: [], limitations: [] },
-  revision: { confidence: "unavailable", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [] },
+  revision: { confidence: "unavailable", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [], deployments: [], rollbacks: [] },
   availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations: []
 };
 

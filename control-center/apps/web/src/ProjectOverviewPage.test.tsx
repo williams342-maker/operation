@@ -17,7 +17,7 @@ const fixture: ProjectOverview = {
   revision: { configuredBranch: "main", discoveredBranch: "main", observedBranch: "release", discoveredCommit: "abcdef123456", observedCommit: "abc1234", dirty: false, evidenceAt: "2026-07-21T19:59:00.000Z", confidence: "conflicting", conflicts: ["branch-evidence-conflict"] },
   services: [{ name: "web", state: "running", health: "healthy", source: "compose", evidenceAt: "2026-07-21T19:59:00.000Z", freshness: "fresh" }],
   health: [{ id: "cccccccccccccccccccccccc", name: "Public health", success: true, statusCode: 200, checkedAt: "2026-07-21T19:59:00.000Z", freshness: "fresh" }],
-  recent: { tasks: [{ id: "dddddddddddddddddddddddd", type: "collect.system", state: "succeeded", target: "Beta server", summary: "Task completed successfully", completedAt: "2026-07-21T19:58:00.000Z" }], audit: [{ id: "eeeeeeeeeeeeeeeeeeeeeeee", action: "task.complete", actor: "agent", target: "agent_task", result: "success", timestamp: "2026-07-21T19:58:00.000Z" }] },
+  recent: { tasks: [{ id: "dddddddddddddddddddddddd", type: "collect.system", state: "succeeded", target: "Beta server", summary: "Task completed successfully", completedAt: "2026-07-21T19:58:00.000Z" }], audit: [{ id: "eeeeeeeeeeeeeeeeeeeeeeee", action: "task.complete", actor: "agent", target: "agent_task", result: "success", timestamp: "2026-07-21T19:58:00.000Z" }], deployments: [], rollbacks: [] },
   availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations: []
 };
 
@@ -53,7 +53,7 @@ describe("Project Overview workspace", () => {
   });
 
   it("handles missing and stale evidence honestly", async () => {
-    renderPage({ ...fixture, server: { enrollmentStatus: "pending", agentStatus: "never_connected", freshness: "unavailable", capabilities: [], limitations: [] }, revision: { configuredBranch: "main", confidence: "configured", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [] } });
+    renderPage({ ...fixture, server: { enrollmentStatus: "pending", agentStatus: "never_connected", freshness: "unavailable", capabilities: [], limitations: [] }, revision: { configuredBranch: "main", confidence: "configured", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [], deployments: [], rollbacks: [] } });
     expect(await screen.findByText("No current service or health evidence.")).toBeInTheDocument();
     expect(screen.getByText("No recent tasks")).toBeInTheDocument();
     expect(screen.getByText("No recent audit activity")).toBeInTheDocument();

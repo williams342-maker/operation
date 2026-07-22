@@ -1,5 +1,6 @@
 export type EvidenceFreshness = "fresh" | "delayed" | "stale" | "unavailable";
 export type EvidenceConfidence = "configured" | "discovered" | "observed" | "conflicting" | "unavailable";
+import type { ProjectDeploymentHistoryItem, ProjectRollbackHistoryItem } from "./projectHistory.js";
 
 export type ProjectOverview = {
   schemaVersion: "project-overview-v1";
@@ -13,7 +14,9 @@ export type ProjectOverview = {
   recent: {
     tasks: Array<{ id: string; type: string; state: string; target: string; summary?: string; startedAt?: string; completedAt?: string }> | null;
     audit: Array<{ id: string; action: string; actor: string; target?: string; result: string; timestamp: string }> | null;
+    deployments: ProjectDeploymentHistoryItem[];
+    rollbacks: ProjectRollbackHistoryItem[];
   };
-  availability: { releases: "unavailable"; deployments: "unavailable"; rollbacks: "unavailable"; logs: "unavailable" };
+  availability: { releases: "available" | "unavailable"; deployments: "available" | "unavailable"; rollbacks: "available" | "unavailable"; logs: "unavailable" };
   limitations: string[];
 };

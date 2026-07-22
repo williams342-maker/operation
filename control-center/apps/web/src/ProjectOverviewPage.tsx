@@ -6,9 +6,7 @@ import { Badge, Card, Skeleton } from "./ui";
 const when = (value?: string) => value ? new Date(value).toLocaleString() : "Unavailable";
 const unavailable = [
   ["Environment", "Environment management is planned; no runtime environment is inferred."],
-  ["Deployments", "Authoritative application deployment history is not implemented."],
   ["Releases", "Authoritative application releases are not implemented."],
-  ["Rollbacks", "Authoritative application rollback history is not implemented."],
   ["Logs", "Secure project log collection is not implemented."]
 ];
 
@@ -22,6 +20,8 @@ export function ProjectOverviewPage({ projectId, canViewAudit, navigate }: { pro
       <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs text-muted">Project workspace</div><h2 className="text-xl font-semibold">{data.project.name}</h2><p className="text-sm text-muted">{data.project.slug}{data.environment.name ? ` · ${data.environment.name}` : ""}</p></div><div className="flex gap-2"><Badge tone={data.project.archived ? "warning" : "success"}>{data.project.archived ? "Archived" : data.server.agentStatus}</Badge><Badge>{data.revision.confidence}</Badge></div></div>
       <nav aria-label="Project workspace" className="mt-4 flex flex-wrap gap-2">
         <button aria-current="page" className="rounded-md bg-primary px-3 py-2 text-sm text-background">Overview</button>
+        <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/deployments`)}>Deployments</button>
+        <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/rollbacks`)}>Rollbacks</button>
         {unavailable.map(([name]) => <button key={name} disabled title="Planned" className="rounded-md border border-border px-3 py-2 text-sm text-muted opacity-60">{name} · Planned</button>)}
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/tasks")}>Tasks</button>
         {canViewAudit && <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/audit")}>Audit</button>}
@@ -38,6 +38,6 @@ export function ProjectOverviewPage({ projectId, canViewAudit, navigate }: { pro
       <Card><h3 className="font-semibold">Recent tasks</h3>{data.recent.tasks?.length ? <ul className="mt-3 space-y-2 text-sm">{data.recent.tasks.map((task) => <li key={task.id} className="rounded border border-border p-2"><strong>{task.type}</strong> · {task.state}<div>{task.summary || "No result summary"}</div><div className="text-xs text-muted">{task.target} · {when(task.completedAt || task.startedAt)}</div></li>)}</ul> : <p className="mt-3 text-sm text-muted">{data.recent.tasks === null ? "Not authorized" : "No recent tasks"}</p>}</Card>
       <Card><h3 className="font-semibold">Recent audit activity</h3>{data.recent.audit?.length ? <ul className="mt-3 space-y-2 text-sm">{data.recent.audit.map((event) => <li key={event.id} className="rounded border border-border p-2"><strong>{event.action}</strong> · {event.result}<div className="text-xs text-muted">{event.actor} · {when(event.timestamp)}</div></li>)}</ul> : <p className="mt-3 text-sm text-muted">{data.recent.audit === null ? "Not authorized" : "No recent audit activity"}</p>}</Card>
     </div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{unavailable.filter(([name]) => name !== "Environment").map(([name, description]) => <Card key={name}><h3 className="font-semibold">{name}</h3><Badge tone="warning">Unavailable</Badge><p className="mt-2 text-sm text-muted">{description}</p></Card>)}</div>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Card><h3 className="font-semibold">Deployments</h3><Badge tone={data.availability.deployments === "available" ? "success" : "warning"}>{data.availability.deployments === "available" ? `${data.recent.deployments.length} recent` : "Unavailable"}</Badge><p className="mt-2 text-sm text-muted">{data.availability.deployments === "available" ? "Authoritative deployment records are available." : "No authoritative deployment records exist."}</p></Card><Card><h3 className="font-semibold">Rollbacks</h3><Badge tone={data.availability.rollbacks === "available" ? "success" : "warning"}>{data.availability.rollbacks === "available" ? `${data.recent.rollbacks.length} recent` : "Unavailable"}</Badge><p className="mt-2 text-sm text-muted">{data.availability.rollbacks === "available" ? "Authoritative rollback records are available." : "No authoritative rollback records exist."}</p></Card>{unavailable.filter(([name]) => name !== "Environment").map(([name, description]) => <Card key={name}><h3 className="font-semibold">{name}</h3><Badge tone="warning">Unavailable</Badge><p className="mt-2 text-sm text-muted">{description}</p></Card>)}</div>
   </div>;
 }

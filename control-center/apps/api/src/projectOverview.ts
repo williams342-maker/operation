@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { hasPermission, type EvidenceFreshness, type ProjectOverview, type Role } from "@control-center/shared";
 import { collections } from "./db.js";
 import { calculateAgentStatus } from "./serverStatus.js";
+import { projectDeploymentHistory, projectRollbackHistory } from "./projectHistory.js";
 
 const RECENT_LIMIT = 5;
 type Row = Record<string, unknown>;
@@ -26,11 +27,13 @@ export async function buildProjectOverview(orgId: ObjectId, projectId: ObjectId,
   const project = await collections.projects.findOne({ _id: projectId, orgId });
   if (!project) return null;
   const server = await collections.servers.findOne({ _id: project.primaryServerId, orgId }, { projection: { agentSecretHash: 0, metadata: 0, allowlistedRoots: 0 } });
-  const [telemetry, checks, environment, tasks] = await Promise.all([
+  const [telemetry, checks, environment, tasks, deploymentHistory, rollbackHistory] = await Promise.all([
     server ? collections.telemetry.findOne({ orgId, serverId: server._id! }, { sort: { collectedAt: -1 } }) : null,
     collections.healthChecks.find({ orgId, projectId, archivedAt: { $exists: false } }).limit(100).toArray(),
     collections.configurationEnvironments.findOne({ orgId, projectId }, { sort: { createdAt: 1 } }),
-    hasPermission(role, "tasks:view") ? collections.agentTasks.find({ orgId, projectId }, { projection: { payload: 0, result: 0, nonce: 0, idempotencyKey: 0, signingKeyVersion: 0 } }).sort({ createdAt: -1 }).limit(RECENT_LIMIT).toArray() : Promise.resolve(null)
+    hasPermission(role, "tasks:view") ? collections.agentTasks.find({ orgId, projectId }, { projection: { payload: 0, result: 0, nonce: 0, idempotencyKey: 0, signingKeyVersion: 0 } }).sort({ createdAt: -1 }).limit(RECENT_LIMIT).toArray() : Promise.resolve(null),
+    projectDeploymentHistory(orgId, projectId, role, 3),
+    projectRollbackHistory(orgId, projectId, role, 3)
   ]);
   const state = (telemetry || server?.currentState || {}) as Row;
   const observedAt = telemetry?.collectedAt || state.collectedAt;
@@ -60,7 +63,9 @@ export async function buildProjectOverview(orgId: ObjectId, projectId: ObjectId,
     ] }).sort({ createdAt: -1 }).limit(RECENT_LIMIT).toArray();
     audit = events.map((event) => ({ id: id(event._id), action: event.action, actor: event.actorType, target: event.targetType, result: event.result, timestamp: event.createdAt.toISOString() }));
   }
-  const limitations = ["RELEASE_MODEL_UNAVAILABLE", "DEPLOYMENT_HISTORY_UNAVAILABLE", "ROLLBACK_HISTORY_UNAVAILABLE", "LOGS_UNAVAILABLE"];
+  const limitations = ["LOGS_UNAVAILABLE"];
+  if (!deploymentHistory.records.length) limitations.push("DEPLOYMENT_HISTORY_UNAVAILABLE", "RELEASE_MODEL_UNAVAILABLE");
+  if (!rollbackHistory.records.length) limitations.push("ROLLBACK_HISTORY_UNAVAILABLE");
   if (!server) limitations.push("SERVER_UNAVAILABLE");
   if (freshness === "stale") limitations.push("TELEMETRY_STALE");
   if (confidence !== "observed") limitations.push("RUNTIME_REVISION_NOT_OBSERVED");
@@ -72,7 +77,7 @@ export async function buildProjectOverview(orgId: ObjectId, projectId: ObjectId,
     revision: { configuredBranch: bounded(project.branch, 255), discoveredBranch: bounded(discoveredBranch, 255), observedBranch: bounded(observedBranch, 255), discoveredCommit: bounded(discoveredCommit, 64), observedCommit: bounded(observedCommit, 64), dirty: typeof observedGit?.dirty === "boolean" ? observedGit.dirty : typeof discoveredRepo?.dirty === "boolean" ? discoveredRepo.dirty : undefined, evidenceAt: iso(observedGit?.collectedAt) || iso(discovery?.collectedAt) || iso(observedAt), confidence, conflicts },
     services: serviceRows.slice(0, 50).map(({ item, source }) => { const stateText = text(item.state)?.slice(0, 128) || "unknown"; return { name: (text(item.service) || text(item.name) || "Unnamed service").slice(0, 255), state: stateText, health: /running|up/i.test(stateText) ? "healthy" : /exited|dead|failed/i.test(stateText) ? "unhealthy" : "unknown", image: source === "docker" ? safeImage(item.image) : undefined, source, evidenceAt: iso(observedAt), freshness }; }),
     health: checks.slice(0, 50).map((check) => { const result = http.find((item) => text(item.healthCheckId) === id(check._id)) || (check.lastResult && typeof check.lastResult === "object" ? check.lastResult as Row : undefined); return { id: id(check._id), name: check.name.slice(0, 120), success: typeof result?.success === "boolean" ? result.success : undefined, statusCode: typeof result?.statusCode === "number" ? result.statusCode : undefined, checkedAt: iso(result?.checkedAt), freshness: evidenceFreshness(result?.checkedAt, now) }; }),
-    recent: { tasks: tasks?.map((task) => ({ id: id(task._id), type: task.type, state: task.state, target: server?.name || id(task.serverId), summary: safeSummary(task.resultSummary), startedAt: iso(task.startedAt), completedAt: iso(task.completedAt) })) || null, audit },
-    availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations
+    recent: { tasks: tasks?.map((task) => ({ id: id(task._id), type: task.type, state: task.state, target: server?.name || id(task.serverId), summary: safeSummary(task.resultSummary), startedAt: iso(task.startedAt), completedAt: iso(task.completedAt) })) || null, audit, deployments: deploymentHistory.records, rollbacks: rollbackHistory.records },
+    availability: { releases: deploymentHistory.records.some((item) => Boolean(item.releaseId)) ? "available" : "unavailable", deployments: deploymentHistory.records.length ? "available" : "unavailable", rollbacks: rollbackHistory.records.length ? "available" : "unavailable", logs: "unavailable" }, limitations
   };
 }

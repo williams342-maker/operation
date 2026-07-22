@@ -536,6 +536,29 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const invalidProjectOverview = await request("GET", "/projects/not-an-object-id/overview", undefined, jsonHeaders(ownerA));
     assert.equal(invalidProjectOverview.status, 404);
 
+    const historyNow = new Date();
+    const olderDeploymentTaskId = new ObjectId();
+    const olderDeployment = await collections.projectDeployments.insertOne({ orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), environment: "staging", requestedRevision: "1".repeat(40), deployedRevision: "1".repeat(40), branch: "main", artifactDigest: "a".repeat(64), releaseId: "release-one", taskId: olderDeploymentTaskId, actorId: ownerUserA._id, status: "succeeded", validation: { health: "passed", readiness: "passed", checkedAt: historyNow }, rollbackAvailable: true, evidenceConfidence: "verified", auditEventIds: [], createdAt: new Date(historyNow.getTime() - 1000), updatedAt: historyNow });
+    const newerDeployment = await collections.projectDeployments.insertOne({ orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), environment: "staging", requestedRevision: "2".repeat(40), taskId: new ObjectId(), actorId: ownerUserA._id, status: "failed", validation: { health: "failed", readiness: "not_run", checkedAt: historyNow }, rollbackAvailable: false, evidenceConfidence: "reported", failureClassification: "health", auditEventIds: [], createdAt: historyNow, updatedAt: historyNow });
+    await collections.projectRollbacks.insertOne({ orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), sourceDeploymentId: olderDeployment.insertedId, restoredDeploymentId: newerDeployment.insertedId, restoredReleaseId: "release-two", taskId: new ObjectId(), actorId: ownerUserA._id, reasonClassification: "operator_requested", status: "succeeded", verification: { health: "passed", readiness: "passed", checkedAt: historyNow }, auditEventIds: [], createdAt: historyNow, updatedAt: historyNow });
+    await collections.projectRollbacks.insertOne({ orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), sourceDeploymentId: newerDeployment.insertedId, taskId: new ObjectId(), actorId: ownerUserA._id, reasonClassification: "validation_failed", status: "failed", verification: { health: "failed", readiness: "not_run", checkedAt: historyNow }, failureClassification: "health", auditEventIds: [], createdAt: new Date(historyNow.getTime() - 500), updatedAt: historyNow });
+    await assert.rejects(() => collections.projectDeployments.insertOne({ orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), environment: "staging", requestedRevision: "3".repeat(40), taskId: olderDeploymentTaskId, actorId: ownerUserA._id, status: "planned", validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", auditEventIds: [], createdAt: historyNow, updatedAt: historyNow }));
+    const deployments = await request<any>("GET", `/projects/${project.body.id}/deployments?limit=1`, undefined, jsonHeaders(ownerA));
+    assert.equal(deployments.status, 200); assert.equal(deployments.body.records.length, 1); assert.equal(deployments.body.hasMore, true); assert.equal(deployments.body.records[0].status, "failed"); assert.ok(deployments.body.records[0].actor.id);
+    const viewerDeployments = await request<any>("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(overviewViewer));
+    assert.equal(viewerDeployments.status, 200); assert.equal(viewerDeployments.body.records[0].actor, undefined);
+    const rollbacks = await request<any>("GET", `/projects/${project.body.id}/rollbacks`, undefined, jsonHeaders(ownerA));
+    assert.equal(rollbacks.status, 200); assert.equal(rollbacks.body.records.length, 2); assert.equal(rollbacks.body.records[0].sourceDeploymentId, olderDeployment.insertedId.toHexString()); assert.equal(rollbacks.body.records[1].status, "failed");
+    const historyOverview = await request<any>("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(ownerA));
+    assert.equal(historyOverview.body.availability.deployments, "available"); assert.equal(historyOverview.body.availability.rollbacks, "available"); assert.equal(historyOverview.body.recent.deployments.length, 2); assert.equal(historyOverview.body.recent.rollbacks.length, 2);
+    assert.doesNotMatch(JSON.stringify({ deployments: deployments.body, rollbacks: rollbacks.body }), /password|token|bearer|mongodb:\/\//i);
+    const missingHistoryId = new ObjectId().toHexString();
+    assert.equal((await request("GET", `/projects/${missingHistoryId}/deployments`, undefined, jsonHeaders(ownerA))).status, 404);
+    await collections.projects.updateOne({ _id: new ObjectId(project.body.id) }, { $set: { archivedAt: historyNow } });
+    const archivedHistory = await request<any>("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(ownerA));
+    assert.equal(archivedHistory.status, 200); assert.equal(archivedHistory.body.project.archived, true);
+    await collections.projects.updateOne({ _id: new ObjectId(project.body.id) }, { $unset: { archivedAt: "" } });
+
     const oversized = { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, padding: "x".repeat(1024 * 1024 + 1) };
     const oversizedResponse = await poll(credentials, oversized); assert.equal(oversizedResponse.status, 413);
 
@@ -600,6 +623,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(crossProject.status, 404);
     const crossProjectOverview = await request("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(ownerB));
     assert.equal(crossProjectOverview.status, 404);
+    assert.equal((await request("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(ownerB))).status, 404);
+    assert.equal((await request("GET", `/projects/${project.body.id}/rollbacks`, undefined, jsonHeaders(ownerB))).status, 404);
     const orgBAudit = await request<{ events: unknown[] }>("GET", "/org/audit", undefined, jsonHeaders(ownerB));
     assert.equal(orgBAudit.status, 200);
     assert.equal(JSON.stringify(orgBAudit.body).includes(project.body.id), false);

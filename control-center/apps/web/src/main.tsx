@@ -57,6 +57,7 @@ import { SystemHealthCard } from "./SystemHealthCard";
 import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import { ProjectOverviewPage } from "./ProjectOverviewPage";
+import { ProjectHistoryPage } from "./ProjectHistoryPage";
 import {
   Badge,
   Button,
@@ -1746,16 +1747,17 @@ function Header({
 }
 const pagePaths: Record<Page, string> = { overview: "/", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit" };
 function currentRoute() {
-  const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/overview)?\/?$/i);
-  if (match) return { page: "projects" as Page, projectId: match[1] };
+  const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/(overview|deployments|rollbacks))?\/?$/i);
+  if (match) return { page: "projects" as Page, projectId: match[1], projectView: (match[2] || "overview") as "overview" | "deployments" | "rollbacks" };
   const page = (Object.entries(pagePaths).find(([, path]) => path !== "/" && window.location.pathname === path)?.[0] || "overview") as Page;
-  return { page, projectId: undefined };
+  return { page, projectId: undefined, projectView: undefined };
 }
 function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
   const toast = useToast();
   const initialRoute = currentRoute();
   const [page, setPage] = useState<Page>(initialRoute.page);
   const [projectId, setProjectId] = useState<string | undefined>(initialRoute.projectId);
+  const [projectView, setProjectView] = useState(initialRoute.projectView);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const mobileNavigation = useRef<HTMLElement>(null);
   const mobileNavigationTrigger = useRef<HTMLButtonElement>(null);
@@ -1791,9 +1793,10 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     const route = currentRoute();
     setPage(route.page);
     setProjectId(route.projectId);
+    setProjectView(route.projectView);
     closeMobileNavigation(false);
   };
-  useEffect(() => { const onPopState = () => { const route = currentRoute(); setPage(route.page); setProjectId(route.projectId); }; window.addEventListener("popstate", onPopState); return () => window.removeEventListener("popstate", onPopState); }, []);
+  useEffect(() => { const onPopState = () => { const route = currentRoute(); setPage(route.page); setProjectId(route.projectId); setProjectView(route.projectView); }; window.addEventListener("popstate", onPopState); return () => window.removeEventListener("popstate", onPopState); }, []);
   useEffect(() => {
     if (!mobileNavigationOpen) return;
     const navigation = mobileNavigation.current;
@@ -1909,7 +1912,9 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
           {page === "upgrades" && <AgentUpgradesPage toast={toast.show} />}
-          {page === "projects" && projectId && <ProjectOverviewPage projectId={projectId} canViewAudit={isAdmin} navigate={navigate} />}
+          {page === "projects" && projectId && projectView === "overview" && <ProjectOverviewPage projectId={projectId} canViewAudit={isAdmin} navigate={navigate} />}
+          {page === "projects" && projectId && projectView === "deployments" && <ProjectHistoryPage projectId={projectId} kind="deployments" navigate={navigate} />}
+          {page === "projects" && projectId && projectView === "rollbacks" && <ProjectHistoryPage projectId={projectId} kind="rollbacks" navigate={navigate} />}
           {page === "projects" && !projectId && <ProjectsPage toast={toast.show} onViewProject={(id) => navigate(`/projects/${id}/overview`)} />}
           {page === "configuration" && <ConfigurationPage toast={toast.show} />}
           {page === "enrollments" && isAdmin && (

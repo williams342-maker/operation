@@ -13,3 +13,4 @@ export * from "./configurationDeployment.js";
 export * from "./aiSettings.js";
 export * from "./agentUpgrades.js";
 export * from "./projectOverview.js";
+export * from "./projectHistory.js";
