@@ -244,6 +244,7 @@ describe("Cloudflare server onboarding", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create and generate command" }));
     await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/servers/onboard", expect.objectContaining({ cloudflare: { enabled: true, tunnel: { enabled: true, token: "synthetic-tunnel-token-value" }, access: { enabled: true, clientId: "synthetic-client-id", clientSecret: "synthetic-client-secret-value" } } })));
     expect(await screen.findByText("safe command")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download install script" })).toBeInTheDocument();
     expect(screen.queryByDisplayValue("synthetic-tunnel-token-value")).not.toBeInTheDocument();
     expect(document.body.textContent).not.toContain("synthetic-client-secret-value");
   });

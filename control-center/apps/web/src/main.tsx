@@ -925,6 +925,12 @@ function downloadText(filename: string, value: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+function downloadInstallScript(slug: string, installCommand: string) {
+  downloadText(
+    `${slug}-install-agent.sh`,
+    `#!/usr/bin/env bash\nset -euo pipefail\n${installCommand}\n`,
+  );
+}
 function EnrollmentSuccess({
   generated,
   onClose,
@@ -2503,6 +2509,17 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
               {setup.installCommand}
             </pre>
             <div className="mt-3 flex gap-2">
+              <Button
+                onClick={() =>
+                  downloadInstallScript(
+                    setup.server.slug,
+                    setup.installCommand,
+                  )
+                }
+              >
+                <Download className="h-4 w-4" />
+                Download install script
+              </Button>
               <Button onClick={() => copy(setup.installCommand)}>
                 <Copy className="h-4 w-4" />
                 Copy command
