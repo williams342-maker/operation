@@ -13,12 +13,14 @@ import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 
 export const configurationRouter = express.Router();
 const environmentKinds = ["production", "staging", "development", "testing", "preview", "ci", "custom"] as const;
+const safeEnvironmentKinds = ["staging", "development", "testing", "preview", "ci", "custom"] as const;
 const environmentMutationBody = z.object({ name: z.string().trim().min(1).max(80), kind: z.enum(environmentKinds), protected: z.boolean().default(false) }).strict();
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Organization scope required"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("User required"); return req.user._id; }
 function safeDefinition(row: Record<string, unknown>) { const { envelope, publicValue, ...safe } = row; void envelope; void publicValue; return safe; }
 function unsafeEnvironmentMutation(input: { kind: string; protected: boolean }) { return input.kind === "production" || input.protected; }
+function includesUnsafeEnvironment(kinds: readonly string[]) { return kinds.includes("production"); }
 
 configurationRouter.get("/configuration/environments", requirePermission("configuration:view"), async (req, res, next) => {
   try { res.json({ environments: await collections.configurationEnvironments.find({ orgId: orgId(req) }).sort({ name: 1 }).toArray() }); } catch (error) { next(error); }
@@ -64,6 +66,7 @@ configurationRouter.post("/configuration/definitions", requirePermission("config
     const body = z.object({ projectId: z.string(), applicationPath: z.string().max(1024).optional(), name: settingNameSchema, description: z.string().trim().min(1).max(1000), type: z.enum(settingTypes), secret: z.boolean(), required: z.boolean().default(false), provider: z.string().max(120).optional(), usage: z.enum(["runtime", "build", "worker", "scheduler", "proxy", "unknown"]).default("unknown"), services: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).max(30).default([]), authoritativePath: z.string().max(1024).optional(), applicableEnvironments: z.array(z.enum(environmentKinds)).min(1).max(7), validation: z.object({ type: z.enum(configurationValidationTypes), pattern: z.string().max(500).optional(), allowedValues: z.array(z.string().max(1024)).max(100).optional(), minimum: z.number().optional(), maximum: z.number().optional() }).strict(), restartRequirement: z.enum(restartRequirements), removalPermitted: z.boolean(), browserDisplayPermitted: z.boolean(), risk: z.enum(configurationRiskLevels), introducedIn: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), deprecatedIn: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), renamedFrom: settingNameSchema.optional() }).strict().parse(req.body);
     if (body.type === "secret" && !body.secret) return res.status(400).json({ error: "Secret type must be classified as secret" });
     if (body.secret && body.browserDisplayPermitted) return res.status(400).json({ error: "Secret values cannot be browser-displayable" });
+    if (includesUnsafeEnvironment(body.applicableEnvironments)) return res.status(403).json({ error: "Production variables require the privileged workflow" });
     if ((criticalConfigurationVariables as readonly string[]).includes(body.name)) return res.status(403).json({ error: "Protected variables require the privileged rotation workflow" });
     const projectId = oid(body.projectId); if (!await collections.projects.findOne({ _id: projectId, orgId: orgId(req) })) return res.status(404).json({ error: "Project not found" });
     const now = new Date(); const result = await collections.configurationDefinitions.insertOne({ orgId: orgId(req), projectId, applicationPath: body.applicationPath, name: body.name, description: body.description, type: body.type, secret: body.secret, required: body.required, provider: body.provider || recognizeProvider(body.name), usage: body.usage, services: body.services, sources: ["manual"], sourcePaths: [], authoritativePath: body.authoritativePath, status: "missing", discovered: false, applicableEnvironments: body.applicableEnvironments, validation: body.validation, restartRequirement: body.restartRequirement, removalPermitted: body.removalPermitted, browserDisplayPermitted: body.browserDisplayPermitted, risk: body.risk, introducedIn: body.introducedIn, deprecatedIn: body.deprecatedIn, renamedFrom: body.renamedFrom, createdAt: now, updatedAt: now });
@@ -80,6 +83,9 @@ configurationRouter.post("/configuration/definitions/:id/versions", noStore, req
     const permission = definition.secret ? (definition.activeVersion ? "secrets:replace" : "secrets:create") : "configuration:edit-public";
     if (!hasPermission(req.user!.role, permission)) return res.status(403).json({ error: "Insufficient permission" });
     const body = versionBody.parse(req.body); const environment = await collections.configurationEnvironments.findOne({ _id: oid(body.environmentId), orgId: org, projectId: definition.projectId }); if (!environment?._id) return res.status(404).json({ error: "Environment not found" });
+    if (unsafeEnvironmentMutation({ kind: environment.kind, protected: environment.protected })) return res.status(403).json({ error: "Production and protected environments require a privileged workflow" });
+    const applicableEnvironments = (definition.applicableEnvironments || safeEnvironmentKinds) as readonly string[];
+    if (!applicableEnvironments.includes(environment.kind)) return res.status(400).json({ error: "Variable is not applicable to this environment" });
     if (definition.risk === "critical" || (criticalConfigurationVariables as readonly string[]).includes(definition.name)) return res.status(403).json({ error: "Protected variables require the privileged rotation workflow" });
     if (body.operation === "remove" && (!definition.removalPermitted || definition.required)) return res.status(400).json({ error: "This variable cannot be removed" });
     if (["remove", "disable"].includes(body.operation)) { if (body.value !== undefined) return res.status(400).json({ error: "Removal and disable operations cannot include a value" }); }

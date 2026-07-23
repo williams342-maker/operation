@@ -97,6 +97,33 @@ describe("Configuration workspace foundation", () => {
     await waitFor(() => expect(apiPatch).toHaveBeenCalledWith("/configuration/environments/cccccccccccccccccccccccc", { name: "Preview", kind: "preview", protected: false }));
   });
 
+  it("creates environment-scoped variables and saves pending values with truthful operations", async () => {
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Preview", kind: "preview", protected: false }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [{ _id: "dddddddddddddddddddddddd", name: "PUBLIC_API_URL", description: "Public API URL", type: "url", secret: false, required: false, usage: "runtime", status: "missing", sources: ["manual"], services: [], risk: "low", removalPermitted: true, browserDisplayPermitted: true, restartRequirement: "reload" }], versions: [] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockResolvedValue({ data: { id: "new" } });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByText("Preview (preview)")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add Variable" }));
+    await userEvent.type(screen.getByLabelText("Variable name"), "NEW_PUBLIC_URL");
+    await userEvent.selectOptions(screen.getByLabelText("Variable type"), "url");
+    await userEvent.selectOptions(screen.getByLabelText("Restart behavior"), "reload");
+    await userEvent.click(screen.getByLabelText("Required for this environment"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Add Variable" }).at(-1)!);
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/definitions", expect.objectContaining({ projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "NEW_PUBLIC_URL", type: "url", secret: false, required: true, applicableEnvironments: ["preview"], validation: { type: "url" }, restartRequirement: "reload", browserDisplayPermitted: true })));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByLabelText("Configuration operation")).toHaveDisplayValue("Add first value");
+    await userEvent.type(screen.getByLabelText("Configuration value"), "https://api.example.test");
+    await userEvent.type(screen.getByLabelText("Change reason"), "initial setup");
+    await userEvent.click(screen.getByRole("button", { name: "Save as Pending Deployment" }));
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/definitions/dddddddddddddddddddddddd/versions", { environmentId: "cccccccccccccccccccccccc", operation: "add", value: "https://api.example.test", changeReason: "initial setup" }));
+  }, 10000);
+
   it("does not silently fall back when an explicit projectId is unavailable", async () => {
     apiGet.mockImplementation((path: string) => {
       if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Available Project" }] } });

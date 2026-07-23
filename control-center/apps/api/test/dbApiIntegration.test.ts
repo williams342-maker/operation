@@ -462,6 +462,16 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(editedEnvironment.status, 200);
     const rejectedEnvironmentEdit = await request("PATCH", `/configuration/environments/${safeEnvironment.body.id}`, { name: "Protected Preview", kind: "preview", protected: true }, jsonHeaders(ownerA));
     assert.equal(rejectedEnvironmentEdit.status, 403);
+    const productionScopedDefinition = await request("POST", "/configuration/definitions", { projectId: project.body.id, name: "PRODUCTION_ONLY_FLAG", description: "Production-only test flag", type: "text", secret: false, required: false, usage: "runtime", services: [], applicableEnvironments: ["production"], validation: { type: "text" }, restartRequirement: "restart", removalPermitted: true, browserDisplayPermitted: true, risk: "low" }, jsonHeaders(ownerA));
+    assert.equal(productionScopedDefinition.status, 403);
+    const safeDefinition = await request<{ id: string }>("POST", "/configuration/definitions", { projectId: project.body.id, name: "SAFE_PUBLIC_URL", description: "Safe public URL", type: "url", secret: false, required: false, usage: "runtime", services: [], applicableEnvironments: ["staging"], validation: { type: "url" }, restartRequirement: "reload", removalPermitted: true, browserDisplayPermitted: true, risk: "low" }, jsonHeaders(ownerA));
+    assert.equal(safeDefinition.status, 201);
+    const incompatibleDefinition = await request<{ id: string }>("POST", "/configuration/definitions", { projectId: project.body.id, name: "PREVIEW_ONLY_FLAG", description: "Preview-only flag", type: "text", secret: false, required: false, usage: "runtime", services: [], applicableEnvironments: ["preview"], validation: { type: "text" }, restartRequirement: "restart", removalPermitted: true, browserDisplayPermitted: true, risk: "low" }, jsonHeaders(ownerA));
+    assert.equal(incompatibleDefinition.status, 201);
+    const safeVersion = await request("POST", `/configuration/definitions/${safeDefinition.body.id}/versions`, { environmentId: safeEnvironment.body.id, operation: "add", value: "https://api.example.test", changeReason: "initial setup" }, jsonHeaders(ownerA));
+    assert.equal(safeVersion.status, 201);
+    const incompatibleVersion = await request("POST", `/configuration/definitions/${incompatibleDefinition.body.id}/versions`, { environmentId: safeEnvironment.body.id, operation: "add", value: "enabled", changeReason: "wrong environment" }, jsonHeaders(ownerA));
+    assert.equal(incompatibleVersion.status, 400);
 
     const anonymousSystemHealth = await request("GET", "/system/health");
     assert.equal(anonymousSystemHealth.status, 401);
