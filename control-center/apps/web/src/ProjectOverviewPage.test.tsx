@@ -50,7 +50,7 @@ describe("Project Overview workspace", () => {
     const environment = screen.getByRole("button", { name: "Environment" });
     expect(environment).toBeEnabled();
     await userEvent.click(environment);
-    expect(navigate).toHaveBeenCalledWith("/configuration");
+    expect(navigate).toHaveBeenCalledWith("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
     expect(screen.queryByRole("button", { name: /Environment · Planned/ })).not.toBeInTheDocument();
   });
 

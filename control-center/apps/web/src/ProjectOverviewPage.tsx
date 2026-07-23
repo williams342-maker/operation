@@ -21,7 +21,7 @@ export function ProjectOverviewPage({ projectId, canViewAudit, navigate }: { pro
         <button aria-current="page" className="rounded-md bg-primary px-3 py-2 text-sm text-background">Overview</button>
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/deployments`)}>Deployments</button>
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/rollbacks`)}>Rollbacks</button>
-        <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/configuration")}>Environment</button>
+        <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/configuration?projectId=${encodeURIComponent(projectId)}`)}>Environment</button>
         {unavailable.map(([name]) => <button key={name} disabled title="Planned" className="rounded-md border border-border px-3 py-2 text-sm text-muted opacity-60">{name} · Planned</button>)}
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/tasks")}>Tasks</button>
         {canViewAudit && <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/audit")}>Audit</button>}

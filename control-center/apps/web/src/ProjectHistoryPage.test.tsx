@@ -22,7 +22,7 @@ describe("Project history workspace", () => {
     const environment = screen.getByRole("button", { name: "Environment" });
     expect(environment).toBeEnabled();
     await userEvent.click(environment);
-    expect(navigate).toHaveBeenCalledWith("/configuration");
+    expect(navigate).toHaveBeenCalledWith(`/configuration?projectId=${"a".repeat(24)}`);
     expect(screen.queryByRole("button", { name: /Environment · Planned/ })).not.toBeInTheDocument();
   });
   it("renders safe deployment evidence responsively", async () => {
