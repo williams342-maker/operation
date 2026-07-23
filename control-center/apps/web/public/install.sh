@@ -114,9 +114,15 @@ if [ ! -s "$CONFIG_DIR/agent.json" ]; then
   printf '{"controlCenterUrl":"%s","installationId":"%s","requestedSlug":"%s","agentId":"","agentSecret":"","agentVersion":"0.1.0","allowedRoots":["/srv"],"pollIntervalSeconds":30,"mongoChecks":{}}\n' \
     "$CONTROL_CENTER_URL" "$installation_id" "$CONTROL_CENTER_SERVER_SLUG" >"$CONFIG_DIR/agent.json"
 fi
+previous_agent_id="$(node - "$CONFIG_DIR/agent.json" <<'NODE' 2>/dev/null || true
+const fs = require("fs");
+try { const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); if (typeof config.agentId === "string") process.stdout.write(config.agentId); } catch { /* enrollment will validate the final config */ }
+NODE
+)"
 {
   shell_env_value CONTROL_CENTER_ENROLLMENT_TOKEN "$CONTROL_CENTER_ENROLLMENT_TOKEN"
   shell_env_value CONTROL_CENTER_SERVER_SLUG "$CONTROL_CENTER_SERVER_SLUG"
+  shell_env_value CONTROL_CENTER_FORCE_ENROLLMENT "1"
   shell_env_value CONTROL_CENTER_AGENT_CONFIG "$CONFIG_DIR/agent.json"
 } >"$CONFIG_DIR/enrollment.env"
 {
@@ -187,8 +193,17 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
 systemctl enable --now opsworkbench-agent.service
+systemctl restart opsworkbench-agent.service
 for _ in $(seq 1 30); do
   if grep -Eq '"agentId"[[:space:]]*:[[:space:]]*"[^" ]+"' "$CONFIG_DIR/agent.json"; then
+    current_agent_id="$(node - "$CONFIG_DIR/agent.json" <<'NODE' 2>/dev/null || true
+const fs = require("fs");
+try { const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); if (typeof config.agentId === "string") process.stdout.write(config.agentId); } catch { /* handled below */ }
+NODE
+)"
+    if [ -n "$previous_agent_id" ] && [ "$current_agent_id" = "$previous_agent_id" ]; then
+      fail "fresh enrollment did not replace existing agent credentials"
+    fi
     shell_env_value CONTROL_CENTER_AGENT_CONFIG "$CONFIG_DIR/agent.json" >"$CONFIG_DIR/enrollment.env"
     chmod 0600 "$CONFIG_DIR/enrollment.env"; chown "$AGENT_USER:$AGENT_USER" "$CONFIG_DIR/enrollment.env"
     unset CONTROL_CENTER_ENROLLMENT_TOKEN

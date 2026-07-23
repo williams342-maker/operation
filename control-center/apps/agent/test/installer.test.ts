@@ -31,11 +31,15 @@ test("installer provisions and verifies the systemd agent", () => {
   assert.doesNotMatch(source, /curl_args.*CF_ACCESS_CLIENT_SECRET/, "Access credentials must not be passed in process arguments");
   assert.match(source, /installation_id=/);
   assert.match(source, /CONTROL_CENTER_SERVER_SLUG/);
+  assert.match(source, /CONTROL_CENTER_FORCE_ENROLLMENT/);
   assert.match(source, /useradd --system/);
   assert.match(source, /opsworkbench-agent\.service/);
   assert.match(source, /systemctl enable --now/);
+  assert.match(source, /systemctl restart opsworkbench-agent\.service/);
   assert.match(source, /Restart=always/);
   assert.match(source, /\[ ! -s "\$CONFIG_DIR\/agent\.json" \]/, "reinstallation must preserve permanent agent credentials");
+  assert.match(source, /previous_agent_id=/);
+  assert.match(source, /fresh enrollment did not replace existing agent credentials/);
   assert.match(source, /agent enrolled successfully/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .*agent\.json/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .* >"\$CONFIG_DIR\/enrollment\.env"/, "installer must remove the plaintext enrollment token after successful use");
@@ -46,7 +50,7 @@ test("installer provisions and verifies the systemd agent", () => {
 
 test("enrollment download and copy-command formats are stable", () => {
   const token = "owenr_test-token";
-  assert.equal(enrollmentEnv(token), `CONTROL_CENTER_URL=https://opsworkbench.org\nCONTROL_CENTER_ENROLLMENT_TOKEN=${token}\n`);
+  assert.equal(enrollmentEnv(token), `CONTROL_CENTER_URL=https://opsworkbench.org\nCONTROL_CENTER_ENROLLMENT_TOKEN=${token}\nCONTROL_CENTER_FORCE_ENROLLMENT=1\n`);
   const command = enrollmentInstallCommand(token, "https://opsworkbench.org", "opsworkbench");
   assert.doesNotMatch(command, /owenr_test-token/, "generated commands must not embed enrollment tokens");
   assert.match(command, /read -rsp 'Enrollment token:/);

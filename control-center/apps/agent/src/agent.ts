@@ -8,6 +8,7 @@ import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit,
 import { executeConfigurationDeployment } from "./configurationDeployment.js";
 import { handoffUpgrade } from "./upgradeHandoff.js";
 import { collectConnectivity } from "./connectivity.js";
+import { shouldEnroll } from "./enrollmentDecision.js";
 
 const advertisedCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
@@ -18,7 +19,10 @@ type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
 async function maybeEnroll() {
   const config = loadConfig();
   const token = process.env.CONTROL_CENTER_ENROLLMENT_TOKEN;
-  if (config.agentId && config.agentSecret) return config;
+  if (!shouldEnroll(config, token, process.env.CONTROL_CENTER_FORCE_ENROLLMENT)) {
+    if (config.agentId && config.agentSecret) return config;
+    throw new Error("Agent is not enrolled. Set CONTROL_CENTER_ENROLLMENT_TOKEN for first run.");
+  }
   if (!token) throw new Error("Agent is not enrolled. Set CONTROL_CENTER_ENROLLMENT_TOKEN for first run.");
   const interfaces = Object.values(os.networkInterfaces()).flat().filter((entry) => entry && !entry.internal);
   const primaryIp = interfaces.find((entry) => entry?.family === "IPv4")?.address;
