@@ -1970,7 +1970,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           {page === "projects" && projectId && projectView === "deployments" && <ProjectHistoryPage projectId={projectId} kind="deployments" navigate={navigate} />}
           {page === "projects" && projectId && projectView === "rollbacks" && <ProjectHistoryPage projectId={projectId} kind="rollbacks" navigate={navigate} />}
           {page === "projects" && !projectId && <ProjectsPage toast={toast.show} onViewProject={(id) => navigate(`/projects/${id}/overview`)} />}
-          {page === "configuration" && <ConfigurationPage toast={toast.show} />}
+          {page === "configuration" && <ConfigurationPage toast={toast.show} navigate={navigate} />}
           {page === "enrollments" && isAdmin && (
             <EnrollmentsPage toast={toast.show} />
           )}
