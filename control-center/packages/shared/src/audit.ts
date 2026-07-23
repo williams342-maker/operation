@@ -57,6 +57,8 @@ export type AuditAction =
   | "ai.settings.disable"
   | "ai.settings.acknowledge"
   | "ai.assistant.rate_limited"
+  | "configuration.environment.create"
+  | "configuration.environment.update"
   | "configuration.definition.create"
   | "configuration.version.create"
   | "configuration.discovery.received"

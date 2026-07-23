@@ -13,10 +13,12 @@ import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 
 export const configurationRouter = express.Router();
 const environmentKinds = ["production", "staging", "development", "testing", "preview", "ci", "custom"] as const;
+const environmentMutationBody = z.object({ name: z.string().trim().min(1).max(80), kind: z.enum(environmentKinds), protected: z.boolean().default(false) }).strict();
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Organization scope required"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("User required"); return req.user._id; }
 function safeDefinition(row: Record<string, unknown>) { const { envelope, publicValue, ...safe } = row; void envelope; void publicValue; return safe; }
+function unsafeEnvironmentMutation(input: { kind: string; protected: boolean }) { return input.kind === "production" || input.protected; }
 
 configurationRouter.get("/configuration/environments", requirePermission("configuration:view"), async (req, res, next) => {
   try { res.json({ environments: await collections.configurationEnvironments.find({ orgId: orgId(req) }).sort({ name: 1 }).toArray() }); } catch (error) { next(error); }
@@ -24,10 +26,26 @@ configurationRouter.get("/configuration/environments", requirePermission("config
 
 configurationRouter.post("/configuration/environments", requirePermission("configuration:manage-integrations"), async (req, res, next) => {
   try {
-    const body = z.object({ projectId: z.string(), name: z.string().trim().min(1).max(80), kind: z.enum(environmentKinds), protected: z.boolean().default(false) }).parse(req.body);
+    const body = z.object({ projectId: z.string() }).merge(environmentMutationBody).parse(req.body);
+    if (unsafeEnvironmentMutation(body)) return res.status(403).json({ error: "Production and protected environments require a privileged workflow" });
     const projectId = oid(body.projectId); if (!await collections.projects.findOne({ _id: projectId, orgId: orgId(req) })) return res.status(404).json({ error: "Project not found" });
     const now = new Date(); const result = await collections.configurationEnvironments.insertOne({ orgId: orgId(req), projectId, name: body.name, kind: body.kind, protected: body.protected, createdAt: now, updatedAt: now });
+    await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "configuration.environment.create", targetType: "configuration-environment", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { kind: body.kind, protected: body.protected } });
     res.status(201).json({ id: result.insertedId });
+  } catch (error) { next(error); }
+});
+
+configurationRouter.patch("/configuration/environments/:id", requirePermission("configuration:manage-integrations"), async (req, res, next) => {
+  try {
+    const body = environmentMutationBody.parse(req.body);
+    if (unsafeEnvironmentMutation(body)) return res.status(403).json({ error: "Production and protected environments require a privileged workflow" });
+    const org = orgId(req); const environmentId = oid(String(req.params.id));
+    const environment = await collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org });
+    if (!environment?._id) return res.status(404).json({ error: "Environment not found" });
+    const now = new Date();
+    await collections.configurationEnvironments.updateOne({ _id: environment._id, orgId: org }, { $set: { name: body.name, kind: body.kind, protected: false, updatedAt: now } });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "configuration.environment.update", targetType: "configuration-environment", targetId: environment._id, result: "success", requestId: req.requestId, metadata: { kind: body.kind, protected: false } });
+    res.json({ id: environment._id, name: body.name, kind: body.kind, protected: false });
   } catch (error) { next(error); }
 });
 

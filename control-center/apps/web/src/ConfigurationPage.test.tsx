@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const apiGet = vi.hoisted(() => vi.fn());
 const apiPost = vi.hoisted(() => vi.fn());
-vi.mock("./api", () => ({ api: { get: apiGet, post: apiPost }, apiError: () => "Configuration unavailable" }));
+const apiPatch = vi.hoisted(() => vi.fn());
+vi.mock("./api", () => ({ api: { get: apiGet, post: apiPost, patch: apiPatch }, apiError: () => "Configuration unavailable" }));
 import { ConfigurationPage } from "./ConfigurationPage";
 
 function renderPage(path = "/configuration") {
@@ -17,7 +18,7 @@ function renderPage(path = "/configuration") {
   return navigate;
 }
 
-afterEach(() => { cleanup(); apiGet.mockReset(); apiPost.mockReset(); window.history.replaceState({}, "", "/"); });
+afterEach(() => { cleanup(); apiGet.mockReset(); apiPost.mockReset(); apiPatch.mockReset(); window.history.replaceState({}, "", "/"); });
 
 describe("Configuration workspace foundation", () => {
   it("renders project context, workspace navigation, and project-scoped variables without secrets", async () => {
@@ -67,12 +68,33 @@ describe("Configuration workspace foundation", () => {
     const project = await screen.findByLabelText("Configuration project");
     await waitFor(() => expect(project).toHaveDisplayValue("Other Tenant"));
     await waitFor(() => expect(project).toHaveValue("bbbbbbbbbbbbbbbbbbbbbbbb"));
-    expect(screen.getByText("Create environment")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create environment" })).toBeInTheDocument();
     expect(screen.queryByText("WRONG_PROJECT_VALUE")).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Environment name"), "Preview");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/environments", { projectId: "bbbbbbbbbbbbbbbbbbbbbbbb", name: "Preview", kind: "staging", protected: false }));
+    await userEvent.selectOptions(screen.getByLabelText("Environment kind"), "preview");
+    await userEvent.click(screen.getByRole("button", { name: "Create environment" }));
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/environments", { projectId: "bbbbbbbbbbbbbbbbbbbbbbbb", name: "Preview", kind: "preview", protected: false }));
+  });
+
+  it("edits only the selected non-production environment metadata", async () => {
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Beta", kind: "staging", protected: false }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [], versions: [] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPatch.mockResolvedValue({ data: { id: "cccccccccccccccccccccccc", name: "Preview", kind: "preview", protected: false } });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByText("Beta (staging)")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit selected environment" }));
+    await userEvent.clear(screen.getByLabelText("Edit environment name"));
+    await userEvent.type(screen.getByLabelText("Edit environment name"), "Preview");
+    await userEvent.selectOptions(screen.getByLabelText("Edit environment kind"), "preview");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(apiPatch).toHaveBeenCalledWith("/configuration/environments/cccccccccccccccccccccccc", { name: "Preview", kind: "preview", protected: false }));
   });
 
   it("does not silently fall back when an explicit projectId is unavailable", async () => {

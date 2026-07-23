@@ -452,6 +452,17 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     }, jsonHeaders(ownerA));
     assert.equal(project.status, 201);
 
+    const safeEnvironment = await request<{ id: string }>("POST", "/configuration/environments", { projectId: project.body.id, name: "Preview", kind: "preview", protected: false }, jsonHeaders(ownerA));
+    assert.equal(safeEnvironment.status, 201);
+    const productionEnvironment = await request("POST", "/configuration/environments", { projectId: project.body.id, name: "Production", kind: "production", protected: false }, jsonHeaders(ownerA));
+    assert.equal(productionEnvironment.status, 403);
+    const protectedEnvironment = await request("POST", "/configuration/environments", { projectId: project.body.id, name: "Protected staging", kind: "staging", protected: true }, jsonHeaders(ownerA));
+    assert.equal(protectedEnvironment.status, 403);
+    const editedEnvironment = await request("PATCH", `/configuration/environments/${safeEnvironment.body.id}`, { name: "Staging Preview", kind: "staging", protected: false }, jsonHeaders(ownerA));
+    assert.equal(editedEnvironment.status, 200);
+    const rejectedEnvironmentEdit = await request("PATCH", `/configuration/environments/${safeEnvironment.body.id}`, { name: "Protected Preview", kind: "preview", protected: true }, jsonHeaders(ownerA));
+    assert.equal(rejectedEnvironmentEdit.status, 403);
+
     const anonymousSystemHealth = await request("GET", "/system/health");
     assert.equal(anonymousSystemHealth.status, 401);
     for (const session of [ownerA, administratorA, viewerA]) {
