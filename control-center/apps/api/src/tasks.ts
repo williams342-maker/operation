@@ -49,12 +49,13 @@ export function ensureBounded(value: unknown) {
   return sanitized;
 }
 
-export function safeTaskSummary(type: string, message: unknown, result: unknown) {
+export function safeTaskSummary(type: string, message: unknown, result: unknown, event: "succeeded" | "failed" = "failed") {
   if (type === "configuration.apply" || type === "configuration.rollback" || type === "agent.upgrade") {
+    if (event === "succeeded") return `${type === "agent.upgrade" ? "Agent upgrade" : "Configuration deployment"} completed successfully`;
     const category = result && typeof result === "object" && typeof (result as Record<string, unknown>).errorCategory === "string" ? (result as Record<string, unknown>).errorCategory : "unknown";
     return `${type === "agent.upgrade" ? "Agent upgrade" : "Configuration deployment"} failed (${String(category).replace(/[^a-z_]/g, "").slice(0, 32) || "unknown"})`;
   }
-  const sanitized = sanitizeResult(typeof message === "string" ? message : "Task failed");
+  const sanitized = sanitizeResult(typeof message === "string" ? message : event === "succeeded" ? "Task completed successfully" : "Task failed");
   return [...String(sanitized)].map((character) => { const code = character.charCodeAt(0); return code < 32 || code === 127 ? " " : character; }).join("").replace(/\s+/g, " ").slice(0, 500);
 }
 
@@ -147,7 +148,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
     nextState = body.event;
     set.completedAt = now;
     set.result = ensureBounded(body.result ?? {});
-    set.resultSummary = safeTaskSummary(task.type, body.message, set.result);
+    set.resultSummary = safeTaskSummary(task.type, body.message, set.result, body.event);
     await collections.agentTaskResults.updateOne({ orgId: task.orgId, taskId: id }, { $setOnInsert: { orgId: task.orgId, taskId: id, serverId: task.serverId, projectId: task.projectId, agentId: task.agentId, state: nextState, result: set.result, completedAt: now, expiresAt: task.historyExpiresAt, createdAt: now, updatedAt: now } }, { upsert: true });
   }
   set.state = nextState;
