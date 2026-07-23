@@ -4,6 +4,7 @@ import test from "node:test";
 
 const dockerfile = await readFile(new URL("../../apps/web/Dockerfile", import.meta.url), "utf8");
 const dockerignore = await readFile(new URL("../../.dockerignore", import.meta.url), "utf8");
+const stagingCompose = await readFile(new URL("../docker-compose.staging.yml", import.meta.url), "utf8");
 
 test("web image builds shared output before compiling the dependent web workspace", () => {
   const sharedBuild = "RUN npm run build --workspace @control-center/shared";
@@ -22,4 +23,11 @@ test("web runtime still serves only the production bundle with the established n
   assert.match(dockerfile, /COPY --from=build \/app\/apps\/web\/dist \/usr\/share\/nginx\/html/);
   assert.match(dockerfile, /HEALTHCHECK .*wget -qO- http:\/\/127\.0\.0\.1:8080\//);
   assert.doesNotMatch(dockerfile, /COPY --from=build \/app\/packages\/shared\/dist/);
+});
+
+test("web image requires and labels the exact source commit used for staging builds", () => {
+  assert.match(dockerfile, /ARG SOURCE_COMMIT/);
+  assert.match(dockerfile, /RUN test -n "\$SOURCE_COMMIT" && test \$\{#SOURCE_COMMIT\} -eq 40/);
+  assert.match(dockerfile, /LABEL org\.opencontainers\.image\.revision=\$SOURCE_COMMIT/);
+  assert.match(stagingCompose, /web:[\s\S]*SOURCE_COMMIT: \$\{SOURCE_COMMIT:\?SOURCE_COMMIT is required\}/);
 });

@@ -1,4 +1,4 @@
-﻿services:
+services:
   api:
     build:
       context: ..
@@ -29,6 +29,7 @@
       context: ..
       dockerfile: apps/web/Dockerfile
       args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:?SOURCE_COMMIT is required}
         VITE_API_URL: /api
     image: control-center-web:staging
     networks:

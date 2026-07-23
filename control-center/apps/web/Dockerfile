@@ -1,6 +1,8 @@
-﻿# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7
 FROM node:22-alpine AS build
 WORKDIR /app
+ARG SOURCE_COMMIT
+RUN test -n "$SOURCE_COMMIT" && test ${#SOURCE_COMMIT} -eq 40
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 COPY package.json package-lock.json ./
@@ -12,6 +14,8 @@ RUN npm run build --workspace @control-center/shared
 RUN npm run build --workspace @control-center/web
 
 FROM nginx:1.27-alpine AS runtime
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
 COPY deploy/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080
