@@ -10,6 +10,7 @@ import { connectDb } from "./db.js";
 import { validateRuntimeSecrets } from "./crypto.js";
 import { assertValidEnvironment } from "./environmentValidation.js";
 import { initializeRuntimeReadiness, runtimeHealth } from "./runtimeReadiness.js";
+import { runtimeIdentity } from "./runtimeIdentity.js";
 import { router } from "./routes.js";
 
 const environmentValidation = assertValidEnvironment();
@@ -48,7 +49,7 @@ app.use(compression());
 app.use(cors({ origin: process.env.CONTROL_CENTER_WEB_ORIGIN || "http://localhost:5173", credentials: true }));
 app.use(rateLimit({ windowMs: 60_000, limit: 180 }));
 app.use(express.json({ limit: "1mb", verify: captureRawBody }));
-app.get("/healthz", (_req, res) => res.json({ ok: true, status: "alive", version: process.env.BUILD_VERSION || "development", commit: process.env.GIT_COMMIT || "unknown" }));
+app.get("/healthz", (_req, res) => { const build = runtimeIdentity(); res.json({ ok: true, status: "alive", version: build.version, commit: build.commit }); });
 app.get("/readyz", async (_req, res) => { const health = await runtimeHealth(); res.status(health.status === "ready" ? 200 : 503).json(health); });
 app.use("/api", router);
 
