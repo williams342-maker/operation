@@ -135,6 +135,21 @@ configurationRouter.post("/configuration/deployment-targets", noStore, requireRe
 });
 
 const planBody = z.object({ projectId: z.string(), environmentId: z.string(), targetProfileId: z.string(), versionIds: z.array(z.string()).min(1).max(250), expectedConfigurationDigest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
+configurationRouter.get("/configuration/deployment-plans", noStore, requirePermission("configuration:view"), async (req, res, next) => {
+  try {
+    const query = z.object({ projectId: z.string(), environmentId: z.string(), state: z.enum(["pending_approval"]).default("pending_approval") }).strict().parse(req.query);
+    const org = orgId(req); const projectId = oid(query.projectId); const environmentId = oid(query.environmentId);
+    const [project, environment] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId })]);
+    if (!project || !environment) return res.status(404).json({ error: "Scoped project or environment not found" });
+    const plan = await collections.configurationDeploymentPlans.find({ orgId: org, projectId, environmentId, state: query.state }).sort({ revision: -1 }).limit(1).next();
+    if (!plan?._id) return res.json({ plan: null });
+    const versions = await collections.configurationVersions.find({ _id: { $in: plan.versionIds }, orgId: org, projectId, environmentId }, { projection: { envelope: 0, publicValue: 0, fingerprint: 0 } }).toArray();
+    const definitions = await collections.configurationDefinitions.find({ _id: { $in: versions.map((item) => item.definitionId) }, orgId: org, projectId }, { projection: { name: 1 } }).toArray();
+    const names = new Map(definitions.map((item) => [item._id!.toHexString(), item.name]));
+    const proposedDiff = redactedConfigurationDiff(versions.map((version) => ({ name: names.get(version.definitionId.toHexString()) || "UNKNOWN_CONFIGURATION", operation: version.operation || "update", secret: version.classification === "secret" })));
+    res.json({ plan: { id: plan._id, revision: plan.revision, state: plan.state, changeDigest: plan.changeDigest, approvalExpiresAt: plan.approvalExpiresAt, proposedDiff } });
+  } catch (error) { next(error); }
+});
 configurationRouter.post("/configuration/deployment-plans", noStore, requireRecentAuth, requirePermission("configuration:deploy-non-production"), async (req, res, next) => {
   try {
     const body = planBody.parse(req.body); const org = orgId(req); const projectId = oid(body.projectId); const environmentId = oid(body.environmentId); const profile = await collections.configurationTargetProfiles.findOne({ _id: oid(body.targetProfileId), orgId: org, projectId, environmentId, enabled: true });
