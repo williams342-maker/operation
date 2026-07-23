@@ -3,12 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiError } from "./api";
 import { Badge, Button, Card, Field, GhostButton, Select, Skeleton, Table } from "./ui";
 import { configurationCategory, parseEnvironmentText, plainLanguageChangeSummary, type ImportedEnvironmentVariable } from "./configurationUx";
-import { ConfigurationDeploymentWorkflow } from "./ConfigurationDeploymentWorkflow";
+import { ConfigurationDeploymentWorkflow, type DeploymentWorkflowState } from "./ConfigurationDeploymentWorkflow";
 
 type Project = { _id: string; name: string; slug?: string };
 type Environment = { _id: string; projectId: string; name: string; kind: string; protected: boolean };
 type Definition = { _id: string; name: string; applicationPath?: string; description?: string; type: string; secret: boolean; required: boolean; provider?: string; usage: string; status: string; sources: string[]; sourcePaths?: string[]; services: string[]; activeVersion?: number; risk?: "low" | "medium" | "high" | "critical"; removalPermitted?: boolean; browserDisplayPermitted?: boolean; restartRequirement?: string };
-type Version = { definitionId: string; environmentId: string; version: number; masked: string; state: string; validationState: string; createdAt?: string };
+type Version = { _id?: string; definitionId: string; environmentId: string; version: number; masked: string; state: string; validationState: string; createdAt?: string };
+type DeploymentTarget = { _id: string; serverId: string; revision: number; composeProject: string; statelessServices: string[]; protectedServices: string[]; healthChecks: Array<{ id: string; url: string; timeoutMs: number }>; currentConfigurationDigest?: string };
+type DeploymentPlan = { id: string; revision: number; state: DeploymentWorkflowState; changeDigest: string; approvalExpiresAt: string; proposedDiff: Array<{ name: string; operation: string; classification: "secret" | "non-secret"; proposedValue: string }> };
 
 const futureActions = ["Promote Settings"];
 const onboardingSteps = ["Select application", "Detect configuration", "Locate live configuration", "Match variables", "Add missing values", "Validate setup"];
@@ -50,6 +52,7 @@ export function ConfigurationPage({ toast, navigate }: { toast: (message: string
   const [environmentId, setEnvironmentId] = useState("");
   useEffect(() => { if (!projectEnvironments.some((environment) => environment._id === environmentId)) setEnvironmentId(projectEnvironments[0]?._id || ""); }, [environmentId, projectEnvironments]);
   const selectedEnvironment = projectEnvironments.find((environment) => environment._id === environmentId);
+  const deploymentTargets = useQuery<DeploymentTarget[]>({ queryKey: ["configuration-deployment-targets", projectId, environmentId], queryFn: () => api.get("/configuration/deployment-targets", { params: { projectId, environmentId } }).then((response) => response.data.targets || []), enabled: Boolean(projectId && environmentId) });
 
   const [mode, setMode] = useState<"none" | "add" | "import" | "onboarding">("none");
   const [selected, setSelected] = useState<Definition | null>(null);
@@ -98,7 +101,20 @@ export function ConfigurationPage({ toast, navigate }: { toast: (message: string
   const pending = definitions.filter((definition) => definition.status === "pending");
   const latestVersion = (definition: Definition) => versions.find((version) => version.definitionId === definition._id && (!environmentId || version.environmentId === environmentId));
   const plan = plainLanguageChangeSummary(pending, selectedEnvironment?.name || "the selected environment");
-  const error = createEnvironment.error || updateEnvironment.error || createDefinition.error || createVersion.error || matrix.error;
+  const enabledDeploymentTarget = deploymentTargets.data?.[0];
+  const deploymentVersionIds = pending.map((definition) => latestVersion(definition)?._id).filter(Boolean) as string[];
+  const [deploymentPlan, setDeploymentPlan] = useState<DeploymentPlan | null>(null);
+  const createDeploymentPlan = useMutation({
+    mutationFn: () => {
+      if (!enabledDeploymentTarget?._id) throw new Error("Create a deployment target before planning configuration changes.");
+      if (!enabledDeploymentTarget.currentConfigurationDigest) throw new Error("The selected deployment target has no current configuration digest. Run configuration fingerprinting before creating an immutable plan.");
+      if (deploymentVersionIds.length !== pending.length) throw new Error("Every pending setting must have an immutable version identifier before planning.");
+      return api.post("/configuration/deployment-plans", { projectId, environmentId, targetProfileId: enabledDeploymentTarget._id, versionIds: deploymentVersionIds, expectedConfigurationDigest: enabledDeploymentTarget.currentConfigurationDigest }).then((response) => response.data as DeploymentPlan);
+    },
+    onSuccess: (createdPlan) => { setDeploymentPlan(createdPlan); toast(`Immutable plan revision ${createdPlan.revision} created for approval`); queryClient.invalidateQueries({ queryKey: ["configuration-definitions", projectId] }); }
+  });
+  const deploymentWorkflowState: DeploymentWorkflowState = deploymentPlan?.state || "draft";
+  const error = createEnvironment.error || updateEnvironment.error || createDefinition.error || createVersion.error || createDeploymentPlan.error || matrix.error || deploymentTargets.error;
   const go = (path: string) => { if (navigate) navigate(path); else { window.history.pushState({}, "", path); window.dispatchEvent(new PopStateEvent("popstate")); } };
   const [validationReport, setValidationReport] = useState<{ status: "ready" | "needs_attention"; checkedAt: string; items: Array<{ label: string; status: string; detail: string; tone: "success" | "warning" | "danger" }> } | null>(null);
   const runWebsiteValidation = () => {
@@ -128,7 +144,8 @@ export function ConfigurationPage({ toast, navigate }: { toast: (message: string
     <Card><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Variables</h3><p className="text-sm text-muted">Required, missing, configured, pending, invalid, drifted, and unused settings appear here for the selected project and environment only. Secret values never appear.</p></div><div className="flex gap-2"><GhostButton disabled>Fix Missing Variables</GhostButton><GhostButton disabled>Review Drift</GhostButton></div></div><div className="mt-3 max-w-full overflow-x-auto">{matrix.isLoading ? <Skeleton /> : <Table columns={["Name", "Category", "Status", "Used By", "Type", "Last Updated", "Deployment State", "Action"]} rows={rows} empty={!projectId ? "Select an application" : !environmentId ? "Create an environment before adding values" : "No variables discovered or defined for this project"} />}</div></Card>
 
     {pending.length > 0 && <Card><h3 className="font-semibold">Plain-language deployment plan</h3><p className="mt-1">{plan.heading}</p><ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">{plan.steps.map((step) => <li key={step}>{step}</li>)}</ol></Card>}
-    <ConfigurationDeploymentWorkflow environmentKind={selectedEnvironment?.kind} protectedEnvironment={selectedEnvironment?.protected} />
+    <ConfigurationDeploymentWorkflow environmentKind={selectedEnvironment?.kind} protectedEnvironment={selectedEnvironment?.protected} state={deploymentWorkflowState} onPlan={() => createDeploymentPlan.mutate()} planningDisabled={pending.length === 0 || deploymentVersionIds.length !== pending.length || !enabledDeploymentTarget?.currentConfigurationDigest || createDeploymentPlan.isPending} />
+    {deploymentPlan && <Card><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Immutable deployment plan</h3><p className="text-sm text-muted">Value-free plan created for independent approval. Values, envelopes, ciphertext, and credentials are not displayed.</p></div><Badge tone="warning">{deploymentPlan.state.replace(/_/g, " ")}</Badge></div><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Plan ID</dt><dd className="break-all font-mono">{deploymentPlan.id}</dd></div><div><dt className="text-muted">Revision</dt><dd>{deploymentPlan.revision}</dd></div><div><dt className="text-muted">Change digest</dt><dd className="break-all font-mono">{deploymentPlan.changeDigest}</dd></div><div><dt className="text-muted">Approval expires</dt><dd>{new Date(deploymentPlan.approvalExpiresAt).toLocaleString()}</dd></div></dl><div className="mt-3 max-w-full overflow-x-auto"><Table columns={["Name", "Operation", "Classification", "Value"]} rows={deploymentPlan.proposedDiff.map((item) => [item.name, item.operation, item.classification, item.proposedValue])} /></div></Card>}
 
     {mode === "add" && <Card><div className="flex justify-between"><div><h3 className="font-semibold">Add Variable</h3><p className="text-sm text-muted">Definitions are scoped to the selected non-production environment. Values are stored later as immutable pending versions.</p></div><GhostButton onClick={() => setMode("none")}>Close</GhostButton></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Field aria-label="Variable name" placeholder="VARIABLE_NAME" value={definitionName} onChange={(event) => setDefinitionName(event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))} /><label className="text-sm">Variable type<Select aria-label="Variable type" value={definitionType} disabled={definitionSecret} onChange={(event) => setDefinitionType(event.target.value as VariableType)}>{variableTypes.map((type) => <option key={type} value={type}>{type}</option>)}</Select></label><Field aria-label="Variable description" placeholder="Plain-language purpose (optional)" value={description} onChange={(event) => setDescription(event.target.value)} /><label className="text-sm">Restart behavior<Select aria-label="Restart behavior" value={definitionRestartRequirement} onChange={(event) => setDefinitionRestartRequirement(event.target.value as RestartRequirement)}>{restartOptions.map((item) => <option key={item} value={item}>{item}</option>)}</Select></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={definitionSecret} onChange={(event) => setDefinitionSecret(event.target.checked)} />This is a secret</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={definitionRequired} onChange={(event) => setDefinitionRequired(event.target.checked)} />Required for this environment</label></div><p className="mt-3 text-sm text-muted">Scope: {selectedEnvironment ? `${selectedEnvironment.name} (${selectedEnvironment.kind})` : "select or create a non-production environment first"}. Production variables require a separate privileged workflow.</p><Button className="mt-3" disabled={!projectId || !environmentId || !definitionName.trim() || createDefinition.isPending} onClick={() => createDefinition.mutate()}>Add Variable</Button></Card>}
 

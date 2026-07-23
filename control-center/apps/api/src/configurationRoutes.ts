@@ -108,7 +108,18 @@ configurationRouter.get("/configuration/capabilities/:serverId", requirePermissi
   try { const server = await collections.servers.findOne({ _id: oid(String(req.params.serverId)), orgId: orgId(req) }, { projection: { agentCapabilities: 1, agentVersion: 1 } }); if (!server) return res.status(404).json({ error: "Server not found" }); const capabilities = server.agentCapabilities || []; res.json({ agentVersion: server.agentVersion, capabilities, writableConfiguration: deploymentCapabilities.every((item) => capabilities.includes(item)), productionDeployment: false }); } catch (error) { next(error); }
 });
 
-const targetProfileBody = z.object({ projectId: z.string(), environmentId: z.string(), serverId: z.string(), repositoryRoot: z.string().min(1).max(1024), environmentFilePath: z.string().min(1).max(1024), composePath: z.string().min(1).max(1024), composeProject: z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/), statelessServices: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).min(1).max(30), protectedServices: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).max(30), healthChecks: z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/), url: z.string().url(), timeoutMs: z.number().int().min(100).max(30000) }).strict()).min(1).max(30) }).strict();
+const targetProfileBody = z.object({ projectId: z.string(), environmentId: z.string(), serverId: z.string(), repositoryRoot: z.string().min(1).max(1024), environmentFilePath: z.string().min(1).max(1024), composePath: z.string().min(1).max(1024), composeProject: z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/), statelessServices: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).min(1).max(30), protectedServices: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).max(30), healthChecks: z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/), url: z.string().url(), timeoutMs: z.number().int().min(100).max(30000) }).strict()).min(1).max(30), currentConfigurationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
+
+configurationRouter.get("/configuration/deployment-targets", requirePermission("configuration:view"), async (req, res, next) => {
+  try {
+    const query = z.object({ projectId: z.string(), environmentId: z.string() }).strict().parse(req.query);
+    const org = orgId(req); const projectId = oid(query.projectId); const environmentId = oid(query.environmentId);
+    const [project, environment] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId })]);
+    if (!project || !environment) return res.status(404).json({ error: "Scoped project or environment not found" });
+    const targets = await collections.configurationTargetProfiles.find({ orgId: org, projectId, environmentId, enabled: true }, { projection: { orgId: 0, repositoryRoot: 0, environmentFilePath: 0, composePath: 0, createdByUserId: 0 } }).sort({ revision: -1 }).toArray();
+    res.json({ targets });
+  } catch (error) { next(error); }
+});
 
 configurationRouter.post("/configuration/deployment-targets", noStore, requireRecentAuth, requirePermission("configuration:manage-integrations"), async (req, res, next) => {
   try {
@@ -118,7 +129,7 @@ configurationRouter.post("/configuration/deployment-targets", noStore, requireRe
     assertDeploymentPolicy({ ...body, environmentKind: environment.kind, protected: environment.protected }, server.agentCapabilities || [], server.agentVersion);
     await Promise.all(body.healthChecks.map((check) => validatePublicHealthCheckUrl(check.url)));
     const latest = await collections.configurationTargetProfiles.find({ orgId: org, projectId, environmentId }).sort({ revision: -1 }).limit(1).next(); const revision = (latest?.revision || 0) + 1; const now = new Date();
-    const result = await collections.configurationTargetProfiles.insertOne({ orgId: org, projectId, environmentId, serverId, revision, repositoryRoot: body.repositoryRoot, environmentFilePath: body.environmentFilePath, composePath: body.composePath, composeProject: body.composeProject, statelessServices: body.statelessServices, protectedServices: body.protectedServices, healthChecks: body.healthChecks, enabled: true, createdByUserId: actorId(req), createdAt: now, updatedAt: now });
+    const result = await collections.configurationTargetProfiles.insertOne({ orgId: org, projectId, environmentId, serverId, revision, repositoryRoot: body.repositoryRoot, environmentFilePath: body.environmentFilePath, composePath: body.composePath, composeProject: body.composeProject, statelessServices: body.statelessServices, protectedServices: body.protectedServices, healthChecks: body.healthChecks, currentConfigurationDigest: body.currentConfigurationDigest, enabled: true, createdByUserId: actorId(req), createdAt: now, updatedAt: now });
     res.status(201).json({ id: result.insertedId, revision, productionDeployment: false });
   } catch (error) { next(error); }
 });

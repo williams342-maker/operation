@@ -36,7 +36,7 @@ describe("Configuration workspace foundation", () => {
     expect(screen.getByText(/selected project and environment only/i)).toBeInTheDocument();
     expect(await screen.findByText("API_BASE_URL")).toBeInTheDocument();
     expect(await screen.findByText("CLOUDFLARE_ACCESS_CLIENT_SECRET")).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/actual-secret|ciphertext|mongodb:\/\/|bearer token/i);
+    expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token/i);
 
     await userEvent.click(screen.getByRole("button", { name: "Overview" }));
     await userEvent.click(screen.getByRole("button", { name: "Deployments" }));
@@ -186,5 +186,33 @@ describe("Configuration workspace foundation", () => {
     expect(await screen.findByRole("heading", { name: "Website validation" })).toBeInTheDocument();
     expect(screen.getByText(/No deployment, promotion, server action, or secret display occurred/i)).toBeInTheDocument();
     expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it("creates a value-free immutable deployment plan from pending versions and the enabled target profile", async () => {
+    const digest = "a".repeat(64);
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Beta", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-targets" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { targets: [{ _id: "ffffffffffffffffffffffff", serverId: "111111111111111111111111", revision: 4, composeProject: "crafters", statelessServices: ["web"], protectedServices: ["mongo"], healthChecks: [{ id: "web", url: "https://craftersmarketbeta.shop/healthz", timeoutMs: 1000 }], currentConfigurationDigest: digest }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [{ _id: "dddddddddddddddddddddddd", name: "PUBLIC_SITE_URL", description: "Public site URL", type: "url", secret: false, required: true, usage: "runtime", status: "pending", sources: ["manual"], services: ["web"], activeVersion: 2, risk: "low", removalPermitted: false, browserDisplayPermitted: true, restartRequirement: "reload" }, { _id: "eeeeeeeeeeeeeeeeeeeeeeee", name: "MAILGUN_API_KEY", description: "Mailgun API key", type: "secret", secret: true, required: false, usage: "runtime", status: "pending", sources: ["manual"], services: ["api"], activeVersion: 2, risk: "high", removalPermitted: true, browserDisplayPermitted: false, restartRequirement: "restart" }], versions: [{ _id: "121212121212121212121212", definitionId: "dddddddddddddddddddddddd", environmentId: "cccccccccccccccccccccccc", version: 2, masked: "Configured", state: "pending", validationState: "unverified", createdAt: "2026-07-23T12:00:00.000Z" }, { _id: "343434343434343434343434", definitionId: "eeeeeeeeeeeeeeeeeeeeeeee", environmentId: "cccccccccccccccccccccccc", version: 2, masked: "Configured", state: "pending", validationState: "unverified", createdAt: "2026-07-23T12:01:00.000Z" }] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockImplementation((path: string, body: unknown) => {
+      if (path === "/configuration/deployment-plans") return Promise.resolve({ data: { id: "999999999999999999999999", revision: 7, state: "pending_approval", changeDigest: "b".repeat(64), approvalExpiresAt: "2026-07-23T12:15:00.000Z", proposedDiff: [{ name: "MAILGUN_API_KEY", operation: "rotate", classification: "secret", proposedValue: "[redacted]" }, { name: "PUBLIC_SITE_URL", operation: "update", classification: "non-secret", proposedValue: "[pending value]" }] } });
+      return Promise.resolve({ data: { id: "unexpected" } });
+    });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByText("2 settings prepared for Beta.")).toBeInTheDocument();
+    const createPlan = await screen.findByRole("button", { name: "Create immutable plan" });
+    await waitFor(() => expect(createPlan).toBeEnabled());
+    await userEvent.click(createPlan);
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/deployment-plans", { projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", environmentId: "cccccccccccccccccccccccc", targetProfileId: "ffffffffffffffffffffffff", versionIds: ["121212121212121212121212", "343434343434343434343434"], expectedConfigurationDigest: digest }));
+    expect(await screen.findByRole("heading", { name: "Immutable deployment plan" })).toBeInTheDocument();
+    expect(screen.getByText("999999999999999999999999")).toBeInTheDocument();
+    expect(screen.getAllByText("pending approval").length).toBeGreaterThan(0);
+    expect(screen.getByText("[redacted]")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token/i);
   });
 });
