@@ -19,6 +19,10 @@ test("installer provisions and verifies the systemd agent", () => {
   assert.match(source, /X-OpsWorkbench-Artifact-SHA256/);
   assert.match(source, /agent artifact digest verification failed/);
   assert.match(source, /\.opsworkbench-source-commit/);
+  assert.match(source, /tar -xzf "\$work_dir\/source\.tar\.gz" -C "\$work_dir\/source"/);
+  assert.doesNotMatch(source, /tar -xzf .*--strip-components/, "installer must preserve the artifact's control-center root directory");
+  assert.match(source, /source\/control-center\/\.opsworkbench-source-commit/);
+  assert.match(source, /cd "\$work_dir\/source\/control-center"/);
   assert.doesNotMatch(source, /github\.com\/.*\/archive\//, "installer must not depend on an unpublished GitHub source archive");
   assert.match(source, /connectivityDeliveredAt|connectivity-request\.json/);
   assert.match(source, /cloudflared tunnel run --token-file/);

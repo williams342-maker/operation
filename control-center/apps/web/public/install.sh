@@ -98,8 +98,8 @@ write("cf-tunnel-enabled", cf.tunnel?.enabled ? "yes" : "no"); write("cf-tunnel-
 NODE
 if [ -s "$work_dir/cf-access-client-id" ]; then CF_ACCESS_CLIENT_ID="$(read_secret_file "$work_dir/cf-access-client-id")"; CF_ACCESS_CLIENT_SECRET="$(read_secret_file "$work_dir/cf-access-client-secret")"; fi
 install -d -m 0750 "$work_dir/source"
-tar -xzf "$work_dir/source.tar.gz" --strip-components=1 -C "$work_dir/source"
-[ "$(tr -d '\r\n' <"$work_dir/source/.opsworkbench-source-commit")" = "$artifact_commit" ] || fail "agent artifact source commit verification failed"
+tar -xzf "$work_dir/source.tar.gz" -C "$work_dir/source"
+[ "$(tr -d '\r\n' <"$work_dir/source/control-center/.opsworkbench-source-commit")" = "$artifact_commit" ] || fail "agent artifact source commit verification failed"
 cd "$work_dir/source/control-center"
 npm ci --omit=optional
 npm run build --workspace @control-center/shared
