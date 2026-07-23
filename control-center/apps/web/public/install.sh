@@ -119,6 +119,17 @@ const fs = require("fs");
 try { const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); if (typeof config.agentId === "string") process.stdout.write(config.agentId); } catch { /* enrollment will validate the final config */ }
 NODE
 )"
+if [ -n "$previous_agent_id" ]; then
+  cp "$CONFIG_DIR/agent.json" "$work_dir/agent.json.before-forced-enrollment"
+  node - "$CONFIG_DIR/agent.json" <<'NODE'
+const fs = require("fs");
+const file = process.argv[2];
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+config.agentId = "";
+config.agentSecret = "";
+fs.writeFileSync(file, `${JSON.stringify(config)}\n`, { mode: 0o600 });
+NODE
+fi
 {
   shell_env_value CONTROL_CENTER_ENROLLMENT_TOKEN "$CONTROL_CENTER_ENROLLMENT_TOKEN"
   shell_env_value CONTROL_CENTER_SERVER_SLUG "$CONTROL_CENTER_SERVER_SLUG"

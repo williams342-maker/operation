@@ -39,6 +39,9 @@ test("installer provisions and verifies the systemd agent", () => {
   assert.match(source, /Restart=always/);
   assert.match(source, /\[ ! -s "\$CONFIG_DIR\/agent\.json" \]/, "reinstallation must preserve permanent agent credentials");
   assert.match(source, /previous_agent_id=/);
+  assert.match(source, /agent\.json\.before-forced-enrollment/, "forced re-enrollment must preserve value-local diagnostic backup");
+  assert.match(source, /config\.agentId = "";/, "forced re-enrollment must clear the stale agent id before restart");
+  assert.match(source, /config\.agentSecret = "";/, "forced re-enrollment must clear the stale agent secret before restart");
   assert.match(source, /fresh enrollment did not replace existing agent credentials/);
   assert.match(source, /agent enrolled successfully/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .*agent\.json/);
