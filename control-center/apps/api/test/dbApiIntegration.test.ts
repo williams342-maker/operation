@@ -228,7 +228,36 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(auditSnapshot.includes("disabled-password"), false);
     assert.equal(auditSnapshot.includes("duplicate-password"), false);
 
-    const ownerA = await login("phase-1b-a", "owner-a@example.test", "owner-a-password");
+    let ownerA = await login("phase-1b-a", "owner-a@example.test", "owner-a-password");
+    const noSlugLogin = await request<{ csrfToken: string }>("POST", "/auth/login", { email: "owner-a@example.test", password: "owner-a-password" }, { "content-type": "application/json" });
+    assert.equal(noSlugLogin.status, 200);
+    assert.ok(noSlugLogin.body.csrfToken);
+    const noSlugSessionCookie = cookieFrom(noSlugLogin.headers);
+    await collections.sessions.deleteOne({ _id: new ObjectId(noSlugSessionCookie.replace("cc_session=", "")), orgId: orgA._id });
+
+    const unknownReset = await request("POST", "/auth/password-reset/request", { email: "missing@example.test" }, { "content-type": "application/json" });
+    assert.equal(unknownReset.status, 202);
+    const resetRequest = await request("POST", "/auth/password-reset/request", { email: "owner-a@example.test" }, { "content-type": "application/json" });
+    assert.equal(resetRequest.status, 202);
+    assert.equal(JSON.stringify(resetRequest.body).includes("owner-a@example.test"), false);
+    const storedReset = await collections.passwordResetTokens.findOne({ orgId: orgA._id, userId: ownerUserA._id });
+    assert.ok(storedReset?._id);
+    assert.equal(JSON.stringify(storedReset).includes("owner-a-password"), false);
+    assert.equal(JSON.stringify(storedReset).includes("owner-a@example.test"), false);
+
+    const manualResetToken = crypto.randomBytes(32).toString("base64url");
+    await collections.passwordResetTokens.insertOne({ orgId: orgA._id, userId: ownerUserA._id, tokenHash: hashSecret(manualResetToken), expiresAt: new Date(Date.now() + 30 * 60_000), deliveryStatus: "sent", createdAt: new Date(), updatedAt: new Date() });
+    const completeReset = await request("POST", "/auth/password-reset/complete", { token: manualResetToken, password: "owner-reset-password" }, { "content-type": "application/json" });
+    assert.equal(completeReset.status, 200);
+    assert.equal(await collections.sessions.countDocuments({ userId: ownerUserA._id }), 0);
+    const reusedReset = await request("POST", "/auth/password-reset/complete", { token: manualResetToken, password: "owner-reset-password-2" }, { "content-type": "application/json" });
+    assert.equal(reusedReset.status, 400);
+    const oldOwnerRejected = await request("POST", "/auth/login", { email: "owner-a@example.test", password: "owner-a-password" }, { "content-type": "application/json" });
+    assert.equal(oldOwnerRejected.status, 401);
+    const ownerAAfterReset = await login("phase-1b-a", "owner-a@example.test", "owner-reset-password");
+    const restoreOwnerPassword = await request("POST", "/auth/change-password", { currentPassword: "owner-reset-password", newPassword: "owner-a-password" }, jsonHeaders(ownerAAfterReset));
+    assert.equal(restoreOwnerPassword.status, 200);
+    ownerA = ownerAAfterReset;
 
     const createViewer = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", {
       email: "viewer-a@example.test",
@@ -684,24 +713,32 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const disposable = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", { email: "disposable@example.test", name: "Disposable User", role: "Viewer" }, jsonHeaders(ownerA));
     assert.equal(disposable.status, 201);
     await login("phase-1b-a", "disposable@example.test", disposable.body.oneTimePassword);
-    const resetDisposable = await request<{ oneTimePassword: string }>("POST", `/org/users/${disposable.body.id}/reset-password`, {}, jsonHeaders(ownerA));
+    const resetDisposable = await request<{ ok: boolean; delivery: string; oneTimePassword?: string }>("POST", `/org/users/${disposable.body.id}/reset-password`, {}, jsonHeaders(ownerA));
     assert.equal(resetDisposable.status, 200);
     assert.ok(resetDisposable.headers.get("cache-control")?.includes("no-store"));
-    assert.ok(resetDisposable.body.oneTimePassword);
+    assert.equal(resetDisposable.body.ok, true);
+    assert.equal(resetDisposable.body.oneTimePassword, undefined);
+    assert.ok(await collections.passwordResetTokens.findOne({ orgId: orgA._id, userId: new ObjectId(disposable.body.id) }));
+    assert.ok(await collections.sessions.countDocuments({ userId: new ObjectId(disposable.body.id) }) >= 1);
+    await login("phase-1b-a", "disposable@example.test", disposable.body.oneTimePassword);
+    const disposableResetToken = crypto.randomBytes(32).toString("base64url");
+    await collections.passwordResetTokens.insertOne({ orgId: orgA._id, userId: new ObjectId(disposable.body.id), tokenHash: hashSecret(disposableResetToken), expiresAt: new Date(Date.now() + 30 * 60_000), deliveryStatus: "sent", createdAt: new Date(), updatedAt: new Date() });
+    const completeDisposableReset = await request("POST", "/auth/password-reset/complete", { token: disposableResetToken, password: "replacement-password-long" }, { "content-type": "application/json" });
+    assert.equal(completeDisposableReset.status, 200);
     assert.equal(await collections.sessions.countDocuments({ userId: new ObjectId(disposable.body.id) }), 0);
     const oldPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: disposable.body.oneTimePassword }, { "content-type": "application/json" });
     assert.equal(oldPasswordRejected.status, 401);
-    const resetLogin = await login("phase-1b-a", "disposable@example.test", resetDisposable.body.oneTimePassword);
+    const resetLogin = await login("phase-1b-a", "disposable@example.test", "replacement-password-long");
     const badPasswordChange = await request("POST", "/auth/change-password", { currentPassword: "wrong-current-password", newPassword: "replacement-password-long" }, jsonHeaders(resetLogin));
     assert.equal(badPasswordChange.status, 403);
-    const changedPassword = await request("POST", "/auth/change-password", { currentPassword: resetDisposable.body.oneTimePassword, newPassword: "replacement-password-long" }, jsonHeaders(resetLogin));
+    const changedPassword = await request("POST", "/auth/change-password", { currentPassword: "replacement-password-long", newPassword: "replacement-password-final" }, jsonHeaders(resetLogin));
     assert.equal(changedPassword.status, 200);
     const changedUser = await collections.users.findOne({ _id: new ObjectId(disposable.body.id) });
     assert.equal(changedUser?.mustChangePassword, undefined);
     assert.equal(changedUser?.inviteIssuedAt, undefined);
-    const resetPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: resetDisposable.body.oneTimePassword }, { "content-type": "application/json" });
+    const resetPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: "replacement-password-long" }, { "content-type": "application/json" });
     assert.equal(resetPasswordRejected.status, 401);
-    await login("phase-1b-a", "disposable@example.test", "replacement-password-long");
+    await login("phase-1b-a", "disposable@example.test", "replacement-password-final");
     const selfDeleteDenied = await request("DELETE", `/org/users/${ownerUserA._id}`, undefined, jsonHeaders(ownerA));
     assert.equal(selfDeleteDenied.status, 403);
     const deleteDisposable = await request("DELETE", `/org/users/${disposable.body.id}`, undefined, jsonHeaders(ownerA));
@@ -710,7 +747,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.sessions.countDocuments({ userId: new ObjectId(disposable.body.id) }), 0);
     const sensitiveAuditSnapshot = JSON.stringify(await collections.auditEvents.find({ action: { $in: ["user.password.change", "user.password.reset", "user.delete"] } }).toArray());
     assert.equal(sensitiveAuditSnapshot.includes("replacement-password-long"), false);
-    assert.equal(sensitiveAuditSnapshot.includes(resetDisposable.body.oneTimePassword), false);
+    assert.equal(sensitiveAuditSnapshot.includes(disposableResetToken), false);
 
     const auditFailure = await collections.auditEvents.findOne({ action: "authorization.failure", result: "denied" });
     assert.ok(auditFailure?.requestId);

@@ -14,6 +14,7 @@ import type {
   HealthCheckDoc,
   MongoCheckDoc,
   OrganizationDoc,
+  PasswordResetTokenDoc,
   ProjectDoc,
   ServerDoc,
   SessionDoc,
@@ -36,6 +37,7 @@ export const db = client.db(dbName);
 export const collections = {
   organizations: db.collection<OrganizationDoc>("organizations"),
   users: db.collection<UserDoc>("users"),
+  passwordResetTokens: db.collection<PasswordResetTokenDoc>("password_reset_tokens"),
   sessions: db.collection<SessionDoc>("sessions"),
   enrollments: db.collection<EnrollmentDoc>("enrollments"),
   servers: db.collection<ServerDoc>("servers"),
@@ -73,6 +75,9 @@ async function ensureIndexes() {
   await Promise.all([
     collections.organizations.createIndex({ slug: 1 }, { unique: true }),
     collections.users.createIndex({ orgId: 1, email: 1 }, { unique: true }),
+    collections.passwordResetTokens.createIndex({ tokenHash: 1 }, { unique: true }),
+    collections.passwordResetTokens.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
+    collections.passwordResetTokens.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.sessions.createIndex({ orgId: 1, userId: 1 }),
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),

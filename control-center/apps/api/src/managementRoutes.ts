@@ -13,6 +13,7 @@ import { calculateAgentStatus, publicSiteStatus } from "./serverStatus.js";
 import { buildProjectOverview } from "./projectOverview.js";
 import { projectDeploymentHistory, projectRollbackHistory } from "./projectHistory.js";
 import { safeConnectivity, storeCloudflareConnectivity } from "./connectivityVault.js";
+import { passwordResetUrl, sendPasswordResetEmail } from "./passwordResetMailer.js";
 
 export const managementRouter = express.Router();
 const roles = ["Owner", "Administrator", "Developer", "Viewer"] as const;
@@ -26,7 +27,17 @@ function withoutPassword(user: UserDoc & { _id?: ObjectId }) { const safe = { ..
 function requireOwner(req: express.Request, res: express.Response) { if (req.user?.role !== "Owner") { deny(res, "Owner role required"); return false; } return true; }
 
 managementRouter.get("/org/settings", requirePermission("org:manage"), async (req, res, next) => {
-  try { const organization = await collections.organizations.findOne({ _id: orgId(req) }); if (!organization) return res.status(404).json({ error: "Organization not found" }); res.json({ organization }); } catch (error) { next(error); }
+  try {
+    const organization = await collections.organizations.findOne({ _id: orgId(req) });
+    if (!organization) return res.status(404).json({ error: "Organization not found" });
+    res.json({
+      organization,
+      passwordResetEmail: {
+        configured: Boolean(process.env.CONTROL_CENTER_PASSWORD_RESET_WEBHOOK_URL),
+        guidance: "Set CONTROL_CENTER_PASSWORD_RESET_WEBHOOK_URL to send password reset links."
+      }
+    });
+  } catch (error) { next(error); }
 });
 
 managementRouter.patch("/org/settings", requirePermission("org:manage"), async (req, res, next) => {
@@ -90,14 +101,16 @@ managementRouter.post("/org/users/:id/revoke-sessions", requirePermission("users
 managementRouter.post("/org/users/:id/reset-password", noStore, requirePermission("users:manage"), requireRecentAuth, async (req, res, next) => {
   try {
     const id = oid(String(req.params.id)); const org = orgId(req);
-    const target = await collections.users.findOne({ _id: id, orgId: org });
+    const target = await collections.users.findOne({ _id: id, orgId: org, disabledAt: { $exists: false } });
     if (!target) return res.status(404).json({ error: "User not found" });
     if (target.role === "Owner" && !requireOwner(req, res)) return;
-    const oneTimePassword = randomToken(24); const now = new Date();
-    await collections.users.updateOne({ _id: id, orgId: org }, { $set: { passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, updatedAt: now } });
-    await collections.sessions.deleteMany({ orgId: org, userId: id });
-    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.password.reset", targetType: "user", targetId: id, result: "success", requestId: req.requestId });
-    res.json({ oneTimePassword });
+    const token = randomToken(32); const now = new Date();
+    const expiresAt = new Date(now.getTime() + Number(process.env.CONTROL_CENTER_PASSWORD_RESET_TTL_MINUTES || 30) * 60_000);
+    const delivery = await sendPasswordResetEmail({ email: target.email, resetUrl: passwordResetUrl(token), requestId: req.requestId });
+    await collections.passwordResetTokens.updateMany({ orgId: org, userId: id, usedAt: { $exists: false } }, { $set: { usedAt: now, updatedAt: now } });
+    await collections.passwordResetTokens.insertOne({ orgId: org, userId: id, tokenHash: hashSecret(token), expiresAt, deliveryStatus: delivery.status, createdAt: now, updatedAt: now });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.password.reset", targetType: "user", targetId: id, result: delivery.status === "failed" ? "failure" : "success", requestId: req.requestId, metadata: { stage: "admin-requested", delivery: delivery.status } });
+    res.json({ ok: true, delivery: delivery.status });
   } catch (error) { next(error); }
 });
 

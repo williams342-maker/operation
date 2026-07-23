@@ -18,7 +18,9 @@ export function apiError(error: unknown) { return axios.isAxiosError(error) ? St
 export function isRecentAuthRequired(error: unknown) { return axios.isAxiosError(error) && error.response?.status === 403 && error.response?.data?.code === "RECENT_AUTH_REQUIRED"; }
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean }; }
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }
-export async function login(organizationSlug: string, email: string, password: string) { const { data } = await api.post("/auth/login", { organizationSlug, email, password }); sessionExpiryReported = false; localStorage.setItem("cc.csrf", data.csrfToken); return data; }
+export async function login(email: string, password: string) { const { data } = await api.post("/auth/login", { email, password }); sessionExpiryReported = false; localStorage.setItem("cc.csrf", data.csrfToken); return data; }
+export async function requestPasswordReset(email: string) { return (await api.post("/auth/password-reset/request", { email })).data as { ok: true; message: string }; }
+export async function completePasswordReset(token: string, password: string) { return (await api.post("/auth/password-reset/complete", { token, password })).data as { ok: true }; }
 export async function reauthenticate(password: string) { return (await api.post("/auth/reauthenticate", { password })).data as { ok: true }; }
 export async function changePassword(currentPassword: string, newPassword: string) { return (await api.post("/auth/change-password", { currentPassword, newPassword })).data as { ok: true }; }
 export async function logout() {

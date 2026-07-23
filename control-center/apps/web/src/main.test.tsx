@@ -9,7 +9,11 @@ const mocks = vi.hoisted(() => ({
   bootstrapStatus: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
-  apiPatch: vi.fn()
+  apiPatch: vi.fn(),
+  login: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  completePasswordReset: vi.fn(),
+  changePassword: vi.fn()
 }));
 
 vi.mock("./api", () => ({
@@ -17,10 +21,13 @@ vi.mock("./api", () => ({
   apiError: (error: unknown) => error instanceof Error ? error.message : "Unexpected logout failure",
   bootstrapOwner: vi.fn(),
   bootstrapStatus: mocks.bootstrapStatus,
+  changePassword: mocks.changePassword,
+  completePasswordReset: mocks.completePasswordReset,
   isRecentAuthRequired: vi.fn(() => false),
-  login: vi.fn(),
+  login: mocks.login,
   logout: mocks.logout,
   reauthenticate: vi.fn(),
+  requestPasswordReset: mocks.requestPasswordReset,
   SESSION_EXPIRED_EVENT: "cc:session-expired"
 }));
 
@@ -46,6 +53,61 @@ const projectOverview = {
   revision: { confidence: "unavailable", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [], deployments: [], rollbacks: [] },
   availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations: []
 };
+
+describe("Login experience", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    window.history.replaceState({}, "", "/");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.login.mockReset();
+    mocks.requestPasswordReset.mockReset();
+    mocks.completePasswordReset.mockReset();
+  });
+
+  afterEach(() => cleanup());
+
+  it("does not ask for an organization slug and submits with Enter", async () => {
+    mocks.login.mockImplementation(async () => {
+      localStorage.setItem("cc.csrf", "csrf-token");
+      return { csrfToken: "csrf-token" };
+    });
+    renderRoot();
+
+    expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/organization slug/i)).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "owner@example.test");
+    await userEvent.type(screen.getByLabelText("Password"), "owner-password{Enter}");
+
+    await waitFor(() => expect(mocks.login).toHaveBeenCalledWith("owner@example.test", "owner-password"));
+    expect(mocks.login.mock.calls[0]).toHaveLength(2);
+  });
+
+  it("requests password reset with a generic response", async () => {
+    mocks.requestPasswordReset.mockResolvedValue({ ok: true, message: "If an active account exists, password reset instructions have been sent." });
+    renderRoot();
+
+    await userEvent.click(await screen.findByRole("button", { name: /forgot password/i }));
+    await userEvent.type(screen.getByLabelText("Email"), "owner@example.test");
+    await userEvent.click(screen.getByRole("button", { name: /send reset instructions/i }));
+
+    await waitFor(() => expect(mocks.requestPasswordReset).toHaveBeenCalledWith("owner@example.test"));
+    expect(await screen.findByRole("status")).toHaveTextContent(/if an active account exists/i);
+  });
+
+  it("submits a reset-link password change without exposing the token in UI text", async () => {
+    mocks.completePasswordReset.mockResolvedValue({ ok: true });
+    window.history.replaceState({}, "", "/reset-password?token=opaque-reset-token");
+    renderRoot();
+
+    expect(await screen.findByRole("heading", { name: "Choose a new password" })).toBeInTheDocument();
+    expect(screen.queryByText("opaque-reset-token")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("New password"), "replacement-password");
+    await userEvent.type(screen.getByLabelText("Confirm new password"), "replacement-password{Enter}");
+
+    await waitFor(() => expect(mocks.completePasswordReset).toHaveBeenCalledWith("opaque-reset-token", "replacement-password"));
+  });
+});
 
 describe("Sign Out", () => {
   beforeEach(() => {

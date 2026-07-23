@@ -43,10 +43,12 @@ import {
   bootstrapOwner,
   bootstrapStatus,
   changePassword,
+  completePasswordReset,
   isRecentAuthRequired,
   login,
   logout,
   reauthenticate,
+  requestPasswordReset,
   SESSION_EXPIRED_EVENT,
 } from "./api";
 import { discoveryUiState } from "./discoveryState";
@@ -175,34 +177,78 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
     </Centered>
   );
 }
-function Login({ onLogin }: { onLogin: () => void }) {
-  const f = useForm({ organizationSlug: "", email: "", password: "" });
+function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPassword: () => void }) {
+  const f = useForm({ email: "", password: "" });
   const mutation = useMutation({
-    mutationFn: () =>
-      login(f.values.organizationSlug, f.values.email, f.values.password),
+    mutationFn: () => login(f.values.email, f.values.password),
     onSuccess: onLogin,
   });
   return (
     <Centered title="OpsWorkbench">
-      <Field placeholder="Organization slug" {...f.field("organizationSlug")} />
-      <Field
-        placeholder="Email"
-        autoComplete="username"
-        {...f.field("email")}
-      />
-      <PasswordField
-        placeholder="Password"
-        autoComplete="current-password"
-        {...f.field("password")}
-      />
-      <Button
-        className="w-full"
-        disabled={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        Sign in
-      </Button>
-      <ErrorText error={mutation.error} />
+      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
+        <Field
+          aria-label="Email"
+          placeholder="Email"
+          autoComplete="username"
+          {...f.field("email")}
+        />
+        <PasswordField
+          aria-label="Password"
+          placeholder="Password"
+          autoComplete="current-password"
+          {...f.field("password")}
+        />
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={mutation.isPending || !f.values.email || !f.values.password}
+        >
+          {mutation.isPending ? "Signing in..." : "Sign in"}
+        </Button>
+        <div className="text-center">
+          <button type="button" className="text-sm text-primary hover:underline" onClick={onForgotPassword}>Forgot password?</button>
+        </div>
+        <ErrorText error={mutation.error} />
+      </form>
+    </Centered>
+  );
+}
+function ForgotPassword({ onBack }: { onBack: () => void }) {
+  const f = useForm({ email: "" });
+  const [submitted, setSubmitted] = useState(false);
+  const mutation = useMutation({
+    mutationFn: () => requestPasswordReset(f.values.email),
+    onSuccess: () => setSubmitted(true),
+  });
+  return (
+    <Centered title="Reset password">
+      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
+        <p className="text-sm text-muted">Enter your email address. If an active account exists, reset instructions will be sent.</p>
+        <Field aria-label="Email" placeholder="Email" autoComplete="username" {...f.field("email")} />
+        <Button type="submit" className="w-full" disabled={mutation.isPending || !f.values.email}>{mutation.isPending ? "Sending..." : "Send reset instructions"}</Button>
+        {submitted && <p role="status" className="text-sm text-success">If an active account exists, password reset instructions have been sent.</p>}
+        <button type="button" className="w-full text-sm text-primary hover:underline" onClick={onBack}>Back to sign in</button>
+        <ErrorText error={mutation.error} />
+      </form>
+    </Centered>
+  );
+}
+function ResetPassword({ token, onComplete }: { token: string; onComplete: () => void }) {
+  const f = useForm({ password: "", confirmPassword: "" });
+  const mutation = useMutation({
+    mutationFn: () => completePasswordReset(token, f.values.password),
+    onSuccess: onComplete,
+  });
+  const valid = token && f.values.password.length >= 12 && f.values.password === f.values.confirmPassword;
+  return (
+    <Centered title="Choose a new password">
+      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (valid && !mutation.isPending) mutation.mutate(); }}>
+        <PasswordField aria-label="New password" placeholder="New password" autoComplete="new-password" {...f.field("password")} />
+        <PasswordField aria-label="Confirm new password" placeholder="Confirm new password" autoComplete="new-password" {...f.field("confirmPassword")} />
+        <Button type="submit" className="w-full" disabled={!valid || mutation.isPending}>{mutation.isPending ? "Resetting..." : "Reset password"}</Button>
+        {f.values.confirmPassword && f.values.password !== f.values.confirmPassword && <p className="text-sm text-danger">New passwords do not match.</p>}
+        <ErrorText error={mutation.error} />
+      </form>
     </Centered>
   );
 }
@@ -315,14 +361,14 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["org-settings"],
-    queryFn: () => api.get("/org/settings").then((r) => r.data.organization),
+    queryFn: () => api.get("/org/settings").then((r) => r.data),
   });
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("UTC");
   React.useEffect(() => {
-    if (q.data) {
-      setName(q.data.name);
-      setTimezone(q.data.defaultTimezone || "UTC");
+    if (q.data?.organization) {
+      setName(q.data.organization.name);
+      setTimezone(q.data.organization.defaultTimezone || "UTC");
     }
   }, [q.data]);
   const m = useMutation({
@@ -330,8 +376,8 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
       api.patch("/org/settings", {
         name,
         defaultTimezone: timezone,
-        status: q.data?.status || "active",
-        expectedUpdatedAt: q.data.updatedAt,
+        status: q.data?.organization?.status || "active",
+        expectedUpdatedAt: q.data.organization.updatedAt,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["org-settings"] });
@@ -344,16 +390,21 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
       <h2 className="font-semibold">Organization Settings</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <Field value={name} onChange={(e) => setName(e.target.value)} />
-        <Field value={q.data.slug} disabled />
+        <Field value={q.data.organization.slug} disabled />
         <Field value={timezone} onChange={(e) => setTimezone(e.target.value)} />
-        <Field value={q.data.status || "active"} disabled />
+        <Field value={q.data.organization.status || "active"} disabled />
         <div className="text-sm text-muted">
-          Created {fmt(q.data.createdAt)}
+          Created {fmt(q.data.organization.createdAt)}
         </div>
         <div className="text-sm text-muted">
-          Updated {fmt(q.data.updatedAt)}
+          Updated {fmt(q.data.organization.updatedAt)}
         </div>
       </div>
+      {!q.data.passwordResetEmail?.configured && (
+        <p className="mt-3 rounded-md border border-warning/40 p-3 text-sm text-warning">
+          Password reset email delivery is not configured. {q.data.passwordResetEmail?.guidance}
+        </p>
+      )}
       <Button
         className="mt-4"
         onClick={() => m.mutate()}
@@ -469,7 +520,7 @@ function UserActions({ user, currentUser, onDone, toast }: { user: any; currentU
   const resetPassword = useMutation({
     mutationFn: () => api.post(`/org/users/${user._id}/reset-password`),
     onSuccess: (response) => {
-      toast(`One-time password: ${response.data.oneTimePassword}`);
+      toast(response.data.delivery === "not_configured" ? "Password reset recorded. Configure email delivery to send reset links." : "Password reset instructions sent");
       onDone();
     },
   });
@@ -1959,6 +2010,7 @@ export function Root() {
     Boolean(localStorage.getItem("cc.csrf")),
   );
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
+  const [authScreen, setAuthScreen] = useState<"login" | "forgot">("login");
   React.useEffect(() => {
     const expireSession = () => {
       queryClient.clear();
@@ -1987,10 +2039,16 @@ export function Root() {
     );
   if (!authed && !bootstrapComplete && status.data?.available)
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
+  if (!authed && window.location.pathname === "/reset-password") {
+    const token = new URLSearchParams(window.location.search).get("token") || "";
+    return <ResetPassword token={token} onComplete={() => { window.history.replaceState({}, "", "/"); setAuthScreen("login"); }} />;
+  }
   return authed ? (
     <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
+  ) : authScreen === "forgot" ? (
+    <ForgotPassword onBack={() => setAuthScreen("login")} />
   ) : (
-    <Login onLogin={() => setAuthed(true)} />
+    <Login onLogin={() => setAuthed(true)} onForgotPassword={() => setAuthScreen("forgot")} />
   );
 }
 

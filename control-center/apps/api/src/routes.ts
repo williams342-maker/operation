@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import {
   agentEnrollmentRequestSchema,
@@ -28,8 +29,52 @@ import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { revealConnectivity } from "./connectivityVault.js";
 import { bootstrapArtifactMetadata } from "./bootstrapArtifact.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
+import { passwordResetUrl, sendPasswordResetEmail } from "./passwordResetMailer.js";
 
 export const router = express.Router();
+
+const passwordResetRequestLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const passwordResetCompletionLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const passwordResetIdentifierAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function boundedAttempt(map: Map<string, { count: number; resetAt: number }>, key: string, limit: number) {
+  const now = Date.now();
+  const current = map.get(key);
+  if (!current || current.resetAt <= now) {
+    map.set(key, { count: 1, resetAt: now + 15 * 60_000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= limit;
+}
+
+function passwordResetIdentifierLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const email = z.object({ email: z.string().email() }).safeParse(req.body).data?.email.toLowerCase();
+  if (!email) return next();
+  if (!boundedAttempt(passwordResetIdentifierAttempts, hashSecret(email), 3)) {
+    return res.status(202).json({ ok: true, message: "If an active account exists, password reset instructions have been sent." });
+  }
+  next();
+}
+
+function passwordResetTokenLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const token = z.object({ token: z.string().min(1) }).safeParse(req.body).data?.token;
+  if (!token) return next();
+  if (!boundedAttempt(passwordResetIdentifierAttempts, hashSecret(token), 10)) {
+    return res.status(400).json({ error: "Reset link is invalid or expired" });
+  }
+  next();
+}
 
 function sanitizeRemoteForStorage(value?: string) {
   if (!value) return undefined;
@@ -53,6 +98,14 @@ const bootstrapSchema = z.object({
 async function bootstrapAvailable() {
   if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE === "disabled") return false;
   return await collections.organizations.countDocuments() === 0;
+}
+
+async function resolveLoginOrganization(explicitSlug?: string) {
+  const configuredSlug = process.env.CONTROL_CENTER_LOGIN_ORGANIZATION_SLUG || process.env.CONTROL_CENTER_ORGANIZATION_SLUG;
+  if (configuredSlug) return collections.organizations.findOne({ slug: configuredSlug });
+  if (explicitSlug && process.env.NODE_ENV !== "production") return collections.organizations.findOne({ slug: explicitSlug });
+  const organizations = await collections.organizations.find({ status: { $ne: "suspended" } }).limit(2).toArray();
+  return organizations.length === 1 ? organizations[0] : null;
 }
 
 router.get("/auth/bootstrap", noStore, async (_req, res, next) => {
@@ -96,11 +149,11 @@ router.post("/auth/bootstrap", noStore, async (req, res, next) => {
 
 router.post("/auth/login", noStore, async (req, res, next) => {
   try {
-    const body = z.object({ organizationSlug: z.string(), email: z.string().email(), password: z.string() }).parse(req.body);
-    const org = await collections.organizations.findOne({ slug: body.organizationSlug });
+    const body = z.object({ organizationSlug: z.string().optional(), email: z.string().email(), password: z.string() }).parse(req.body);
+    const org = await resolveLoginOrganization(body.organizationSlug);
     const user = org?._id ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
     if (!org?._id || !user?._id || !verifyPassword(body.password, user.passwordHash)) {
-      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase() } });
+      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { reason: org?._id ? "invalid-credentials" : "organization-unresolved" } });
       return res.status(401).json({ error: "Invalid credentials" });
     }
     const session = await createSession(user);
@@ -157,6 +210,7 @@ router.post("/auth/change-password", async (req, res, next) => {
     const now = new Date();
     await collections.users.updateOne({ _id: req.user._id, orgId: req.orgId }, { $set: { passwordHash: hashPassword(body.newPassword), updatedAt: now }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } });
     await collections.sessions.deleteMany({ orgId: req.orgId, userId: req.user._id, _id: { $ne: req.sessionId } });
+    await collections.passwordResetTokens.updateMany({ orgId: req.orgId, userId: req.user._id, usedAt: { $exists: false } }, { $set: { usedAt: now, updatedAt: now } });
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "user.password.change", targetType: "user", targetId: req.user._id, result: "success", requestId: req.requestId });
     res.json({ ok: true });
   } catch (error) { next(error); }
@@ -189,6 +243,63 @@ router.post("/agent/bootstrap/artifact", noStore, async (req, res, next) => {
     res.setHeader("X-OpsWorkbench-Artifact-SHA256", artifact.digest);
     res.setHeader("X-OpsWorkbench-Source-Commit", artifact.sourceCommit);
     fs.createReadStream(artifact.artifactPath).on("error", next).pipe(res);
+  } catch (error) { next(error); }
+});
+
+router.post("/auth/password-reset/request", noStore, passwordResetRequestLimiter, passwordResetIdentifierLimit, async (req, res, next) => {
+  try {
+    const body = z.object({ email: z.string().email() }).parse(req.body);
+    const org = await resolveLoginOrganization();
+    const user = org?._id ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
+    if (org?._id && user?._id) {
+      const token = randomToken(32);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + Number(process.env.CONTROL_CENTER_PASSWORD_RESET_TTL_MINUTES || 30) * 60_000);
+      const delivery = await sendPasswordResetEmail({ email: user.email, resetUrl: passwordResetUrl(token), requestId: req.requestId });
+      await collections.passwordResetTokens.updateMany({ orgId: org._id, userId: user._id, usedAt: { $exists: false } }, { $set: { usedAt: now, updatedAt: now } });
+      await collections.passwordResetTokens.insertOne({
+        orgId: org._id,
+        userId: user._id,
+        tokenHash: hashSecret(token),
+        expiresAt,
+        deliveryStatus: delivery.status,
+        createdAt: now,
+        updatedAt: now
+      });
+      await audit({ orgId: org._id, actorType: "anonymous", action: "user.password.reset", targetType: "user", targetId: user._id, result: delivery.status === "failed" ? "failure" : "success", requestId: req.requestId, metadata: { stage: "requested", delivery: delivery.status } });
+    } else {
+      await audit({ orgId: org?._id, actorType: "anonymous", action: "user.password.reset", result: "success", requestId: req.requestId, metadata: { stage: "requested", accountMatched: false } });
+    }
+    res.status(202).json({ ok: true, message: "If an active account exists, password reset instructions have been sent." });
+  } catch (error) { next(error); }
+});
+
+router.post("/auth/password-reset/complete", noStore, passwordResetCompletionLimiter, passwordResetTokenLimit, async (req, res, next) => {
+  try {
+    const body = z.object({ token: z.string().min(32).max(512), password: z.string().min(12).max(256) }).parse(req.body);
+    const now = new Date();
+    const reset = await collections.passwordResetTokens.findOneAndUpdate(
+      { tokenHash: hashSecret(body.token), expiresAt: { $gt: now }, usedAt: { $exists: false } },
+      { $set: { usedAt: now, updatedAt: now } },
+      { returnDocument: "after" }
+    );
+    if (!reset?._id) {
+      await audit({ actorType: "anonymous", action: "user.password.reset", result: "denied", requestId: req.requestId, metadata: { stage: "complete", reason: "invalid-or-expired" } });
+      return res.status(400).json({ error: "Reset link is invalid or expired" });
+    }
+    const user = await collections.users.findOne({ _id: reset.userId, orgId: reset.orgId, disabledAt: { $exists: false } });
+    if (!user?._id) {
+      await audit({ orgId: reset.orgId, actorType: "anonymous", action: "user.password.reset", targetType: "user", targetId: reset.userId, result: "denied", requestId: req.requestId, metadata: { stage: "complete", reason: "user-unavailable" } });
+      return res.status(400).json({ error: "Reset link is invalid or expired" });
+    }
+    await collections.users.updateOne(
+      { _id: user._id, orgId: reset.orgId },
+      { $set: { passwordHash: hashPassword(body.password), updatedAt: now }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } }
+    );
+    await collections.sessions.deleteMany({ orgId: reset.orgId, userId: user._id });
+    await collections.passwordResetTokens.updateMany({ orgId: reset.orgId, userId: user._id, usedAt: { $exists: false } }, { $set: { usedAt: now, updatedAt: now } });
+    await audit({ orgId: reset.orgId, actorType: "anonymous", action: "user.password.reset", targetType: "user", targetId: user._id, result: "success", requestId: req.requestId, metadata: { stage: "complete", sessionsRevoked: true } });
+    res.json({ ok: true });
   } catch (error) { next(error); }
 });
 
