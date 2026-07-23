@@ -14,7 +14,10 @@ api.interceptors.response.use(undefined, (error) => {
   }
   return Promise.reject(error);
 });
-export function apiError(error: unknown) { return axios.isAxiosError(error) ? String(error.response?.data?.error || error.message) : error instanceof Error ? error.message : "Unknown error"; }
+export function apiError(error: unknown) {
+  if (isRecentAuthRequired(error)) return "Please sign out and sign back in, then retry this protected action within 10 minutes.";
+  return axios.isAxiosError(error) ? String(error.response?.data?.error || error.message) : error instanceof Error ? error.message : "Unknown error";
+}
 export function isRecentAuthRequired(error: unknown) { return axios.isAxiosError(error) && error.response?.status === 403 && error.response?.data?.code === "RECENT_AUTH_REQUIRED"; }
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean }; }
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }

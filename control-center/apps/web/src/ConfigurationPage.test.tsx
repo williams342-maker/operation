@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const apiGet = vi.hoisted(() => vi.fn());
 const apiPost = vi.hoisted(() => vi.fn());
 const apiPatch = vi.hoisted(() => vi.fn());
-vi.mock("./api", () => ({ api: { get: apiGet, post: apiPost, patch: apiPatch }, apiError: () => "Configuration unavailable" }));
+vi.mock("./api", () => ({
+  api: { get: apiGet, post: apiPost, patch: apiPatch },
+  apiError: (error: { response?: { data?: { code?: string; error?: string } }; message?: string }) => error?.response?.data?.code === "RECENT_AUTH_REQUIRED"
+    ? "Please sign out and sign back in, then retry this protected action within 10 minutes."
+    : error?.response?.data?.error || error?.message || "Configuration unavailable"
+}));
 import { ConfigurationPage } from "./ConfigurationPage";
 
 function renderPage(path = "/configuration") {
@@ -33,6 +38,7 @@ describe("Configuration workspace foundation", () => {
     expect(await screen.findByText("Crafters Market Beta")).toBeInTheDocument();
     expect(screen.getByText("crafters-market-beta")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Project environment workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Environment" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText(/selected project and environment only/i)).toBeInTheDocument();
     expect(await screen.findByText("API_BASE_URL")).toBeInTheDocument();
     expect(await screen.findByText("CLOUDFLARE_ACCESS_CLIENT_SECRET")).toBeInTheDocument();
@@ -214,6 +220,27 @@ describe("Configuration workspace foundation", () => {
     expect(screen.getAllByText("pending approval").length).toBeGreaterThan(0);
     expect(screen.getByText("[redacted]")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token/i);
+  });
+
+  it("shows recent-auth requirements next to immutable plan creation", async () => {
+    const digest = "a".repeat(64);
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Beta", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-targets" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { targets: [{ _id: "ffffffffffffffffffffffff", serverId: "111111111111111111111111", revision: 4, composeProject: "crafters", statelessServices: ["web"], protectedServices: ["mongo"], healthChecks: [{ id: "web", url: "https://craftersmarketbeta.shop/healthz", timeoutMs: 1000 }], currentConfigurationDigest: digest }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [{ _id: "dddddddddddddddddddddddd", name: "PUBLIC_SITE_URL", description: "Public site URL", type: "url", secret: false, required: true, usage: "runtime", status: "pending", sources: ["manual"], services: ["web"], activeVersion: 2, risk: "low", removalPermitted: false, browserDisplayPermitted: true, restartRequirement: "reload" }], versions: [{ _id: "121212121212121212121212", definitionId: "dddddddddddddddddddddddd", environmentId: "cccccccccccccccccccccccc", version: 2, masked: "Configured", state: "pending", validationState: "unverified", createdAt: "2026-07-23T12:00:00.000Z" }] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockRejectedValue({ response: { status: 403, data: { code: "RECENT_AUTH_REQUIRED", error: "Recent authentication required" } } });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByText("1 setting prepared for Beta.")).toBeInTheDocument();
+    const createPlan = await screen.findByRole("button", { name: "Create immutable plan" });
+    await waitFor(() => expect(createPlan).toBeEnabled());
+    await userEvent.click(createPlan);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please sign out and sign back in");
+    expect(screen.getByRole("alert")).toHaveTextContent("within 10 minutes");
   });
 
   it("rehydrates an existing pending immutable deployment plan after page navigation", async () => {
