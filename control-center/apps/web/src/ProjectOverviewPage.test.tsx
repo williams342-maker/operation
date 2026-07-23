@@ -44,11 +44,21 @@ describe("Project Overview workspace", () => {
     expect(screen.getByText(/Public health/)).toBeInTheDocument();
   });
 
+  it("links to the implemented Environment workspace and keeps unsupported capabilities visibly unavailable", async () => {
+    const navigate = renderPage();
+    await screen.findByTestId("project-overview");
+    const environment = screen.getByRole("button", { name: "Environment" });
+    expect(environment).toBeEnabled();
+    await userEvent.click(environment);
+    expect(navigate).toHaveBeenCalledWith("/configuration");
+    expect(screen.queryByRole("button", { name: /Environment · Planned/ })).not.toBeInTheDocument();
+  });
+
   it("makes unsupported capabilities visibly unavailable without active pages", async () => {
     renderPage();
     await screen.findByTestId("project-overview");
     for (const title of ["Deployments", "Releases", "Rollbacks", "Logs"]) expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
-    expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(4);
+    expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(3);
     expect(screen.getByRole("button", { name: /Builder · Future/ })).toBeDisabled();
   });
 
