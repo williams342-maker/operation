@@ -138,4 +138,53 @@ describe("Configuration workspace foundation", () => {
     expect(project).toHaveDisplayValue("Select application");
     expect(screen.queryByText("Available Project")).toBeInTheDocument();
   });
+
+  it("connects Import .env preview names to the safe Add Variable workflow without uploading values", async () => {
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Preview", kind: "preview", protected: false }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [], versions: [] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockResolvedValue({ data: { id: "new" } });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByText("Preview (preview)")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Import .env" }));
+    await userEvent.type(screen.getByLabelText("Environment text"), "NEW_PUBLIC_URL=https://example.test");
+    await userEvent.click(screen.getByRole("button", { name: "Preview names" }));
+    await screen.findByText("NEW_PUBLIC_URL");
+    await userEvent.click(screen.getByRole("button", { name: "Add definition" }));
+
+    expect(screen.getByRole("heading", { name: "Add Variable" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Variable name")).toHaveValue("NEW_PUBLIC_URL");
+    expect(screen.getByLabelText("Variable type")).toHaveValue("url");
+    expect(document.body.textContent).not.toContain("https://example.test");
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add Variable" }).at(-1)!);
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/definitions", expect.not.objectContaining({ value: "https://example.test" })));
+    expect(apiPost).toHaveBeenCalledWith("/configuration/definitions", expect.objectContaining({ name: "NEW_PUBLIC_URL", applicableEnvironments: ["preview"], validation: { type: "url" } }));
+  }, 10000);
+
+  it("connects guided onboarding to import and read-only website validation", async () => {
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Preview", kind: "preview", protected: false }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [], versions: [] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByText("Preview (preview)")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Guided Onboarding" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open Import .env" }));
+    expect(screen.getByRole("heading", { name: "Import .env safely" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Close and clear" }));
+    await userEvent.click(screen.getByRole("button", { name: "Validate Website" }));
+    expect(await screen.findByRole("heading", { name: "Website validation" })).toBeInTheDocument();
+    expect(screen.getByText(/No deployment, promotion, server action, or secret display occurred/i)).toBeInTheDocument();
+    expect(apiPost).not.toHaveBeenCalled();
+  });
 });
