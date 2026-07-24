@@ -72,7 +72,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
         <Badge>{gitPreflightCandidate.gitPreflight?.status || "not_run"}</Badge>
       </div>
       {gitPreflightCandidate.gitPreflight?.checks.length ? <p className="mt-2 break-all text-sm">{gitPreflightCandidate.gitPreflight.checks.filter((check) => check.passed).length}/{gitPreflightCandidate.gitPreflight.checks.length} checks passed{gitPreflightCandidate.gitPreflight.resolvedRevision ? ` · resolved ${gitPreflightCandidate.gitPreflight.resolvedRevision}` : ""}{gitPreflightCandidate.gitPreflight.headRevision ? ` · HEAD ${gitPreflightCandidate.gitPreflight.headRevision}` : ""}</p> : null}
-      <div className="mt-3"><GhostButton disabled={runGitPreflight.isPending || !gitPreflightCandidate.planDigest || gitPreflightCandidate.gitPreflight?.status === "queued" || gitPreflightCandidate.gitPreflight?.status === "running"} onClick={() => runGitPreflight.mutate(gitPreflightCandidate)}>Run read-only Git preflight</GhostButton></div>
+      <div className="mt-3"><GhostButton disabled={runGitPreflight.isPending || !gitPreflightCandidate.planDigest || Boolean(gitPreflightCandidate.gitPreflight)} onClick={() => runGitPreflight.mutate(gitPreflightCandidate)}>Run read-only Git preflight</GhostButton></div>
     </Card>}
     <Card>
       <div className="text-xs text-muted">Project workspace</div>

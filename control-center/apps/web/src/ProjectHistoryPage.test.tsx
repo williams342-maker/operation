@@ -122,6 +122,7 @@ describe("Project history workspace", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Run read-only Git preflight" }));
     expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${checked.id}/git-preflight`, { planDigest: checked.planDigest, confirm: true });
     expect(await screen.findByText("Read-only Git preflight queued. Deployment execution remains unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run read-only Git preflight" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
   });
   it("shows failed control-plane prerequisites without enabling Git preflight", async () => {
