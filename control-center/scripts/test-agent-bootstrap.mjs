@@ -17,7 +17,7 @@ try {
   const results = [];
   const verificationEnvironments = [];
   for (const output of outputs) {
-    const buildEnvironment = { ...process.env, BOOTSTRAP_OUTPUT_DIR: output };
+    const buildEnvironment = { ...process.env, BOOTSTRAP_OUTPUT_DIR: output, ALLOW_DIRTY_BOOTSTRAP_BUILD: "true" };
     execFileSync(process.execPath, [path.join(root, "scripts", "build-agent-bootstrap.mjs")], { cwd: root, env: buildEnvironment, stdio: "pipe" });
     const signingEnvironment = { ...buildEnvironment, BOOTSTRAP_SIGNING_PRIVATE_KEY_FILE: privateKeyFile, BOOTSTRAP_SIGNING_PUBLIC_KEY_FILE: publicKeyFile, BOOTSTRAP_ARTIFACT_URL: "https://releases.example.test/opsworkbench-agent-test.tar.gz", BOOTSTRAP_PUBLICATION_STATUS: "draft" };
     verificationEnvironments.push(signingEnvironment);
