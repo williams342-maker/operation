@@ -67,17 +67,17 @@ describe("Project history workspace", () => {
     expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
   });
   it("approves a planned deployment record without exposing execution controls", async () => {
-    const planned = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), status: "planned", validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
+    const planned = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "planned", validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
     const approved = { ...planned, status: "approved", approval: { approverId: "e".repeat(24), approvedAt: new Date().toISOString() } };
     const project = { id: "a".repeat(24), name: "Project", archived: false };
     apiGet.mockResolvedValueOnce({ data: { project, records: [planned], limit: 20, hasMore: false } }).mockResolvedValueOnce({ data: { project, records: [approved], limit: 20, hasMore: false } });
     apiPost.mockResolvedValue({ data: { deployment: approved } });
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
-    await userEvent.click(await screen.findByRole("button", { name: "Approve as different administrator" }));
-    expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${planned.id}/approve`);
+    await userEvent.click(await screen.findByRole("button", { name: "Approve exact plan as different administrator" }));
+    expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${planned.id}/approve`, { planDigest: planned.planDigest, confirm: true });
     expect(await screen.findByText("Deployment plan approved. Execution remains unavailable.")).toBeInTheDocument();
     expect(await screen.findByText("approved")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Approve as different administrator" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve exact plan as different administrator" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
   });
 });
