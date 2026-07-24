@@ -24,6 +24,7 @@ export async function audit(input: {
   targetId?: ObjectId | string;
   result: AuditResult;
   requestId: string;
+  dedupeKey?: string;
   metadata?: Record<string, string | number | boolean | null>;
 }) {
   const safeMetadata: Record<string, string | number | boolean | null> = {};
@@ -31,10 +32,15 @@ export async function audit(input: {
     if (isSensitiveKey(key)) continue;
     safeMetadata[key] = redactValue(value);
   }
-  await collections.auditEvents.insertOne({
-    ...input,
-    metadata: safeMetadata,
-    createdAt: new Date()
-  });
+  try {
+    await collections.auditEvents.insertOne({
+      ...input,
+      metadata: safeMetadata,
+      createdAt: new Date()
+    });
+  } catch (error) {
+    if (input.dedupeKey && (error as { code?: number }).code === 11000) return;
+    throw error;
+  }
   if (/^(health-check|mongo-check|task\.complete|ai\.settings|deployment|rollback)/.test(input.action)) invalidateOperationalContext();
 }

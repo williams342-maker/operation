@@ -111,6 +111,7 @@ async function ensureIndexes() {
     collections.agentTaskResults.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.auditEvents.createIndex({ orgId: 1, createdAt: -1 }),
     collections.auditEvents.createIndex({ requestId: 1 }),
+    collections.auditEvents.createIndex({ dedupeKey: 1 }, { unique: true, sparse: true }),
     collections.aiUsage.createIndex({ orgId: 1, createdAt: -1 }),
     collections.aiUsage.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
     collections.aiUsage.createIndex({ orgId: 1, concurrencySlot: 1 }, { unique: true, partialFilterExpression: { concurrencySlot: { $type: "number" } } }),

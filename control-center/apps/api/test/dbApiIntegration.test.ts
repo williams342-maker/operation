@@ -605,7 +605,10 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
 
     const credentialRemote = `https://user:${["not", "a", "credential"].join("-")}@example.test/org/repo.git?access=redacted#fragment`;
     const discoveryPayload = { ...telemetryPayload, heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, discovery: { collectedAt: new Date().toISOString(), dockerInstalled: true, nginxInstalled: true, composeProjects: [], applications: [], warnings: ["unreadable_path"], discoveryTruncated: true, truncationCategories: ["applications"], repositories: [{ path: "/srv/phase-1b", branch: "main", commit: "a".repeat(40), remote: credentialRemote, dirty: false }] } };
+    const discoveryAuditBefore = await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "configuration.discovery.received", targetId: new ObjectId(credentials.serverId) });
     const discoveryPoll = await poll(credentials, discoveryPayload); assert.equal(discoveryPoll.status, 200);
+    const repeatedDiscoveryPoll = await poll(credentials, { ...discoveryPayload, heartbeat: { ...discoveryPayload.heartbeat, collectedAt: new Date().toISOString() }, discovery: { ...discoveryPayload.discovery, collectedAt: new Date().toISOString() } }); assert.equal(repeatedDiscoveryPoll.status, 200);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "configuration.discovery.received", targetId: new ObjectId(credentials.serverId) }), discoveryAuditBefore + 1);
     const storedDiscovery = await collections.telemetry.findOne({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId), discovery: { $exists: true } }, { sort: { collectedAt: -1 } });
     const storedRemote = ((storedDiscovery?.discovery as { repositories?: Array<{ remote?: string }> })?.repositories || [])[0]?.remote;
     assert.equal(storedRemote, "https://example.test/org/repo.git"); assert.equal(JSON.stringify(storedDiscovery?.discovery).includes("not-a-credential"), false);

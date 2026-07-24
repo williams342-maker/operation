@@ -4,6 +4,8 @@ import type { ServerDoc } from "./models.js";
 import { audit } from "./audit.js";
 import { collections } from "./db.js";
 
+const CONFIGURATION_DISCOVERY_AUDIT_WINDOW_MS = 15 * 60 * 1000;
+
 function isWithin(root: string, candidate: string) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
@@ -58,6 +60,7 @@ export async function ingestConfigurationDiscovery(server: ServerDoc, settings: 
     targetId: server._id,
     result: "success",
     requestId,
+    dedupeKey: `configuration.discovery.received:${server._id.toHexString()}:${Math.floor(now.getTime() / CONFIGURATION_DISCOVERY_AUDIT_WINDOW_MS)}`,
     metadata: { received: settings.length, mapped }
   });
   return { received: settings.length, mapped };
