@@ -16,7 +16,7 @@ export function SystemHealthCard() {
         ["Agent", state.agent?.status],
         ["Workers", state.backgroundWorkers?.status],
         ["AI", state.ai?.status],
-        ["Organizations", state.ai?.organizationState],
+        ["Organization AI", state.ai?.organizationState],
         ["Audit", state.audit?.status],
         ["Rate limiting", state.rateLimiting?.status],
         ["Cache", state.cache?.status],
