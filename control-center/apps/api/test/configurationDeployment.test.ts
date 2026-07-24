@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
 import { assertApproverSeparation, assertDeploymentPolicy, encryptDeploymentValues } from "../src/configurationDeployment.js";
-import { configurationPlanStateForDeploymentPhase, isConfigurationMutationTask, safeTaskSummary } from "../src/tasks.js";
+import { configurationPlanStateForDeploymentPhase, gitPreflightChecks, isConfigurationMutationTask, safeTaskSummary } from "../src/tasks.js";
 import { deploymentCapabilities, hasPermission } from "@control-center/shared";
 
 const target = { environmentKind: "staging", protected: false, repositoryRoot: "/srv/app", environmentFilePath: "/srv/app/.env.staging", composePath: "/srv/app/compose.yml", statelessServices: ["web"], protectedServices: ["mongo"] };
@@ -19,3 +19,9 @@ test("agent-upgrade summaries persist only a bounded category", () => { const se
 test("ordinary task summaries redact URLs, query values, environment values, controls, and oversized text", () => { const secret = crypto.randomUUID(); const summary = safeTaskSummary("collect.system", `https://user:pass@example.test/path?token=${secret}\nAPI_KEY=${secret}\u0000${"x".repeat(2000)}`, {}); assert.equal(summary.includes(secret), false); assert.equal(summary.includes("user:pass"), false); assert.equal([...summary].some((character) => character.charCodeAt(0) < 32), false); assert.ok(summary.length <= 500); });
 test("successful telemetry tasks without agent messages get truthful success summaries", () => { const summary = safeTaskSummary("collect.telemetry", undefined, { heartbeat: {}, docker: [], compose: [], git: [], httpHealth: [], mongo: [] }, "succeeded"); assert.equal(summary, "Task completed successfully"); });
 test("failed ordinary tasks without agent messages keep truthful failure summaries", () => { const summary = safeTaskSummary("collect.telemetry", undefined, { errorCategory: "unknown" }, "failed"); assert.equal(summary, "Task failed"); });
+test("Git preflight evidence is bound to the exact approved revision", () => {
+  const revision = "a".repeat(40);
+  assert.deepEqual(gitPreflightChecks({ requestedRevision: revision, requestedRevisionExists: true }, revision).map((check) => check.passed), [true, true, true]);
+  assert.deepEqual(gitPreflightChecks({ requestedRevision: "b".repeat(40), requestedRevisionExists: true }, revision).map((check) => check.passed), [true, false, false]);
+  assert.deepEqual(gitPreflightChecks(undefined, revision).map((check) => check.passed), [false, false, false]);
+});

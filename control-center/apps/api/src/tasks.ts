@@ -63,6 +63,12 @@ export function configurationPlanStateForDeploymentPhase(phase: string | undefin
   return phase === "succeeded" ? "succeeded" : phase === "rolled_back" ? "rolled_back" : "failed";
 }
 
+export function gitPreflightChecks(row: Record<string, unknown> | undefined, requestedRevision: string) {
+  const revisionBound = row?.requestedRevision === requestedRevision;
+  const revisionExists = revisionBound && row?.requestedRevisionExists === true;
+  return [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_bound", passed: revisionBound }, { name: "requested_revision_exists", passed: revisionExists }];
+}
+
 export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
   const registry = taskRegistry[input.type];
   if (!registry) throw new Error("Unsupported task type");
@@ -164,8 +170,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
       if (deployment) {
         const rows = body.result && typeof body.result === "object" && Array.isArray((body.result as { git?: unknown[] }).git) ? (body.result as { git: unknown[] }).git : [];
         const row = rows.find((item) => item && typeof item === "object" && (item as { projectId?: unknown }).projectId === deployment.projectId.toHexString()) as Record<string, unknown> | undefined;
-        const revisionExists = row?.requestedRevisionExists === true;
-        const checks = [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_exists", passed: revisionExists }];
+        const checks = gitPreflightChecks(row, deployment.requestedRevision);
         const status = body.event === "succeeded" && checks.every((check) => check.passed) ? "passed" as const : "failed" as const;
         await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, "gitPreflight.taskId": id }, { $set: { gitPreflight: { taskId: id, status, checks, headRevision: typeof row?.commit === "string" ? row.commit : undefined, branch: typeof row?.branch === "string" ? row.branch : undefined, dirty: typeof row?.dirty === "boolean" ? row.dirty : undefined, checkedAt: now }, updatedAt: now } });
       }
