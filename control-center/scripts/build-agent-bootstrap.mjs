@@ -34,7 +34,12 @@ function artifact(role, filename) { const file = path.join(output, filename); re
 
 try {
   cleanOutput();
-  execFileSync(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", path.join(root, "packages", "shared", "tsconfig.json")], { cwd: root, stdio: "pipe" });
+  try {
+    execFileSync(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", path.join(root, "packages", "shared", "tsconfig.json")], { cwd: root, stdio: "pipe" });
+  } catch (error) {
+    const output = Buffer.isBuffer(error?.stdout) ? error.stdout.toString("utf8").trim() : "";
+    throw new Error(output || "Shared package build failed", { cause: error });
+  }
   const packageRoot = path.join(staging, "package");
   const agentOut = path.join(packageRoot, "control-center", "apps", "agent", "dist", "agent.js");
   const updaterOut = path.join(packageRoot, "control-center", "apps", "updater", "dist", "main.js");

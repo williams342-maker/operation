@@ -30,6 +30,11 @@ https.createServer(tls, (request, response) => {
 http.createServer((request, response) => {
   request.resume();
   request.on("end", () => {
+    if (fs.existsSync("/run/opsworkbench-bootstrap-fixture/fail-control-plane")) {
+      response.writeHead(503, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "fixture control plane is unavailable" }));
+      return;
+    }
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ serverId: "fixture-server", tasks: [] }));
   });

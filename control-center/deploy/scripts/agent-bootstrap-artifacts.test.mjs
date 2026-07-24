@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
-function run(script, env) { const result = spawnSync(process.execPath, [path.join(root, "scripts", script)], { cwd: root, env: { ...process.env, ...env }, encoding: "utf8" }); assert.equal(result.status, 0, `${script}: ${result.stderr}`); return result.stdout.trim(); }
+function run(script, env) { const result = spawnSync(process.execPath, [path.join(root, "scripts", script)], { cwd: root, env: { ...process.env, ...env }, encoding: "utf8" }); assert.equal(result.status, 0, `${script}:\n${result.stdout}\n${result.stderr}`); return result.stdout.trim(); }
 function files(directory) { return Object.fromEntries(fs.readdirSync(directory).sort().map((name) => [name, crypto.createHash("sha256").update(fs.readFileSync(path.join(directory, name))).digest("hex")])); }
 
 test("bootstrap build is reproducible, signed, schema-bound, and secret-free", { timeout: 120_000 }, () => {
@@ -27,6 +27,7 @@ test("bootstrap and rollback scripts avoid direct execution and preserve fixed p
   assert.doesNotMatch(bootstrap, /curl[^\n]*\|[^\n]*(?:bash|sh)/); assert.match(bootstrap, /manifest signature verification failed/); assert.match(bootstrap, /artifact signature verification failed/); assert.match(bootstrap, /agentId\|\|!c\.agentSecret/); assert.match(bootstrap, /bootstrap validation failed and rollback was requested/); assert.match(bootstrap, /current_version.*0\.1\.0/); assert.match(rollback, /backup marker escaped the backup root/); assert.match(bootstrap, /chmod 0600 "\$curl_config"/); assert.match(bootstrap, /} >"\$curl_config"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /CONTROL_CENTER_ENROLLMENT_TOKEN=/);
   assert.match(bootstrap, /install -d -o root -g root -m 0711 "\$STATE_ROOT"/); assert.match(rollback, /install -d -o root -g root -m 0711 "\$STATE_ROOT"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /chown -R[^\n]*STATE_ROOT|chmod 0?777/);
   assert.match(bootstrap, /fs\.chmodSync\(pending,stat\.mode\)/, "bootstrap must restore the enrolled configuration mode after its restrictive umask");
+  assert.match(bootstrap, /bootstrap validation attempts may be shortened only for a draft release/); assert.match(bootstrap, /seq 1 "\$validation_attempts"/);
   assert.match(bootstrap, /OPSWORKBENCH_BOOTSTRAP_LOCK_HELD=1/); assert.match(rollback, /\/proc\/\$\$\/fd\/9/); assert.match(rollback, /inherited bootstrap lock is invalid/);
   assert.match(bootstrap, /rm -f -- "\$heartbeat" "\$heartbeat\.pending"[\s\S]*systemctl restart "\$AGENT_SERVICE"/);
   assert.match(builder, /"typescript", "bin", "tsc".*"packages", "shared", "tsconfig\.json"/);

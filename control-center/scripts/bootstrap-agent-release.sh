@@ -63,6 +63,10 @@ openssl pkeyutl -verify -pubin -inkey "$OPSWORKBENCH_TRUSTED_PUBLIC_KEY" -rawin 
 [ "$(json "$manifest" version)" = "$RELEASE_VERSION" ] || fail "manifest version mismatch"
 publication_status="$(json "$manifest" publicationStatus)"
 if [ "$publication_status" != "published" ]; then [ "$publication_status" = "draft" ] && [ "${OPSWORKBENCH_ALLOW_DRAFT_RELEASE:-}" = "true" ] || fail "release is not published"; fi
+validation_attempts="${OPSWORKBENCH_BOOTSTRAP_VALIDATION_ATTEMPTS:-60}"
+case "$validation_attempts" in ''|*[!0-9]*) fail "bootstrap validation attempts must be an integer" ;; esac
+[ "$validation_attempts" -ge 1 ] && [ "$validation_attempts" -le 60 ] || fail "bootstrap validation attempts must be between 1 and 60"
+[ "$validation_attempts" = "60" ] || { [ "$publication_status" = "draft" ] && [ "${OPSWORKBENCH_ALLOW_DRAFT_RELEASE:-}" = "true" ] || fail "bootstrap validation attempts may be shortened only for a draft release"; }
 [ "$(json "$manifest" revoked)" = "false" ] || fail "release is revoked"
 [ "$(json "$manifest" nonProductionOnly)" = "true" ] || fail "bootstrap release is not non-production-only"
 key_id="$(json "$manifest" signingKeyId)"
@@ -133,7 +137,7 @@ systemctl restart "$AGENT_SERVICE"
 systemctl start "$UPDATER_PATH"
 
 validated=false
-for _ in $(seq 1 60); do
+for _ in $(seq 1 "$validation_attempts"); do
   if [ -s "$heartbeat" ] && node -e 'const fs=require("fs");const h=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const required=["environmentDiscovery","agentUpgrade","upgradeManifestHandoff"];if(h.agentVersion!==process.argv[2]||h.discoveryComplete!==true||required.some((c)=>!h.capabilities?.includes(c)))process.exit(1);' "$heartbeat" "$RELEASE_VERSION"; then validated=true; break; fi
   sleep 2
 done

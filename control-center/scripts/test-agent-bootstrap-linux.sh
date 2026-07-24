@@ -45,6 +45,7 @@ run_bootstrap() {
     -e OPSWORKBENCH_RELEASE_BASE_URL=https://127.0.0.1:8443 \
     -e OPSWORKBENCH_TRUSTED_PUBLIC_KEY="/release/$public_key" \
     -e OPSWORKBENCH_ALLOW_DRAFT_RELEASE=true \
+    -e OPSWORKBENCH_BOOTSTRAP_VALIDATION_ATTEMPTS=10 \
     "$container" bash "/release/$installer"
 }
 
@@ -69,4 +70,16 @@ docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
 docker exec "$container" systemctl show opsworkbench-agent.service -p ExecStart --value | grep -F "/opt/opsworkbench-agent/source/"
 docker exec "$container" test ! -e /opt/opsworkbench-agent/current
 
-echo "Disposable Linux bootstrap install, reboot, idempotency, and rollback validation passed"
+docker exec "$container" mkdir -p /run/opsworkbench-bootstrap-fixture
+docker exec "$container" touch /run/opsworkbench-bootstrap-fixture/fail-control-plane
+if failure_output="$(run_bootstrap 2>&1)"; then
+  echo "Bootstrap unexpectedly passed with a failed control-plane poll" >&2
+  exit 4
+fi
+printf '%s\n' "$failure_output" | grep -F "bootstrap validation failed and rollback was requested"
+docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.1.0")process.exit(1)'
+docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
+docker exec "$container" systemctl show opsworkbench-agent.service -p ExecStart --value | grep -F "/opt/opsworkbench-agent/source/"
+docker exec "$container" test ! -e /opt/opsworkbench-agent/current
+
+echo "Disposable Linux bootstrap install, reboot, idempotency, explicit rollback, and failure rollback validation passed"
