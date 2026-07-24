@@ -147,3 +147,24 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
 }
 
 export function resetReplayStateForTests() { if (process.env.NODE_ENV !== "test") throw new Error("Test-only operation"); usedNonces.clear(); }
+
+export function safeConfigurationFailureProgress(error: unknown): DeploymentProgress {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  const category =
+    /capabilit/.test(message) ? "capability" :
+    /agent version|stable|minimum/.test(message) ? "version" :
+    /replay|nonce/.test(message) ? "replay" :
+    /escape|contain|repository root|safe directory|regular file|hard link/.test(message) ? "path" :
+    /symlink/.test(message) ? "symlink" :
+    /mount/.test(message) ? "mount" :
+    /syntax|duplicate|parse|json|decrypt|cipher|auth|encrypted|value reference|value rejected|version mismatch/.test(message) ? "parsing" :
+    /permission|eacces|eperm|access/.test(message) ? "environment" :
+    /backup/.test(message) ? "backup" :
+    /write|rename|copy|fsync|chmod|chown/.test(message) ? "write" :
+    /activation|compose|docker/.test(message) ? "activation" :
+    /health/.test(message) ? "health" :
+    /rollback/.test(message) ? "rollback" :
+    /production|environment/.test(message) ? "environment" :
+    "unknown";
+  return { phase: "failed", progress: 100, changedVariables: 0, services: [], healthChecksPassed: 0, errorCategory: category };
+}

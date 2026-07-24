@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { deploymentCapabilities } from "@control-center/shared";
-import { applyEnvironmentMutations, configurationDigest, executeConfigurationDeployment, parseEnvironment, resetReplayStateForTests } from "../src/configurationDeployment.js";
+import { applyEnvironmentMutations, configurationDigest, executeConfigurationDeployment, parseEnvironment, resetReplayStateForTests, safeConfigurationFailureProgress } from "../src/configurationDeployment.js";
 
 process.env.NODE_ENV = "test";
 function encryptDeploymentValues(values: Record<string, string>, signingKey: string) { const key = crypto.createHash("sha256").update(`configuration-deployment:${signingKey}`).digest(); const nonce = crypto.randomBytes(12); const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce); const ciphertext = Buffer.concat([cipher.update(JSON.stringify(values)), cipher.final()]); return { algorithm: "aes-256-gcm" as const, ciphertext: ciphertext.toString("base64"), nonce: nonce.toString("base64"), authTag: cipher.getAuthTag().toString("base64"), keyVersion: "agent-signing-v1" }; }
@@ -15,6 +15,28 @@ const safeNetwork = { resolve: async () => ["93.184.216.34"] };
 test("parser rejects injection, duplicate names, and invalid names", () => { assert.throws(() => parseEnvironment("A=ok\nBAD LINE\n")); assert.throws(() => parseEnvironment("A=1\nA=2\n")); assert.throws(() => parseEnvironment("lower=bad\n")); });
 test("typed mutations preserve comments and blank lines while supporting add, replace, disable, and remove", () => { const source = "# retained\nA=one\n\nB=two\n"; const result = applyEnvironmentMutations(source, [{ name: "A", versionId: "123456789012", secret: false, operation: "update", valueRef: "a" }, { name: "B", versionId: "123456789013", secret: false, operation: "disable" }, { name: "C", versionId: "123456789014", secret: true, operation: "add", valueRef: "c" }], { a: "changed", c: "secret-value" }); assert.equal(result, "# retained\nA=changed\n\n\nC=secret-value\n"); });
 test("parser rejects multiline, CR injection, NUL, and oversized values", () => { assert.throws(() => parseEnvironment("A=ok\rBAD=two\n")); assert.throws(() => parseEnvironment("A=bad\0value\n")); assert.throws(() => parseEnvironment(`A=${"x".repeat(16 * 1024 + 1)}\n`)); });
+test("safe failure progress reports bounded configuration categories", () => {
+  const cases = [
+    ["Expected configuration version mismatch", "parsing"],
+    ["Replay rejected", "replay"],
+    ["Agent version must be stable", "version"],
+    ["Target escapes repository root", "path"],
+    ["Symlink target rejected", "symlink"],
+    ["Mount-boundary target rejected", "mount"],
+    ["Incomplete deployment capabilities", "capability"],
+    ["docker compose exited", "activation"],
+    ["Health check target rejected", "health"],
+    ["secret-value-never-echoed", "unknown"]
+  ] as const;
+  for (const [message, expected] of cases) {
+    const result = safeConfigurationFailureProgress(new Error(message));
+    assert.equal(result.phase, "failed");
+    assert.equal(result.errorCategory, expected);
+    assert.equal(JSON.stringify(result).includes(message), false);
+    assert.deepEqual(result.services, []);
+    assert.equal(result.changedVariables, 0);
+  }
+});
 test("agent applies atomically and preserves backup", async () => { resetReplayStateForTests(); const item = fixture(); const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-001", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => true }); assert.equal(result.phase, "succeeded"); assert.match(fs.readFileSync(item.env, "utf8"), /TOKEN=fixture-value/); assert.equal(fs.existsSync(path.join(item.root, result.backupId!)), true); });
 test("agent rolls back and revalidates health", async () => { resetReplayStateForTests(); const item = fixture(); let checks = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-002", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => ++checks > 1 }); assert.equal(result.phase, "rolled_back"); assert.equal(result.healthChecksPassed, 1); assert.equal(checks, 2); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); });
 test("agent distinguishes rollback activation and health failures", async () => { resetReplayStateForTests(); const activation = fixture(); let composeCalls = 0; const activationResult = await executeConfigurationDeployment(activation.payload, activation.key, "rollback-activation", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: ++composeCalls === 1 ? 1 : 2 }), health: async () => true }); assert.equal(activationResult.phase, "rollback_failed"); assert.equal(activationResult.rollbackErrorCategory, "activation"); resetReplayStateForTests(); const health = fixture(); const healthResult = await executeConfigurationDeployment(health.payload, health.key, "rollback-health", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => false }); assert.equal(healthResult.phase, "rollback_failed"); assert.equal(healthResult.rollbackErrorCategory, "health"); });

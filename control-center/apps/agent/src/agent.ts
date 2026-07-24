@@ -5,7 +5,7 @@ import path from "node:path";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
-import { executeConfigurationDeployment } from "./configurationDeployment.js";
+import { executeConfigurationDeployment, safeConfigurationFailureProgress } from "./configurationDeployment.js";
 import { handoffUpgrade } from "./upgradeHandoff.js";
 import { collectConnectivity } from "./connectivity.js";
 import { shouldEnroll } from "./enrollmentDecision.js";
@@ -133,7 +133,7 @@ async function pollOnce() {
       if (taskId) {
         const configurationTask = task.envelope.taskType === "configuration.apply" || task.envelope.taskType === "configuration.rollback";
         const upgradeTask = task.envelope.taskType === "agent.upgrade" && task.payload.agentUpgrade;
-        const result = configurationTask ? { phase: "failed", progress: 100, changedVariables: 0, services: [], healthChecksPassed: 0, errorCategory: "unknown" } : upgradeTask ? { phase: "failed", upgradeId: upgradeTask.upgradeId, errorCategory: "unknown" } : { errorCategory: "unknown" };
+        const result = configurationTask ? safeConfigurationFailureProgress(error) : upgradeTask ? { phase: "failed", upgradeId: upgradeTask.upgradeId, errorCategory: "unknown" } : { errorCategory: "unknown" };
         await acknowledge(config, taskId, "failed", result, configurationTask ? "Configuration deployment failed" : (error as Error).message).catch(() => undefined);
       }
     }
