@@ -43,7 +43,7 @@ export async function ingestConfigurationDiscovery(server: ServerDoc, settings: 
           required: setting.required,
           ...(setting.provider ? { provider: setting.provider } : {}),
           usage: setting.usage,
-          status: setting.configured ? "configured" as const : "unverified" as const,
+          ...(setting.configured === true ? {} : { status: "unverified" as const }),
           createdAt: now
         }
       },
