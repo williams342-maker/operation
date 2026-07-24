@@ -7,11 +7,11 @@ Ed25519 signature.
 ## Active release
 
 - Environment: private staging, host `146.190.210.14`
-- Source commit: `e058083b250f191f9d80a5c0246044a325dabf98`
-- Release path: `/opt/opsworkbench/releases/review-e058083/app`
-- Immediate rollback: `/opt/opsworkbench/releases/review-56e6f1f/app`
+- Source commit: `4adf0ba8e78dfe8505c64b24e9eb7c2b074f6cda`
+- Release path: `/opt/opsworkbench/releases/review-4adf0ba/app`
+- Immediate rollback: `/opt/opsworkbench/releases/review-e058083/app`
 - Source archive SHA-256:
-  `7e2ed634d476af784eed452f42d45c7e0b748b455d075f8d796bdf361099457b`
+  `486dce5258707a763fd42d66cb66dd1be0bf535e627683ef149b50f6fa603d13`
 - Activated: 2026-07-24 UTC
 
 ## Completed evidence
@@ -27,6 +27,8 @@ Ed25519 signature.
 - Shared: 55 passed, 1 platform skip.
 - Deployment-script and bootstrap verification passed with expected
   platform-only skips.
+- The guarded API suite was then run against a fresh internal disposable
+  MongoDB container: all 75 API tests passed with zero skips.
 - Docker Buildx checks for the API and web images completed with no warnings.
 - API and web containers reported healthy with the exact source commit.
 - `/readyz` reported API, MongoDB, agent monitoring, audit, rate limiting, and
@@ -37,6 +39,9 @@ Ed25519 signature.
   viewport width, and no browser console errors were captured.
 - The authenticated Health dashboard showed the exact `e058083` build identity
   and the expected ready/disabled/not-configured subsystem states.
+- After the presentation correction, the Health dashboard showed the exact
+  `4adf0ba` build identity and labeled the per-organization AI state
+  unambiguously as `Organization AI`.
 - The authenticated Audit dashboard showed the successful login and
   `project.deployment.expire` event. Its visible table contained no
   password-, bearer-, MongoDB-URL-, API-key-, or private-key-shaped text.
@@ -84,12 +89,25 @@ Ed25519 signature.
 - The disposable restore container and volume were removed after verification.
 - Live staging remained ready after the rehearsal.
 
+### Disposable identity and isolation suite
+
+- The unguarded database suite created its own isolated database and synthetic
+  identities; it did not use the live staging database.
+- Two synthetic organizations remained isolated across IDs, queries, users,
+  projects, telemetry, tasks, configuration, audit, and history.
+- Owner and Administrator allowed operations, Viewer denials, login,
+  reauthentication, logout, expired sessions, password reset, CSRF, and
+  authorization audit behavior passed.
+- Deployment approval separation, digest binding, expiration reconciliation,
+  idempotent audit evidence, and redaction assertions passed.
+- The disposable MongoDB container, internal network, test images, and test
+  source directories were removed after the run.
+
 ## Remaining gates
 
 - Complete at least 24 continuous hours of threshold monitoring.
-- Complete authenticated login, recent-auth, logout, and expired-session checks.
-- Complete Owner/Administrator allow and Viewer deny checks.
-- Complete two-synthetic-organization isolation checks.
+- Complete live public-path logout and expired-session checks if they are
+  required in addition to the isolated staging-host suite.
 - Complete the remaining failed-login, recent-auth, enrollment, configuration,
   and task audit categories plus API, agent, proxy, and Docker log redaction.
 - Exercise the disposable agent restart/recovery check.
