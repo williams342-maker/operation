@@ -259,9 +259,37 @@ Ed25519 signature.
   mechanics, but does not replace a successful control-plane plan, approval,
   dispatch, acknowledgement, and rollback record.
 
+### 24-hour telemetry review and resource cleanup
+
+- The OpsWorkbench server retained 2,841 telemetry samples from
+  2026-07-23 18:45:17 UTC through 2026-07-24 18:44:55 UTC.
+- Heartbeat intervals had a 30.237-second median, 32.387-second p95, and
+  90.717-second maximum. Five intervals exceeded 60 seconds; the two material
+  gaps aligned with recorded staging build/activation work, including the
+  exact `7a569278` activation and readiness checkpoint.
+- CPU load had a 4.5% median and 100% p95/maximum during repeated local Docker
+  builds. Memory use had a 32.41% median, 36.13% p95, and 50.65% maximum.
+  Root-disk use rose from 66.09% to 79.48%, with an 80.38% p95 and 81.29%
+  maximum.
+- The telemetry window contained zero non-running container observations.
+  The terminal-state review found zero active tasks and zero expired active
+  tasks.
+- Docker's build cache accounted for 10.84 GB, of which 10.67 GB was reported
+  reclaimable. A build-cache-only prune reclaimed 10.84 GB without removing
+  images, volumes, releases, backups, checkpoints, or rollback artifacts.
+- The next agent sample reported root-disk use at 66.53%. API and web remained
+  healthy with zero restart count, the agent remained active, and readiness
+  continued to report exact active build `7a569278`.
+- This evidence satisfies the resource, heartbeat, container-state, and task
+  portions of the review. It cannot retroactively certify the complete
+  24-hour gate because persistent HTTP availability, status-rate, and latency
+  series were not collected across container replacements.
+
 ## Remaining gates
 
-- Complete at least 24 continuous hours of threshold monitoring.
+- Capture a new continuous 24-hour window with persistent HTTP availability,
+  status-rate, and latency metrics. Existing agent telemetry covers resources
+  and heartbeat but cannot retroactively satisfy the HTTP portion.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
 - Record the monitoring/on-call/rollback owners and final owner sign-off.
