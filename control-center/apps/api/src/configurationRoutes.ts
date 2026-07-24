@@ -141,7 +141,7 @@ configurationRouter.get("/configuration/deployment-plans", noStore, requirePermi
     const org = orgId(req); const projectId = oid(query.projectId); const environmentId = oid(query.environmentId);
     const [project, environment] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId })]);
     if (!project || !environment) return res.status(404).json({ error: "Scoped project or environment not found" });
-    const plan = await collections.configurationDeploymentPlans.find({ orgId: org, projectId, environmentId, state: query.state }).sort({ revision: -1 }).limit(1).next();
+    const plan = await collections.configurationDeploymentPlans.find({ orgId: org, projectId, environmentId, state: query.state, approvalExpiresAt: { $gt: new Date() } }).sort({ revision: -1 }).limit(1).next();
     if (!plan?._id) return res.json({ plan: null });
     const versions = await collections.configurationVersions.find({ _id: { $in: plan.versionIds }, orgId: org, projectId, environmentId }, { projection: { envelope: 0, publicValue: 0, fingerprint: 0 } }).toArray();
     const definitions = await collections.configurationDefinitions.find({ _id: { $in: versions.map((item) => item.definitionId) }, orgId: org, projectId }, { projection: { name: 1 } }).toArray();
