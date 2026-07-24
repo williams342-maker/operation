@@ -146,6 +146,18 @@ Ed25519 signature.
 - The disposable database container, network, test images, temporary Dockerfile,
   and verifier files were removed after validation.
 
+### Authentication failure and session expiry
+
+- One synthetic invalid login was submitted through the staging host's local
+  edge and returned HTTP `401`.
+- The database contained exactly one corresponding anonymous `auth.login`
+  failure event in the bounded verification window.
+- The stored audit record contained neither the synthetic password nor the
+  synthetic email identifier used by the request.
+- The existing authenticated browser session later expired. Direct navigation
+  to the Audit path rendered the sign-in screen instead of protected content.
+- The temporary request body and value-safe database verifier were removed.
+
 ### Disposable configuration rollback proof
 
 - The installed staging agent implementation ran as its restricted
@@ -176,10 +188,10 @@ Ed25519 signature.
 ## Remaining gates
 
 - Complete at least 24 continuous hours of threshold monitoring.
-- Complete live public-path logout and expired-session checks if they are
-  required in addition to the isolated staging-host suite.
-- Complete the remaining failed-login, recent-auth, enrollment, configuration,
-  and task audit categories plus API, agent, proxy, and Docker log redaction.
+- Complete a live public-path logout check if it is required in addition to the
+  successful expired-session check.
+- Complete the remaining recent-auth, enrollment, configuration, and task audit
+  categories plus API, agent, proxy, and Docker log redaction.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
 - Record the monitoring/on-call/rollback owners and final owner sign-off.
