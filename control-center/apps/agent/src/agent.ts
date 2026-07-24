@@ -10,7 +10,7 @@ import { handoffUpgrade } from "./upgradeHandoff.js";
 import { collectConnectivity } from "./connectivity.js";
 import { shouldEnroll } from "./enrollmentDecision.js";
 
-const advertisedCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
+const advertisedCapabilities = ["system", "docker", "compose", "git", "gitRevisionPreflight", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
 function writeUpdaterHeartbeat(config: AgentConfig, discoveryComplete: boolean) { try { fs.mkdirSync(path.dirname(heartbeatStateFile), { recursive: true, mode: 0o750 }); const temporary = `${heartbeatStateFile}.pending`; fs.writeFileSync(temporary, `${JSON.stringify({ agentVersion: config.agentVersion, capabilities: advertisedCapabilities, discoveryComplete, recordedAt: new Date().toISOString() })}\n`, { mode: 0o600 }); fs.renameSync(temporary, heartbeatStateFile); } catch { /* updater heartbeat is best-effort; polling remains authoritative */ } }
 

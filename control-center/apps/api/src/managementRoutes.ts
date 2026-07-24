@@ -323,7 +323,7 @@ managementRouter.post("/projects/:id/deployments/:deploymentId/git-preflight", n
   if (!plan?._id) return res.status(409).json({ error: "A current approved plan and passed control-plane preflight are required" });
   const [project, server] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org, ...notArchived }), collections.servers.findOne({ _id: plan.serverId, orgId: org, ...notArchived })]);
   if (!project?.repoPath || !server?._id) return res.status(409).json({ error: "A registered repository and active server are required" });
-  if (!(server.agentCapabilities || []).includes("git")) return res.status(409).json({ error: "The server agent does not advertise Git inspection" });
+  if (!(server.agentCapabilities || []).includes("gitRevisionPreflight")) return res.status(409).json({ error: "The server agent does not support exact-revision Git preflight" });
   const task = await createTask({ orgId: org, server: server as typeof server & { _id: ObjectId }, projectId, type: "inspect.git", payload: { projects: [{ projectId: projectId.toHexString(), repoPath: project.repoPath, requestedRevision: plan.requestedRevision }], httpHealthChecks: [], mongoChecks: [] }, idempotencyKey: `project-deployment-git-preflight:${deploymentId.toHexString()}:${body.planDigest}`, createdByUserId: requestedByUserId });
   const updated = await collections.projectDeployments.findOneAndUpdate({ _id: deploymentId, orgId: org, projectId, status: "approved", planDigest: body.planDigest }, { $set: { gitPreflight: { taskId: task._id, status: "queued", checks: [] }, updatedAt: new Date() } }, { returnDocument: "after" });
   if (!updated) return res.status(409).json({ error: "Deployment plan changed while Git preflight was queued" });
