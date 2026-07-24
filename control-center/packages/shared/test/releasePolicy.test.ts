@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ed25519PublicKeyId,
   evaluateProductionPublication,
+  evaluateStagingBurnIn,
   isStagingActionAllowed,
   publicationAuthorizationDigest,
   releaseCandidateEvidenceDigest,
@@ -156,4 +157,39 @@ test("policy schema rejects any staging permission to publish or sign", () => {
   const unsafe = structuredClone(fixture.signedPolicy.policy);
   unsafe.stagingProfile.allowedActions.push("production_publish");
   assert.equal(releasePolicySchema.safeParse(unsafe).success, false);
+});
+
+test("burn-in starts at the first healthy sample after a failure and completes only after the minimum window", () => {
+  const policy = basePolicy("OWNER_ED25519_KEY_ID_REQUIRED");
+  const initial = [
+    { collectedAt: "2026-07-24T19:56:00.000Z", httpHealth: [{ success: false, latencyMs: 4 }], maximumDiskPercent: 65 },
+    { collectedAt: "2026-07-24T19:57:00.000Z", httpHealth: [{ success: true, latencyMs: 54 }], maximumDiskPercent: 65 }
+  ];
+  const observing = evaluateStagingBurnIn(policy, initial, new Date("2026-07-24T19:57:30.000Z"));
+  assert.equal(observing.state, "observing");
+  assert.equal(observing.observationStartedAt, "2026-07-24T19:57:00.000Z");
+  assert.deepEqual(observing.lastResetReasons, ["availability_threshold_breach"]);
+  assert.ok(observing.completionPercent > 0);
+
+  const samples = [...initial, ...Array.from({ length: 1440 }, (_, index) => ({
+    collectedAt: new Date(Date.parse("2026-07-24T19:57:30.000Z") + index * 60_000).toISOString(),
+    httpHealth: [{ success: true, latencyMs: index % 2 ? 60 : 54 }],
+    maximumDiskPercent: 66
+  }))];
+  const complete = evaluateStagingBurnIn(policy, samples, new Date("2026-07-25T19:57:01.000Z"));
+  assert.equal(complete.state, "complete");
+  assert.equal(complete.metrics.availabilityPercent, 100);
+  assert.equal(complete.metrics.p95LatencyMs, 60);
+});
+
+test("heartbeat gaps and container restart increments reset burn-in at the current healthy sample", () => {
+  const policy = basePolicy("OWNER_ED25519_KEY_ID_REQUIRED");
+  const result = evaluateStagingBurnIn(policy, [
+    { collectedAt: "2026-07-24T20:00:00.000Z", httpHealth: [{ success: true, latencyMs: 40 }], docker: [{ name: "api", state: "running", restartCount: 0 }] },
+    { collectedAt: "2026-07-24T20:02:00.000Z", httpHealth: [{ success: true, latencyMs: 42 }], docker: [{ name: "api", state: "running", restartCount: 1 }] }
+  ], new Date("2026-07-24T20:03:00.000Z"));
+  assert.equal(result.state, "observing");
+  assert.equal(result.observationStartedAt, "2026-07-24T20:02:00.000Z");
+  assert.deepEqual(new Set(result.lastResetReasons), new Set(["agent_heartbeat_threshold_breach", "unexpected_restart"]));
+  assert.equal(result.sampleCount, 1);
 });

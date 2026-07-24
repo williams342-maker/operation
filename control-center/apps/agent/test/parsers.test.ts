@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseComposePsLine, parseDockerPsLine } from "../src/parsers.js";
+import { parseComposePsLine, parseDockerPsLine, parseDockerRestartLine } from "../src/parsers.js";
 
 test("docker status parser maps fixed docker ps JSON output", () => {
   assert.deepEqual(parseDockerPsLine(JSON.stringify({ Names: "api", Image: "node:22", State: "running", Status: "Up 3m" })), {
@@ -9,6 +9,12 @@ test("docker status parser maps fixed docker ps JSON output", () => {
     state: "running",
     status: "Up 3m"
   });
+});
+
+test("docker restart parser accepts only bounded numeric restart evidence", () => {
+  assert.deepEqual(parseDockerRestartLine("\"/api\" 3"), { name: "api", restartCount: 3 });
+  assert.throws(() => parseDockerRestartLine("\"/api\" -1"));
+  assert.throws(() => parseDockerRestartLine("not-json 2"));
 });
 
 test("compose parser maps compose ps JSON output", () => {

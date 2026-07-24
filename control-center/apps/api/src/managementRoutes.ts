@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { cloudflareOnboardingSchema, deriveWebsiteTarget, enrollmentInstallCommand, enrollmentInstallScript, validateConfiguredPath } from "@control-center/shared";
+import { cloudflareOnboardingSchema, deriveWebsiteTarget, enrollmentInstallCommand, enrollmentInstallScript, evaluateStagingBurnIn, validateConfiguredPath } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission, requireRecentAuth } from "./auth.js";
 import { collections, oid } from "./db.js";
@@ -16,11 +16,13 @@ import { deploymentHistoryItem, projectDeploymentHistory, projectRollbackHistory
 import { safeConnectivity, storeCloudflareConnectivity } from "./connectivityVault.js";
 import { passwordResetUrl, sendPasswordResetEmail } from "./passwordResetMailer.js";
 import { createTask } from "./tasks.js";
+import { loadStagingReleasePolicy } from "./releasePolicyLoader.js";
 
 export const managementRouter = express.Router();
 const roles = ["Owner", "Administrator", "Developer", "Viewer"] as const;
 const notArchived = { archivedAt: { $exists: false } };
 const statusCheckTimes = new Map<string, number>();
+const apiProcessStartedAt = new Date(Date.now() - process.uptime() * 1000);
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }
 function deny(res: express.Response, message = "Forbidden") { return res.status(403).json({ error: message }); }
@@ -265,6 +267,51 @@ async function checkProjectPaths(req: express.Request, serverId: ObjectId, repoP
 managementRouter.post("/projects", requirePermission("projects:manage"), async (req, res, next) => { try { const body = createProjectSchema.parse(req.body); const serverId = oid(body.primaryServerId); try { await checkProjectPaths(req, serverId, body.repoPath, body.composePath); } catch { return res.status(400).json({ error: "Project paths must stay inside server allowlisted roots" }); } const now = new Date(); const result = await collections.projects.insertOne({ orgId: orgId(req), name: body.name, slug: body.slug, primaryServerId: serverId, githubRepository: body.githubRepository, branch: body.branch, repoPath: body.repoPath, composePath: body.composePath, adapter: body.adapter, serviceNames: body.serviceNames, healthCheckIds: [], mongoCheckIds: [], createdAt: now, updatedAt: now }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "project.create", targetType: "project", targetId: result.insertedId, result: "success", requestId: req.requestId }); res.status(201).json({ id: result.insertedId }); } catch (error) { next(error); } });
 managementRouter.get("/projects/:id", requirePermission("status:view"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const org = orgId(req); const project = await collections.projects.findOne({ _id: id, orgId: org }); if (!project) return res.status(404).json({ error: "Project not found" }); const [server, healthChecks, mongoChecks, telemetry] = await Promise.all([collections.servers.findOne({ _id: project.primaryServerId, orgId: org }, { projection: { agentSecretHash: 0 } }), collections.healthChecks.find({ orgId: org, projectId: id, ...notArchived }).toArray(), collections.mongoChecks.find({ orgId: org, projectId: id, ...notArchived }, { projection: { encryptedConnectionString: 0 } }).toArray(), collections.telemetry.find({ orgId: org, serverId: project.primaryServerId }).sort({ collectedAt: -1 }).limit(10).toArray()]); res.json({ project, server, healthChecks, mongoChecks, telemetry }); } catch (error) { next(error); } });
 managementRouter.get("/projects/:id/overview", requirePermission("status:view"), async (req, res, next) => { try { if (!ObjectId.isValid(String(req.params.id))) return res.status(404).json({ error: "Project not found" }); const overview = await buildProjectOverview(orgId(req), new ObjectId(String(req.params.id)), req.user!.role); if (!overview) return res.status(404).json({ error: "Project not found" }); res.json(overview); } catch (error) { next(error); } });
+
+managementRouter.get("/projects/:id/burn-in", requirePermission("status:view"), async (req, res, next) => {
+  try {
+    const projectId = oid(String(req.params.id));
+    const org = orgId(req);
+    const project = await collections.projects.findOne({ _id: projectId, orgId: org, ...notArchived });
+    if (!project?._id) return res.status(404).json({ error: "Project not found" });
+    const checks = await collections.healthChecks.find({ orgId: org, projectId, serverId: project.primaryServerId, enabled: true, ...notArchived }, { projection: { _id: 1, createdAt: 1 } }).toArray();
+    const checkIds = new Set(checks.map((check) => check._id!.toHexString()));
+    const firstConfiguredAt = checks.reduce<Date | undefined>((earliest, check) => !earliest || check.createdAt < earliest ? check.createdAt : earliest, undefined);
+    const observationNotBefore = firstConfiguredAt && firstConfiguredAt > apiProcessStartedAt ? firstConfiguredAt : apiProcessStartedAt;
+    const telemetry = checks.length ? await collections.telemetry.find({ orgId: org, serverId: project.primaryServerId, collectedAt: { $gte: observationNotBefore } }).sort({ collectedAt: 1 }).limit(10_000).toArray() : [];
+    const samples = telemetry.map((sample) => {
+      const httpHealth = (Array.isArray(sample.httpHealth) ? sample.httpHealth : []).flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const result = item as Record<string, unknown>;
+        if (!checkIds.has(String(result.healthCheckId)) || typeof result.success !== "boolean") return [];
+        return [{ success: result.success, latencyMs: typeof result.latencyMs === "number" ? result.latencyMs : undefined }];
+      });
+      const metrics = sample.metrics && typeof sample.metrics === "object" ? sample.metrics as Record<string, unknown> : {};
+      const disk = Array.isArray(metrics.disk) ? metrics.disk : [];
+      const maximumDiskPercent = Math.max(0, ...disk.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        return typeof row.usedBytes === "number" && typeof row.totalBytes === "number" && row.totalBytes > 0 ? [row.usedBytes / row.totalBytes * 100] : [];
+      }));
+      const docker = (Array.isArray(sample.docker) ? sample.docker : []).flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        if (typeof row.name !== "string" || typeof row.state !== "string") return [];
+        return [{ name: row.name, state: row.state, restartCount: typeof row.restartCount === "number" ? row.restartCount : undefined }];
+      });
+      return { collectedAt: sample.collectedAt.toISOString(), httpHealth, maximumDiskPercent, docker };
+    });
+    const policy = loadStagingReleasePolicy();
+    res.json({
+      policy: { id: policy.policyId, version: policy.version, profile: policy.stagingProfile.name, monitoring: policy.monitoring, observation: policy.observation },
+      project: { id: project._id.toHexString(), name: project.name },
+      enabledHealthChecks: checks.length,
+      observationNotBefore: observationNotBefore.toISOString(),
+      observation: evaluateStagingBurnIn(policy, samples),
+      generatedAt: new Date().toISOString()
+    });
+  } catch (error) { next(error); }
+});
 const historyLimit = (value: unknown) => z.coerce.number().int().min(1).max(50).default(20).parse(value);
 managementRouter.get("/projects/:id/deployments", noStore, requirePermission("status:view"), async (req, res, next) => { try { if (!ObjectId.isValid(String(req.params.id))) return res.status(404).json({ error: "Project not found" }); const id = new ObjectId(String(req.params.id)); const org = orgId(req); const project = await collections.projects.findOne({ _id: id, orgId: org }, { projection: { name: 1, archivedAt: 1 } }); if (!project?._id) return res.status(404).json({ error: "Project not found" }); const limit = historyLimit(req.query.limit); const history = await projectDeploymentHistory(org, id, req.user!.role, limit); res.json({ project: { id: String(project._id), name: project.name, archived: Boolean(project.archivedAt) }, ...history, limit }); } catch (error) { next(error); } });
 const projectDeploymentPlanSchema = z.object({ requestedRevision: z.string().regex(/^[a-f0-9]{7,40}$/i), environment: z.enum(["staging", "preview", "testing"]) });

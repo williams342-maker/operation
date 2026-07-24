@@ -6,7 +6,7 @@ import { validateRegisteredPath } from "@control-center/shared";
 import { execFixed, type FixedExecutable } from "./safeExec.js";
 import { capDiscovery, DISCOVERY_LIMITS, sanitizeGitRemote, walkSameDevice } from "./discoverySafety.js";
 import type { AgentConfig } from "./config.js";
-import { parseComposePsLine, parseDockerPsLine } from "./parsers.js";
+import { parseComposePsLine, parseDockerPsLine, parseDockerRestartLine } from "./parsers.js";
 import { discoverConfiguration } from "./configurationDiscovery.js";
 import { requestSafeHttp, safeHttpErrorCategory } from "./safeHttp.js";
 
@@ -112,13 +112,21 @@ export async function collectGit(config: AgentConfig, projects: Array<{ projectI
 
 export async function collectDocker() {
   const result = await execFixed("docker", ["ps", "--format", "{{json .}}"]);
-  return result.stdout.split(/\r?\n/).filter(Boolean).slice(0, 250).map((line) => {
+  const rows = result.stdout.split(/\r?\n/).filter(Boolean).slice(0, 250).map((line) => {
     try {
       const row = parseDockerPsLine(line); return { name: row.name.slice(0, 255), image: row.image?.slice(0, 512), state: row.state.slice(0, 128), status: row.status?.slice(0, 512) };
     } catch {
       return { name: "unknown", state: "unknown" };
     }
   });
+  const names = rows.map((row) => row.name).filter((name) => /^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/.test(name));
+  if (!names.length) return rows;
+  const restartResult = await execFixed("docker", ["inspect", "--format", "{{json .Name}} {{.RestartCount}}", ...names]);
+  const restartCounts = new Map<string, number>();
+  for (const line of restartResult.stdout.split(/\r?\n/).filter(Boolean)) {
+    try { const parsed = parseDockerRestartLine(line); restartCounts.set(parsed.name, parsed.restartCount); } catch { /* omit malformed optional restart evidence */ }
+  }
+  return rows.map((row) => ({ ...row, restartCount: restartCounts.get(row.name) }));
 }
 
 export async function collectCompose(config: AgentConfig, projects: Array<{ projectId: string; composePath?: string }>) {

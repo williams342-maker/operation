@@ -8,6 +8,15 @@ export function parseDockerPsLine(line: string) {
   };
 }
 
+export function parseDockerRestartLine(line: string) {
+  const separator = line.lastIndexOf(" ");
+  if (separator <= 0) throw new Error("Invalid Docker restart row");
+  const name = JSON.parse(line.slice(0, separator));
+  const restartCount = Number(line.slice(separator + 1));
+  if (typeof name !== "string" || !Number.isInteger(restartCount) || restartCount < 0) throw new Error("Invalid Docker restart row");
+  return { name: name.replace(/^\//, ""), restartCount };
+}
+
 export function parseComposePsLine(line: string, fallbackProject: string, configPath?: string) {
   const row = JSON.parse(line);
   return {

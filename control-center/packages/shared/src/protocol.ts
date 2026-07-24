@@ -40,7 +40,8 @@ export const dockerServiceSchema = z.object({
   name: z.string().max(255),
   image: z.string().max(512).optional(),
   state: z.string().max(128),
-  status: z.string().max(512).optional()
+  status: z.string().max(512).optional(),
+  restartCount: z.number().int().nonnegative().optional()
 });
 
 export const composeServiceSchema = z.object({

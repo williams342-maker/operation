@@ -28,6 +28,7 @@ LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
 ENV NODE_ENV=production
 ENV CONTROL_CENTER_SOURCE_COMMIT=$SOURCE_COMMIT
 ENV CONTROL_CENTER_AGENT_ARTIFACT_PATH=/app/artifacts/opsworkbench-agent-source.tar.gz
+ENV CONTROL_CENTER_RELEASE_POLICY_PATH=/app/release/policies/Staging-BurnIn-v1.policy.json
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /app/package.json /app/package-lock.json ./
@@ -36,6 +37,7 @@ COPY --from=build --chown=app:app /app/packages/shared/package.json ./packages/s
 COPY --from=build --chown=app:app /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build --chown=app:app /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build --chown=app:app /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=app:app /app/release/policies ./release/policies
 COPY --from=build --chown=app:app /artifact/opsworkbench-agent-source.tar.gz ./artifacts/opsworkbench-agent-source.tar.gz
 USER app
 EXPOSE 3000
