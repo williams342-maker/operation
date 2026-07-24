@@ -31,7 +31,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
   });
   const runControlPlanePreflight = useMutation({
     mutationFn: async (deployment: ProjectDeploymentHistoryItem) => api.post(`/projects/${projectId}/deployments/${deployment.id}/preflight`, { planDigest: deployment.planDigest, confirm: true }),
-    onSuccess: async () => { setPlanMessage("Control-plane preflight passed. Agent and Git preflight remain unavailable."); await query.refetch(); },
+    onSuccess: async () => { setPlanMessage("Control-plane preflight passed. Read-only Git preflight API is available."); await query.refetch(); },
     onError: (error) => { setPlanMessage(apiError(error)); void query.refetch(); }
   });
   const lastSuccessful = useMemo(() => kind === "deployments" ? query.data?.records.find((record) => "requestedRevision" in record && record.status === "succeeded") as ProjectDeploymentHistoryItem | undefined : undefined, [kind, query.data?.records]);

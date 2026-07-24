@@ -157,6 +157,20 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   }
   set.state = nextState;
   await collections.agentTasks.updateOne({ _id: id, orgId: server.orgId }, { $set: set, $inc: { version: 1 } });
+  if (task.type === "inspect.git") {
+    if (body.event === "started") await collections.projectDeployments.updateOne({ orgId: task.orgId, "gitPreflight.taskId": id, status: "approved" }, { $set: { "gitPreflight.status": "running", updatedAt: now } });
+    if (body.event === "succeeded" || body.event === "failed") {
+      const deployment = await collections.projectDeployments.findOne({ orgId: task.orgId, "gitPreflight.taskId": id, status: "approved" });
+      if (deployment) {
+        const rows = body.result && typeof body.result === "object" && Array.isArray((body.result as { git?: unknown[] }).git) ? (body.result as { git: unknown[] }).git : [];
+        const row = rows.find((item) => item && typeof item === "object" && (item as { projectId?: unknown }).projectId === deployment.projectId.toHexString()) as Record<string, unknown> | undefined;
+        const revisionExists = row?.requestedRevisionExists === true;
+        const checks = [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_exists", passed: revisionExists }];
+        const status = body.event === "succeeded" && checks.every((check) => check.passed) ? "passed" as const : "failed" as const;
+        await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, "gitPreflight.taskId": id }, { $set: { gitPreflight: { taskId: id, status, checks, headRevision: typeof row?.commit === "string" ? row.commit : undefined, branch: typeof row?.branch === "string" ? row.branch : undefined, dirty: typeof row?.dirty === "boolean" ? row.dirty : undefined, checkedAt: now }, updatedAt: now } });
+      }
+    }
+  }
   if ((task.type === "configuration.apply" || task.type === "configuration.rollback") && (body.event === "succeeded" || body.event === "failed")) {
     const deployment = deploymentProgressSchema.parse(set.result);
     const state = configurationPlanStateForDeploymentPhase(deployment.phase);

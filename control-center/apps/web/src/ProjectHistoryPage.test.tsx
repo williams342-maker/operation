@@ -101,7 +101,7 @@ describe("Project history workspace", () => {
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
     await userEvent.click(await screen.findByRole("button", { name: "Run control-plane preflight" }));
     expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${approved.id}/preflight`, { planDigest: approved.planDigest, confirm: true });
-    expect(await screen.findByText("Control-plane preflight passed. Agent and Git preflight remain unavailable.")).toBeInTheDocument();
+    expect(await screen.findByText("Control-plane preflight passed. Read-only Git preflight API is available.")).toBeInTheDocument();
     expect(await screen.findByText("passed · 1/1 checks")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
   });
