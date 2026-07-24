@@ -71,7 +71,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
         <div><h3 className="font-semibold">Read-only Git preflight</h3><p className="text-sm text-muted">Verify that the exact approved revision exists in the registered repository. This does not fetch, checkout, build, or deploy.</p></div>
         <Badge>{gitPreflightCandidate.gitPreflight?.status || "not_run"}</Badge>
       </div>
-      {gitPreflightCandidate.gitPreflight?.checks.length ? <p className="mt-2 text-sm">{gitPreflightCandidate.gitPreflight.checks.filter((check) => check.passed).length}/{gitPreflightCandidate.gitPreflight.checks.length} checks passed{gitPreflightCandidate.gitPreflight.headRevision ? ` · HEAD ${gitPreflightCandidate.gitPreflight.headRevision}` : ""}</p> : null}
+      {gitPreflightCandidate.gitPreflight?.checks.length ? <p className="mt-2 break-all text-sm">{gitPreflightCandidate.gitPreflight.checks.filter((check) => check.passed).length}/{gitPreflightCandidate.gitPreflight.checks.length} checks passed{gitPreflightCandidate.gitPreflight.resolvedRevision ? ` · resolved ${gitPreflightCandidate.gitPreflight.resolvedRevision}` : ""}{gitPreflightCandidate.gitPreflight.headRevision ? ` · HEAD ${gitPreflightCandidate.gitPreflight.headRevision}` : ""}</p> : null}
       <div className="mt-3"><GhostButton disabled={runGitPreflight.isPending || !gitPreflightCandidate.planDigest || gitPreflightCandidate.gitPreflight?.status === "queued" || gitPreflightCandidate.gitPreflight?.status === "running"} onClick={() => runGitPreflight.mutate(gitPreflightCandidate)}>Run read-only Git preflight</GhostButton></div>
     </Card>}
     <Card>

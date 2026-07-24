@@ -174,7 +174,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
         const row = rows.find((item) => item && typeof item === "object" && (item as { projectId?: unknown }).projectId === deployment.projectId.toHexString()) as Record<string, unknown> | undefined;
         const checks = gitPreflightChecks(row, deployment.requestedRevision);
         const status = body.event === "succeeded" && checks.every((check) => check.passed) ? "passed" as const : "failed" as const;
-        await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, "gitPreflight.taskId": id }, { $set: { gitPreflight: { taskId: id, status, checks, headRevision: typeof row?.commit === "string" ? row.commit : undefined, branch: typeof row?.branch === "string" ? row.branch : undefined, dirty: typeof row?.dirty === "boolean" ? row.dirty : undefined, checkedAt: now }, updatedAt: now } });
+        await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, "gitPreflight.taskId": id }, { $set: { gitPreflight: { taskId: id, status, checks, headRevision: typeof row?.commit === "string" ? row.commit : undefined, resolvedRevision: typeof row?.resolvedRevision === "string" ? row.resolvedRevision : undefined, branch: typeof row?.branch === "string" ? row.branch : undefined, dirty: typeof row?.dirty === "boolean" ? row.dirty : undefined, checkedAt: now }, updatedAt: now } });
         gitAuditMetadata = { phase: "git_preflight", status, deploymentId: deployment._id!.toHexString(), failedChecks: checks.filter((check) => !check.passed).length };
       }
     }
