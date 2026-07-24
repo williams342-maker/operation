@@ -59,6 +59,10 @@ export function safeTaskSummary(type: string, message: unknown, result: unknown,
   return [...String(sanitized)].map((character) => { const code = character.charCodeAt(0); return code < 32 || code === 127 ? " " : character; }).join("").replace(/\s+/g, " ").slice(0, 500);
 }
 
+export function configurationPlanStateForDeploymentPhase(phase: string | undefined) {
+  return phase === "succeeded" ? "succeeded" : phase === "rolled_back" ? "rolled_back" : "failed";
+}
+
 export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
   const registry = taskRegistry[input.type];
   if (!registry) throw new Error("Unsupported task type");
@@ -153,6 +157,11 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   }
   set.state = nextState;
   await collections.agentTasks.updateOne({ _id: id, orgId: server.orgId }, { $set: set, $inc: { version: 1 } });
+  if ((task.type === "configuration.apply" || task.type === "configuration.rollback") && (body.event === "succeeded" || body.event === "failed")) {
+    const deployment = deploymentProgressSchema.parse(set.result);
+    const state = configurationPlanStateForDeploymentPhase(deployment.phase);
+    await collections.configurationDeploymentPlans.updateOne({ orgId: task.orgId, deploymentTaskId: id }, { $set: { state, updatedAt: now } });
+  }
   if (task.type === "agent.upgrade" && body.event === "progress") { const upgrade = agentUpgradeResultSchema.parse(body.result); const state = upgrade.phase === "queued" ? "queued" : upgrade.phase === "upgrading" ? "upgrading" : "validating"; await collections.agentUpgradePlans.updateOne({ orgId: task.orgId, taskId: id }, { $set: { state, updatedAt: now } }); await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, { $set: { upgradeState: state, updatedAt: now } }); }
   if (task.type === "agent.upgrade" && (body.event === "succeeded" || body.event === "failed")) { const upgrade = agentUpgradeResultSchema.parse(set.result); const state = upgrade.phase === "complete" ? "complete" : upgrade.phase === "rolled_back" ? "rolled_back" : "failed"; await collections.agentUpgradePlans.updateOne({ orgId: task.orgId, taskId: id }, { $set: { state, failureCategory: upgrade.errorCategory, rollbackState: upgrade.phase.startsWith("rollback") ? upgrade.phase : undefined, updatedAt: now } }); await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, { $set: { upgradeState: state, updatedAt: now } }); }
   invalidateOperationalContext(server._id.toHexString());
