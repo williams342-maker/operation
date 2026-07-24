@@ -22,7 +22,7 @@ Ed25519 signature.
 - Full workspace tests passed.
 - API: 73 passed, 2 guarded database skips.
 - Web: 94 passed across component and contract suites.
-- Agent: 43 passed, 5 platform/disposable skips.
+- Agent: 43 passed, 6 platform/disposable skips.
 - Updater: 4 passed.
 - Shared: 55 passed, 1 platform skip.
 - Deployment-script and bootstrap verification passed with expected
@@ -76,6 +76,26 @@ Ed25519 signature.
 - Edge recorded one `502` at 16:43:59 UTC and one resolver error at 16:43:53 UTC
   during the recorded API/web activation. There were no upstream connection
   refusals or timeouts. Its warning entries were response-buffering notices.
+- The `Ops-Workbench` staging agent was restarted independently as its restricted
+  service user. It remained active/running with zero service restart count,
+  zero error-shaped journal entries, and zero secret-shaped journal matches.
+- Its authenticated server inventory heartbeat resumed 33 seconds after the
+  restart. No action was taken on the Crafters server.
+- A later consistency check found that the legacy staging service was still
+  executing an older agent runtime despite the API and web being on `4adf0ba`.
+  The runtime lacked the current bounded health retry, non-root ownership,
+  fixed Compose activation, and structured failure-stage changes.
+- Agent and shared runtime inputs were confirmed unchanged between `4adf0ba`
+  and the branch head. A locally rebuilt runtime archive had SHA-256
+  `c5a723536425ec45b3592e791c5b8ddd789d2aa2eb552c93ff06b8e538bf3996`.
+- The archive was verified on staging, syntax-checked as the restricted agent
+  user, and activated atomically with the prior agent and shared `dist`
+  directories retained as rollback copies.
+- The refreshed service remained active/running with zero systemd restarts and
+  no post-activation journal errors. Its authenticated inventory heartbeat
+  resumed within the next polling interval, showing current CPU, memory, load,
+  disk, and four-container discovery. Fresh Health navigation remained fully
+  ready on exact build `4adf0ba`.
 
 ### Backup and disposable restore
 
@@ -103,6 +123,33 @@ Ed25519 signature.
 - The disposable MongoDB container, internal network, test images, and test
   source directories were removed after the run.
 
+### Disposable configuration rollback proof
+
+- The installed staging agent implementation ran as its restricted
+  `opsworkbench-agent` service user against an isolated Docker Compose project.
+- The proof used the same fixed, local-build Compose activation path as a
+  configuration deployment. No live OpsWorkbench or Crafters container,
+  network, environment file, or task was targeted.
+- A synthetic configuration mutation activated successfully, then a bounded
+  post-activation health failure triggered automatic rollback.
+- The agent restored the original environment file byte-for-byte, activated the
+  disposable service a second time, passed the rollback health check, and
+  returned terminal phase `rolled_back` with deployment error category `health`.
+- The reported restored configuration digest matched the original, the backup
+  existed, the restored service was running, and the running container received
+  the original configuration value.
+- The disposable Compose container and network, proof directory, and temporary
+  harness files were removed. A bounded follow-up check found no residual proof
+  container or network.
+- The same scenario was added as a gated real-Docker regression. On staging,
+  all 16 configuration-deployment tests passed with zero skips, including real
+  Compose activation and restored-service rollback. Its temporary source,
+  fixture directories, container, and network were removed afterward.
+- Live task history still contains five older `rollback_failed` configuration
+  attempts. The direct staging proof establishes the current agent rollback
+  mechanics, but does not replace a successful control-plane plan, approval,
+  dispatch, acknowledgement, and rollback record.
+
 ## Remaining gates
 
 - Complete at least 24 continuous hours of threshold monitoring.
@@ -110,7 +157,6 @@ Ed25519 signature.
   required in addition to the isolated staging-host suite.
 - Complete the remaining failed-login, recent-auth, enrollment, configuration,
   and task audit categories plus API, agent, proxy, and Docker log redaction.
-- Exercise the disposable agent restart/recovery check.
-- Exercise an end-to-end non-production configuration deployment and controlled
-  rollback with separate approval.
+- Exercise the end-to-end control-plane configuration plan, separate approval,
+  dispatch, acknowledgement, and successful controlled rollback record.
 - Record the monitoring/on-call/rollback owners and final owner sign-off.

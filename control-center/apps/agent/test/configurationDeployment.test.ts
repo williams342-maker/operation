@@ -93,3 +93,28 @@ test("agent rejects a redirect to a private target and rolls back safely", async
 test("agent rejects replay and expected-version mismatch", async () => { resetReplayStateForTests(); const item = fixture(); await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-003", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => true }); await assert.rejects(() => executeConfigurationDeployment(item.payload, item.key, "unique-nonce-003", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => true }), /Replay/); const other = fixture(); other.payload.expectedConfigurationDigest = "b".repeat(64); await assert.rejects(() => executeConfigurationDeployment(other.payload, other.key, "unique-nonce-004", [...deploymentCapabilities], "0.1.0", safeNetwork), /version mismatch/); });
 test("agent independently rejects production, incomplete capability, version, SSRF, escape, and symlink", async () => { resetReplayStateForTests(); const a = fixture(); await assert.rejects(() => executeConfigurationDeployment({ ...a.payload, environmentKind: "production" } as never, a.key, "nonce-production", [...deploymentCapabilities], "0.1.0", safeNetwork)); const b = fixture(); await assert.rejects(() => executeConfigurationDeployment(b.payload, b.key, "nonce-capability", ["environmentFileWrite"], "0.1.0", safeNetwork)); await assert.rejects(() => executeConfigurationDeployment(b.payload, b.key, "nonce-version", [...deploymentCapabilities], "0.1.0-beta.1", safeNetwork), /version/); const privateTarget = fixture(); privateTarget.payload.healthChecks[0].url = "http://169.254.169.254/latest/meta-data"; await assert.rejects(() => executeConfigurationDeployment(privateTarget.payload, privateTarget.key, "nonce-ssrf", [...deploymentCapabilities], "0.1.0", safeNetwork), /Health check/); const c = fixture(); await assert.rejects(() => executeConfigurationDeployment({ ...c.payload, environmentFilePath: path.join(c.root, "..", ".env") }, c.key, "nonce-escape", [...deploymentCapabilities], "0.1.0", safeNetwork)); const d = fixture(); const linked = path.join(d.root, "linked.env"); try { fs.symlinkSync(d.env, linked); await assert.rejects(() => executeConfigurationDeployment({ ...d.payload, environmentFilePath: linked }, d.key, "nonce-symlink", [...deploymentCapabilities], "0.1.0", safeNetwork)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error; } });
 test("disposable Docker Compose project activates through fixed arguments", { skip: process.env.CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS !== "true" }, async () => { resetReplayStateForTests(); const item = fixture(); fs.writeFileSync(item.compose, "services:\n  web:\n    image: busybox:1.36\n    command: [\"sh\", \"-c\", \"sleep 60\"]\n"); try { const result = await executeConfigurationDeployment(item.payload, item.key, "docker-disposable-nonce", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, health: async () => true }); assert.equal(result.phase, "succeeded"); const output = execFileSync("docker", ["compose", "-f", item.compose, "-p", "fixture", "ps", "--status", "running", "--services"], { encoding: "utf8" }); assert.match(output, /web/); } finally { try { execFileSync("docker", ["compose", "-f", item.compose, "-p", "fixture", "down", "--volumes", "--remove-orphans"]); } catch { /* disposable cleanup best effort */ } } });
+test("disposable Docker Compose project restores configuration and service state after health rollback", { skip: process.env.CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS !== "true" }, async () => {
+  resetReplayStateForTests();
+  const item = fixture();
+  fs.writeFileSync(item.compose, "services:\n  web:\n    image: busybox:1.36\n    env_file:\n      - .env.staging\n    command: [\"sh\", \"-c\", \"sleep 60\"]\n");
+  try {
+    const result = await executeConfigurationDeployment(item.payload, item.key, "docker-disposable-rollback-nonce", [...deploymentCapabilities], "0.1.0", {
+      ...safeNetwork,
+      health: async () => fs.readFileSync(item.env, "utf8") === "PUBLIC=value\n",
+      healthRetryWindowMs: 1,
+      healthRetryIntervalMs: 0
+    });
+    assert.equal(result.phase, "rolled_back");
+    assert.equal(result.deploymentErrorCategory, "health");
+    assert.equal(result.healthChecksPassed, 1);
+    assert.equal(result.configurationDigest, configurationDigest("PUBLIC=value\n"));
+    assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n");
+    assert.equal(fs.existsSync(path.join(item.root, result.backupId!)), true);
+    const services = execFileSync("docker", ["compose", "-f", item.compose, "-p", "fixture", "ps", "--status", "running", "--services"], { encoding: "utf8" });
+    assert.match(services, /web/);
+    const restoredValue = execFileSync("docker", ["compose", "-f", item.compose, "-p", "fixture", "exec", "-T", "web", "printenv", "PUBLIC"], { encoding: "utf8" });
+    assert.equal(restoredValue.trim(), "value");
+  } finally {
+    try { execFileSync("docker", ["compose", "-f", item.compose, "-p", "fixture", "down", "--volumes", "--remove-orphans"]); } catch { /* disposable cleanup best effort */ }
+  }
+});
