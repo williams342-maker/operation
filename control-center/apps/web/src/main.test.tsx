@@ -74,6 +74,7 @@ describe("Login experience", () => {
     renderRoot();
 
     expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "OpsWorkbench" }).closest("section")?.parentElement).toHaveClass("w-full", "max-w-sm");
     expect(screen.queryByPlaceholderText(/organization slug/i)).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "owner@example.test");

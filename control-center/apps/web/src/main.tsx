@@ -258,12 +258,14 @@ function Centered({
 }: React.PropsWithChildren<{ title: string }>) {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <Card>
-        <div className="w-96 max-w-full space-y-3">
-          <h1 className="text-lg font-semibold">{title}</h1>
-          {children}
-        </div>
-      </Card>
+      <div className="w-full max-w-sm">
+        <Card>
+          <div className="space-y-3">
+            <h1 className="text-lg font-semibold">{title}</h1>
+            {children}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
