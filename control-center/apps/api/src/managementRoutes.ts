@@ -327,7 +327,11 @@ managementRouter.post("/projects/:id/deployments/:deploymentId/git-preflight", n
   if (!(server.agentCapabilities || []).includes("gitRevisionPreflight")) return res.status(409).json({ error: "The server agent does not support exact-revision Git preflight" });
   const task = await createTask({ orgId: org, server: server as typeof server & { _id: ObjectId }, projectId, type: "inspect.git", payload: { projects: [{ projectId: projectId.toHexString(), repoPath: project.repoPath, requestedRevision: plan.requestedRevision }], httpHealthChecks: [], mongoChecks: [] }, idempotencyKey: `project-deployment-git-preflight:${deploymentId.toHexString()}:${body.planDigest}`, createdByUserId: requestedByUserId });
   const updated = await collections.projectDeployments.findOneAndUpdate({ _id: deploymentId, orgId: org, projectId, status: "approved", planDigest: body.planDigest, gitPreflight: { $exists: false } }, { $set: { gitPreflight: { taskId: task._id, status: "queued", checks: [] }, updatedAt: new Date() } }, { returnDocument: "after" });
-  if (!updated) return res.status(409).json({ error: "Deployment plan changed while Git preflight was queued" });
+  if (!updated) {
+    const now = new Date();
+    await collections.agentTasks.updateOne({ _id: task._id, orgId: org, state: { $in: ["queued", "claimed", "running"] } }, { $set: { state: "cancelled", cancelledAt: now, completedAt: now, updatedAt: now }, $inc: { version: 1 } });
+    return res.status(409).json({ error: "Deployment plan changed while Git preflight was queued" });
+  }
   await audit({ orgId: org, actorType: "user", actorId: requestedByUserId, action: "project.deployment.preflight", targetType: "project-deployment-git", targetId: deploymentId, result: "success", requestId: req.requestId, metadata: { projectId: projectId.toHexString(), phase: "git_queued", taskId: String(task._id) } });
   res.status(202).json({ deployment: deploymentHistoryItem(updated, server.name, req.user!.role) });
 } catch (error) { next(error); } });
