@@ -7,11 +7,11 @@ Ed25519 signature.
 ## Active release
 
 - Environment: private staging, host `146.190.210.14`
-- Source commit: `7a569278c937e5c618b55582b814676c31041440`
-- Release path: `/opt/opsworkbench/releases/review-7a569278/app`
-- Immediate rollback: `/opt/opsworkbench/releases/review-daa72ff/app`
+- Source commit: `f4f584ac86085a22ad1e935ab518d50a46e12f8f`
+- Release path: `/opt/opsworkbench/releases/review-f4f584ac/app`
+- Immediate rollback: `/opt/opsworkbench/releases/review-32af4a76/app`
 - Source archive SHA-256:
-  `5c8a8b984aa805aa7a81c8a9e4432f16bc2c5bafffcecb85427ceef595b682b3`
+  `ce7b3cdbb7d55ca89f5ea6e10619dd8a191209a2bad165a295fd7d4125fb8261`
 - Activated: 2026-07-24 UTC
 
 ## Completed evidence
@@ -350,11 +350,52 @@ Ed25519 signature.
   HTTP 400 with `Health check URL is not allowed`; database counts were zero
   both before and after the request. The transient proof session was deleted.
 
+### Continuous staging burn-in activation
+
+- One enabled health check, `OpsWorkbench public health` (ID
+  `6a63c1be560b71f5eefc56ec`), checks
+  `https://www.opsworkbench.org/healthz` every 30 seconds with expected HTTP
+  status 200 and a 5-second timeout.
+- Enabled health-check plans are sent to the restricted agent during normal
+  polls. The agent schedules them by interval, uses the SSRF-safe pinned
+  request path, records bounded latency and status evidence, and returns sparse
+  telemetry to the API.
+- The first live rollout exposed a Node 22 all-address DNS lookup
+  incompatibility (`ERR_INVALID_IP_ADDRESS`). Commit `89f1f955` corrected the
+  lookup contract without weakening address validation. The initial failures
+  remain preserved as truthful pre-window evidence.
+- The API evaluates live HTTP samples, heartbeat gaps, disk use, Docker restart
+  increments, and critical alerts against the version-controlled
+  `Staging-BurnIn-v1` policy. Any configured reset condition moves the
+  authoritative start forward; a clean result cannot complete before the
+  policy's 24-hour minimum.
+- Exact commit `f4f584ac86085a22ad1e935ab518d50a46e12f8f` was atomically
+  activated for the staging API, web, and restricted agent. API and web
+  reported healthy with zero Docker restarts; the agent reported
+  active/running with zero systemd restarts. The public health endpoint
+  returned the same full commit.
+- The authenticated Project Overview now presents the live policy state,
+  progress, thresholds, metrics, sample/check counts, reset reasons, and an
+  explicit reminder that production publication still requires the owner
+  Ed25519 signature.
+- The authoritative observation boundary is
+  `2026-07-24T20:19:41.648Z`. The first eligible sample began the current
+  window at `2026-07-24T20:20:00.484Z`; the earliest possible completion is
+  `2026-07-25T20:20:00.484Z`.
+- At `2026-07-24T20:22:54.224Z`, the evaluator reported six samples, one
+  enabled HTTP check, 100% availability, 0% HTTP error rate, 50-millisecond
+  p95 latency, a 30.594-second maximum heartbeat gap, 76.436% maximum disk use,
+  zero unexpected restarts, zero critical alerts, and no reset reasons. Every
+  policy gate passed except the still-running minimum observation duration.
+- Full workspace type checking and lint passed. The evaluator milestone passed
+  the full 316-test workspace suite with 305 passes and 11 intentional skips.
+  The live UI milestone passed all 94 web tests.
+
 ## Remaining gates
 
-- Capture a new continuous 24-hour window with persistent HTTP availability,
-  status-rate, and latency metrics. Existing agent telemetry covers resources
-  and heartbeat but cannot retroactively satisfy the HTTP portion.
+- Allow the active continuous observation window to run until at least
+  `2026-07-25T20:20:00.484Z`. A configured reset condition automatically moves
+  that completion boundary forward.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
 - Create the host-specific configuration target profile containing the exact
