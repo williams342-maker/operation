@@ -150,6 +150,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   }
   const set: Record<string, unknown> = { updatedAt: now };
   let nextState = task.state;
+  let gitAuditMetadata: Record<string, string | number | boolean> | undefined;
   if (body.event === "started") { nextState = "running"; set.startedAt = task.startedAt || now; }
   if (body.event === "progress") { set.progress = body.progress ?? task.progress ?? 0; }
   if (body.event === "succeeded" || body.event === "failed") {
@@ -173,6 +174,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
         const checks = gitPreflightChecks(row, deployment.requestedRevision);
         const status = body.event === "succeeded" && checks.every((check) => check.passed) ? "passed" as const : "failed" as const;
         await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, "gitPreflight.taskId": id }, { $set: { gitPreflight: { taskId: id, status, checks, headRevision: typeof row?.commit === "string" ? row.commit : undefined, branch: typeof row?.branch === "string" ? row.branch : undefined, dirty: typeof row?.dirty === "boolean" ? row.dirty : undefined, checkedAt: now }, updatedAt: now } });
+        gitAuditMetadata = { phase: "git_preflight", status, deploymentId: deployment._id!.toHexString(), failedChecks: checks.filter((check) => !check.passed).length };
       }
     }
   }
@@ -186,7 +188,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   invalidateOperationalContext(server._id.toHexString());
   if (task.projectId) invalidateOperationalContext(task.projectId.toHexString());
   const deployment = task.type === "configuration.apply" || task.type === "configuration.rollback" ? deploymentProgressSchema.safeParse(set.result) : undefined;
-  return { status: 200, body: { ok: true }, auditMetadata: deployment?.success ? { phase: deployment.data.phase, deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none", rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none" } : undefined };
+  return { status: 200, body: { ok: true }, auditMetadata: gitAuditMetadata || (deployment?.success ? { phase: deployment.data.phase, deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none", rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none" } : undefined) };
 }
 
 export const createTaskSchema = z.object({
