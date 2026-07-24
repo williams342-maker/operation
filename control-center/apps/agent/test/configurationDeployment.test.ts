@@ -32,10 +32,31 @@ test("safe failure progress reports bounded configuration categories", () => {
     const result = safeConfigurationFailureProgress(new Error(message));
     assert.equal(result.phase, "failed");
     assert.equal(result.errorCategory, expected);
+    assert.equal(result.failureStage, "unknown");
     assert.equal(JSON.stringify(result).includes(message), false);
     assert.deepEqual(result.services, []);
     assert.equal(result.changedVariables, 0);
   }
+});
+test("safe failure progress reports bounded pre-write stages", async () => {
+  resetReplayStateForTests();
+  const version = fixture();
+  await assert.rejects(async () => {
+    try { await executeConfigurationDeployment(version.payload, version.key, "stage-version", [...deploymentCapabilities], "0.1.0-beta.1", safeNetwork); }
+    catch (error) { const progress = safeConfigurationFailureProgress(error); assert.equal(progress.errorCategory, "version"); assert.equal(progress.failureStage, "version"); throw error; }
+  }, /version/);
+  const digest = fixture();
+  digest.payload.expectedConfigurationDigest = "b".repeat(64);
+  await assert.rejects(async () => {
+    try { await executeConfigurationDeployment(digest.payload, digest.key, "stage-digest", [...deploymentCapabilities], "0.1.0", safeNetwork); }
+    catch (error) { const progress = safeConfigurationFailureProgress(error); assert.equal(progress.errorCategory, "parsing"); assert.equal(progress.failureStage, "digest_guard"); throw error; }
+  }, /version mismatch/);
+  const privateTarget = fixture();
+  privateTarget.payload.healthChecks[0].url = "http://169.254.169.254/latest/meta-data";
+  await assert.rejects(async () => {
+    try { await executeConfigurationDeployment(privateTarget.payload, privateTarget.key, "stage-health", [...deploymentCapabilities], "0.1.0", safeNetwork); }
+    catch (error) { const progress = safeConfigurationFailureProgress(error); assert.equal(progress.errorCategory, "health"); assert.equal(progress.failureStage, "health_preflight"); throw error; }
+  }, /Health check/);
 });
 test("agent applies atomically and preserves backup", async () => { resetReplayStateForTests(); const item = fixture(); const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-001", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => true }); assert.equal(result.phase, "succeeded"); assert.match(fs.readFileSync(item.env, "utf8"), /TOKEN=fixture-value/); assert.equal(fs.existsSync(path.join(item.root, result.backupId!)), true); });
 test("agent rolls back and revalidates health", async () => { resetReplayStateForTests(); const item = fixture(); let checks = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-002", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => ++checks > 1 }); assert.equal(result.phase, "rolled_back"); assert.equal(result.healthChecksPassed, 1); assert.equal(checks, 2); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); });

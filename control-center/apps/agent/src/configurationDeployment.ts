@@ -11,6 +11,33 @@ const MAX_VALUE = 16 * 1024;
 const usedNonces = new Map<string, number>();
 
 export type DeploymentHooks = { compose?: (args: string[], cwd: string) => Promise<{ code: number | null }>; health?: (url: string, timeoutMs: number) => Promise<boolean>; resolve?: (hostname: string) => Promise<string[]>; now?: () => Date };
+type DeploymentErrorCategory = NonNullable<DeploymentProgress["errorCategory"]>;
+type DeploymentFailureStage = NonNullable<DeploymentProgress["failureStage"]>;
+type TaggedDeploymentError = Error & { deploymentErrorCategory?: DeploymentErrorCategory; deploymentFailureStage?: DeploymentFailureStage };
+
+function tagFailure(error: unknown, category: DeploymentErrorCategory, stage: DeploymentFailureStage) {
+  if (error instanceof Error) {
+    const tagged = error as TaggedDeploymentError;
+    tagged.deploymentErrorCategory ??= category;
+    tagged.deploymentFailureStage ??= stage;
+  }
+  return error;
+}
+
+function withFailureStage<T>(stage: DeploymentFailureStage, category: DeploymentErrorCategory, action: () => T): T {
+  try { return action(); } catch (error) { throw tagFailure(error, category, stage); }
+}
+
+async function withFailureStageAsync<T>(stage: DeploymentFailureStage, category: DeploymentErrorCategory, action: () => Promise<T>): Promise<T> {
+  try { return await action(); } catch (error) { throw tagFailure(error, category, stage); }
+}
+
+function categoryForPathGuard(error: unknown): DeploymentErrorCategory {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (/symlink/.test(message)) return "symlink";
+  if (/mount/.test(message)) return "mount";
+  return "path";
+}
 
 function assertNonProduction(payload: ConfigurationDeploymentPayload) {
   if (payload.protected || !["staging", "development", "testing", "preview", "ci"].includes(payload.environmentKind)) throw new Error("Production configuration deployment is unavailable");
@@ -112,21 +139,22 @@ function writeAtomic(file: string, content: string, mode: number, uid: number, g
 }
 
 export async function executeConfigurationDeployment(raw: unknown, signingKey: string, nonce: string, capabilities: string[], agentVersion: string | undefined, hooks: DeploymentHooks = {}): Promise<DeploymentProgress> {
-  const payload = configurationDeploymentPayloadSchema.parse(raw); assertNonProduction(payload);
-  if (!isCompatibleAgentVersion(agentVersion)) throw new Error(`Agent version must be stable and at least ${minimumDeploymentAgentVersion}`);
-  if (!deploymentCapabilities.every((item) => capabilities.includes(item))) throw new Error("Incomplete deployment capabilities");
+  const payload = withFailureStage("schema", "parsing", () => configurationDeploymentPayloadSchema.parse(raw)); withFailureStage("policy", "environment", () => assertNonProduction(payload));
+  if (!isCompatibleAgentVersion(agentVersion)) throw tagFailure(new Error(`Agent version must be stable and at least ${minimumDeploymentAgentVersion}`), "version", "version");
+  if (!deploymentCapabilities.every((item) => capabilities.includes(item))) throw tagFailure(new Error("Incomplete deployment capabilities"), "capability", "capability");
   const now = (hooks.now || (() => new Date()))(); for (const [key, expiry] of usedNonces) if (expiry < now.getTime()) usedNonces.delete(key);
-  if (usedNonces.has(nonce)) throw new Error("Replay rejected"); usedNonces.set(nonce, now.getTime() + 24 * 60 * 60 * 1000);
+  if (usedNonces.has(nonce)) throw tagFailure(new Error("Replay rejected"), "replay", "replay"); usedNonces.set(nonce, now.getTime() + 24 * 60 * 60 * 1000);
   const resolver = hooks.resolve || (async (hostname: string) => (await dns.lookup(hostname, { all: true, verbatim: true })).map((entry) => entry.address));
-  for (const check of payload.healthChecks) await validateHealthUrl(check.url, resolver);
-  const file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath); assertSafePath(payload.repositoryRoot, payload.composePath);
-  const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw new Error("Environment file must be a regular file with one hard link");
-  if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) throw new Error("Environment file permissions are too broad");
-  const original = fs.readFileSync(file, "utf8"); if (configurationDigest(original) !== payload.expectedConfigurationDigest) throw new Error("Expected configuration version mismatch");
-  const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (process.platform !== "win32") fs.chownSync(backup, stat.uid, stat.gid);
-  const secrets = decryptValues(payload, signingKey); const proposed = applyEnvironmentMutations(original, payload.mutations, secrets);
-  writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid);
+  for (const check of payload.healthChecks) await withFailureStageAsync("health_preflight", "health", () => validateHealthUrl(check.url, resolver));
+  let file = "";
+  try { file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath); assertSafePath(payload.repositoryRoot, payload.composePath); } catch (error) { throw tagFailure(error, categoryForPathGuard(error), "path_guard"); }
+  const stat = withFailureStage("file_guard", "environment", () => fs.lstatSync(file));
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw tagFailure(new Error("Environment file must be a regular file with one hard link"), "path", "file_guard");
+  if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) throw tagFailure(new Error("Environment file permissions are too broad"), "environment", "file_guard");
+  const original = withFailureStage("file_guard", "environment", () => fs.readFileSync(file, "utf8")); if (configurationDigest(original) !== payload.expectedConfigurationDigest) throw tagFailure(new Error("Expected configuration version mismatch"), "parsing", "digest_guard");
+  const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; withFailureStage("backup", "backup", () => { fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (process.platform !== "win32") fs.chownSync(backup, stat.uid, stat.gid); });
+  const secrets = withFailureStage("decrypt", "parsing", () => decryptValues(payload, signingKey)); const proposed = withFailureStage("mutation", "parsing", () => applyEnvironmentMutations(original, payload.mutations, secrets));
+  withFailureStage("write", "write", () => writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid));
   const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 120_000));
   const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", ...payload.statelessServices];
   const activation = await compose(args, payload.repositoryRoot);
@@ -149,8 +177,9 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
 export function resetReplayStateForTests() { if (process.env.NODE_ENV !== "test") throw new Error("Test-only operation"); usedNonces.clear(); }
 
 export function safeConfigurationFailureProgress(error: unknown): DeploymentProgress {
+  const tagged = error instanceof Error ? error as TaggedDeploymentError : undefined;
   const message = error instanceof Error ? error.message.toLowerCase() : "";
-  const category =
+  const fallbackCategory =
     /capabilit/.test(message) ? "capability" :
     /agent version|stable|minimum/.test(message) ? "version" :
     /replay|nonce/.test(message) ? "replay" :
@@ -166,5 +195,6 @@ export function safeConfigurationFailureProgress(error: unknown): DeploymentProg
     /rollback/.test(message) ? "rollback" :
     /production|environment/.test(message) ? "environment" :
     "unknown";
-  return { phase: "failed", progress: 100, changedVariables: 0, services: [], healthChecksPassed: 0, errorCategory: category };
+  const category = tagged?.deploymentErrorCategory ?? fallbackCategory;
+  return { phase: "failed", progress: 100, changedVariables: 0, services: [], healthChecksPassed: 0, errorCategory: category, failureStage: tagged?.deploymentFailureStage ?? "unknown" };
 }

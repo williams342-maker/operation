@@ -6,6 +6,7 @@ export const deployableEnvironmentKinds = ["staging", "development", "testing", 
 export const deploymentCapabilities = ["encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback"] as const;
 export const minimumDeploymentAgentVersion = "0.1.0";
 export const deploymentPhases = ["queued", "preflight", "backup_created", "configuration_written", "services_activating", "health_checking", "rollback_started", "rollback_restored", "rollback_validating", "succeeded", "failed", "rolled_back", "rollback_failed"] as const;
+export const deploymentFailureStages = ["schema", "policy", "version", "capability", "replay", "health_preflight", "path_guard", "file_guard", "digest_guard", "backup", "decrypt", "mutation", "write", "activation", "health", "rollback", "unknown"] as const;
 
 const safeId = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/);
 const mutationBase = { name: settingNameSchema, versionId: z.string().min(12).max(64), secret: z.boolean() };
@@ -45,7 +46,8 @@ export const configurationDeploymentPayloadSchema = z.object({
 });
 
 const deploymentErrorCategory = z.enum(["capability", "environment", "version", "path", "symlink", "mount", "parsing", "backup", "write", "activation", "health", "rollback", "replay", "unknown"]);
-export const deploymentProgressSchema = z.object({ phase: z.enum(deploymentPhases), progress: z.number().min(0).max(100), changedVariables: z.number().int().nonnegative().max(250), services: z.array(safeId).max(30), healthChecksPassed: z.number().int().nonnegative().max(30), errorCategory: deploymentErrorCategory.optional(), deploymentErrorCategory: deploymentErrorCategory.optional(), rollbackErrorCategory: deploymentErrorCategory.optional(), backupId: safeId.optional(), configurationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
+const deploymentFailureStage = z.enum(deploymentFailureStages);
+export const deploymentProgressSchema = z.object({ phase: z.enum(deploymentPhases), progress: z.number().min(0).max(100), changedVariables: z.number().int().nonnegative().max(250), services: z.array(safeId).max(30), healthChecksPassed: z.number().int().nonnegative().max(30), errorCategory: deploymentErrorCategory.optional(), failureStage: deploymentFailureStage.optional(), deploymentErrorCategory: deploymentErrorCategory.optional(), rollbackErrorCategory: deploymentErrorCategory.optional(), backupId: safeId.optional(), configurationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
 
 export type ConfigurationDeploymentPayload = z.infer<typeof configurationDeploymentPayloadSchema>;
 export type DeploymentProgress = z.infer<typeof deploymentProgressSchema>;
