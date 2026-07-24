@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { requestSafeHttp, resolveSafeHttpTarget, safeHttpErrorCategory, UnsafeHttpTargetError } from "../src/safeHttp.js";
+import { pinnedLookup, requestSafeHttp, resolveSafeHttpTarget, safeHttpErrorCategory, UnsafeHttpTargetError } from "../src/safeHttp.js";
 
 test("agent rejects literal, DNS-resolved, and mixed private health targets", async () => {
   for (const url of [
@@ -24,6 +24,24 @@ test("agent pins the validated address used for the request", async () => {
   assert.deepEqual(calls, [{ url: "https://health.example.test/health", address: "93.184.216.34" }]);
   assert.equal(result.statusCode, 204);
   assert.equal(result.latencyMs, 5);
+});
+
+test("agent pinning supports Node single-address and all-address lookup callbacks", async () => {
+  const lookup = pinnedLookup("203.0.113.10");
+  const single = await new Promise<{ address: string; family: number }>((resolve, reject) => {
+    lookup("example.test", { family: 0 }, (error, address, family) => {
+      if (error) reject(error);
+      else resolve({ address: String(address), family: Number(family) });
+    });
+  });
+  const all = await new Promise<unknown>((resolve, reject) => {
+    lookup("example.test", { all: true }, (error, addresses) => {
+      if (error) reject(error);
+      else resolve(addresses);
+    });
+  });
+  assert.deepEqual(single, { address: "203.0.113.10", family: 4 });
+  assert.deepEqual(all, [{ address: "203.0.113.10", family: 4 }]);
 });
 
 test("agent revalidates every redirect and never requests a private destination", async () => {

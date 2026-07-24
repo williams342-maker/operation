@@ -42,7 +42,7 @@ function requestPinned(url: URL, timeoutMs: number, address: string): Promise<Sa
     const request = transport.request(url, {
       method: "GET",
       headers: { "user-agent": "OpsWorkbench-Agent/1.0", accept: "*/*" },
-      lookup: (_hostname, _options, callback) => callback(null, address, net.isIPv6(address) ? 6 : 4)
+      lookup: pinnedLookup(address)
     }, (response) => {
       const statusCode = response.statusCode || 0;
       const location = response.headers.location;
@@ -57,6 +57,17 @@ function requestPinned(url: URL, timeoutMs: number, address: string): Promise<Sa
     request.once("error", (error) => finish(() => reject(error)));
     request.end();
   });
+}
+
+export function pinnedLookup(address: string): net.LookupFunction {
+  const family = net.isIPv6(address) ? 6 : 4;
+  return (_hostname, options, callback) => {
+    if (typeof options === "object" && options.all) {
+      callback(null, [{ address, family }]);
+      return;
+    }
+    callback(null, address, family);
+  };
 }
 
 export async function requestSafeHttp(raw: string, timeoutMs: number, hooks: SafeHttpHooks = {}) {
