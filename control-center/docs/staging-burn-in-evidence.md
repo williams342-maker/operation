@@ -184,6 +184,16 @@ Ed25519 signature.
   task and the one-per-stage lifecycle. Disposable test containers, networks,
   images, and Dockerfiles were removed.
 
+### Runtime log redaction
+
+- A count-only scan covered the prior 30 minutes of API, web, edge, MongoDB,
+  and `opsworkbench-agent.service` logs after the task-audit deployments.
+- The bounded patterns covered bearer credentials, MongoDB connection strings,
+  password, secret, token, API-key, authorization, and private-key shapes.
+- API, web, edge, MongoDB, and agent journal results each reported zero
+  secret-shaped matches. No matching log contents or credential-like values
+  were emitted during verification.
+
 ### Disposable configuration rollback proof
 
 - The installed staging agent implementation ran as its restricted
@@ -215,7 +225,7 @@ Ed25519 signature.
 
 - Complete at least 24 continuous hours of threshold monitoring.
 - Complete the remaining recent-auth, enrollment, and configuration audit
-  categories plus API, agent, proxy, and Docker log redaction.
+  categories.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
 - Record the monitoring/on-call/rollback owners and final owner sign-off.
