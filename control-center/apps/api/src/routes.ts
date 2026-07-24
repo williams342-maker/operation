@@ -443,8 +443,8 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
   try {
     const body = taskAckSchema.parse(req.body);
     const result = await acknowledgeTask(req.agentServer!, body);
-    if (result.status === 200) {
-      const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : body.event === "succeeded" || body.event === "failed" ? "task.complete" : "task.claim";
+    if (result.status === 200 && body.event !== "claimed") {
+      const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : "task.complete";
       await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: body.taskId, result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
     }
     res.status(result.status).json(result.body);

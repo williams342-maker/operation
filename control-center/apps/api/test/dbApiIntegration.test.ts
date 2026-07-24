@@ -563,6 +563,11 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(claimedTasks[0].envelope.taskId, queuedTask.body.task._id);
     assert.equal(claimedTasks[0].envelope.agentId, credentials.agentId);
     assert.equal(claimedTasks[0].envelope.serverId, credentials.serverId);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.claim", targetId: new ObjectId(queuedTask.body.task._id) }), 1);
+
+    const acknowledgedClaim = await ack(credentials, { taskId: queuedTask.body.task._id, event: "claimed" });
+    assert.equal(acknowledgedClaim.status, 200);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.claim", targetId: new ObjectId(queuedTask.body.task._id) }), 1);
 
     const duplicateClaim = await poll(credentials, { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.0" } });
     assert.equal(duplicateClaim.status, 200);
