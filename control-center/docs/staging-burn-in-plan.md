@@ -8,7 +8,8 @@ Burn-in begins only after the deployment intake and security gates are approved.
 - [ ] Private access control, TLS, firewall, and origin-bypass protections pass.
 - [ ] `/healthz` and `/readyz` pass and report the expected build identity.
 - [ ] Backup identifier and tested restore procedure are recorded.
-- [ ] Monitoring, log access, on-call owner, and rollback owner are active.
+- [ ] Monitoring and log access are active; the Operations Administrator role
+  owns incident response and staging rollback.
 - [ ] Credential remediation and history-remediation decision gates are approved.
 
 ## Operational validation
@@ -28,16 +29,23 @@ Burn-in begins only after the deployment intake and security gates are approved.
 
 Capture at least every five minutes: availability, HTTP 5xx/4xx/429 rates, p50/p95 latency, CPU, memory, disk usage/growth, container restarts, Mongo connections/storage, agent heartbeat gaps, queued/running task age, deployment outcomes, and sanitized error counts.
 
-Proposed acceptance thresholds (owner must approve or replace before burn-in):
+The version-controlled `Staging-BurnIn-v1` policy defines the initial
+acceptance thresholds:
 
-- Availability at least 99.5% excluding the recorded restart exercise.
-- Zero unplanned outages longer than 60 seconds.
-- HTTP 5xx below 0.5% over any rolling 15-minute window and no repeated unexplained exception.
+- Availability at least 99.9%.
+- HTTP error rate below 1%.
+- p95 latency below 500 milliseconds.
+- Agent heartbeat gap no greater than 60 seconds.
+- Disk warning at 80% and critical failure at 90%.
 - No unexpected 401/403 behavior; no sustained unexplained 429s.
-- No OOM event, disk exhaustion, crash loop, or more than one unplanned restart per component.
-- Agent heartbeat gap below two expected polling intervals outside the restart exercise.
+- No OOM event, disk exhaustion, crash loop, or unexpected restart.
 - Zero stuck tasks older than their expiry and zero duplicate mutation effects.
 - Zero secret exposure, organization-isolation failure, production/protected-environment mutation, backup failure, or rollback/health-revalidation failure.
+
+The observation window is a minimum, not a fixed duration. An unexpected
+restart, critical alert, latency or availability breach, or unhealthy agent
+heartbeat resets the observation start. A clean 24-hour window passes
+automatically; observation continues until every threshold holds.
 
 ## Immediate rollback triggers
 
@@ -55,4 +63,10 @@ Severity: Critical for security/isolation/data-loss failures; High for rollback/
 
 ## Exit gate
 
-Burn-in succeeds only when the approved duration completes, every mandatory workflow passes, thresholds hold, no Critical/High defect remains open, rollback evidence is complete, backups restore successfully, logs remain value-free, and deployment/security/rollback owners sign off. Success authorizes review of the evidence package only; it does not authorize production deployment.
+Burn-in succeeds only when the minimum continuous duration completes, every
+mandatory workflow passes, thresholds hold, no Critical/High defect remains
+open, rollback evidence is complete, backups restore successfully, and logs
+remain value-free. The Operations Administrator role reviews the evidence.
+Success authorizes autonomous release-candidate creation only; production
+publication still requires an owner Ed25519 signature accepted by the
+Publisher's policy verifier.

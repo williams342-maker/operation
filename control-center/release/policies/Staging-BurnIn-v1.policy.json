@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "opsworkbench-release-policy-v1",
+  "policyId": "Staging-BurnIn",
+  "version": 1,
+  "authority": [
+    {
+      "stage": "build",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "test",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "security_validation",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "staging_deployment",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "burn_in_monitoring",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "staging_rollback",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "release_candidate_creation",
+      "authority": "ai",
+      "autonomous": true
+    },
+    {
+      "stage": "production_publication",
+      "authority": "owner_ed25519_signature",
+      "autonomous": false
+    }
+  ],
+  "roles": [
+    {
+      "role": "owner",
+      "responsibilities": [
+        "holds_offline_ed25519_private_key",
+        "approves_production_releases",
+        "delegates_operations_without_signing_authority"
+      ]
+    },
+    {
+      "role": "operations_administrator",
+      "responsibilities": [
+        "reviews_monitoring",
+        "responds_to_incidents",
+        "approves_staging_deployments",
+        "initiates_approved_staging_rollbacks"
+      ]
+    },
+    {
+      "role": "publisher",
+      "responsibilities": [
+        "verifies_owner_signature",
+        "publishes_only_policy_compliant_releases",
+        "cannot_override_signature_validation"
+      ]
+    }
+  ],
+  "monitoring": {
+    "availabilityPercentMinimum": 99.9,
+    "httpErrorRatePercentMaximum": 1,
+    "p95LatencyMsMaximum": 500,
+    "agentHeartbeatGapSecondsMaximum": 60,
+    "diskWarningPercent": 80,
+    "diskCriticalPercent": 90
+  },
+  "stagingProfile": {
+    "name": "Staging-BurnIn-v1",
+    "version": 1,
+    "allowedActions": [
+      "deploy",
+      "restart",
+      "rollback",
+      "collect_telemetry",
+      "browser_validation",
+      "security_validation"
+    ],
+    "deniedActions": [
+      "production_publish",
+      "database_migration",
+      "dns_changes",
+      "payment_activation",
+      "secret_rotation",
+      "signing"
+    ]
+  },
+  "observation": {
+    "minimumHours": 24,
+    "resetOn": [
+      "unexpected_restart",
+      "critical_alert",
+      "latency_threshold_breach",
+      "availability_threshold_breach",
+      "agent_heartbeat_threshold_breach"
+    ]
+  },
+  "publication": {
+    "ownerKeyId": "OWNER_ED25519_KEY_ID_REQUIRED",
+    "requireValidOwnerSignature": true,
+    "requirePolicySignature": true,
+    "requireSecurityValidation": true,
+    "requireStagingValidation": true,
+    "requireTelemetryThresholds": true,
+    "requireRollbackCheckpoint": true
+  }
+}

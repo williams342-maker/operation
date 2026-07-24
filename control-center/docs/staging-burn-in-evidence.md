@@ -285,6 +285,30 @@ Ed25519 signature.
   24-hour gate because persistent HTTP availability, status-rate, and latency
   series were not collected across container replacements.
 
+### Release authority and monitoring policy
+
+- The authority matrix now assigns build, test, security validation, staging
+  deployment, burn-in monitoring, staging rollback, and release-candidate
+  creation to autonomous AI operation.
+- Production publication remains non-autonomous and requires an
+  owner-controlled Ed25519 signature. Owner, Operations Administrator, and
+  Publisher are durable roles; one person may currently perform all three
+  without delegating signing authority.
+- Version-controlled candidate policy `Staging-BurnIn-v1` defines 99.9%
+  availability, HTTP errors below 1%, p95 latency below 500 milliseconds,
+  agent heartbeat gaps no greater than 60 seconds, and disk warning/critical
+  levels of 80%/90%.
+- Burn-in is a minimum continuous 24-hour window. An unexpected restart,
+  critical alert, latency or availability breach, or unhealthy heartbeat
+  resets the observation start.
+- The staging authority profile permits deploy, restart, rollback, telemetry,
+  browser, and security validation. It denies production publication,
+  database migration, DNS changes, payment activation, secret rotation, and
+  signing.
+- The committed policy remains an unsigned candidate with an explicit owner
+  key-ID placeholder. It cannot enable production publication until the owner
+  inserts the public-key identifier and signs the exact policy digest offline.
+
 ## Remaining gates
 
 - Capture a new continuous 24-hour window with persistent HTTP availability,
@@ -292,4 +316,7 @@ Ed25519 signature.
   and heartbeat but cannot retroactively satisfy the HTTP portion.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
-- Record the monitoring/on-call/rollback owners and final owner sign-off.
+- Create the host-specific configuration target profile containing the exact
+  repository, environment-file, Compose, service, and health-check inputs.
+- Before any production publication, insert the owner public-key identifier
+  into a new policy revision and apply the required offline Ed25519 signatures.
