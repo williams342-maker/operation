@@ -18,7 +18,8 @@
     "release:verify": "bash scripts/verify-release-artifacts.sh",
     "agent-bootstrap:build": "node scripts/build-agent-bootstrap.mjs",
     "agent-bootstrap:sign": "node scripts/sign-agent-bootstrap.mjs",
-    "agent-bootstrap:verify": "node scripts/verify-agent-bootstrap.mjs"
+    "agent-bootstrap:verify": "node scripts/verify-agent-bootstrap.mjs",
+    "agent-bootstrap:test": "node scripts/test-agent-bootstrap.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
