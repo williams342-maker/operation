@@ -21,8 +21,8 @@ test("successful telemetry tasks without agent messages get truthful success sum
 test("failed ordinary tasks without agent messages keep truthful failure summaries", () => { const summary = safeTaskSummary("collect.telemetry", undefined, { errorCategory: "unknown" }, "failed"); assert.equal(summary, "Task failed"); });
 test("Git preflight evidence is bound to the exact approved revision", () => {
   const revision = "a".repeat(40);
-  assert.deepEqual(gitPreflightChecks({ requestedRevision: revision, requestedRevisionExists: true, resolvedRevision: revision }, revision).map((check) => check.passed), [true, true, true, true]);
-  assert.deepEqual(gitPreflightChecks({ requestedRevision: "b".repeat(40), requestedRevisionExists: true, resolvedRevision: revision }, revision).map((check) => check.passed), [true, false, true, false]);
-  assert.deepEqual(gitPreflightChecks({ requestedRevision: revision.slice(0, 7), requestedRevisionExists: true, resolvedRevision: revision }, revision.slice(0, 7)).map((check) => check.passed), [true, true, true, true]);
-  assert.deepEqual(gitPreflightChecks(undefined, revision).map((check) => check.passed), [false, false, false, false]);
+  assert.deepEqual(gitPreflightChecks({ requestedRevision: revision, requestedRevisionExists: true, resolvedRevision: revision, branch: "main", dirty: false }, revision, "main").map((check) => check.passed), [true, true, true, true, true, true]);
+  assert.deepEqual(gitPreflightChecks({ requestedRevision: "b".repeat(40), requestedRevisionExists: true, resolvedRevision: revision, branch: "other", dirty: true }, revision, "main").map((check) => check.passed), [true, false, true, false, false, false]);
+  assert.deepEqual(gitPreflightChecks({ requestedRevision: revision.slice(0, 7), requestedRevisionExists: true, resolvedRevision: revision, branch: "main", dirty: false }, revision.slice(0, 7), "main").map((check) => check.passed), [true, true, true, true, true, true]);
+  assert.deepEqual(gitPreflightChecks(undefined, revision, "main").map((check) => check.passed), [false, false, false, false, false, false]);
 });

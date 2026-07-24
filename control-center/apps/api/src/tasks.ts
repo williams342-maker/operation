@@ -63,11 +63,11 @@ export function configurationPlanStateForDeploymentPhase(phase: string | undefin
   return phase === "succeeded" ? "succeeded" : phase === "rolled_back" ? "rolled_back" : "failed";
 }
 
-export function gitPreflightChecks(row: Record<string, unknown> | undefined, requestedRevision: string) {
+export function gitPreflightChecks(row: Record<string, unknown> | undefined, requestedRevision: string, expectedBranch: string) {
   const revisionBound = row?.requestedRevision === requestedRevision;
   const resolvedRevision = typeof row?.resolvedRevision === "string" && /^[a-f0-9]{40}$/.test(row.resolvedRevision) && row.resolvedRevision.startsWith(requestedRevision);
   const revisionExists = revisionBound && resolvedRevision && row?.requestedRevisionExists === true;
-  return [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_bound", passed: revisionBound }, { name: "requested_revision_resolved", passed: resolvedRevision }, { name: "requested_revision_exists", passed: revisionExists }];
+  return [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_bound", passed: revisionBound }, { name: "requested_revision_resolved", passed: resolvedRevision }, { name: "requested_revision_exists", passed: revisionExists }, { name: "expected_branch_checked_out", passed: row?.branch === expectedBranch }, { name: "worktree_clean", passed: row?.dirty === false }];
 }
 
 export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
@@ -172,7 +172,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
       if (deployment) {
         const rows = body.result && typeof body.result === "object" && Array.isArray((body.result as { git?: unknown[] }).git) ? (body.result as { git: unknown[] }).git : [];
         const row = rows.find((item) => item && typeof item === "object" && (item as { projectId?: unknown }).projectId === deployment.projectId.toHexString()) as Record<string, unknown> | undefined;
-        const checks = gitPreflightChecks(row, deployment.requestedRevision);
+        const checks = gitPreflightChecks(row, deployment.requestedRevision, deployment.branch || "main");
         const status = body.event === "succeeded" && checks.every((check) => check.passed) ? "passed" as const : "failed" as const;
         await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, "gitPreflight.taskId": id }, { $set: { gitPreflight: { taskId: id, status, checks, headRevision: typeof row?.commit === "string" ? row.commit : undefined, resolvedRevision: typeof row?.resolvedRevision === "string" ? row.resolvedRevision : undefined, branch: typeof row?.branch === "string" ? row.branch : undefined, dirty: typeof row?.dirty === "boolean" ? row.dirty : undefined, checkedAt: now }, updatedAt: now } });
         gitAuditMetadata = { phase: "git_preflight", status, deploymentId: deployment._id!.toHexString(), failedChecks: checks.filter((check) => !check.passed).length };
