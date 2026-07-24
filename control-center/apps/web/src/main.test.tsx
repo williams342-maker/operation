@@ -155,6 +155,47 @@ describe("Sign Out", () => {
   });
 });
 
+describe("User management", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/users");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiPost.mockReset();
+    mocks.apiGet.mockImplementation((path: string) => {
+      if (path === "/me") return Promise.resolve({ data: { user: { id: "owner-id", email: "owner@example.test", name: "Owner User", role: "Owner" } } });
+      if (path === "/org/users") return Promise.resolve({ data: { users: [], total: 0, page: 1, pageSize: 25 } });
+      return authenticatedApi(path);
+    });
+  });
+
+  afterEach(() => { cleanup(); window.history.replaceState({}, "", "/"); });
+
+  it("identifies the signed-in user on password change and creates users with an admin-supplied temporary password", async () => {
+    mocks.apiPost.mockResolvedValue({ data: { id: "new-user-id", mustChangePassword: true } });
+    renderRoot();
+
+    expect(await screen.findByText(/Signed in as Owner User \(owner@example\.test\)\./)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("New user email"), "new-user@example.test");
+    await userEvent.type(screen.getByLabelText("New user name"), "New User");
+    await userEvent.selectOptions(screen.getByLabelText("New user role"), "Developer");
+    await userEvent.type(screen.getByLabelText("Temporary password"), "temporary-password-long");
+    await userEvent.type(screen.getByLabelText("Confirm temporary password"), "temporary-password-long");
+    await userEvent.click(screen.getByRole("button", { name: "Create user" }));
+
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/org/users", {
+      email: "new-user@example.test",
+      name: "New User",
+      role: "Developer",
+      password: "temporary-password-long"
+    }));
+    expect(mocks.apiPost.mock.calls[0][1]).not.toHaveProperty("confirmPassword");
+    expect(document.body.textContent).not.toContain("One-time password");
+    expect(await screen.findByText(/User created\. Share the temporary password through a secure channel\./)).toBeInTheDocument();
+  });
+});
+
 describe("Responsive navigation", () => {
   beforeEach(() => {
     localStorage.clear();

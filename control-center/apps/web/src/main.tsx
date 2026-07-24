@@ -429,34 +429,42 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     queryFn: () =>
       api.get("/org/users", { params: { search } }).then((r) => r.data),
   });
-  const f = useForm({ email: "", name: "", role: "Viewer" });
+  const f = useForm({ email: "", name: "", role: "Viewer", password: "", confirmPassword: "" });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["users"] });
     toast("User updated");
   };
   const create = useMutation({
-    mutationFn: () => api.post("/org/users", f.values),
-    onSuccess: (r) => {
+    mutationFn: () => api.post("/org/users", { email: f.values.email, name: f.values.name, role: f.values.role, password: f.values.password }),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
-      toast(`One-time password: ${r.data.oneTimePassword}`);
-      f.setValues({ email: "", name: "", role: "Viewer" });
+      toast("User created. Share the temporary password through a secure channel.");
+      f.setValues({ email: "", name: "", role: "Viewer", password: "", confirmPassword: "" });
     },
   });
+  const canCreate = f.values.email.trim().length > 0 && f.values.name.trim().length > 0 && f.values.password.length >= 12 && f.values.password === f.values.confirmPassword;
   return (
     <div className="space-y-4">
-    <PasswordChangeCard toast={toast} />
+    <PasswordChangeCard toast={toast} currentUser={me.data?.user} />
     <Card>
       <Header title="Users" search={search} setSearch={setSearch} />
-      <div className="mb-4 grid gap-2 md:grid-cols-4">
-        <Field placeholder="Email" {...f.field("email")} />
-        <Field placeholder="Name" {...f.field("name")} />
-        <Select {...f.field("role")}>
-          <option>Viewer</option>
-          <option>Developer</option>
-          <option>Administrator</option>
-          <option>Owner</option>
-        </Select>
-        <Button onClick={() => create.mutate()}>Invite</Button>
+      <div className="mb-4 rounded-lg border border-border bg-background/40 p-4">
+        <h2 className="font-semibold">Create user</h2>
+        <p className="mt-1 text-sm text-muted">Add a user directly when email invitations are not configured. The password is not shown again after save.</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          <Field aria-label="New user email" placeholder="Email" autoComplete="off" {...f.field("email")} />
+          <Field aria-label="New user name" placeholder="Name" autoComplete="off" {...f.field("name")} />
+          <Select aria-label="New user role" {...f.field("role")}>
+            <option>Viewer</option>
+            <option>Developer</option>
+            <option>Administrator</option>
+            <option>Owner</option>
+          </Select>
+          <PasswordField aria-label="Temporary password" placeholder="Temporary password" autoComplete="new-password" {...f.field("password")} />
+          <PasswordField aria-label="Confirm temporary password" placeholder="Confirm temporary password" autoComplete="new-password" {...f.field("confirmPassword")} />
+          <Button disabled={!canCreate || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Creating..." : "Create user"}</Button>
+        </div>
+        {f.values.confirmPassword && f.values.password !== f.values.confirmPassword && <p className="mt-2 text-sm text-danger">Temporary passwords do not match.</p>}
       </div>
       <ErrorText error={create.error} />
       {q.isLoading ? (
@@ -480,7 +488,7 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     </div>
   );
 }
-function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
+function PasswordChangeCard({ toast, currentUser }: { toast: (m: string) => void; currentUser?: any }) {
   const f = useForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const mutation = useMutation({
     mutationFn: () => changePassword(f.values.currentPassword, f.values.newPassword),
@@ -493,6 +501,7 @@ function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
   return (
     <Card>
       <h2 className="font-semibold">Change your password</h2>
+      <p className="mt-1 text-sm text-text">Signed in as {currentUser?.name ? `${currentUser.name} (${currentUser.email})` : currentUser?.email || "the current user"}.</p>
       <p className="mt-1 text-sm text-muted">Use at least 12 characters. Changing your password revokes your other sessions.</p>
       <div className="mt-3 grid gap-2 md:grid-cols-4">
         <PasswordField placeholder="Current password" autoComplete="current-password" {...f.field("currentPassword")} />

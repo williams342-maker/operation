@@ -65,12 +65,14 @@ managementRouter.get("/org/users", requirePermission("users:manage"), async (req
 
 managementRouter.post("/org/users", noStore, requirePermission("users:manage"), async (req, res, next) => {
   try {
-    const body = z.object({ email: z.string().email(), name: z.string().min(1).max(120), role: z.enum(roles) }).parse(req.body);
+    const body = z.object({ email: z.string().email(), name: z.string().min(1).max(120), role: z.enum(roles), password: z.string().min(12).max(256) }).parse(req.body);
     if (body.role === "Owner" && !requireOwner(req, res)) return;
-    const oneTimePassword = randomToken(24); const now = new Date();
-    const result = await collections.users.insertOne({ orgId: orgId(req), email: body.email.toLowerCase(), name: body.name, role: body.role, passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, createdAt: now, updatedAt: now });
-    await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.create", targetType: "user", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { role: body.role } });
-    res.status(201).json({ id: result.insertedId, oneTimePassword });
+    const email = body.email.toLowerCase();
+    if (await collections.users.findOne({ orgId: orgId(req), email }, { projection: { _id: 1 } })) return res.status(409).json({ error: "User already exists" });
+    const now = new Date();
+    const result = await collections.users.insertOne({ orgId: orgId(req), email, name: body.name, role: body.role, passwordHash: hashPassword(body.password), mustChangePassword: true, createdAt: now, updatedAt: now });
+    await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.create", targetType: "user", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { role: body.role, credentialMode: "admin-temporary-password" } });
+    res.status(201).json({ id: result.insertedId, mustChangePassword: true });
   } catch (error) { next(error); }
 });
 
