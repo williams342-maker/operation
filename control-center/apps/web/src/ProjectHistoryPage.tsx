@@ -1,13 +1,19 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ProjectDeploymentHistoryItem, ProjectHistoryResponse, ProjectRollbackHistoryItem } from "@control-center/shared";
 import { api, apiError } from "./api";
-import { Badge, Card, Skeleton } from "./ui";
+import { Badge, Button, Card, Field, GhostButton, Select, Skeleton } from "./ui";
 
 const when = (value?: string) => value ? new Date(value).toLocaleString() : "Unavailable";
 const tone = (status: string): "neutral" | "success" | "danger" | "warning" => status === "succeeded" ? "success" : status === "failed" ? "danger" : status === "cancelled" || status === "rolled_back" ? "warning" : "neutral";
 
 export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: string; kind: "deployments" | "rollbacks"; navigate: (path: string) => void }) {
   const query = useQuery({ queryKey: ["project-history", projectId, kind], queryFn: () => api.get(`/projects/${projectId}/${kind}?limit=20`).then((response) => response.data as ProjectHistoryResponse<ProjectDeploymentHistoryItem | ProjectRollbackHistoryItem>), retry: false });
+  const [candidateRevision, setCandidateRevision] = useState("");
+  const [candidateEnvironment, setCandidateEnvironment] = useState("staging");
+  const [showPlanPreview, setShowPlanPreview] = useState(false);
+  const revisionReady = /^[a-f0-9]{7,40}$/i.test(candidateRevision.trim());
+  const lastSuccessful = useMemo(() => kind === "deployments" ? query.data?.records.find((record) => "requestedRevision" in record && record.status === "succeeded") as ProjectDeploymentHistoryItem | undefined : undefined, [kind, query.data?.records]);
   if (query.isLoading) return <Skeleton />;
   if (query.error) return <Card><h2 className="font-semibold">History unavailable</h2><p role="alert" className="mt-2 text-sm text-danger">{apiError(query.error)}</p></Card>;
   const data = query.data!;
@@ -28,21 +34,33 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
     {kind === "deployments" && <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">Deployment Manager foundation</h3>
-          <p className="text-sm text-muted">Select Git revision, preflight, deploy, health verification, and automatic rollback will be enabled in a separately reviewed execution slice.</p>
+          <h3 className="font-semibold">Deployment Manager plan review</h3>
+          <p className="text-sm text-muted">Draft a value-free immutable deployment plan before the separately reviewed execution slice. This page does not queue tasks, contact agents, or mutate infrastructure.</p>
         </div>
         <Badge tone="warning">Planning only</Badge>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm">Git revision<input aria-label="Git revision" disabled className="mt-1 h-10 w-full rounded-md border border-border bg-background px-3 text-sm opacity-70" placeholder="Select after deployment execution is enabled" /></label>
-        <label className="text-sm">Environment<input aria-label="Deployment environment" disabled className="mt-1 h-10 w-full rounded-md border border-border bg-background px-3 text-sm opacity-70" value="Non-production only" readOnly /></label>
-        <label className="text-sm">Health gate<input aria-label="Health gate" disabled className="mt-1 h-10 w-full rounded-md border border-border bg-background px-3 text-sm opacity-70" value="Required" readOnly /></label>
-        <label className="text-sm">Rollback<input aria-label="Rollback policy" disabled className="mt-1 h-10 w-full rounded-md border border-border bg-background px-3 text-sm opacity-70" value="Automatic on failure" readOnly /></label>
+        <label className="text-sm">Git revision<Field aria-label="Git revision" value={candidateRevision} onChange={(event) => { setCandidateRevision(event.target.value); setShowPlanPreview(false); }} placeholder="Commit SHA, 7-40 hex characters" /></label>
+        <label className="text-sm">Environment<Select aria-label="Deployment environment" value={candidateEnvironment} onChange={(event) => setCandidateEnvironment(event.target.value)}><option value="staging">staging</option><option value="preview">preview</option><option value="testing">testing</option></Select></label>
+        <label className="text-sm">Health gate<Field aria-label="Health gate" value="Required before completion" readOnly /></label>
+        <label className="text-sm">Rollback<Field aria-label="Rollback policy" value="Automatic on failed activation" readOnly /></label>
+      </div>
+      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded border border-border p-3"><div className="text-muted">Preflight</div><div>commit, artifact, branch, worktree</div></div>
+        <div className="rounded border border-border p-3"><div className="text-muted">Activation</div><div>checkpoint, backup, health, readiness</div></div>
+        <div className="rounded border border-border p-3"><div className="text-muted">Rollback boundary</div><div>{lastSuccessful?.releaseId || "Last successful release unavailable"}</div></div>
+        <div className="rounded border border-border p-3"><div className="text-muted">Secrets</div><div>Never displayed or written to plan preview</div></div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button disabled title="Requires separate deployment execution authorization" className="rounded-md border border-border px-3 py-2 text-sm text-muted opacity-60">Run preflight</button>
-        <button disabled title="Requires separate deployment execution authorization" className="rounded-md border border-border px-3 py-2 text-sm text-muted opacity-60">Create deployment plan</button>
+        <Button disabled={!revisionReady} onClick={() => setShowPlanPreview(true)}>Preview immutable plan</Button>
+        <GhostButton disabled title="Requires separate deployment execution authorization">Run preflight</GhostButton>
+        <GhostButton disabled title="Requires separate deployment execution authorization">Queue deployment</GhostButton>
       </div>
+      {!revisionReady && candidateRevision && <p role="alert" className="mt-2 text-sm text-danger">Enter a 7 to 40 character hexadecimal Git revision.</p>}
+      {showPlanPreview && <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm" aria-label="Immutable deployment plan preview">
+        <div className="flex flex-wrap items-center justify-between gap-2"><strong>Immutable plan preview</strong><Badge>Not queued</Badge></div>
+        <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Project</dt><dd>{data.project.name}</dd></div><div><dt className="text-muted">Revision</dt><dd className="break-all font-mono">{candidateRevision.trim()}</dd></div><div><dt className="text-muted">Environment</dt><dd>{candidateEnvironment}</dd></div><div><dt className="text-muted">Approval</dt><dd>Separate administrator required</dd></div><div><dt className="text-muted">Health gate</dt><dd>Required</dd></div><div><dt className="text-muted">Readiness gate</dt><dd>Required</dd></div><div><dt className="text-muted">Rollback</dt><dd>Prepared before activation</dd></div><div><dt className="text-muted">Execution</dt><dd>Unavailable in this milestone</dd></div></dl>
+      </div>}
     </Card>}
     <Card>
       <h3 className="font-semibold">{kind === "deployments" ? "Deployment history" : "Rollback history"}</h3>

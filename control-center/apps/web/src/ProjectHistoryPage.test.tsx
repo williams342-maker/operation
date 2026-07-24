@@ -30,14 +30,24 @@ describe("Project history workspace", () => {
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
     expect(await screen.findByText("succeeded")).toBeInTheDocument(); expect(screen.getByText("passed / passed")).toBeInTheDocument(); expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
   });
-  it("shows non-mutating Deployment Manager foundation controls", async () => {
+  it("shows non-mutating Deployment Manager plan review controls", async () => {
     apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false } });
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
-    expect(await screen.findByRole("heading", { name: "Deployment Manager foundation" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Deployment Manager plan review" })).toBeInTheDocument();
     expect(screen.getByText("Planning only")).toBeInTheDocument();
-    expect(screen.getByLabelText("Git revision")).toBeDisabled();
+    expect(screen.getByLabelText("Git revision")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Run preflight" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Create deployment plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
+    expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
+  });
+  it("previews an immutable deployment plan locally without queueing work", async () => {
+    apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [{ id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "d".repeat(40), deployedRevision: "e".repeat(40), branch: "main", taskId: "f".repeat(24), status: "succeeded", validation: { health: "passed", readiness: "passed" }, rollbackAvailable: true, evidenceConfidence: "verified", releaseId: "review-safe", createdAt: new Date().toISOString() }], limit: 20, hasMore: false } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    await userEvent.type(await screen.findByLabelText("Git revision"), "238b3a1");
+    await userEvent.click(screen.getByRole("button", { name: "Preview immutable plan" }));
+    expect(screen.getByLabelText("Immutable deployment plan preview")).toHaveTextContent("Not queued");
+    expect(screen.getByLabelText("Immutable deployment plan preview")).toHaveTextContent("Separate administrator required");
+    expect(apiGet).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
   });
 });
