@@ -4,10 +4,11 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 const apiGet = vi.hoisted(() => vi.fn());
-vi.mock("./api", () => ({ api: { get: apiGet }, apiError: () => "Unavailable" }));
+const apiPost = vi.hoisted(() => vi.fn());
+vi.mock("./api", () => ({ api: { get: apiGet, post: apiPost }, apiError: () => "Unavailable" }));
 import { ProjectHistoryPage } from "./ProjectHistoryPage";
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
-afterEach(() => { cleanup(); apiGet.mockReset(); });
+afterEach(() => { cleanup(); apiGet.mockReset(); apiPost.mockReset(); });
 describe("Project history workspace", () => {
   it("renders truthful empty deployment history and routes without mutation", async () => {
     apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false } }); const navigate = vi.fn();
@@ -48,6 +49,21 @@ describe("Project history workspace", () => {
     expect(screen.getByLabelText("Immutable deployment plan preview")).toHaveTextContent("Not queued");
     expect(screen.getByLabelText("Immutable deployment plan preview")).toHaveTextContent("Separate administrator required");
     expect(apiGet).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
+  });
+  it("creates a planned deployment record without queueing execution", async () => {
+    const initial = { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false };
+    const created = { project: initial.project, records: [{ id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), status: "planned", validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() }], limit: 20, hasMore: false };
+    apiGet.mockResolvedValueOnce({ data: initial }).mockResolvedValueOnce({ data: created });
+    apiPost.mockResolvedValue({ data: { deployment: created.records[0] } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    await userEvent.type(await screen.findByLabelText("Git revision"), "238b3a1");
+    await userEvent.click(screen.getByRole("button", { name: "Preview immutable plan" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create plan record" }));
+    expect(apiPost).toHaveBeenCalledWith(`/projects/${"a".repeat(24)}/deployments`, { requestedRevision: "238b3a1", environment: "staging" });
+    expect(await screen.findByText("Immutable deployment plan created and pending approval.")).toBeInTheDocument();
+    expect(await screen.findByText("planned")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
     expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
   });
 });

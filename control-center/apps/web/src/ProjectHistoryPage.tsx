@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ProjectDeploymentHistoryItem, ProjectHistoryResponse, ProjectRollbackHistoryItem } from "@control-center/shared";
 import { api, apiError } from "./api";
 import { Badge, Button, Card, Field, GhostButton, Select, Skeleton } from "./ui";
@@ -12,7 +12,13 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
   const [candidateRevision, setCandidateRevision] = useState("");
   const [candidateEnvironment, setCandidateEnvironment] = useState("staging");
   const [showPlanPreview, setShowPlanPreview] = useState(false);
+  const [planMessage, setPlanMessage] = useState("");
   const revisionReady = /^[a-f0-9]{7,40}$/i.test(candidateRevision.trim());
+  const createPlan = useMutation({
+    mutationFn: async () => api.post(`/projects/${projectId}/deployments`, { requestedRevision: candidateRevision.trim(), environment: candidateEnvironment }),
+    onSuccess: async () => { setPlanMessage("Immutable deployment plan created and pending approval."); setShowPlanPreview(false); setCandidateRevision(""); await query.refetch(); },
+    onError: (error) => setPlanMessage(apiError(error))
+  });
   const lastSuccessful = useMemo(() => kind === "deployments" ? query.data?.records.find((record) => "requestedRevision" in record && record.status === "succeeded") as ProjectDeploymentHistoryItem | undefined : undefined, [kind, query.data?.records]);
   if (query.isLoading) return <Skeleton />;
   if (query.error) return <Card><h2 className="font-semibold">History unavailable</h2><p role="alert" className="mt-2 text-sm text-danger">{apiError(query.error)}</p></Card>;
@@ -53,10 +59,12 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button disabled={!revisionReady} onClick={() => setShowPlanPreview(true)}>Preview immutable plan</Button>
+        <GhostButton disabled={!showPlanPreview || createPlan.isPending} onClick={() => createPlan.mutate()}>Create plan record</GhostButton>
         <GhostButton disabled title="Requires separate deployment execution authorization">Run preflight</GhostButton>
         <GhostButton disabled title="Requires separate deployment execution authorization">Queue deployment</GhostButton>
       </div>
       {!revisionReady && candidateRevision && <p role="alert" className="mt-2 text-sm text-danger">Enter a 7 to 40 character hexadecimal Git revision.</p>}
+      {planMessage && <p role="status" className="mt-2 text-sm text-muted">{planMessage}</p>}
       {showPlanPreview && <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm" aria-label="Immutable deployment plan preview">
         <div className="flex flex-wrap items-center justify-between gap-2"><strong>Immutable plan preview</strong><Badge>Not queued</Badge></div>
         <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Project</dt><dd>{data.project.name}</dd></div><div><dt className="text-muted">Revision</dt><dd className="break-all font-mono">{candidateRevision.trim()}</dd></div><div><dt className="text-muted">Environment</dt><dd>{candidateEnvironment}</dd></div><div><dt className="text-muted">Approval</dt><dd>Separate administrator required</dd></div><div><dt className="text-muted">Health gate</dt><dd>Required</dd></div><div><dt className="text-muted">Readiness gate</dt><dd>Required</dd></div><div><dt className="text-muted">Rollback</dt><dd>Prepared before activation</dd></div><div><dt className="text-muted">Execution</dt><dd>Unavailable in this milestone</dd></div></dl>
