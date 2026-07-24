@@ -30,7 +30,19 @@ async function serverNames(orgId: ObjectId, ids: ObjectId[]) {
   return new Map(rows.map((row) => [id(row._id), row.name]));
 }
 
+async function reconcileExpiredGitPreflights(orgId: ObjectId, projectId: ObjectId, now = new Date()) {
+  const deployments = await collections.projectDeployments.find({ orgId, projectId, status: "approved", "gitPreflight.status": { $in: ["queued", "running"] }, approvalExpiresAt: { $lte: now } }, { projection: { gitPreflight: 1 } }).limit(100).toArray();
+  for (const deployment of deployments) {
+    if (!deployment._id || !deployment.gitPreflight?.taskId) continue;
+    await Promise.all([
+      collections.agentTasks.updateOne({ _id: deployment.gitPreflight.taskId, orgId, state: { $in: ["queued", "claimed", "running"] } }, { $set: { state: "expired", completedAt: now, updatedAt: now }, $inc: { version: 1 } }),
+      collections.projectDeployments.updateOne({ _id: deployment._id, orgId, "gitPreflight.taskId": deployment.gitPreflight.taskId, "gitPreflight.status": { $in: ["queued", "running"] } }, { $set: { "gitPreflight.status": "failed", "gitPreflight.checks": [{ name: "approval_current", passed: false }], "gitPreflight.checkedAt": now, updatedAt: now } })
+    ]);
+  }
+}
+
 export async function projectDeploymentHistory(orgId: ObjectId, projectId: ObjectId, role: Role, limit: number) {
+  await reconcileExpiredGitPreflights(orgId, projectId);
   const rows = await collections.projectDeployments.find({ orgId, projectId }).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).toArray();
   const names = await serverNames(orgId, rows.slice(0, limit).map((row) => row.serverId));
   return { records: rows.slice(0, limit).map((row) => deploymentHistoryItem(row, names.get(id(row.serverId)), role)), hasMore: rows.length > limit };
