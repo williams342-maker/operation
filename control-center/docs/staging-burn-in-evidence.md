@@ -156,6 +156,9 @@ Ed25519 signature.
   synthetic email identifier used by the request.
 - The existing authenticated browser session later expired. Direct navigation
   to the Audit path rendered the sign-in screen instead of protected content.
+- A fresh authenticated session was signed out through the public staging UI.
+  The application returned to the sign-in screen, and direct navigation back
+  to `/audit` continued to render sign-in instead of protected content.
 - The temporary request body and value-safe database verifier were removed.
 
 ### Task lifecycle audit correlation
@@ -211,8 +214,6 @@ Ed25519 signature.
 ## Remaining gates
 
 - Complete at least 24 continuous hours of threshold monitoring.
-- Complete a live public-path logout check if it is required in addition to the
-  successful expired-session check.
 - Complete the remaining recent-auth, enrollment, and configuration audit
   categories plus API, agent, proxy, and Docker log redaction.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
