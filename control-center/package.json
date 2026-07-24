@@ -19,7 +19,9 @@
     "agent-bootstrap:build": "node scripts/build-agent-bootstrap.mjs",
     "agent-bootstrap:sign": "node scripts/sign-agent-bootstrap.mjs",
     "agent-bootstrap:verify": "node scripts/verify-agent-bootstrap.mjs",
-    "agent-bootstrap:test": "node scripts/test-agent-bootstrap.mjs"
+    "agent-bootstrap:test": "node scripts/test-agent-bootstrap.mjs",
+    "agent-bootstrap:build-disposable": "node scripts/build-disposable-agent-bootstrap.mjs",
+    "agent-bootstrap:test-linux": "bash scripts/test-agent-bootstrap-linux.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
