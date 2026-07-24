@@ -1,5 +1,5 @@
 ﻿import os from "node:os";
-import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentMonitoringPlanSchema, agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type HttpMonitoringTarget, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
@@ -9,12 +9,14 @@ import { executeConfigurationDeployment, safeConfigurationFailureProgress } from
 import { handoffUpgrade } from "./upgradeHandoff.js";
 import { collectConnectivity } from "./connectivity.js";
 import { shouldEnroll } from "./enrollmentDecision.js";
+import { dueHttpMonitoringChecks } from "./monitoring.js";
 
 const advertisedCapabilities = ["system", "docker", "compose", "git", "gitRevisionPreflight", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
 function writeUpdaterHeartbeat(config: AgentConfig, discoveryComplete: boolean) { try { fs.mkdirSync(path.dirname(heartbeatStateFile), { recursive: true, mode: 0o750 }); const temporary = `${heartbeatStateFile}.pending`; fs.writeFileSync(temporary, `${JSON.stringify({ agentVersion: config.agentVersion, capabilities: advertisedCapabilities, discoveryComplete, recordedAt: new Date().toISOString() })}\n`, { mode: 0o600 }); fs.renameSync(temporary, heartbeatStateFile); } catch { /* updater heartbeat is best-effort; polling remains authoritative */ } }
 
 type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
+let httpMonitoringPlan: HttpMonitoringTarget[] = [];
 
 async function maybeEnroll() {
   const config = loadConfig();
@@ -119,10 +121,12 @@ async function pollOnce() {
     heartbeat: { collectedAt: new Date().toISOString(), agentVersion: config.agentVersion, protocolVersion: config.protocolVersion, packageType: config.packageType, releaseChannel: config.releaseChannel, binarySha256: config.binarySha256, capabilities: [...advertisedCapabilities] },
     metrics: await collectSystem(config.agentVersion),
     docker: await collectDocker().catch(() => []),
+    httpHealth: await collectHttp(dueHttpMonitoringChecks(httpMonitoringPlan)).catch(() => []),
     discovery: await collectApplicationDiscovery(config).catch(() => undefined),
     connectivity: collectConnectivity()
   };
-  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { serverId?: string; tasks?: ClaimedTask[] };
+  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { serverId?: string; tasks?: ClaimedTask[]; monitoring?: unknown };
+  httpMonitoringPlan = agentMonitoringPlanSchema.parse(response.monitoring || { httpHealthChecks: [] }).httpHealthChecks;
   if (!config.serverId && response.serverId) { config.serverId = response.serverId; saveConfig(config); }
   writeUpdaterHeartbeat(config, Boolean(initial.discovery));
   for (const task of response.tasks || []) {

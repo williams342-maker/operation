@@ -602,6 +602,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const heartbeat = await poll(credentials, { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.0" } });
     assert.equal(heartbeat.status, 200);
     assert.equal(Array.isArray((heartbeat.body as { tasks?: unknown[] }).tasks), true);
+    assert.deepEqual((heartbeat.body as { monitoring: { httpHealthChecks: unknown[] } }).monitoring.httpHealthChecks, [{
+      id: health.body.id,
+      url: "https://example.test/health",
+      timeoutMs: 1000,
+      expectedStatus: 200,
+      intervalSeconds: 300
+    }]);
 
     const telemetryPayload = metricPayload();
     telemetryPayload.git.push({ projectId: project.body.id, branch: "main", commit: "abc123", dirty: false, collectedAt: new Date().toISOString() });
@@ -610,6 +617,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const telemetry = await poll(credentials, telemetryPayload);
     assert.equal(telemetry.status, 200);
     assert.ok(await collections.telemetry.countDocuments({ orgId: orgA._id, serverId: new ObjectId(credentials.serverId) }) >= 2);
+    const storedHealth = await collections.healthChecks.findOne({ _id: new ObjectId(health.body.id), orgId: orgA._id });
+    assert.deepEqual(storedHealth?.lastResult, telemetryPayload.httpHealth[0]);
 
     const credentialRemote = `https://user:${["not", "a", "credential"].join("-")}@example.test/org/repo.git?access=redacted#fragment`;
     const discoveryPayload = { ...telemetryPayload, heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.1" }, discovery: { collectedAt: new Date().toISOString(), dockerInstalled: true, nginxInstalled: true, composeProjects: [], applications: [], settings: [{ name: "SYNTHETIC_SETTING", applicationPath: "/srv/phase-1b", sources: ["env-example" as const], sourcePaths: ["/srv/phase-1b/.env.example"], services: ["web"], required: false, secret: false, type: "text" as const, usage: "runtime" as const, configured: true }], warnings: ["unreadable_path"], discoveryTruncated: true, truncationCategories: ["applications"], repositories: [{ path: "/srv/phase-1b", branch: "main", commit: "a".repeat(40), remote: credentialRemote, dirty: false }] } };

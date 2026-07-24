@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import express from "express";
 import rateLimit from "express-rate-limit";
+import { ObjectId } from "mongodb";
 import { z } from "zod";
 import {
   agentEnrollmentRequestSchema,
@@ -405,6 +406,15 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
       updatedAt: now
     };
     await collections.telemetry.insertOne(telemetry);
+    const healthResults = (body.httpHealth || []).filter((result) => ObjectId.isValid(result.healthCheckId));
+    if (healthResults.length) {
+      await collections.healthChecks.bulkWrite(healthResults.map((result) => ({
+        updateOne: {
+          filter: { _id: new ObjectId(result.healthCheckId), orgId: server.orgId, serverId: server._id, archivedAt: { $exists: false } },
+          update: { $set: { lastResult: result } }
+        }
+      })));
+    }
     if (discovery?.settings.length) await ingestConfigurationDiscovery(server, discovery.settings, req.requestId);
     await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, {
       $set: {
@@ -434,9 +444,29 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
     });
     invalidateOperationalContext(server._id.toHexString());
     noStore(req, res, () => undefined);
-    const claimed = await claimTasksForAgent(server);
+    const [claimed, monitoringChecks] = await Promise.all([
+      claimTasksForAgent(server),
+      collections.healthChecks.find({
+        orgId: server.orgId,
+        serverId: server._id,
+        enabled: true,
+        archivedAt: { $exists: false }
+      }).sort({ _id: 1 }).limit(100).toArray()
+    ]);
     await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: task.type } })));
-    res.json({ serverId: server._id.toHexString(), tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
+    res.json({
+      serverId: server._id.toHexString(),
+      tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })),
+      monitoring: {
+        httpHealthChecks: monitoringChecks.map((check) => ({
+          id: check._id!.toHexString(),
+          url: check.url,
+          timeoutMs: check.timeoutMs,
+          expectedStatus: check.expectedStatus ?? 200,
+          intervalSeconds: check.intervalSeconds ?? 300
+        }))
+      }
+    });
   } catch (error) { next(error); }
 });
 

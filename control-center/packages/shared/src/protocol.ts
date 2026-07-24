@@ -67,6 +67,18 @@ export const httpHealthResultSchema = z.object({
   checkedAt: z.string().datetime()
 });
 
+export const httpMonitoringTargetSchema = z.object({
+  id: objectIdSchema,
+  url: z.string().url(),
+  timeoutMs: z.number().int().min(100).max(30000),
+  expectedStatus: z.number().int().min(100).max(599),
+  intervalSeconds: z.number().int().min(30).max(86400)
+});
+
+export const agentMonitoringPlanSchema = z.object({
+  httpHealthChecks: z.array(httpMonitoringTargetSchema).max(100)
+});
+
 export const mongoCheckResultSchema = z.object({
   mongoCheckId: objectIdSchema,
   success: z.boolean(),
@@ -153,3 +165,5 @@ export const agentTaskSchema = z.object({
 
 export type AgentPollRequest = z.infer<typeof agentPollRequestSchema>;
 export type AgentTask = z.infer<typeof agentTaskSchema>;
+export type HttpMonitoringTarget = z.infer<typeof httpMonitoringTargetSchema>;
+export type AgentMonitoringPlan = z.infer<typeof agentMonitoringPlanSchema>;

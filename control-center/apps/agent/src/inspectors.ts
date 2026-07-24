@@ -142,13 +142,19 @@ export async function collectCompose(config: AgentConfig, projects: Array<{ proj
   return rows.slice(0, 250);
 }
 
-export async function collectHttp(checks: Array<{ id: string; url: string; timeoutMs: number }>) {
+export function isExpectedHttpStatus(statusCode: number, expectedStatus?: number) {
+  return expectedStatus === undefined
+    ? statusCode >= 200 && statusCode < 300
+    : statusCode === expectedStatus;
+}
+
+export async function collectHttp(checks: Array<{ id: string; url: string; timeoutMs: number; expectedStatus?: number }>) {
   const rows = [];
   for (const check of checks) {
     const started = Date.now();
     try {
       const response = await requestSafeHttp(check.url, check.timeoutMs);
-      rows.push({ healthCheckId: check.id, success: response.statusCode >= 200 && response.statusCode < 300, statusCode: response.statusCode, latencyMs: response.latencyMs, checkedAt: new Date().toISOString() });
+      rows.push({ healthCheckId: check.id, success: isExpectedHttpStatus(response.statusCode, check.expectedStatus), statusCode: response.statusCode, latencyMs: response.latencyMs, checkedAt: new Date().toISOString() });
     } catch (error) {
       rows.push({ healthCheckId: check.id, success: false, latencyMs: Date.now() - started, errorCategory: safeHttpErrorCategory(error), checkedAt: new Date().toISOString() });
     }
