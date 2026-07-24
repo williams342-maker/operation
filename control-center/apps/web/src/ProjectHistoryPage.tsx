@@ -8,7 +8,15 @@ const when = (value?: string) => value ? new Date(value).toLocaleString() : "Una
 const tone = (status: string): "neutral" | "success" | "danger" | "warning" => status === "succeeded" ? "success" : status === "failed" ? "danger" : status === "cancelled" || status === "rolled_back" ? "warning" : "neutral";
 
 export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: string; kind: "deployments" | "rollbacks"; navigate: (path: string) => void }) {
-  const query = useQuery({ queryKey: ["project-history", projectId, kind], queryFn: () => api.get(`/projects/${projectId}/${kind}?limit=20`).then((response) => response.data as ProjectHistoryResponse<ProjectDeploymentHistoryItem | ProjectRollbackHistoryItem>), retry: false });
+  const query = useQuery({
+    queryKey: ["project-history", projectId, kind],
+    queryFn: () => api.get(`/projects/${projectId}/${kind}?limit=20`).then((response) => response.data as ProjectHistoryResponse<ProjectDeploymentHistoryItem | ProjectRollbackHistoryItem>),
+    retry: false,
+    refetchInterval: (current) => {
+      const history = current.state.data as ProjectHistoryResponse<ProjectDeploymentHistoryItem | ProjectRollbackHistoryItem> | undefined;
+      return history?.records.some((record) => "requestedRevision" in record && (record.gitPreflight?.status === "queued" || record.gitPreflight?.status === "running")) ? 3_000 : false;
+    }
+  });
   const [candidateRevision, setCandidateRevision] = useState("");
   const [candidateEnvironment, setCandidateEnvironment] = useState("staging");
   const [showPlanPreview, setShowPlanPreview] = useState(false);
