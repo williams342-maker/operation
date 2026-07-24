@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { hasPermission, type ProjectDeploymentHistoryItem, type ProjectRollbackHistoryItem, type Role } from "@control-center/shared";
+import { audit } from "./audit.js";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ProjectDeploymentDoc, ProjectDoc, ProjectRollbackDoc, ServerDoc } from "./models.js";
 
@@ -30,19 +31,52 @@ async function serverNames(orgId: ObjectId, ids: ObjectId[]) {
   return new Map(rows.map((row) => [id(row._id), row.name]));
 }
 
-async function reconcileExpiredGitPreflights(orgId: ObjectId, projectId: ObjectId, now = new Date()) {
-  const deployments = await collections.projectDeployments.find({ orgId, projectId, status: "approved", "gitPreflight.status": { $in: ["queued", "running"] }, approvalExpiresAt: { $lte: now } }, { projection: { gitPreflight: 1 } }).limit(100).toArray();
+export function expiredDeploymentUpdate(deployment: Pick<ProjectDeploymentDoc, "approvalExpiresAt" | "gitPreflight">, now: Date) {
+  const failureClassification = deployment.approvalExpiresAt ? "approval_expired" : "approval_expiry_missing";
+  const set: Record<string, unknown> = { status: "cancelled", completedAt: now, failureClassification, updatedAt: now };
+  if (deployment.gitPreflight && ["queued", "running"].includes(deployment.gitPreflight.status)) {
+    set["gitPreflight.status"] = "failed";
+    set["gitPreflight.checks"] = [{ name: "approval_current", passed: false }];
+    set["gitPreflight.checkedAt"] = now;
+  }
+  return { set, failureClassification, taskId: deployment.gitPreflight?.taskId };
+}
+
+export async function reconcileExpiredDeploymentApprovals(orgId: ObjectId, projectId: ObjectId, now = new Date()) {
+  const expiryFilter = { $or: [{ approvalExpiresAt: { $lte: now } }, { approvalExpiresAt: { $exists: false } }] };
+  const deployments = await collections.projectDeployments.find(
+    { orgId, projectId, status: { $in: ["planned", "approved"] }, ...expiryFilter },
+    { projection: { status: 1, approvalExpiresAt: 1, gitPreflight: 1 } }
+  ).limit(100).toArray();
   for (const deployment of deployments) {
-    if (!deployment._id || !deployment.gitPreflight?.taskId) continue;
-    await Promise.all([
-      collections.agentTasks.updateOne({ _id: deployment.gitPreflight.taskId, orgId, state: { $in: ["queued", "claimed", "running"] } }, { $set: { state: "expired", completedAt: now, updatedAt: now }, $inc: { version: 1 } }),
-      collections.projectDeployments.updateOne({ _id: deployment._id, orgId, "gitPreflight.taskId": deployment.gitPreflight.taskId, "gitPreflight.status": { $in: ["queued", "running"] } }, { $set: { "gitPreflight.status": "failed", "gitPreflight.checks": [{ name: "approval_current", passed: false }], "gitPreflight.checkedAt": now, updatedAt: now } })
-    ]);
+    if (!deployment._id) continue;
+    const { set, failureClassification, taskId } = expiredDeploymentUpdate(deployment, now);
+    const transitioned = await collections.projectDeployments.updateOne(
+      { _id: deployment._id, orgId, projectId, status: deployment.status, ...expiryFilter },
+      { $set: set }
+    );
+    if (!transitioned.modifiedCount) continue;
+    if (taskId) {
+      await collections.agentTasks.updateOne(
+        { _id: taskId, orgId, state: { $in: ["queued", "claimed", "running"] } },
+        { $set: { state: "expired", completedAt: now, updatedAt: now }, $inc: { version: 1 } }
+      );
+    }
+    await audit({
+      orgId,
+      actorType: "system",
+      action: "project.deployment.expire",
+      targetType: "project-deployment",
+      targetId: deployment._id,
+      result: "success",
+      requestId: `system:project-deployment-expiry:${deployment._id.toHexString()}`,
+      metadata: { projectId: projectId.toHexString(), previousStatus: deployment.status, status: "cancelled", failureClassification }
+    });
   }
 }
 
 export async function projectDeploymentHistory(orgId: ObjectId, projectId: ObjectId, role: Role, limit: number) {
-  await reconcileExpiredGitPreflights(orgId, projectId);
+  await reconcileExpiredDeploymentApprovals(orgId, projectId);
   const rows = await collections.projectDeployments.find({ orgId, projectId }).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).toArray();
   const names = await serverNames(orgId, rows.slice(0, limit).map((row) => row.serverId));
   return { records: rows.slice(0, limit).map((row) => deploymentHistoryItem(row, names.get(id(row.serverId)), role)), hasMore: rows.length > limit };

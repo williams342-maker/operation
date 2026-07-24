@@ -678,6 +678,30 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.agentTasks.countDocuments({ _id: new ObjectId(cancellableDeployment.body.deployment.taskId), orgId: orgA._id }), 0);
     assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "project.deployment.cancel", targetId: new ObjectId(cancellableDeployment.body.deployment.id), result: "success" }), 1);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments/${cancellableDeployment.body.deployment.id}/cancel`, { confirmation: "CANCEL" }, jsonHeaders(ownerA))).status, 404);
+    const legacyPreflightTaskId = new ObjectId();
+    const legacyDeploymentId = new ObjectId();
+    const expiredDeploymentId = new ObjectId();
+    const reconciliationNow = new Date();
+    await collections.agentTasks.insertOne({ _id: legacyPreflightTaskId, orgId: orgA._id, serverId: new ObjectId(credentials.serverId), projectId: new ObjectId(project.body.id), agentId: credentials.agentId, type: "inspect.git", state: "running", payload: {}, idempotencyKey: `legacy-preflight-${legacyPreflightTaskId}`, nonce: "legacy-preflight", signingKeyVersion: "v1", version: 1, availableAt: reconciliationNow, expiresAt: new Date(reconciliationNow.getTime() + 60_000), historyExpiresAt: new Date(reconciliationNow.getTime() + 86_400_000), createdAt: reconciliationNow, updatedAt: reconciliationNow });
+    await collections.projectDeployments.insertMany([
+      { _id: legacyDeploymentId, orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), environment: "staging", requestedRevision: "4".repeat(40), taskId: new ObjectId(), actorId: ownerUserA._id, status: "approved", gitPreflight: { taskId: legacyPreflightTaskId, status: "running", checks: [] }, validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", auditEventIds: [], createdAt: reconciliationNow, updatedAt: reconciliationNow },
+      { _id: expiredDeploymentId, orgId: orgA._id, projectId: new ObjectId(project.body.id), serverId: new ObjectId(credentials.serverId), environment: "preview", requestedRevision: "5".repeat(40), taskId: new ObjectId(), actorId: ownerUserA._id, status: "planned", approvalExpiresAt: new Date(reconciliationNow.getTime() - 1000), validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", auditEventIds: [], createdAt: reconciliationNow, updatedAt: reconciliationNow }
+    ]);
+    const reconciledHistory = await request<any>("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(ownerA));
+    assert.equal(reconciledHistory.status, 200);
+    const legacyRecord = reconciledHistory.body.records.find((record: { id: string }) => record.id === legacyDeploymentId.toHexString());
+    const expiredRecord = reconciledHistory.body.records.find((record: { id: string }) => record.id === expiredDeploymentId.toHexString());
+    assert.equal(legacyRecord.status, "cancelled");
+    assert.equal(legacyRecord.failureClassification, "approval_expiry_missing");
+    assert.equal(legacyRecord.gitPreflight.status, "failed");
+    assert.deepEqual(legacyRecord.gitPreflight.checks, [{ name: "approval_current", passed: false }]);
+    assert.equal(expiredRecord.status, "cancelled");
+    assert.equal(expiredRecord.failureClassification, "approval_expired");
+    assert.ok(expiredRecord.completedAt);
+    assert.equal((await collections.agentTasks.findOne({ _id: legacyPreflightTaskId }))?.state, "expired");
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "project.deployment.expire", targetId: { $in: [legacyDeploymentId, expiredDeploymentId] }, result: "success" }), 2);
+    await request<any>("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(ownerA));
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "project.deployment.expire", targetId: { $in: [legacyDeploymentId, expiredDeploymentId] }, result: "success" }), 2);
     assert.doesNotMatch(JSON.stringify(plannedDeployment.body), /password|token|bearer|mongodb:\/\//i);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "not a sha", environment: "staging" }, jsonHeaders(ownerA))).status, 400);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "abc1234", environment: "production" }, jsonHeaders(ownerA))).status, 400);

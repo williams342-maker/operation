@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ObjectId } from "mongodb";
-import { assertProjectHistoryRelationships, deploymentHistoryItem, rollbackHistoryItem } from "../src/projectHistory.js";
+import { assertProjectHistoryRelationships, deploymentHistoryItem, expiredDeploymentUpdate, rollbackHistoryItem } from "../src/projectHistory.js";
 
 const ids = { org: new ObjectId(), project: new ObjectId(), server: new ObjectId(), task: new ObjectId(), actor: new ObjectId(), deployment: new ObjectId() };
 const now = new Date("2026-07-22T00:00:00.000Z");
@@ -30,4 +30,24 @@ test("deployment approval metadata is restricted to audit viewers", () => {
   const deployment = { ...base, _id: ids.deployment, projectId: ids.project, serverId: ids.server, environment: "staging", requestedRevision: "a".repeat(40), taskId: ids.task, actorId: ids.actor, approvedByUserId: new ObjectId(), approvedAt: now, status: "approved" as const, validation: { health: "not_run" as const, readiness: "not_run" as const }, rollbackAvailable: false, evidenceConfidence: "reported" as const, auditEventIds: [] };
   assert.equal(deploymentHistoryItem(deployment, "Server", "Owner").approval?.approvedAt, now.toISOString());
   assert.equal(deploymentHistoryItem(deployment, "Server", "Viewer").approval, undefined);
+});
+
+test("expired approvals become terminal with bounded preflight failure evidence", () => {
+  const taskId = new ObjectId();
+  const expired = expiredDeploymentUpdate({ approvalExpiresAt: new Date(now.getTime() - 1), gitPreflight: { taskId, status: "running", checks: [] } }, now);
+  assert.equal(expired.failureClassification, "approval_expired");
+  assert.equal(expired.taskId, taskId);
+  assert.deepEqual(expired.set, {
+    status: "cancelled",
+    completedAt: now,
+    failureClassification: "approval_expired",
+    updatedAt: now,
+    "gitPreflight.status": "failed",
+    "gitPreflight.checks": [{ name: "approval_current", passed: false }],
+    "gitPreflight.checkedAt": now
+  });
+  const legacy = expiredDeploymentUpdate({}, now);
+  assert.equal(legacy.failureClassification, "approval_expiry_missing");
+  assert.equal(legacy.taskId, undefined);
+  assert.equal(legacy.set.status, "cancelled");
 });
