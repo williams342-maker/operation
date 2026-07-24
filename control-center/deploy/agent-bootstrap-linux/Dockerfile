@@ -1,4 +1,5 @@
-FROM debian:12-slim
+ARG BASE_IMAGE=debian:12-slim
+FROM ${BASE_IMAGE}
 
 ENV container=docker
 ENV DEBIAN_FRONTEND=noninteractive

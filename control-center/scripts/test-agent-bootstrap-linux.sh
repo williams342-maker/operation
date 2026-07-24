@@ -11,29 +11,13 @@ if [ -z "$release_output" ]; then
 fi
 [ -d "$release_output" ] || { echo "BOOTSTRAP_OUTPUT_DIR must name a signed disposable bootstrap output directory" >&2; exit 2; }
 release_output="$(cd "$release_output" && pwd)"
-container="opsworkbench-bootstrap-test-$$"
-image="opsworkbench-bootstrap-test:local"
+current_container=""
 
 cleanup() {
-  docker rm -f "$container" >/dev/null 2>&1 || true
+  [ -z "$current_container" ] || docker rm -f "$current_container" >/dev/null 2>&1 || true
   [ -z "$generated_output" ] || rm -rf -- "$generated_output"
 }
 trap cleanup EXIT
-
-docker build -t "$image" "$repository/deploy/agent-bootstrap-linux"
-docker run -d --name "$container" --privileged --cgroupns=host \
-  --tmpfs /run --tmpfs /run/lock \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-  -v "$release_output:/release:ro" \
-  "$image" >/dev/null
-
-for _ in $(seq 1 30); do
-  docker exec "$container" systemctl is-system-running --wait >/dev/null 2>&1 && break
-  state="$(docker exec "$container" systemctl is-system-running 2>/dev/null || true)"
-  [ "$state" = "degraded" ] && break
-  sleep 1
-done
-docker exec "$container" /usr/local/lib/opsworkbench-bootstrap-fixture/prepare-fixture.sh
 
 installer="$(find "$release_output" -maxdepth 1 -type f -name 'opsworkbench-agent-bootstrap-*.sh' -printf '%f\n')"
 public_key="$(find "$release_output" -maxdepth 1 -type f -name 'opsworkbench-agent-ed25519-*.public.pem' -printf '%f\n')"
@@ -49,37 +33,70 @@ run_bootstrap() {
     "$container" bash "/release/$installer"
 }
 
-run_bootstrap
-docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.10.0-beta.1")process.exit(1)'
-docker exec "$container" sh -c 'test "$(stat -c %a /etc/opsworkbench-agent/agent.json)" = "640"'
-docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
-docker exec "$container" systemctl is-active --quiet opsworkbench-agent-updater.path
+test_distribution() {
+  local base_image="$1" index="$2"
+  container="opsworkbench-bootstrap-test-$$-$index"
+  current_container="$container"
+  local image="opsworkbench-bootstrap-test:$index"
 
-docker restart "$container" >/dev/null
-for _ in $(seq 1 30); do
-  docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service 2>/dev/null && break
-  sleep 1
+  echo "Validating disposable bootstrap on $base_image"
+  docker build --build-arg "BASE_IMAGE=$base_image" -t "$image" "$repository/deploy/agent-bootstrap-linux"
+  docker run -d --name "$container" --privileged --cgroupns=host \
+    --tmpfs /run --tmpfs /run/lock \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+    -v "$release_output:/release:ro" \
+    "$image" >/dev/null
+
+  for _ in $(seq 1 30); do
+    docker exec "$container" systemctl is-system-running --wait >/dev/null 2>&1 && break
+    state="$(docker exec "$container" systemctl is-system-running 2>/dev/null || true)"
+    [ "$state" = "degraded" ] && break
+    sleep 1
+  done
+  docker exec "$container" /usr/local/lib/opsworkbench-bootstrap-fixture/prepare-fixture.sh
+
+  run_bootstrap
+  docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.10.0-beta.1")process.exit(1)'
+  docker exec "$container" sh -c 'test "$(stat -c %a /etc/opsworkbench-agent/agent.json)" = "640"'
+  docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
+  docker exec "$container" systemctl is-active --quiet opsworkbench-agent-updater.path
+
+  docker restart "$container" >/dev/null
+  for _ in $(seq 1 30); do
+    docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service 2>/dev/null && break
+    sleep 1
+  done
+  docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
+  docker exec "$container" node -e 'const h=JSON.parse(require("fs").readFileSync("/var/lib/opsworkbench-agent/agent/heartbeat.json","utf8"));if(h.agentVersion!=="0.10.0-beta.1"||h.discoveryComplete!==true||!h.capabilities.includes("upgradeManifestHandoff"))process.exit(1)'
+
+  run_bootstrap | grep -F "already complete"
+  docker exec "$container" /opt/opsworkbench-agent/rollback-agent-bootstrap
+  docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.1.0")process.exit(1)'
+  docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
+  docker exec "$container" systemctl show opsworkbench-agent.service -p ExecStart --value | grep -F "/opt/opsworkbench-agent/source/"
+  docker exec "$container" test ! -e /opt/opsworkbench-agent/current
+
+  docker exec "$container" mkdir -p /run/opsworkbench-bootstrap-fixture
+  docker exec "$container" touch /run/opsworkbench-bootstrap-fixture/fail-control-plane
+  if failure_output="$(run_bootstrap 2>&1)"; then
+    echo "Bootstrap unexpectedly passed with a failed control-plane poll" >&2
+    exit 4
+  fi
+  printf '%s\n' "$failure_output" | grep -F "bootstrap validation failed and rollback was requested"
+  docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.1.0")process.exit(1)'
+  docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
+  docker exec "$container" systemctl show opsworkbench-agent.service -p ExecStart --value | grep -F "/opt/opsworkbench-agent/source/"
+  docker exec "$container" test ! -e /opt/opsworkbench-agent/current
+
+  docker rm -f "$container" >/dev/null
+  current_container=""
+  echo "Disposable bootstrap lifecycle passed on $base_image"
+}
+
+read -r -a base_images <<<"${BOOTSTRAP_BASE_IMAGES:-debian:12-slim ubuntu:24.04}"
+[ "${#base_images[@]}" -gt 0 ] || { echo "At least one bootstrap base image is required" >&2; exit 5; }
+for index in "${!base_images[@]}"; do
+  test_distribution "${base_images[$index]}" "$index"
 done
-docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
-docker exec "$container" node -e 'const h=JSON.parse(require("fs").readFileSync("/var/lib/opsworkbench-agent/agent/heartbeat.json","utf8"));if(h.agentVersion!=="0.10.0-beta.1"||h.discoveryComplete!==true||!h.capabilities.includes("upgradeManifestHandoff"))process.exit(1)'
 
-run_bootstrap | grep -F "already complete"
-docker exec "$container" /opt/opsworkbench-agent/rollback-agent-bootstrap
-docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.1.0")process.exit(1)'
-docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
-docker exec "$container" systemctl show opsworkbench-agent.service -p ExecStart --value | grep -F "/opt/opsworkbench-agent/source/"
-docker exec "$container" test ! -e /opt/opsworkbench-agent/current
-
-docker exec "$container" mkdir -p /run/opsworkbench-bootstrap-fixture
-docker exec "$container" touch /run/opsworkbench-bootstrap-fixture/fail-control-plane
-if failure_output="$(run_bootstrap 2>&1)"; then
-  echo "Bootstrap unexpectedly passed with a failed control-plane poll" >&2
-  exit 4
-fi
-printf '%s\n' "$failure_output" | grep -F "bootstrap validation failed and rollback was requested"
-docker exec "$container" node -e 'const c=JSON.parse(require("fs").readFileSync("/etc/opsworkbench-agent/agent.json","utf8"));if(c.agentVersion!=="0.1.0")process.exit(1)'
-docker exec "$container" systemctl is-active --quiet opsworkbench-agent.service
-docker exec "$container" systemctl show opsworkbench-agent.service -p ExecStart --value | grep -F "/opt/opsworkbench-agent/source/"
-docker exec "$container" test ! -e /opt/opsworkbench-agent/current
-
-echo "Disposable Linux bootstrap install, reboot, idempotency, explicit rollback, and failure rollback validation passed"
+echo "Disposable Debian and Ubuntu bootstrap validation passed"

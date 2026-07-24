@@ -23,7 +23,7 @@ test("bootstrap build is reproducible, signed, schema-bound, and secret-free", {
 });
 
 test("bootstrap and rollback scripts avoid direct execution and preserve fixed policy", () => {
-  const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8"); const builder = fs.readFileSync(path.join(root, "scripts", "build-agent-bootstrap.mjs"), "utf8");
+  const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8"); const builder = fs.readFileSync(path.join(root, "scripts", "build-agent-bootstrap.mjs"), "utf8"); const linuxHarness = fs.readFileSync(path.join(root, "scripts", "test-agent-bootstrap-linux.sh"), "utf8"); const linuxDockerfile = fs.readFileSync(path.join(root, "deploy", "agent-bootstrap-linux", "Dockerfile"), "utf8");
   assert.doesNotMatch(bootstrap, /curl[^\n]*\|[^\n]*(?:bash|sh)/); assert.match(bootstrap, /manifest signature verification failed/); assert.match(bootstrap, /artifact signature verification failed/); assert.match(bootstrap, /agentId\|\|!c\.agentSecret/); assert.match(bootstrap, /bootstrap validation failed and rollback was requested/); assert.match(bootstrap, /current_version.*0\.1\.0/); assert.match(rollback, /backup marker escaped the backup root/); assert.match(bootstrap, /chmod 0600 "\$curl_config"/); assert.match(bootstrap, /} >"\$curl_config"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /CONTROL_CENTER_ENROLLMENT_TOKEN=/);
   assert.match(bootstrap, /install -d -o root -g root -m 0711 "\$STATE_ROOT"/); assert.match(rollback, /install -d -o root -g root -m 0711 "\$STATE_ROOT"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /chown -R[^\n]*STATE_ROOT|chmod 0?777/);
   assert.match(bootstrap, /fs\.chmodSync\(pending,stat\.mode\)/, "bootstrap must restore the enrolled configuration mode after its restrictive umask");
@@ -31,6 +31,7 @@ test("bootstrap and rollback scripts avoid direct execution and preserve fixed p
   assert.match(bootstrap, /OPSWORKBENCH_BOOTSTRAP_LOCK_HELD=1/); assert.match(rollback, /\/proc\/\$\$\/fd\/9/); assert.match(rollback, /inherited bootstrap lock is invalid/);
   assert.match(bootstrap, /rm -f -- "\$heartbeat" "\$heartbeat\.pending"[\s\S]*systemctl restart "\$AGENT_SERVICE"/);
   assert.match(builder, /"typescript", "bin", "tsc".*"packages", "shared", "tsconfig\.json"/);
+  assert.match(linuxDockerfile, /ARG BASE_IMAGE=debian:12-slim[\s\S]*FROM \$\{BASE_IMAGE\}/); assert.match(linuxHarness, /debian:12-slim ubuntu:24\.04/); assert.match(linuxHarness, /BOOTSTRAP_BASE_IMAGES/);
 });
 
 test("rollback reuses only the parent's exact inherited lock", { skip: process.platform === "win32" }, () => {
