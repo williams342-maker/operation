@@ -211,6 +211,10 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(bootstrap.status, 201);
     assert.equal(await collections.organizations.countDocuments(), 1);
     assert.equal(await collections.users.countDocuments({ role: "Owner" }), 1);
+    const orgA = await collections.organizations.findOne({ slug: "phase-1b-a" });
+    assert.ok(orgA?._id);
+    const ownerUserA = await collections.users.findOne({ orgId: orgA._id, email: "owner-a@example.test" });
+    assert.ok(ownerUserA?._id);
 
     const duplicateBootstrap = await request("POST", "/auth/bootstrap", {
       organizationName: "Duplicate Org",
@@ -348,10 +352,6 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
 
     const enrollment = await createEnrollment(ownerA);
     const expiredToken = `expired-${crypto.randomBytes(32).toString("hex")}`;
-    const orgA = await collections.organizations.findOne({ slug: "phase-1b-a" });
-    assert.ok(orgA?._id);
-    const ownerUserA = await collections.users.findOne({ orgId: orgA._id, email: "owner-a@example.test" });
-    assert.ok(ownerUserA?._id);
     const legacyId = new ObjectId();
     const legacyCreatedAt = new Date(Date.now() - 86_400_000);
     await collections.servers.insertOne({ _id: legacyId, orgId: orgA._id, name: "Ops Workbench", slug: "ops-workbench", hostname: "opsworkbench", agentId: `manual-${legacyId}`, agentSecretHash: hashSecret("legacy-placeholder"), credentialVersion: 0, status: "offline", allowlistedRoots: ["/opt/opsworkbench"], createdAt: legacyCreatedAt, updatedAt: legacyCreatedAt });
