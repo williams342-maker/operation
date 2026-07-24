@@ -62,6 +62,15 @@ Ed25519 signature.
   readiness after reconnecting.
 - No active or stuck task, deployment, or rollback state remained after the
   restart sequence.
+- A value-safe 30-minute API, web, edge, and MongoDB log scan found zero
+  secret-shaped matches. All four containers were running with zero Docker
+  restart count and no OOM kills.
+- API and web had zero error- or warning-shaped entries. MongoDB had zero error
+  or fatal severity entries, assertions, or rollback errors; its generic error
+  words were confined to the recorded restart shutdown sequence.
+- Edge recorded one `502` at 16:43:59 UTC and one resolver error at 16:43:53 UTC
+  during the recorded API/web activation. There were no upstream connection
+  refusals or timeouts. Its warning entries were response-buffering notices.
 
 ### Backup and disposable restore
 
