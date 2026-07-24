@@ -3,14 +3,17 @@ import fs from "node:fs";
 import path from "node:path";
 import dns from "node:dns/promises";
 import net from "node:net";
+import { setTimeout as sleep } from "node:timers/promises";
 import { configurationDeploymentPayloadSchema, deploymentCapabilities, isCompatibleAgentVersion, isSafeHttpCheckUrl, minimumDeploymentAgentVersion, type ConfigurationDeploymentPayload, type DeploymentProgress } from "@control-center/shared";
 import { execFixed } from "./safeExec.js";
 import { linuxMountPoints } from "./discoverySafety.js";
 
 const MAX_VALUE = 16 * 1024;
+const HEALTH_RETRY_WINDOW_MS = 120_000;
+const HEALTH_RETRY_INTERVAL_MS = 5_000;
 const usedNonces = new Map<string, number>();
 
-export type DeploymentHooks = { compose?: (args: string[], cwd: string) => Promise<{ code: number | null }>; health?: (url: string, timeoutMs: number) => Promise<boolean>; resolve?: (hostname: string) => Promise<string[]>; now?: () => Date };
+export type DeploymentHooks = { compose?: (args: string[], cwd: string) => Promise<{ code: number | null }>; health?: (url: string, timeoutMs: number) => Promise<boolean>; resolve?: (hostname: string) => Promise<string[]>; now?: () => Date; healthRetryWindowMs?: number; healthRetryIntervalMs?: number };
 type DeploymentErrorCategory = NonNullable<DeploymentProgress["errorCategory"]>;
 type DeploymentFailureStage = NonNullable<DeploymentProgress["failureStage"]>;
 type TaggedDeploymentError = Error & { deploymentErrorCategory?: DeploymentErrorCategory; deploymentFailureStage?: DeploymentFailureStage };
@@ -130,6 +133,19 @@ async function safeHealth(raw: string, timeoutMs: number, resolver: (hostname: s
   return false;
 }
 
+async function waitForHealth(url: string, timeoutMs: number, health: (url: string, timeoutMs: number) => Promise<boolean>, now: () => Date, retryWindowMs = HEALTH_RETRY_WINDOW_MS, retryIntervalMs = HEALTH_RETRY_INTERVAL_MS) {
+  const startedAt = now().getTime();
+  const deadline = startedAt + Math.max(timeoutMs, retryWindowMs);
+  while (true) {
+    try { if (await health(url, timeoutMs)) return true; } catch (error) {
+      if (error instanceof Error && /Health check target rejected/.test(error.message)) return false;
+    }
+    if (now().getTime() >= deadline) return false;
+    const remaining = deadline - now().getTime();
+    await sleep(Math.min(retryIntervalMs, Math.max(0, remaining)));
+  }
+}
+
 function writeAtomic(file: string, content: string, mode: number, uid: number, gid: number) {
   const temporary = `${file}.pending-${crypto.randomUUID()}`; const fd = fs.openSync(temporary, "wx", 0o600);
   try { fs.writeFileSync(fd, content, "utf8"); fs.fsyncSync(fd); fs.fchmodSync(fd, mode); if (shouldApplyOwnershipChange(uid, gid)) fs.fchownSync(fd, uid, gid); } finally { fs.closeSync(fd); }
@@ -169,7 +185,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull", ...payload.statelessServices];
   const activation = await compose(args, payload.repositoryRoot);
   const health = hooks.health || ((url: string, timeoutMs: number) => safeHealth(url, timeoutMs, resolver));
-  const runHealth = async (url: string, timeoutMs: number) => { try { return await health(url, timeoutMs); } catch { return false; } };
+  const runHealth = (url: string, timeoutMs: number) => waitForHealth(url, timeoutMs, health, hooks.now || (() => new Date()), hooks.healthRetryWindowMs, hooks.healthRetryIntervalMs);
   let healthy = activation.code === 0;
   if (healthy) for (const check of payload.healthChecks) if (!await runHealth(check.url, check.timeoutMs)) { healthy = false; break; }
   if (!healthy) {
