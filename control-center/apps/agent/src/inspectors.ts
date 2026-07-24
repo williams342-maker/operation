@@ -91,7 +91,7 @@ export async function collectGit(config: AgentConfig, projects: Array<{ projectI
         execFixed("git", ["rev-parse", "HEAD"], repoPath),
         execFixed("git", ["status", "--porcelain"], repoPath),
         project.requestedRevision
-          ? execFixed("git", ["cat-file", "-e", `${project.requestedRevision}^{commit}`], repoPath)
+          ? execFixed("git", ["rev-parse", "--verify", `${project.requestedRevision}^{commit}`], repoPath)
           : Promise.resolve(undefined)
       ]);
       rows.push({
@@ -99,7 +99,7 @@ export async function collectGit(config: AgentConfig, projects: Array<{ projectI
         branch: branch.stdout.trim(),
         commit: commit.stdout.trim(),
         dirty: Boolean(dirty.stdout.trim()),
-        ...(project.requestedRevision ? { requestedRevision: project.requestedRevision.toLowerCase(), requestedRevisionExists: requestedRevision?.code === 0 } : {}),
+        ...(project.requestedRevision ? { requestedRevision: project.requestedRevision.toLowerCase(), requestedRevisionExists: requestedRevision?.code === 0, resolvedRevision: requestedRevision?.code === 0 ? requestedRevision.stdout.trim() : undefined } : {}),
         collectedAt: new Date().toISOString()
       });
     } catch {

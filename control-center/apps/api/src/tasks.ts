@@ -65,8 +65,9 @@ export function configurationPlanStateForDeploymentPhase(phase: string | undefin
 
 export function gitPreflightChecks(row: Record<string, unknown> | undefined, requestedRevision: string) {
   const revisionBound = row?.requestedRevision === requestedRevision;
-  const revisionExists = revisionBound && row?.requestedRevisionExists === true;
-  return [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_bound", passed: revisionBound }, { name: "requested_revision_exists", passed: revisionExists }];
+  const resolvedRevision = typeof row?.resolvedRevision === "string" && /^[a-f0-9]{40}$/.test(row.resolvedRevision) && row.resolvedRevision.startsWith(requestedRevision);
+  const revisionExists = revisionBound && resolvedRevision && row?.requestedRevisionExists === true;
+  return [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_bound", passed: revisionBound }, { name: "requested_revision_resolved", passed: resolvedRevision }, { name: "requested_revision_exists", passed: revisionExists }];
 }
 
 export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
