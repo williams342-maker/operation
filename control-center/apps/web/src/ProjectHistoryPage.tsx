@@ -90,7 +90,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold">Deployment Manager plan review</h3>
-          <p className="text-sm text-muted">Draft a value-free immutable deployment plan before the separately reviewed execution slice. This page does not queue tasks, contact agents, or mutate infrastructure.</p>
+          <p className="text-sm text-muted">Draft a value-free immutable deployment plan before the separately reviewed execution slice. Creating a plan does not queue tasks, contact agents, or mutate infrastructure.</p>
         </div>
         <Badge tone="warning">Planning only</Badge>
       </div>
@@ -109,7 +109,6 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
       <div className="mt-3 flex flex-wrap gap-2">
         <Button disabled={!revisionReady} onClick={() => setShowPlanPreview(true)}>Preview immutable plan</Button>
         <GhostButton disabled={!showPlanPreview || createPlan.isPending} onClick={() => createPlan.mutate()}>Create plan record</GhostButton>
-        <GhostButton disabled title="Requires separate deployment execution authorization">Run preflight</GhostButton>
         <GhostButton disabled title="Requires separate deployment execution authorization">Queue deployment</GhostButton>
       </div>
       {!revisionReady && candidateRevision && <p role="alert" className="mt-2 text-sm text-danger">Enter a 7 to 40 character hexadecimal Git revision.</p>}

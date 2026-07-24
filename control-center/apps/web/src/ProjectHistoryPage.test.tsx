@@ -44,7 +44,7 @@ describe("Project history workspace", () => {
     expect(await screen.findByRole("heading", { name: "Deployment Manager plan review" })).toBeInTheDocument();
     expect(screen.getByText("Planning only")).toBeInTheDocument();
     expect(screen.getByLabelText("Git revision")).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Run preflight" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Run preflight" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
     expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
   });
