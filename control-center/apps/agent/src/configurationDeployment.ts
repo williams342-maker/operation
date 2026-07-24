@@ -132,10 +132,20 @@ async function safeHealth(raw: string, timeoutMs: number, resolver: (hostname: s
 
 function writeAtomic(file: string, content: string, mode: number, uid: number, gid: number) {
   const temporary = `${file}.pending-${crypto.randomUUID()}`; const fd = fs.openSync(temporary, "wx", 0o600);
-  try { fs.writeFileSync(fd, content, "utf8"); fs.fsyncSync(fd); fs.fchmodSync(fd, mode); if (process.platform !== "win32") fs.fchownSync(fd, uid, gid); } finally { fs.closeSync(fd); }
+  try { fs.writeFileSync(fd, content, "utf8"); fs.fsyncSync(fd); fs.fchmodSync(fd, mode); if (shouldApplyOwnershipChange(uid, gid)) fs.fchownSync(fd, uid, gid); } finally { fs.closeSync(fd); }
   fs.renameSync(temporary, file);
   // Windows does not support fsync on directory handles; file data is still flushed before rename.
   if (process.platform !== "win32") { const directory = fs.openSync(path.dirname(file), "r"); try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); } }
+}
+
+export function shouldApplyOwnershipChange(targetUid: number, targetGid: number) {
+  if (process.platform === "win32") return false;
+  const currentUid = process.getuid?.();
+  const currentGid = process.getgid?.();
+  if (currentUid === undefined || currentGid === undefined) return false;
+  if (currentUid === targetUid && currentGid === targetGid) return false;
+  if (currentUid === 0) return true;
+  throw new Error("Environment file ownership cannot be preserved by this agent user");
 }
 
 export async function executeConfigurationDeployment(raw: unknown, signingKey: string, nonce: string, capabilities: string[], agentVersion: string | undefined, hooks: DeploymentHooks = {}): Promise<DeploymentProgress> {
@@ -152,7 +162,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw tagFailure(new Error("Environment file must be a regular file with one hard link"), "path", "file_guard");
   if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) throw tagFailure(new Error("Environment file permissions are too broad"), "environment", "file_guard");
   const original = withFailureStage("file_guard", "environment", () => fs.readFileSync(file, "utf8")); if (configurationDigest(original) !== payload.expectedConfigurationDigest) throw tagFailure(new Error("Expected configuration version mismatch"), "parsing", "digest_guard");
-  const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; withFailureStage("backup", "backup", () => { fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (process.platform !== "win32") fs.chownSync(backup, stat.uid, stat.gid); });
+  const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; withFailureStage("backup", "backup", () => { fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (shouldApplyOwnershipChange(stat.uid, stat.gid)) fs.chownSync(backup, stat.uid, stat.gid); });
   const secrets = withFailureStage("decrypt", "parsing", () => decryptValues(payload, signingKey)); const proposed = withFailureStage("mutation", "parsing", () => applyEnvironmentMutations(original, payload.mutations, secrets));
   withFailureStage("write", "write", () => writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid));
   const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 120_000));

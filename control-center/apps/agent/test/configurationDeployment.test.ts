@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { deploymentCapabilities } from "@control-center/shared";
-import { applyEnvironmentMutations, configurationDigest, executeConfigurationDeployment, parseEnvironment, resetReplayStateForTests, safeConfigurationFailureProgress } from "../src/configurationDeployment.js";
+import { applyEnvironmentMutations, configurationDigest, executeConfigurationDeployment, parseEnvironment, resetReplayStateForTests, safeConfigurationFailureProgress, shouldApplyOwnershipChange } from "../src/configurationDeployment.js";
 
 process.env.NODE_ENV = "test";
 function encryptDeploymentValues(values: Record<string, string>, signingKey: string) { const key = crypto.createHash("sha256").update(`configuration-deployment:${signingKey}`).digest(); const nonce = crypto.randomBytes(12); const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce); const ciphertext = Buffer.concat([cipher.update(JSON.stringify(values)), cipher.final()]); return { algorithm: "aes-256-gcm" as const, ciphertext: ciphertext.toString("base64"), nonce: nonce.toString("base64"), authTag: cipher.getAuthTag().toString("base64"), keyVersion: "agent-signing-v1" }; }
@@ -57,6 +57,19 @@ test("safe failure progress reports bounded pre-write stages", async () => {
     try { await executeConfigurationDeployment(privateTarget.payload, privateTarget.key, "stage-health", [...deploymentCapabilities], "0.1.0", safeNetwork); }
     catch (error) { const progress = safeConfigurationFailureProgress(error); assert.equal(progress.errorCategory, "health"); assert.equal(progress.failureStage, "health_preflight"); throw error; }
   }, /Health check/);
+});
+test("ownership preservation is safe for root and same-owner non-root agents", () => {
+  if (process.platform === "win32") {
+    assert.equal(shouldApplyOwnershipChange(1, 1), false);
+    return;
+  }
+  const uid = process.getuid?.();
+  const gid = process.getgid?.();
+  assert.equal(typeof uid, "number");
+  assert.equal(typeof gid, "number");
+  assert.equal(shouldApplyOwnershipChange(uid!, gid!), false);
+  if (uid === 0) assert.equal(shouldApplyOwnershipChange(uid! + 1, gid!), true);
+  else assert.throws(() => shouldApplyOwnershipChange(uid! + 1, gid!), /ownership/);
 });
 test("agent applies atomically and preserves backup", async () => { resetReplayStateForTests(); const item = fixture(); const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-001", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => true }); assert.equal(result.phase, "succeeded"); assert.match(fs.readFileSync(item.env, "utf8"), /TOKEN=fixture-value/); assert.equal(fs.existsSync(path.join(item.root, result.backupId!)), true); });
 test("agent rolls back and revalidates health", async () => { resetReplayStateForTests(); const item = fixture(); let checks = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-002", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => ++checks > 1 }); assert.equal(result.phase, "rolled_back"); assert.equal(result.healthChecksPassed, 1); assert.equal(checks, 2); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); });
