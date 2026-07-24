@@ -290,6 +290,12 @@ managementRouter.post("/projects/:id/deployments/:deploymentId/cancel", noStore,
   const projectId = new ObjectId(String(req.params.id)); const deploymentId = new ObjectId(String(req.params.deploymentId)); const org = orgId(req); const cancelledByUserId = actorId(req); const now = new Date();
   const cancelled = await collections.projectDeployments.findOneAndUpdate({ _id: deploymentId, orgId: org, projectId, status: { $in: ["planned", "approved"] } }, { $set: { status: "cancelled", cancelledByUserId, cancelledAt: now, updatedAt: now } }, { returnDocument: "after" });
   if (!cancelled) return res.status(404).json({ error: "Cancellable deployment plan not found" });
+  if (cancelled.gitPreflight?.taskId) {
+    await collections.agentTasks.updateOne(
+      { _id: cancelled.gitPreflight.taskId, orgId: org, state: { $in: ["queued", "claimed", "running"] } },
+      { $set: { state: "cancelled", cancelledAt: now, completedAt: now, updatedAt: now }, $inc: { version: 1 } }
+    );
+  }
   const server = await collections.servers.findOne({ _id: cancelled.serverId, orgId: org }, { projection: { name: 1 } });
   await audit({ orgId: org, actorType: "user", actorId: cancelledByUserId, action: "project.deployment.cancel", targetType: "project-deployment", targetId: deploymentId, result: "success", requestId: req.requestId, metadata: { projectId: projectId.toHexString(), previousStatus: cancelled.approvedAt ? "approved" : "planned", status: "cancelled" } });
   res.json({ deployment: deploymentHistoryItem(cancelled, server?.name, req.user!.role) });
