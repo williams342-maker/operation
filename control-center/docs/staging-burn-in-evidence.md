@@ -7,11 +7,11 @@ Ed25519 signature.
 ## Active release
 
 - Environment: private staging, host `146.190.210.14`
-- Source commit: `4adf0ba8e78dfe8505c64b24e9eb7c2b074f6cda`
-- Release path: `/opt/opsworkbench/releases/review-4adf0ba/app`
-- Immediate rollback: `/opt/opsworkbench/releases/review-e058083/app`
+- Source commit: `ec3c642a275a0305384cef3510c606e1a10d1f7f`
+- Release path: `/opt/opsworkbench/releases/review-ec3c642/app`
+- Immediate rollback: `/opt/opsworkbench/releases/review-4adf0ba/app`
 - Source archive SHA-256:
-  `486dce5258707a763fd42d66cb66dd1be0bf535e627683ef149b50f6fa603d13`
+  `7715a775eca09edc51d1b140c2354e9a3cc62c551fb75a884e8ec279740195c6`
 - Activated: 2026-07-24 UTC
 
 ## Completed evidence
@@ -122,6 +122,29 @@ Ed25519 signature.
   idempotent audit evidence, and redaction assertions passed.
 - The disposable MongoDB container, internal network, test images, and test
   source directories were removed after the run.
+
+### Discovery ingestion and audit signal
+
+- A burn-in review found that unchanged `configuration.discovery.received`
+  heartbeats were written about every 30 seconds, crowding higher-value audit
+  activity out of the visible table.
+- Discovery receipts now use a concurrency-safe unique sparse key scoped to the
+  server and a 15-minute window. Definition ingestion continues on every poll;
+  only the redundant receipt event is suppressed.
+- The database suite sends two equivalent discovery polls and requires exactly
+  one audit receipt. It also exposed and now covers a conflicting MongoDB
+  upsert modifier for newly mapped settings already marked `configured`.
+- The corrected unguarded API suite passed 75 of 75 tests with zero skips
+  against an isolated MongoDB container.
+- On staging, the dedupe index reported unique and sparse, and normal repeated
+  polls produced exactly one qualifying event in the current bucket. The Audit
+  view showed one post-activation receipt followed by the older pre-activation
+  30-second sequence.
+- API and web activated on exact commit `ec3c642`; both containers became
+  healthy with zero restart count. Fresh Health reported all required
+  subsystems ready and exact build `ec3c642`.
+- The disposable database container, network, test images, temporary Dockerfile,
+  and verifier files were removed after validation.
 
 ### Disposable configuration rollback proof
 
