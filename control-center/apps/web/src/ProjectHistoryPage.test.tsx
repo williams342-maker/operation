@@ -92,4 +92,17 @@ describe("Project history workspace", () => {
     expect(await screen.findByText("Deployment plan cancelled. No execution was queued.")).toBeInTheDocument();
     expect(await screen.findByText("cancelled")).toBeInTheDocument();
   });
+  it("runs only the control-plane preflight for an approved plan", async () => {
+    const approved = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "approved", validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
+    const checked = { ...approved, controlPlanePreflight: { status: "passed", checks: [{ name: "execution_not_queued", passed: true }], checkedAt: new Date().toISOString() } };
+    const project = { id: "a".repeat(24), name: "Project", archived: false };
+    apiGet.mockResolvedValueOnce({ data: { project, records: [approved], limit: 20, hasMore: false } }).mockResolvedValueOnce({ data: { project, records: [checked], limit: 20, hasMore: false } });
+    apiPost.mockResolvedValue({ data: { deployment: checked } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "Run control-plane preflight" }));
+    expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${approved.id}/preflight`, { planDigest: approved.planDigest, confirm: true });
+    expect(await screen.findByText("Control-plane preflight passed. Agent and Git preflight remain unavailable.")).toBeInTheDocument();
+    expect(await screen.findByText("passed · 1/1 checks")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
+  });
 });
