@@ -72,6 +72,20 @@ test("ownership preservation is safe for root and same-owner non-root agents", (
   else assert.throws(() => shouldApplyOwnershipChange(uid! + 1, gid!), /ownership/);
 });
 test("agent applies atomically and preserves backup", async () => { resetReplayStateForTests(); const item = fixture(); const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-001", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => true }); assert.equal(result.phase, "succeeded"); assert.match(fs.readFileSync(item.env, "utf8"), /TOKEN=fixture-value/); assert.equal(fs.existsSync(path.join(item.root, result.backupId!)), true); });
+test("agent activation uses bounded local-build compose flags", async () => {
+  resetReplayStateForTests();
+  const item = fixture();
+  const calls: string[][] = [];
+  const result = await executeConfigurationDeployment(item.payload, item.key, "local-build-compose-flags", [...deploymentCapabilities], "0.1.0", {
+    ...safeNetwork,
+    compose: async (args) => { calls.push(args); return { code: 0 }; },
+    health: async () => true
+  });
+  assert.equal(result.phase, "succeeded");
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].slice(0, 12), ["compose", "-f", item.compose, "-p", "fixture", "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never"]);
+  assert.deepEqual(calls[0].slice(12), ["web"]);
+});
 test("agent rolls back and revalidates health", async () => { resetReplayStateForTests(); const item = fixture(); let checks = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-002", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => ++checks > 1 }); assert.equal(result.phase, "rolled_back"); assert.equal(result.healthChecksPassed, 1); assert.equal(checks, 2); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); });
 test("agent distinguishes rollback activation and health failures", async () => { resetReplayStateForTests(); const activation = fixture(); let composeCalls = 0; const activationResult = await executeConfigurationDeployment(activation.payload, activation.key, "rollback-activation", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: ++composeCalls === 1 ? 1 : 2 }), health: async () => true }); assert.equal(activationResult.phase, "rollback_failed"); assert.equal(activationResult.rollbackErrorCategory, "activation"); resetReplayStateForTests(); const health = fixture(); const healthResult = await executeConfigurationDeployment(health.payload, health.key, "rollback-health", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => false }); assert.equal(healthResult.phase, "rollback_failed"); assert.equal(healthResult.rollbackErrorCategory, "health"); });
 test("agent rejects a redirect to a private target and rolls back safely", async () => { resetReplayStateForTests(); const item = fixture(); const originalFetch = globalThis.fetch; let calls = 0; globalThis.fetch = (async () => ++calls === 1 ? new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data" } }) : new Response(null, { status: 200 })) as typeof fetch; try { const result = await executeConfigurationDeployment(item.payload, item.key, "redirect-private", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }) }); assert.equal(result.phase, "rolled_back"); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); } finally { globalThis.fetch = originalFetch; } });
