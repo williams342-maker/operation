@@ -333,6 +333,22 @@ Ed25519 signature.
   and rollback recovery.
 - Full workspace type checking and lint passed. The complete local suite passed
   298 tests with 11 intentional platform/disposable skips.
+- Staging API and web were atomically activated from exact commit
+  `132e3205733c82a616bdf9143815f6a0adc05369`. Both containers reported healthy,
+  zero restarts, and matching immutable OCI revision labels; the previous
+  `7a569278` release remains the rollback target.
+- The restricted `opsworkbench-agent` systemd service was atomically upgraded
+  from the agent artifact embedded in that exact API image. Before activation,
+  the deployed artifact rejected a direct metadata address and a public URL
+  redirecting to a private address without making the private request.
+- After activation, the agent reported `active`, `NRestarts=0`, the exact
+  `132e3205` source marker, and a fresh online heartbeat at
+  2026-07-24 19:32:12 UTC. The prior source tree remains available as the
+  timestamped agent rollback target.
+- A live authenticated staging API request attempted to create a health check
+  for `http://169.254.169.254/latest/meta-data/`. The deployed API returned
+  HTTP 400 with `Health check URL is not allowed`; database counts were zero
+  both before and after the request. The transient proof session was deleted.
 
 ## Remaining gates
 
