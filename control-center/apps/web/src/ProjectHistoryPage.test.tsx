@@ -30,4 +30,14 @@ describe("Project history workspace", () => {
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
     expect(await screen.findByText("succeeded")).toBeInTheDocument(); expect(screen.getByText("passed / passed")).toBeInTheDocument(); expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
   });
+  it("shows non-mutating Deployment Manager foundation controls", async () => {
+    apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    expect(await screen.findByRole("heading", { name: "Deployment Manager foundation" })).toBeInTheDocument();
+    expect(screen.getByText("Planning only")).toBeInTheDocument();
+    expect(screen.getByLabelText("Git revision")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run preflight" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create deployment plan" })).toBeDisabled();
+    expect(document.body.textContent).not.toMatch(/password|token|mongodb:\/\//i);
+  });
 });

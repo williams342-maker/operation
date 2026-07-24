@@ -281,6 +281,14 @@ describe("Configuration workspace foundation", () => {
     expect(screen.getByText("Rollback evidence available")).toBeInTheDocument();
     expect(screen.getByText("24 changed; 1 health check passed")).toBeInTheDocument();
     expect(screen.getByText("category parsing; stage digest_guard")).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
+    expect(await screen.findByRole("heading", { name: "Deployment history details" })).toBeInTheDocument();
+    expect(screen.getByText("Target profile revision")).toBeInTheDocument();
+    expect(screen.getByText("Failure stage")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Prepare rollback" }));
+    expect(await screen.findByRole("heading", { name: "Rollback request foundation" })).toBeInTheDocument();
+    expect(screen.getByText("Approval workflow pending")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Queue rollback request" })).toBeDisabled();
     expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token|ciphertext|credential value/i);
   });
 
