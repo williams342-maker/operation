@@ -6,10 +6,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const apiGet = vi.hoisted(() => vi.fn());
 const apiPost = vi.hoisted(() => vi.fn());
 vi.mock("./api", () => ({ api: { get: apiGet, post: apiPost }, apiError: () => "Unavailable" }));
-import { ProjectHistoryPage } from "./ProjectHistoryPage";
+import { ProjectHistoryPage, shouldPollProjectHistory } from "./ProjectHistoryPage";
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 afterEach(() => { cleanup(); apiGet.mockReset(); apiPost.mockReset(); });
 describe("Project history workspace", () => {
+  it("polls only active Git preflights with a current approval", () => {
+    const now = Date.parse("2026-07-24T12:00:00.000Z");
+    const base = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24) }, environment: "staging", requestedRevision: "238b3a1", taskId: "d".repeat(24), status: "approved" as const, validation: { health: "not_run" as const, readiness: "not_run" as const }, rollbackAvailable: false, evidenceConfidence: "reported" as const, createdAt: new Date(now).toISOString() };
+    expect(shouldPollProjectHistory([{ ...base, approvalExpiresAt: new Date(now + 60_000).toISOString(), gitPreflight: { taskId: "e".repeat(24), status: "queued", checks: [] } }], now)).toBe(true);
+    expect(shouldPollProjectHistory([{ ...base, approvalExpiresAt: new Date(now - 1).toISOString(), gitPreflight: { taskId: "e".repeat(24), status: "running", checks: [] } }], now)).toBe(false);
+    expect(shouldPollProjectHistory([{ ...base, approvalExpiresAt: new Date(now + 60_000).toISOString(), gitPreflight: { taskId: "e".repeat(24), status: "passed", checks: [] } }], now)).toBe(false);
+  });
   it("renders truthful empty deployment history and routes without mutation", async () => {
     apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false } }); const navigate = vi.fn();
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={navigate} /></QueryClientProvider>);
