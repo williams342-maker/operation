@@ -265,4 +265,52 @@ describe("Configuration workspace foundation", () => {
     expect(screen.getByText("[redacted]")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token/i);
   });
+
+  it("approves an existing pending immutable deployment plan with the exact change digest", async () => {
+    const digest = "a".repeat(64);
+    const changeDigest = "d".repeat(64);
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Beta", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-targets" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { targets: [{ _id: "ffffffffffffffffffffffff", serverId: "111111111111111111111111", revision: 4, composeProject: "crafters", statelessServices: ["web"], protectedServices: ["mongo"], healthChecks: [{ id: "web", url: "https://craftersmarketbeta.shop/healthz", timeoutMs: 1000 }], currentConfigurationDigest: digest }] } });
+      if (path === "/configuration/deployment-plans" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { plan: { id: "999999999999999999999999", revision: 7, state: "pending_approval", changeDigest, approvalExpiresAt: "2026-07-23T12:15:00.000Z", proposedDiff: [{ name: "MAILGUN_API_KEY", operation: "rotate", classification: "secret", proposedValue: "[redacted]" }] } } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [{ _id: "eeeeeeeeeeeeeeeeeeeeeeee", name: "MAILGUN_API_KEY", description: "Mailgun API key", type: "secret", secret: true, required: false, usage: "runtime", status: "pending", sources: ["manual"], services: ["api"], activeVersion: 2, risk: "high", removalPermitted: true, browserDisplayPermitted: false, restartRequirement: "restart" }], versions: [{ _id: "343434343434343434343434", definitionId: "eeeeeeeeeeeeeeeeeeeeeeee", environmentId: "cccccccccccccccccccccccc", version: 2, masked: "Configured", state: "pending", validationState: "unverified", createdAt: "2026-07-23T12:01:00.000Z" }] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockImplementation((path: string, body: unknown) => {
+      if (path === "/configuration/deployment-plans/999999999999999999999999/approve") return Promise.resolve({ data: { state: "queued", taskId: "777777777777777777777777", body } });
+      return Promise.resolve({ data: { id: "unexpected" } });
+    });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    const approve = await screen.findByRole("button", { name: "Approve as different administrator" });
+    await waitFor(() => expect(approve).toBeEnabled());
+    await userEvent.click(approve);
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/deployment-plans/999999999999999999999999/approve", { changeDigest }));
+    await waitFor(() => expect(screen.getAllByText("queued").length).toBeGreaterThan(0));
+    expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token/i);
+  });
+
+  it("shows approval errors instead of silently ignoring the approval button", async () => {
+    const digest = "a".repeat(64);
+    const changeDigest = "e".repeat(64);
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Beta", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-targets" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { targets: [{ _id: "ffffffffffffffffffffffff", serverId: "111111111111111111111111", revision: 4, composeProject: "crafters", statelessServices: ["web"], protectedServices: ["mongo"], healthChecks: [{ id: "web", url: "https://craftersmarketbeta.shop/healthz", timeoutMs: 1000 }], currentConfigurationDigest: digest }] } });
+      if (path === "/configuration/deployment-plans" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { plan: { id: "999999999999999999999999", revision: 7, state: "pending_approval", changeDigest, approvalExpiresAt: "2026-07-23T12:15:00.000Z", proposedDiff: [{ name: "MAILGUN_API_KEY", operation: "rotate", classification: "secret", proposedValue: "[redacted]" }] } } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [{ _id: "eeeeeeeeeeeeeeeeeeeeeeee", name: "MAILGUN_API_KEY", description: "Mailgun API key", type: "secret", secret: true, required: false, usage: "runtime", status: "pending", sources: ["manual"], services: ["api"], activeVersion: 2, risk: "high", removalPermitted: true, browserDisplayPermitted: false, restartRequirement: "restart" }], versions: [{ _id: "343434343434343434343434", definitionId: "eeeeeeeeeeeeeeeeeeeeeeee", environmentId: "cccccccccccccccccccccccc", version: 2, masked: "Configured", state: "pending", validationState: "unverified", createdAt: "2026-07-23T12:01:00.000Z" }] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockRejectedValue({ response: { status: 409, data: { error: "Deployment approval window expired" } } });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    const approve = await screen.findByRole("button", { name: "Approve as different administrator" });
+    await waitFor(() => expect(approve).toBeEnabled());
+    await userEvent.click(approve);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Deployment approval window expired");
+    expect(apiPost).toHaveBeenCalledWith("/configuration/deployment-plans/999999999999999999999999/approve", { changeDigest });
+  });
 });
