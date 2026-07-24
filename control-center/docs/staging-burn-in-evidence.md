@@ -161,6 +161,25 @@ Ed25519 signature.
   to `/audit` continued to render sign-in instead of protected content.
 - The temporary request body and value-safe database verifier were removed.
 
+### Recent authentication and enrollment lifecycle
+
+- A fresh authenticated staging session generated one short-lived,
+  single-use enrollment credential named `Disposable staging audit validation`.
+- The one-time secret display was closed without copying, downloading, or
+  emitting the token. The credential was then revoked and its disposable
+  database record deleted.
+- The Audit view and database contained exactly one successful
+  `enrollment.create`, `enrollment.revoke`, and `enrollment.delete` event for
+  the same target. Audit metadata contained only expiry and use-limit fields,
+  with no secret-shaped values.
+- A synthetic staging session was created with authentication deliberately
+  outside the ten-minute freshness window. Its enrollment-generation request
+  returned HTTP `403` with `RECENT_AUTH_REQUIRED`, created zero enrollment
+  records, and produced exactly one `authorization.failure` event with bounded
+  reason `recent-auth-required`.
+- The synthetic stale session was deleted immediately; no session or
+  enrollment artifact remained.
+
 ### Task lifecycle audit correlation
 
 - An authenticated staging operator queued a read-only `collect.system` task
@@ -194,6 +213,25 @@ Ed25519 signature.
   secret-shaped matches. No matching log contents or credential-like values
   were emitted during verification.
 
+### Configuration metadata audit lifecycle
+
+- All configuration actions targeted the existing `Project Overview
+  Validation` project. The Crafters configuration workspace was inspected only
+  as the page's default selection and was not modified.
+- A non-production `Audit Validation` environment was created with kind
+  `testing` and `protected: false`.
+- One non-secret boolean definition, `AUDIT_VALIDATION_FLAG`, received one
+  immutable pending public version for future workflow validation. Reloading
+  the workspace showed the definition as pending with one prepared setting.
+- The Audit view and database contained exactly one successful
+  `configuration.environment.create`, `configuration.definition.create`, and
+  `configuration.version.create` event. No secret-shaped value appeared in
+  those audit records.
+- The validation project has zero enabled deployment target profiles, zero
+  configuration deployment plans, and zero apply or rollback tasks. The
+  immutable-plan control therefore remains disabled and no server, file,
+  service, or runtime configuration was changed.
+
 ### Disposable configuration rollback proof
 
 - The installed staging agent implementation ran as its restricted
@@ -224,8 +262,6 @@ Ed25519 signature.
 ## Remaining gates
 
 - Complete at least 24 continuous hours of threshold monitoring.
-- Complete the remaining recent-auth, enrollment, and configuration audit
-  categories.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
 - Record the monitoring/on-call/rollback owners and final owner sign-off.
