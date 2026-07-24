@@ -7,11 +7,11 @@ Ed25519 signature.
 ## Active release
 
 - Environment: private staging, host `146.190.210.14`
-- Source commit: `ec3c642a275a0305384cef3510c606e1a10d1f7f`
-- Release path: `/opt/opsworkbench/releases/review-ec3c642/app`
-- Immediate rollback: `/opt/opsworkbench/releases/review-4adf0ba/app`
+- Source commit: `7a569278c937e5c618b55582b814676c31041440`
+- Release path: `/opt/opsworkbench/releases/review-7a569278/app`
+- Immediate rollback: `/opt/opsworkbench/releases/review-daa72ff/app`
 - Source archive SHA-256:
-  `7715a775eca09edc51d1b140c2354e9a3cc62c551fb75a884e8ec279740195c6`
+  `5c8a8b984aa805aa7a81c8a9e4432f16bc2c5bafffcecb85427ceef595b682b3`
 - Activated: 2026-07-24 UTC
 
 ## Completed evidence
@@ -158,6 +158,29 @@ Ed25519 signature.
   to the Audit path rendered the sign-in screen instead of protected content.
 - The temporary request body and value-safe database verifier were removed.
 
+### Task lifecycle audit correlation
+
+- An authenticated staging operator queued a read-only `collect.system` task
+  against the OpsWorkbench server only. No task targeted Crafters.
+- The first live run exposed two `task.claim` records for one task: the API
+  recorded assignment and the agent acknowledgement recorded it again.
+- Commit `daa72ff` made the API assignment the single authoritative claim event
+  and added database-backed coverage that an acknowledgement cannot duplicate
+  it.
+- That run also exposed inconsistent target types: create and claim used a
+  MongoDB ObjectId while start and completion used the same identifier as a
+  string.
+- Commit `7a569278` normalized acknowledgement audit targets to ObjectIds and
+  added assertions covering both start and completion.
+- The guarded API suite passed 75 of 75 tests with zero skips against a fresh,
+  isolated MongoDB container after each correction.
+- On exact staging commit `7a569278`, a fresh `collect.system` task succeeded
+  and produced exactly one `task.create`, `task.claim`, `task.start`, and
+  `task.complete` event. All four events referenced the same MongoDB ObjectId.
+- The authenticated Tasks and Audit views displayed the successful terminal
+  task and the one-per-stage lifecycle. Disposable test containers, networks,
+  images, and Dockerfiles were removed.
+
 ### Disposable configuration rollback proof
 
 - The installed staging agent implementation ran as its restricted
@@ -190,7 +213,7 @@ Ed25519 signature.
 - Complete at least 24 continuous hours of threshold monitoring.
 - Complete a live public-path logout check if it is required in addition to the
   successful expired-session check.
-- Complete the remaining recent-auth, enrollment, configuration, and task audit
+- Complete the remaining recent-auth, enrollment, and configuration audit
   categories plus API, agent, proxy, and Docker log redaction.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
