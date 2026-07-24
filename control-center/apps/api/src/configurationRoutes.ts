@@ -135,6 +135,27 @@ configurationRouter.post("/configuration/deployment-targets", noStore, requireRe
 });
 
 const planBody = z.object({ projectId: z.string(), environmentId: z.string(), targetProfileId: z.string(), versionIds: z.array(z.string()).min(1).max(250), expectedConfigurationDigest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
+function safeDeploymentProgress(value: unknown) {
+  const parsed = z.object({
+    phase: z.string().optional(),
+    changedVariables: z.number().optional(),
+    healthChecksPassed: z.number().optional(),
+    errorCategory: z.string().optional(),
+    failureStage: z.string().optional(),
+    deploymentErrorCategory: z.string().optional(),
+    rollbackErrorCategory: z.string().optional()
+  }).passthrough().safeParse(value);
+  if (!parsed.success) return {};
+  return {
+    phase: parsed.data.phase,
+    changedVariables: parsed.data.changedVariables,
+    healthChecksPassed: parsed.data.healthChecksPassed,
+    errorCategory: parsed.data.errorCategory || parsed.data.deploymentErrorCategory,
+    failureStage: parsed.data.failureStage,
+    rollbackErrorCategory: parsed.data.rollbackErrorCategory
+  };
+}
+
 configurationRouter.get("/configuration/deployment-plans", noStore, requirePermission("configuration:view"), async (req, res, next) => {
   try {
     const query = z.object({ projectId: z.string(), environmentId: z.string(), state: z.enum(["pending_approval"]).default("pending_approval") }).strict().parse(req.query);
@@ -148,6 +169,40 @@ configurationRouter.get("/configuration/deployment-plans", noStore, requirePermi
     const names = new Map(definitions.map((item) => [item._id!.toHexString(), item.name]));
     const proposedDiff = redactedConfigurationDiff(versions.map((version) => ({ name: names.get(version.definitionId.toHexString()) || "UNKNOWN_CONFIGURATION", operation: version.operation || "update", secret: version.classification === "secret" })));
     res.json({ plan: { id: plan._id, revision: plan.revision, state: plan.state, changeDigest: plan.changeDigest, approvalExpiresAt: plan.approvalExpiresAt, proposedDiff } });
+  } catch (error) { next(error); }
+});
+configurationRouter.get("/configuration/deployment-history", noStore, requirePermission("configuration:view"), async (req, res, next) => {
+  try {
+    const query = z.object({ projectId: z.string(), environmentId: z.string(), limit: z.coerce.number().int().min(1).max(25).default(10) }).strict().parse(req.query);
+    const org = orgId(req); const projectId = oid(query.projectId); const environmentId = oid(query.environmentId);
+    const [project, environment] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId })]);
+    if (!project || !environment) return res.status(404).json({ error: "Scoped project or environment not found" });
+    const plans = await collections.configurationDeploymentPlans.find({ orgId: org, projectId, environmentId }).sort({ revision: -1 }).limit(query.limit).toArray();
+    const taskIds = plans.map((plan) => plan.deploymentTaskId).filter((id): id is ObjectId => Boolean(id));
+    const tasks = taskIds.length ? await collections.agentTasks.find({ orgId: org, _id: { $in: taskIds } }, { projection: { payload: 0, result: 0, nonce: 0, idempotencyKey: 0, signingKeyVersion: 0 } }).toArray() : [];
+    const results = taskIds.length ? await collections.agentTaskResults.find({ orgId: org, taskId: { $in: taskIds } }, { projection: { result: 1, taskId: 1 } }).toArray() : [];
+    const taskById = new Map(tasks.map((task) => [task._id!.toHexString(), task]));
+    const resultByTaskId = new Map(results.map((result) => [result.taskId.toHexString(), result]));
+    res.json({
+      history: plans.map((plan) => {
+        const task = plan.deploymentTaskId ? taskById.get(plan.deploymentTaskId.toHexString()) : undefined;
+        const result = plan.deploymentTaskId ? resultByTaskId.get(plan.deploymentTaskId.toHexString()) : undefined;
+        const progress = safeDeploymentProgress(result?.result);
+        return {
+          id: plan._id,
+          revision: plan.revision,
+          state: plan.state,
+          targetProfileRevision: plan.targetProfileRevision,
+          variableCount: plan.versionIds.length,
+          createdAt: plan.createdAt,
+          approvedAt: plan.approvedAt,
+          completedAt: task?.completedAt,
+          taskState: task?.state,
+          resultSummary: task?.resultSummary,
+          ...progress
+        };
+      })
+    });
   } catch (error) { next(error); }
 });
 configurationRouter.post("/configuration/deployment-plans", noStore, requireRecentAuth, requirePermission("configuration:deploy-non-production"), async (req, res, next) => {

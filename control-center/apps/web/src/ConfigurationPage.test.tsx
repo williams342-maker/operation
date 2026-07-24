@@ -266,6 +266,24 @@ describe("Configuration workspace foundation", () => {
     expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token/i);
   });
 
+  it("shows value-free configuration deployment history and rollback evidence", async () => {
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Crafters Market Beta" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: "cccccccccccccccccccccccc", projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", name: "Beta", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-history" && options?.params?.environmentId === "cccccccccccccccccccccccc") return Promise.resolve({ data: { history: [{ id: "999999999999999999999999", revision: 21, state: "succeeded", targetProfileRevision: 3, variableCount: 24, taskState: "succeeded", completedAt: "2026-07-24T03:32:15.000Z", changedVariables: 24, healthChecksPassed: 1 }, { id: "888888888888888888888888", revision: 22, state: "failed", targetProfileRevision: 3, variableCount: 24, taskState: "failed", completedAt: "2026-07-24T03:46:00.000Z", errorCategory: "parsing", failureStage: "digest_guard", resultSummary: "Configuration deployment failed (parsing)" }] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === "aaaaaaaaaaaaaaaaaaaaaaaa") return Promise.resolve({ data: { definitions: [], versions: [] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    renderPage("/configuration?projectId=aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    expect(await screen.findByRole("heading", { name: "Configuration deployment history" })).toBeInTheDocument();
+    expect(await screen.findByText("rev 21: succeeded")).toBeInTheDocument();
+    expect(screen.getByText("Rollback evidence available")).toBeInTheDocument();
+    expect(screen.getByText("24 changed; 1 health check passed")).toBeInTheDocument();
+    expect(screen.getByText("category parsing; stage digest_guard")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token|ciphertext|credential value/i);
+  });
+
   it("approves an existing pending immutable deployment plan with the exact change digest", async () => {
     const digest = "a".repeat(64);
     const changeDigest = "d".repeat(64);
