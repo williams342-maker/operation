@@ -263,26 +263,31 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(restoreOwnerPassword.status, 200);
     ownerA = ownerAAfterReset;
 
-    const createViewer = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", {
+    const viewerTemporaryPassword = "viewer-a-temporary-password";
+    const createViewer = await request<{ id: string; mustChangePassword: boolean }>("POST", "/org/users", {
       email: "viewer-a@example.test",
       name: "Viewer A",
-      role: "Viewer"
+      role: "Viewer",
+      password: viewerTemporaryPassword
     }, jsonHeaders(ownerA));
     assert.equal(createViewer.status, 201);
     assert.ok(createViewer.headers.get("cache-control")?.includes("no-store"));
-    assert.ok(createViewer.body.oneTimePassword);
-    const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
-    const createAdministrator = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", {
+    assert.equal(createViewer.body.mustChangePassword, true);
+    const viewerA = await login("phase-1b-a", "viewer-a@example.test", viewerTemporaryPassword);
+    const administratorTemporaryPassword = "administrator-a-temporary-password";
+    const createAdministrator = await request<{ id: string; mustChangePassword: boolean }>("POST", "/org/users", {
       email: "administrator-a@example.test",
       name: "Administrator A",
-      role: "Administrator"
+      role: "Administrator",
+      password: administratorTemporaryPassword
     }, jsonHeaders(ownerA));
     assert.equal(createAdministrator.status, 201);
-    const administratorA = await login("phase-1b-a", "administrator-a@example.test", createAdministrator.body.oneTimePassword);
+    assert.equal(createAdministrator.body.mustChangePassword, true);
+    const administratorA = await login("phase-1b-a", "administrator-a@example.test", administratorTemporaryPassword);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
-    const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", viewerTemporaryPassword);
     const viewerSessionId = new ObjectId(viewerLogout.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
     const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerLogout.cookie });
     assert.equal(logoutWithoutCsrf.status, 403);
@@ -293,7 +298,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 0);
     assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
-    const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", viewerTemporaryPassword);
     const expiredViewerSessionId = new ObjectId(expiredViewer.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
     await collections.sessions.updateOne({ _id: expiredViewerSessionId }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
     const expiredLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(expiredViewer));
@@ -621,7 +626,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const serializedOverview = JSON.stringify(ownerProjectOverview.body);
     for (const forbidden of [credentials.agentSecret, "not-a-credential", "mongodb://", "agentSecretHash", "encryptedConnectionString", "payload"]) assert.equal(serializedOverview.includes(forbidden), false);
 
-    const overviewViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const overviewViewer = await login("phase-1b-a", "viewer-a@example.test", viewerTemporaryPassword);
     const viewerProjectOverview = await request<any>("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(overviewViewer));
     assert.equal(viewerProjectOverview.status, 200, JSON.stringify(viewerProjectOverview.body));
     assert.equal(viewerProjectOverview.body.project.paths, undefined);
