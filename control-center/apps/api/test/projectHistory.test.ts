@@ -25,3 +25,9 @@ test("history serializers expose bounded safe fields and permission-filter actor
   assert.equal(rollback.sourceDeploymentId, ids.deployment.toHexString()); assert.equal(rollback.actor, undefined);
   assert.doesNotMatch(JSON.stringify({ owner, viewer, rollback }), /credential|password|bearer|mongodb:\/\//i);
 });
+
+test("deployment approval metadata is restricted to audit viewers", () => {
+  const deployment = { ...base, _id: ids.deployment, projectId: ids.project, serverId: ids.server, environment: "staging", requestedRevision: "a".repeat(40), taskId: ids.task, actorId: ids.actor, approvedByUserId: new ObjectId(), approvedAt: now, status: "approved" as const, validation: { health: "not_run" as const, readiness: "not_run" as const }, rollbackAvailable: false, evidenceConfidence: "reported" as const, auditEventIds: [] };
+  assert.equal(deploymentHistoryItem(deployment, "Server", "Owner").approval?.approvedAt, now.toISOString());
+  assert.equal(deploymentHistoryItem(deployment, "Server", "Viewer").approval, undefined);
+});

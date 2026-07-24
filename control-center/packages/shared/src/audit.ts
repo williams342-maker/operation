@@ -29,6 +29,7 @@ export type AuditAction =
   | "enrollment.tokens_revoked"
   | "project.create"
   | "project.deployment.plan"
+  | "project.deployment.approve"
   | "project.import_discovered"
   | "project.update"
   | "project.archive"

@@ -268,7 +268,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(createViewer.headers.get("cache-control")?.includes("no-store"));
     assert.ok(createViewer.body.oneTimePassword);
     const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
-    const createAdministrator = await request<{ oneTimePassword: string }>("POST", "/org/users", {
+    const createAdministrator = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", {
       email: "administrator-a@example.test",
       name: "Administrator A",
       role: "Administrator"
@@ -656,6 +656,17 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const plannedHistory = await request<any>("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(ownerA));
     assert.equal(plannedHistory.body.records[0].status, "planned");
     assert.equal(plannedHistory.body.records[0].requestedRevision, "abc1234");
+    const selfApproval = await request<any>("POST", `/projects/${project.body.id}/deployments/${plannedDeployment.body.deployment.id}/approve`, {}, jsonHeaders(ownerA));
+    assert.equal(selfApproval.status, 409);
+    assert.match(selfApproval.body.error, /creator cannot approve/i);
+    const approvedDeployment = await request<any>("POST", `/projects/${project.body.id}/deployments/${plannedDeployment.body.deployment.id}/approve`, {}, jsonHeaders(administratorA));
+    assert.equal(approvedDeployment.status, 200, JSON.stringify(approvedDeployment.body));
+    assert.equal(approvedDeployment.body.deployment.status, "approved");
+    assert.equal(approvedDeployment.body.deployment.approval.approverId, createAdministrator.body.id);
+    assert.ok(approvedDeployment.body.deployment.approval.approvedAt);
+    assert.equal(await collections.agentTasks.countDocuments({ _id: new ObjectId(plannedDeployment.body.deployment.taskId), orgId: orgA._id }), 0);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "project.deployment.approve", targetId: new ObjectId(plannedDeployment.body.deployment.id), result: "success" }), 1);
+    assert.equal((await request("POST", `/projects/${project.body.id}/deployments/${plannedDeployment.body.deployment.id}/approve`, {}, jsonHeaders(administratorA))).status, 404);
     assert.doesNotMatch(JSON.stringify(plannedDeployment.body), /password|token|bearer|mongodb:\/\//i);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "not a sha", environment: "staging" }, jsonHeaders(ownerA))).status, 400);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "abc1234", environment: "production" }, jsonHeaders(ownerA))).status, 400);
