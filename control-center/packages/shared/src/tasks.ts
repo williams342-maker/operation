@@ -9,7 +9,12 @@ export const taskStates = ["queued", "claimed", "running", "succeeded", "failed"
 export const taskTypes = ["collect.system", "inspect.docker", "inspect.compose", "inspect.git", "check.http", "check.mongo", "collect.telemetry", "configuration.apply", "configuration.rollback", "agent.upgrade"] as const;
 
 export const taskPayloadSchema = z.object({
-  projects: z.array(z.object({ projectId: z.string(), repoPath: z.string().optional(), composePath: z.string().optional() })).default([]),
+  projects: z.array(z.object({
+    projectId: z.string(),
+    repoPath: z.string().optional(),
+    composePath: z.string().optional(),
+    requestedRevision: z.string().regex(/^[a-f0-9]{7,40}$/i).optional()
+  }).strict()).default([]),
   httpHealthChecks: z.array(z.object({ id: z.string(), url: z.string().url(), timeoutMs: z.number().int().min(100).max(30000) })).default([]),
   mongoChecks: z.array(z.object({ id: z.string(), databaseNameHint: z.string().optional() })).default([]),
   configurationDeployment: configurationDeploymentPayloadSchema.optional(),

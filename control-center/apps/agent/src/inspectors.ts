@@ -80,18 +80,28 @@ function validateAgainstAllowedRoots(config: AgentConfig, candidate?: string) {
   throw new Error("Registered path is outside allowed roots");
 }
 
-export async function collectGit(config: AgentConfig, projects: Array<{ projectId: string; repoPath?: string }>) {
+export async function collectGit(config: AgentConfig, projects: Array<{ projectId: string; repoPath?: string; requestedRevision?: string }>) {
   const rows = [];
   for (const project of projects) {
     try {
       const repoPath = validateAgainstAllowedRoots(config, project.repoPath);
       if (!repoPath) continue;
-      const [branch, commit, dirty] = await Promise.all([
+      const [branch, commit, dirty, requestedRevision] = await Promise.all([
         execFixed("git", ["rev-parse", "--abbrev-ref", "HEAD"], repoPath),
-        execFixed("git", ["rev-parse", "--short", "HEAD"], repoPath),
-        execFixed("git", ["status", "--porcelain"], repoPath)
+        execFixed("git", ["rev-parse", "HEAD"], repoPath),
+        execFixed("git", ["status", "--porcelain"], repoPath),
+        project.requestedRevision
+          ? execFixed("git", ["cat-file", "-e", `${project.requestedRevision}^{commit}`], repoPath)
+          : Promise.resolve(undefined)
       ]);
-      rows.push({ projectId: project.projectId, branch: branch.stdout.trim(), commit: commit.stdout.trim(), dirty: Boolean(dirty.stdout.trim()), collectedAt: new Date().toISOString() });
+      rows.push({
+        projectId: project.projectId,
+        branch: branch.stdout.trim(),
+        commit: commit.stdout.trim(),
+        dirty: Boolean(dirty.stdout.trim()),
+        ...(project.requestedRevision ? { requestedRevision: project.requestedRevision.toLowerCase(), requestedRevisionExists: requestedRevision?.code === 0 } : {}),
+        collectedAt: new Date().toISOString()
+      });
     } catch {
       rows.push({ projectId: project.projectId, collectedAt: new Date().toISOString() });
     }
