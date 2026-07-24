@@ -53,6 +53,11 @@ const projectOverview = {
   revision: { confidence: "unavailable", conflicts: [] }, services: [], health: [], recent: { tasks: [], audit: [], deployments: [], rollbacks: [] },
   availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations: []
 };
+const projectBurnIn = {
+  policy: { profile: "Staging-BurnIn-v1", observation: { minimumHours: 24 } },
+  enabledHealthChecks: 1,
+  observation: { state: "observing", observationStartedAt: new Date().toISOString(), minimumCompletesAt: new Date(Date.now() + 86_400_000).toISOString(), completionPercent: 0, lastResetReasons: [], sampleCount: 1, metrics: { availabilityPercent: 100, httpErrorRatePercent: 0, p95LatencyMs: 50, maximumAgentHeartbeatGapSeconds: 0, maximumDiskPercent: 70, unexpectedRestarts: 0, criticalAlerts: 0 } }
+};
 
 describe("Login experience", () => {
   beforeEach(() => {
@@ -283,7 +288,7 @@ describe("Durable project routes", () => {
     localStorage.setItem("cc.csrf", "csrf-token");
     window.history.replaceState({}, "", "/");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
-    mocks.apiGet.mockImplementation((path: string) => path === "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview" ? Promise.resolve({ data: projectOverview }) : authenticatedApi(path));
+    mocks.apiGet.mockImplementation((path: string) => path === "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview" ? Promise.resolve({ data: projectOverview }) : path === "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/burn-in" ? Promise.resolve({ data: projectBurnIn }) : authenticatedApi(path));
   });
   afterEach(() => { cleanup(); window.history.replaceState({}, "", "/"); });
 

@@ -20,9 +20,14 @@ const fixture: ProjectOverview = {
   recent: { tasks: [{ id: "dddddddddddddddddddddddd", type: "collect.system", state: "succeeded", target: "Beta server", summary: "Task completed successfully", completedAt: "2026-07-21T19:58:00.000Z" }], audit: [{ id: "eeeeeeeeeeeeeeeeeeeeeeee", action: "task.complete", actor: "agent", target: "agent_task", result: "success", timestamp: "2026-07-21T19:58:00.000Z" }], deployments: [], rollbacks: [] },
   availability: { releases: "unavailable", deployments: "unavailable", rollbacks: "unavailable", logs: "unavailable" }, limitations: []
 };
+const burnInFixture = {
+  policy: { profile: "Staging-BurnIn-v1", observation: { minimumHours: 24 } },
+  enabledHealthChecks: 1,
+  observation: { state: "observing", observationStartedAt: "2026-07-24T20:09:02.695Z", minimumCompletesAt: "2026-07-25T20:09:02.695Z", completionPercent: 5, lastResetReasons: [], sampleCount: 12, metrics: { availabilityPercent: 100, httpErrorRatePercent: 0, p95LatencyMs: 66, maximumAgentHeartbeatGapSeconds: 31.752, maximumDiskPercent: 74.46, unexpectedRestarts: 0, criticalAlerts: 0 } }
+};
 
 function renderPage(data: ProjectOverview = fixture, canViewAudit = true) {
-  apiGet.mockResolvedValue({ data });
+  apiGet.mockImplementation((path: string) => Promise.resolve({ data: path.endsWith("/burn-in") ? burnInFixture : data }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const navigate = vi.fn();
   render(<QueryClientProvider client={client}><ProjectOverviewPage projectId={data.project.id} canViewAudit={canViewAudit} navigate={navigate} /></QueryClientProvider>);
@@ -42,6 +47,10 @@ describe("Project Overview workspace", () => {
     expect(screen.getByText("Task completed successfully")).toBeInTheDocument();
     expect(screen.getByText("task.complete")).toBeInTheDocument();
     expect(screen.getByText(/Public health/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Staging burn-in" })).toBeInTheDocument();
+    expect(screen.getByText("100.000%")).toBeInTheDocument();
+    expect(screen.getByText("66 ms")).toBeInTheDocument();
+    expect(screen.getByText(/production publication still requires the owner Ed25519 signature/i)).toBeInTheDocument();
   });
 
   it("links to the implemented Environment workspace and keeps unsupported capabilities visibly unavailable", async () => {
