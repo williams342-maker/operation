@@ -165,8 +165,8 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; withFailureStage("backup", "backup", () => { fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (shouldApplyOwnershipChange(stat.uid, stat.gid)) fs.chownSync(backup, stat.uid, stat.gid); });
   const secrets = withFailureStage("decrypt", "parsing", () => decryptValues(payload, signingKey)); const proposed = withFailureStage("mutation", "parsing", () => applyEnvironmentMutations(original, payload.mutations, secrets));
   withFailureStage("write", "write", () => writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid));
-  const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 120_000));
-  const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", ...payload.statelessServices];
+  const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 300_000));
+  const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull", ...payload.statelessServices];
   const activation = await compose(args, payload.repositoryRoot);
   const health = hooks.health || ((url: string, timeoutMs: number) => safeHealth(url, timeoutMs, resolver));
   const runHealth = async (url: string, timeoutMs: number) => { try { return await health(url, timeoutMs); } catch { return false; } };

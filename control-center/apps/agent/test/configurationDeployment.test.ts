@@ -83,8 +83,8 @@ test("agent activation uses bounded local-build compose flags", async () => {
   });
   assert.equal(result.phase, "succeeded");
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].slice(0, 12), ["compose", "-f", item.compose, "-p", "fixture", "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never"]);
-  assert.deepEqual(calls[0].slice(12), ["web"]);
+  assert.deepEqual(calls[0].slice(0, 14), ["compose", "-f", item.compose, "-p", "fixture", "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull"]);
+  assert.deepEqual(calls[0].slice(14), ["web"]);
 });
 test("agent rolls back and revalidates health", async () => { resetReplayStateForTests(); const item = fixture(); let checks = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-002", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => ++checks > 1 }); assert.equal(result.phase, "rolled_back"); assert.equal(result.healthChecksPassed, 1); assert.equal(checks, 2); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); });
 test("agent distinguishes rollback activation and health failures", async () => { resetReplayStateForTests(); const activation = fixture(); let composeCalls = 0; const activationResult = await executeConfigurationDeployment(activation.payload, activation.key, "rollback-activation", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: ++composeCalls === 1 ? 1 : 2 }), health: async () => true }); assert.equal(activationResult.phase, "rollback_failed"); assert.equal(activationResult.rollbackErrorCategory, "activation"); resetReplayStateForTests(); const health = fixture(); const healthResult = await executeConfigurationDeployment(health.payload, health.key, "rollback-health", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => false }); assert.equal(healthResult.phase, "rollback_failed"); assert.equal(healthResult.rollbackErrorCategory, "health"); });
