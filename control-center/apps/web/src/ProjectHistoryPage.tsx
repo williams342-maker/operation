@@ -34,12 +34,26 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
     onSuccess: async () => { setPlanMessage("Control-plane preflight passed. Read-only Git preflight API is available."); await query.refetch(); },
     onError: (error) => { setPlanMessage(apiError(error)); void query.refetch(); }
   });
+  const runGitPreflight = useMutation({
+    mutationFn: async (deployment: ProjectDeploymentHistoryItem) => api.post(`/projects/${projectId}/deployments/${deployment.id}/git-preflight`, { planDigest: deployment.planDigest, confirm: true }),
+    onSuccess: async () => { setPlanMessage("Read-only Git preflight queued. Deployment execution remains unavailable."); await query.refetch(); },
+    onError: (error) => { setPlanMessage(apiError(error)); void query.refetch(); }
+  });
   const lastSuccessful = useMemo(() => kind === "deployments" ? query.data?.records.find((record) => "requestedRevision" in record && record.status === "succeeded") as ProjectDeploymentHistoryItem | undefined : undefined, [kind, query.data?.records]);
   if (query.isLoading) return <Skeleton />;
   if (query.error) return <Card><h2 className="font-semibold">History unavailable</h2><p role="alert" className="mt-2 text-sm text-danger">{apiError(query.error)}</p></Card>;
   const data = query.data!;
+  const gitPreflightCandidate = kind === "deployments" ? data.records.find((record) => "requestedRevision" in record && record.status === "approved" && record.controlPlanePreflight?.status === "passed") as ProjectDeploymentHistoryItem | undefined : undefined;
 
   return <div className="space-y-4" data-testid={`project-${kind}-history`}>
+    {gitPreflightCandidate && <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h3 className="font-semibold">Read-only Git preflight</h3><p className="text-sm text-muted">Verify that the exact approved revision exists in the registered repository. This does not fetch, checkout, build, or deploy.</p></div>
+        <Badge>{gitPreflightCandidate.gitPreflight?.status || "not_run"}</Badge>
+      </div>
+      {gitPreflightCandidate.gitPreflight?.checks.length ? <p className="mt-2 text-sm">{gitPreflightCandidate.gitPreflight.checks.filter((check) => check.passed).length}/{gitPreflightCandidate.gitPreflight.checks.length} checks passed{gitPreflightCandidate.gitPreflight.headRevision ? ` · HEAD ${gitPreflightCandidate.gitPreflight.headRevision}` : ""}</p> : null}
+      <div className="mt-3"><GhostButton disabled={runGitPreflight.isPending || !gitPreflightCandidate.planDigest || gitPreflightCandidate.gitPreflight?.status === "queued" || gitPreflightCandidate.gitPreflight?.status === "running"} onClick={() => runGitPreflight.mutate(gitPreflightCandidate)}>Run read-only Git preflight</GhostButton></div>
+    </Card>}
     <Card>
       <div className="text-xs text-muted">Project workspace</div>
       <h2 className="text-xl font-semibold">{data.project.name}</h2>

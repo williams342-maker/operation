@@ -105,4 +105,16 @@ describe("Project history workspace", () => {
     expect(await screen.findByText("passed · 1/1 checks")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
   });
+  it("queues a read-only Git preflight without exposing deployment execution", async () => {
+    const checked = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "approved", controlPlanePreflight: { status: "passed", checks: [{ name: "execution_not_queued", passed: true }], checkedAt: new Date().toISOString() }, validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
+    const queued = { ...checked, gitPreflight: { taskId: "e".repeat(24), status: "queued", checks: [] } };
+    const project = { id: "a".repeat(24), name: "Project", archived: false };
+    apiGet.mockResolvedValueOnce({ data: { project, records: [checked], limit: 20, hasMore: false } }).mockResolvedValueOnce({ data: { project, records: [queued], limit: 20, hasMore: false } });
+    apiPost.mockResolvedValue({ data: { deployment: queued } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "Run read-only Git preflight" }));
+    expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${checked.id}/git-preflight`, { planDigest: checked.planDigest, confirm: true });
+    expect(await screen.findByText("Read-only Git preflight queued. Deployment execution remains unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
+  });
 });
