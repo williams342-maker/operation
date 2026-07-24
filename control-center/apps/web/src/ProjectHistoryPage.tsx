@@ -52,8 +52,16 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
   if (query.error) return <Card><h2 className="font-semibold">History unavailable</h2><p role="alert" className="mt-2 text-sm text-danger">{apiError(query.error)}</p></Card>;
   const data = query.data!;
   const gitPreflightCandidate = kind === "deployments" ? data.records.find((record) => "requestedRevision" in record && record.status === "approved" && record.controlPlanePreflight?.status === "passed") as ProjectDeploymentHistoryItem | undefined : undefined;
+  const failedPreflightCandidate = kind === "deployments" ? data.records.find((record) => "requestedRevision" in record && record.status === "approved" && record.controlPlanePreflight?.status === "failed") as ProjectDeploymentHistoryItem | undefined : undefined;
 
   return <div className="space-y-4" data-testid={`project-${kind}-history`}>
+    {failedPreflightCandidate && <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h3 className="font-semibold">Control-plane preflight blocked</h3><p className="text-sm text-muted">Resolve the failed prerequisites before running read-only Git preflight.</p></div>
+        <Badge tone="danger">blocked</Badge>
+      </div>
+      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{failedPreflightCandidate.controlPlanePreflight!.checks.filter((check) => !check.passed).map((check) => <li key={check.name}>{check.name.replace(/_/g, " ")}</li>)}</ul>
+    </Card>}
     {gitPreflightCandidate && <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h3 className="font-semibold">Read-only Git preflight</h3><p className="text-sm text-muted">Verify that the exact approved revision exists in the registered repository. This does not fetch, checkout, build, or deploy.</p></div>

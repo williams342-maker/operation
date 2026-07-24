@@ -117,4 +117,13 @@ describe("Project history workspace", () => {
     expect(await screen.findByText("Read-only Git preflight queued. Deployment execution remains unavailable.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
   });
+  it("shows failed control-plane prerequisites without enabling Git preflight", async () => {
+    const blocked = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "approved", controlPlanePreflight: { status: "failed", checks: [{ name: "agent_online", passed: true }, { name: "git_revision_preflight_supported", passed: false }], checkedAt: new Date().toISOString() }, validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
+    apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [blocked], limit: 20, hasMore: false } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={blocked.projectId} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    expect(await screen.findByRole("heading", { name: "Control-plane preflight blocked" })).toBeInTheDocument();
+    expect(screen.getByText("git revision preflight supported")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run read-only Git preflight" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
+  });
 });
