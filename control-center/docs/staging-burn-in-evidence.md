@@ -32,6 +32,16 @@ Ed25519 signature.
 - `/readyz` reported API, MongoDB, agent monitoring, audit, rate limiting, and
   cache ready; AI intentionally disabled; environment errors and warnings were
   both zero.
+- Authenticated Projects rendered normally on the current release at 1280×900
+  and 390×844. At both viewports the document and body scroll widths matched the
+  viewport width, and no browser console errors were captured.
+- The authenticated Health dashboard showed the exact `e058083` build identity
+  and the expected ready/disabled/not-configured subsystem states.
+- The authenticated Audit dashboard showed the successful login and
+  `project.deployment.expire` event. Its visible table contained no
+  password-, bearer-, MongoDB-URL-, API-key-, or private-key-shaped text.
+- The authenticated Tasks dashboard contained terminal historical results only;
+  the database-level active-state check remained zero.
 
 ### Expired deployment reconciliation
 
@@ -71,8 +81,8 @@ Ed25519 signature.
 - Complete authenticated login, recent-auth, logout, and expired-session checks.
 - Complete Owner/Administrator allow and Viewer deny checks.
 - Complete two-synthetic-organization isolation checks.
-- Complete authenticated audit and redaction review.
-- Run the current release browser smoke at both required viewports.
+- Complete the remaining failed-login, recent-auth, enrollment, configuration,
+  and task audit categories plus API, agent, proxy, and Docker log redaction.
 - Exercise the disposable agent restart/recovery check.
 - Exercise an end-to-end non-production configuration deployment and controlled
   rollback with separate approval.
