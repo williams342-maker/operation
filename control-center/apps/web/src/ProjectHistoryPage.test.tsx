@@ -80,4 +80,16 @@ describe("Project history workspace", () => {
     expect(screen.queryByRole("button", { name: "Approve exact plan as different administrator" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
   });
+  it("cancels a planned deployment without queueing execution", async () => {
+    const planned = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "planned", validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
+    const cancelled = { ...planned, status: "cancelled" };
+    const project = { id: "a".repeat(24), name: "Project", archived: false };
+    apiGet.mockResolvedValueOnce({ data: { project, records: [planned], limit: 20, hasMore: false } }).mockResolvedValueOnce({ data: { project, records: [cancelled], limit: 20, hasMore: false } });
+    apiPost.mockResolvedValue({ data: { deployment: cancelled } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel deployment plan" }));
+    expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${planned.id}/cancel`, { confirmation: "CANCEL" });
+    expect(await screen.findByText("Deployment plan cancelled. No execution was queued.")).toBeInTheDocument();
+    expect(await screen.findByText("cancelled")).toBeInTheDocument();
+  });
 });

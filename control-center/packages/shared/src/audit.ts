@@ -30,6 +30,7 @@ export type AuditAction =
   | "project.create"
   | "project.deployment.plan"
   | "project.deployment.approve"
+  | "project.deployment.cancel"
   | "project.import_discovered"
   | "project.update"
   | "project.archive"

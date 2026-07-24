@@ -671,6 +671,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.agentTasks.countDocuments({ _id: new ObjectId(plannedDeployment.body.deployment.taskId), orgId: orgA._id }), 0);
     assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "project.deployment.approve", targetId: new ObjectId(plannedDeployment.body.deployment.id), result: "success" }), 1);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments/${plannedDeployment.body.deployment.id}/approve`, exactApproval, jsonHeaders(administratorA))).status, 404);
+    const cancellableDeployment = await request<any>("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "def5678", environment: "preview" }, jsonHeaders(ownerA));
+    const cancelledDeployment = await request<any>("POST", `/projects/${project.body.id}/deployments/${cancellableDeployment.body.deployment.id}/cancel`, { confirmation: "CANCEL" }, jsonHeaders(ownerA));
+    assert.equal(cancelledDeployment.status, 200);
+    assert.equal(cancelledDeployment.body.deployment.status, "cancelled");
+    assert.equal(await collections.agentTasks.countDocuments({ _id: new ObjectId(cancellableDeployment.body.deployment.taskId), orgId: orgA._id }), 0);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "project.deployment.cancel", targetId: new ObjectId(cancellableDeployment.body.deployment.id), result: "success" }), 1);
+    assert.equal((await request("POST", `/projects/${project.body.id}/deployments/${cancellableDeployment.body.deployment.id}/cancel`, { confirmation: "CANCEL" }, jsonHeaders(ownerA))).status, 404);
     assert.doesNotMatch(JSON.stringify(plannedDeployment.body), /password|token|bearer|mongodb:\/\//i);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "not a sha", environment: "staging" }, jsonHeaders(ownerA))).status, 400);
     assert.equal((await request("POST", `/projects/${project.body.id}/deployments`, { requestedRevision: "abc1234", environment: "production" }, jsonHeaders(ownerA))).status, 400);
