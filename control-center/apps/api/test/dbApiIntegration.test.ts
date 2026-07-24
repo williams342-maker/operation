@@ -580,6 +580,9 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const storedTask = await collections.agentTasks.findOne({ _id: new ObjectId(queuedTask.body.task._id), orgId: orgA._id });
     assert.equal(storedTask?.state, "succeeded");
     assert.equal(JSON.stringify(storedTask?.result).includes("should-redact"), false);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.start", targetId: new ObjectId(queuedTask.body.task._id) }), 1);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.complete", targetId: new ObjectId(queuedTask.body.task._id) }), 1);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: { $in: ["task.start", "task.complete"] }, targetId: queuedTask.body.task._id }), 0);
 
     const cancelDone = await request("POST", `/tasks/${queuedTask.body.task._id}/cancel`, {}, jsonHeaders(ownerA));
     assert.equal(cancelDone.status, 404);

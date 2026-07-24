@@ -445,7 +445,7 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
     const result = await acknowledgeTask(req.agentServer!, body);
     if (result.status === 200 && body.event !== "claimed") {
       const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : "task.complete";
-      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: body.taskId, result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
+      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: oid(body.taskId), result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
     }
     res.status(result.status).json(result.body);
   } catch (error) { next(error); }
