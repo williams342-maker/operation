@@ -7,8 +7,8 @@ export const updaterInbox = "/var/lib/opsworkbench-agent/updater-inbox";
 
 export function handoffUpgrade(config: AgentConfig, raw: unknown, taskServerId: string, taskId: string, inbox = updaterInbox, agentState = "/var/lib/opsworkbench-agent/agent") {
   const manifest = agentUpgradeManifestSchema.parse(raw);
-  const { planDigest: _planDigest, ...unsigned } = manifest;
-  if (agentUpgradePlanDigest(unsigned) !== manifest.planDigest) throw new Error("Upgrade plan digest mismatch");
+  const { planDigest, ...unsigned } = manifest;
+  if (agentUpgradePlanDigest(unsigned) !== planDigest) throw new Error("Upgrade plan digest mismatch");
   if (!config.serverId || manifest.serverId !== config.serverId || taskServerId !== config.serverId) throw new Error("Upgrade manifest assigned to a different server");
   if (manifest.expectedAgentId !== config.agentId) throw new Error("Upgrade manifest assigned to a different agent");
   if (manifest.expectedCurrentVersion !== config.agentVersion) throw new Error("Agent version changed after upgrade planning");

@@ -18,7 +18,7 @@ function writeAgentConfig(file: string, content: string, stat: fs.Stats) { const
 
 export async function executeAgentUpgrade(raw: unknown, context: UpdaterContext, hooks: UpdaterHooks) {
   const manifest = agentUpgradeManifestSchema.parse(raw); const policy = context.policy || updaterPolicy; const now = (hooks.now || (() => new Date()))();
-  const { planDigest: _digest, ...unsigned } = manifest; if (agentUpgradePlanDigest(unsigned) !== manifest.planDigest) throw new Error("Upgrade plan digest mismatch");
+  const { planDigest, ...unsigned } = manifest; if (agentUpgradePlanDigest(unsigned) !== planDigest) throw new Error("Upgrade plan digest mismatch");
   if (Date.parse(manifest.expiresAt) <= now.getTime()) throw new Error("Upgrade manifest expired");
   if (manifest.serverId !== context.identity.serverId || manifest.expectedAgentId !== context.identity.agentId) throw new Error("Server identity mismatch");
   if (manifest.expectedCurrentVersion !== context.identity.currentVersion || (manifest.expectedCurrentBinarySha256 && manifest.expectedCurrentBinarySha256 !== context.identity.currentBinarySha256)) throw new Error("Expected current agent state changed");
