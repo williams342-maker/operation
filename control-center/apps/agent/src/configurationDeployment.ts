@@ -1,19 +1,18 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import dns from "node:dns/promises";
-import net from "node:net";
 import { setTimeout as sleep } from "node:timers/promises";
 import { configurationDeploymentPayloadSchema, deploymentCapabilities, isCompatibleAgentVersion, isSafeHttpCheckUrl, minimumDeploymentAgentVersion, type ConfigurationDeploymentPayload, type DeploymentProgress } from "@control-center/shared";
 import { execFixed } from "./safeExec.js";
 import { linuxMountPoints } from "./discoverySafety.js";
+import { requestSafeHttp, resolveSafeHttpTarget, UnsafeHttpTargetError, type SafeHttpHooks } from "./safeHttp.js";
 
 const MAX_VALUE = 16 * 1024;
 const HEALTH_RETRY_WINDOW_MS = 120_000;
 const HEALTH_RETRY_INTERVAL_MS = 5_000;
 const usedNonces = new Map<string, number>();
 
-export type DeploymentHooks = { compose?: (args: string[], cwd: string) => Promise<{ code: number | null }>; health?: (url: string, timeoutMs: number) => Promise<boolean>; resolve?: (hostname: string) => Promise<string[]>; now?: () => Date; healthRetryWindowMs?: number; healthRetryIntervalMs?: number };
+export type DeploymentHooks = { compose?: (args: string[], cwd: string) => Promise<{ code: number | null }>; health?: (url: string, timeoutMs: number) => Promise<boolean>; resolve?: (hostname: string) => Promise<string[]>; httpRequest?: SafeHttpHooks["request"]; now?: () => Date; healthRetryWindowMs?: number; healthRetryIntervalMs?: number };
 type DeploymentErrorCategory = NonNullable<DeploymentProgress["errorCategory"]>;
 type DeploymentFailureStage = NonNullable<DeploymentProgress["failureStage"]>;
 type TaggedDeploymentError = Error & { deploymentErrorCategory?: DeploymentErrorCategory; deploymentFailureStage?: DeploymentFailureStage };
@@ -108,29 +107,19 @@ export function decryptValues(payload: ConfigurationDeploymentPayload, signingKe
   return record as Record<string, string>;
 }
 
-function publicAddress(address: string) {
-  if (net.isIPv4(address)) { const [a, b] = address.split(".").map(Number); return !(a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224 || (a === 100 && b >= 64 && b <= 127)); }
-  if (net.isIPv6(address)) { const value = address.toLowerCase(); return !(value === "::" || value === "::1" || /^(fc|fd|fe[89ab]|ff)/.test(value)); }
-  return false;
-}
-
-async function validateHealthUrl(raw: string, resolver: (hostname: string) => Promise<string[]>) {
+async function validateHealthUrl(raw: string, resolver?: (hostname: string) => Promise<string[]>) {
   if (!isSafeHttpCheckUrl(raw)) throw new Error("Health check target rejected");
-  const url = new URL(raw); const hostname = url.hostname.replace(/^\[|\]$/g, ""); const addresses = net.isIP(hostname) ? [hostname] : await resolver(hostname);
-  if (!addresses.length || addresses.some((address) => !publicAddress(address))) throw new Error("Health check target rejected");
-  return url;
+  try { return (await resolveSafeHttpTarget(raw, resolver)).url; } catch (error) { throw new Error("Health check target rejected", { cause: error }); }
 }
 
-async function safeHealth(raw: string, timeoutMs: number, resolver: (hostname: string) => Promise<string[]>) {
-  let current = raw;
-  for (let redirects = 0; redirects <= 3; redirects += 1) {
-    await validateHealthUrl(current, resolver);
-    const response = await fetch(current, { signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
-    const location = response.headers.get("location");
-    if (response.status >= 300 && response.status < 400 && location) { if (redirects === 3) return false; current = new URL(location, current).toString(); continue; }
-    return response.ok;
+async function safeHealth(raw: string, timeoutMs: number, resolver?: (hostname: string) => Promise<string[]>, request?: SafeHttpHooks["request"]) {
+  try {
+    const response = await requestSafeHttp(raw, timeoutMs, { resolve: resolver, request });
+    return response.statusCode >= 200 && response.statusCode < 300;
+  } catch (error) {
+    if (error instanceof UnsafeHttpTargetError) throw new Error("Health check target rejected", { cause: error });
+    throw error;
   }
-  return false;
 }
 
 async function waitForHealth(url: string, timeoutMs: number, health: (url: string, timeoutMs: number) => Promise<boolean>, now: () => Date, retryWindowMs = HEALTH_RETRY_WINDOW_MS, retryIntervalMs = HEALTH_RETRY_INTERVAL_MS) {
@@ -138,7 +127,7 @@ async function waitForHealth(url: string, timeoutMs: number, health: (url: strin
   const deadline = startedAt + Math.max(timeoutMs, retryWindowMs);
   while (true) {
     try { if (await health(url, timeoutMs)) return true; } catch (error) {
-      if (error instanceof Error && /Health check target rejected/.test(error.message)) return false;
+      if (error instanceof Error && /health (?:check )?target rejected/i.test(error.message)) return false;
     }
     if (now().getTime() >= deadline) return false;
     const remaining = deadline - now().getTime();
@@ -170,7 +159,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   if (!deploymentCapabilities.every((item) => capabilities.includes(item))) throw tagFailure(new Error("Incomplete deployment capabilities"), "capability", "capability");
   const now = (hooks.now || (() => new Date()))(); for (const [key, expiry] of usedNonces) if (expiry < now.getTime()) usedNonces.delete(key);
   if (usedNonces.has(nonce)) throw tagFailure(new Error("Replay rejected"), "replay", "replay"); usedNonces.set(nonce, now.getTime() + 24 * 60 * 60 * 1000);
-  const resolver = hooks.resolve || (async (hostname: string) => (await dns.lookup(hostname, { all: true, verbatim: true })).map((entry) => entry.address));
+  const resolver = hooks.resolve;
   for (const check of payload.healthChecks) await withFailureStageAsync("health_preflight", "health", () => validateHealthUrl(check.url, resolver));
   let file = "";
   try { file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath); assertSafePath(payload.repositoryRoot, payload.composePath); } catch (error) { throw tagFailure(error, categoryForPathGuard(error), "path_guard"); }
@@ -184,7 +173,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 300_000));
   const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull", ...payload.statelessServices];
   const activation = await compose(args, payload.repositoryRoot);
-  const health = hooks.health || ((url: string, timeoutMs: number) => safeHealth(url, timeoutMs, resolver));
+  const health = hooks.health || ((url: string, timeoutMs: number) => safeHealth(url, timeoutMs, resolver, hooks.httpRequest));
   const runHealth = (url: string, timeoutMs: number) => waitForHealth(url, timeoutMs, health, hooks.now || (() => new Date()), hooks.healthRetryWindowMs, hooks.healthRetryIntervalMs);
   let healthy = activation.code === 0;
   if (healthy) for (const check of payload.healthChecks) if (!await runHealth(check.url, check.timeoutMs)) { healthy = false; break; }

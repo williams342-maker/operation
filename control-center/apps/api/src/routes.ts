@@ -30,6 +30,7 @@ import { revealConnectivity } from "./connectivityVault.js";
 import { bootstrapArtifactMetadata } from "./bootstrapArtifact.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 import { passwordResetUrl, sendPasswordResetEmail } from "./passwordResetMailer.js";
+import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 
 export const router = express.Router();
 
@@ -547,6 +548,7 @@ router.get("/projects/:id/status", requirePermission("status:view"), async (req,
 router.post("/projects/:id/health-checks", requirePermission("projects:manage"), async (req, res, next) => {
   try {
     const body = z.object({ name: z.string(), url: z.string().url(), timeoutMs: z.number().int().min(100).max(30000).default(5000) }).parse(req.body);
+    try { await validatePublicHealthCheckUrl(body.url); } catch { return res.status(400).json({ error: "Health check URL is not allowed" }); }
     const orgId = requireOrg(req);
     const project = await collections.projects.findOne({ _id: oid(String(req.params.id)), orgId });
     if (!project?._id) return res.status(404).json({ error: "Project not found" });

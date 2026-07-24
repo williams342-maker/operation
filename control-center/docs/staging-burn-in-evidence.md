@@ -309,6 +309,31 @@ Ed25519 signature.
   key-ID placeholder. It cannot enable production publication until the owner
   inserts the public-key identifier and signs the exact policy digest offline.
 
+### HTTP target SSRF remediation
+
+- Security review found that an authenticated Developer could persist or
+  submit a syntactically public HTTP hostname whose DNS answer was private,
+  and that agent and API redirect handling did not pin the validated address.
+- Health-check create/update routes and ad-hoc HTTP task creation now resolve
+  and reject private, link-local, metadata, benchmark, documentation, multicast,
+  and mixed public/private answers before storing or dispatching work.
+- Agent health checks independently resolve every target, reject any unsafe
+  answer, pin the validated IP address for the socket connection, preserve the
+  original hostname for HTTP Host and TLS verification, and manually
+  revalidate every redirect hop.
+- API website discovery applies the same address-pinning and per-redirect
+  validation, closing the equivalent DNS-rebinding path in onboarding.
+- Configuration deployment health validation reuses the pinned request path.
+  A private redirect fails the new activation, restores the original
+  environment file, and validates the rolled-back service without contacting
+  the private destination.
+- Regression coverage includes direct private and metadata targets, reserved
+  IPv4/IPv6 ranges, private and mixed DNS answers, credential-bearing
+  redirects, excess redirects, address pinning, ad-hoc tasks, API discovery,
+  and rollback recovery.
+- Full workspace type checking and lint passed. The complete local suite passed
+  298 tests with 11 intentional platform/disposable skips.
+
 ## Remaining gates
 
 - Capture a new continuous 24-hour window with persistent HTTP availability,

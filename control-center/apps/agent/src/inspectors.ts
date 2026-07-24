@@ -8,6 +8,7 @@ import { capDiscovery, DISCOVERY_LIMITS, sanitizeGitRemote, walkSameDevice } fro
 import type { AgentConfig } from "./config.js";
 import { parseComposePsLine, parseDockerPsLine } from "./parsers.js";
 import { discoverConfiguration } from "./configurationDiscovery.js";
+import { requestSafeHttp, safeHttpErrorCategory } from "./safeHttp.js";
 
 export async function collectSystem(agentVersion: string) {
   const cpus = os.cpus();
@@ -145,16 +146,11 @@ export async function collectHttp(checks: Array<{ id: string; url: string; timeo
   const rows = [];
   for (const check of checks) {
     const started = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), check.timeoutMs);
     try {
-      const response = await fetch(check.url, { method: "GET", signal: controller.signal });
-      rows.push({ healthCheckId: check.id, success: response.ok, statusCode: response.status, latencyMs: Date.now() - started, checkedAt: new Date().toISOString() });
+      const response = await requestSafeHttp(check.url, check.timeoutMs);
+      rows.push({ healthCheckId: check.id, success: response.statusCode >= 200 && response.statusCode < 300, statusCode: response.statusCode, latencyMs: response.latencyMs, checkedAt: new Date().toISOString() });
     } catch (error) {
-      const category = (error as Error).name === "AbortError" ? "timeout" : "network";
-      rows.push({ healthCheckId: check.id, success: false, latencyMs: Date.now() - started, errorCategory: category, checkedAt: new Date().toISOString() });
-    } finally {
-      clearTimeout(timer);
+      rows.push({ healthCheckId: check.id, success: false, latencyMs: Date.now() - started, errorCategory: safeHttpErrorCategory(error), checkedAt: new Date().toISOString() });
     }
   }
   return rows;

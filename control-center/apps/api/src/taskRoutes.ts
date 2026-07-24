@@ -5,12 +5,14 @@ import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections, oid } from "./db.js";
 import { createTask, createTaskSchema, isConfigurationMutationTask, taskRegistry } from "./tasks.js";
+import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 
 export const taskRouter = express.Router();
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }
 function redactTask(task: Record<string, unknown>) { const copy = { ...task }; delete copy["payloadDigest"]; return copy; }
+export async function validateHttpTaskTargets(checks: Array<{ url: string }>) { await Promise.all(checks.map((check) => validatePublicHealthCheckUrl(check.url))); }
 
 const projection = { payload: 0 };
 
@@ -53,6 +55,7 @@ taskRouter.post("/tasks", noStore, requirePermission("tasks:run"), async (req, r
   try {
     const body = createTaskSchema.parse(req.body);
     if (isConfigurationMutationTask(body.type)) return res.status(403).json({ error: "Configuration mutation tasks require the approved deployment workflow" });
+    try { await validateHttpTaskTargets(body.payload?.httpHealthChecks || []); } catch { return res.status(400).json({ error: "HTTP task target is not allowed" }); }
     const org = orgId(req);
     const server = await collections.servers.findOne({ _id: oid(body.serverId), orgId: org, archivedAt: { $exists: false }, revokedAt: { $exists: false } });
     if (!server?._id) return res.status(404).json({ error: "Server not found" });

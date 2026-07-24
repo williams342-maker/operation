@@ -1,6 +1,6 @@
 # Staging security review
 
-Review date: 2026-07-18. Scope: API, web UI, agent protocol, AI Assistant, Operational Intelligence, and staging configuration.
+Review date: 2026-07-24. Scope: API, web UI, agent protocol, AI Assistant, Operational Intelligence, and staging configuration.
 
 | Area | Finding | Status / recommendation |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Review date: 2026-07-18. Scope: API, web UI, agent protocol, AI Assistant, Opera
 | Rate limiting | Global middleware is 180 requests/minute; AI has user, organization, monthly, and concurrency controls. | Pass. Monitor staging 429 rates. |
 | Audit retention | Audit events are indexed and sanitized but have no TTL. | Accepted staging limitation. Define retention/export policy before production. |
 | Environment | Startup reports missing, unknown, conflicting, deprecated, unsafe, and provider configuration without values. | Pass. Treat warnings as a staging gate. |
-| HTTP | Helmet security headers, exact-origin credentialed CORS, 1 MB limits, and generic production 500s are configured. | Pass. Verify through the real proxy. |
+| HTTP | Helmet security headers, exact-origin credentialed CORS, 1 MB limits, and generic production 500s are configured. Health-check writes and ad-hoc HTTP tasks reject private/reserved DNS answers. API discovery and agent checks pin the validated address and revalidate every redirect destination. | Pass. Retain private-DNS, mixed-answer, metadata, rebinding, and redirect regression coverage. |
 | Validation | Zod validates API inputs and AI structured responses. | Pass. |
 | Logging | Audit metadata, task output, AI context, and startup output omit credentials. | Pass. Do not enable body/debug logging. |
 | Credentials | Enrollment tokens are hashed/expiring; production session, CSRF, and encryption secrets are mandatory. | Pass. Rotate exposed credentials immediately. |
