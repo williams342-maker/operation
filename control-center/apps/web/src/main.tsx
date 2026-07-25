@@ -63,6 +63,7 @@ import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import { ProjectOverviewPage } from "./ProjectOverviewPage";
 import { ProjectHistoryPage } from "./ProjectHistoryPage";
+import { PublicLandingPage } from "./PublicLandingPage";
 import {
   Badge,
   Button,
@@ -1834,7 +1835,7 @@ function Header({
     </Toolbar>
   );
 }
-const pagePaths: Record<Page, string> = { overview: "/", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit" };
+const pagePaths: Record<Page, string> = { overview: "/admin", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit" };
 function currentRoute() {
   const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/(overview|deployments|rollbacks))?\/?$/i);
   if (match) return { page: "projects" as Page, projectId: match[1], projectView: (match[2] || "overview") as "overview" | "deployments" | "rollbacks" };
@@ -2041,11 +2042,26 @@ class ErrorBoundary extends React.Component<
   }
 }
 export function Root() {
+  const path = window.location.pathname;
+  const publicLanding = path === "/";
   const [authed, setAuthed] = useState(
     Boolean(localStorage.getItem("cc.csrf")),
   );
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
   const [authScreen, setAuthScreen] = useState<"login" | "forgot">("login");
+  React.useEffect(() => {
+    let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (publicLanding) {
+      robots?.remove();
+      if (canonical) canonical.href = "https://opsworkbench.org/";
+    } else {
+      if (!robots) { robots = document.createElement("meta"); robots.name = "robots"; document.head.appendChild(robots); }
+      robots.content = "noindex, nofollow, noarchive";
+      canonical?.remove();
+      document.title = path === "/admin" ? "Super User | OpsWorkbench" : "Sign In | OpsWorkbench";
+    }
+  }, [path, publicLanding]);
   React.useEffect(() => {
     const expireSession = () => {
       queryClient.clear();
@@ -2058,14 +2074,17 @@ export function Root() {
     queryKey: ["bootstrap-status", bootstrapComplete],
     queryFn: bootstrapStatus,
     retry: false,
+    enabled: !publicLanding,
   });
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
       queryClient.clear();
       setAuthed(false);
+      window.history.replaceState({}, "", "/login?returnTo=%2Fadmin");
     },
   });
+  if (publicLanding) return <PublicLandingPage />;
   if (status.isLoading)
     return (
       <Centered title="OpsWorkbench">
@@ -2076,20 +2095,37 @@ export function Root() {
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
   if (!authed && window.location.pathname === "/reset-password") {
     const token = new URLSearchParams(window.location.search).get("token") || "";
-    return <ResetPassword token={token} onComplete={() => { window.history.replaceState({}, "", "/"); setAuthScreen("login"); }} />;
+    return <ResetPassword token={token} onComplete={() => { window.history.replaceState({}, "", "/login?returnTo=%2Fadmin"); setAuthScreen("login"); }} />;
   }
   if (!authed && window.location.pathname === "/email-login") {
     const token = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "";
     if (window.location.hash) window.history.replaceState({}, "", "/email-login");
-    return <EmailLogin token={token} onComplete={() => { window.history.replaceState({}, "", "/"); setAuthed(true); }} />;
+    return <EmailLogin token={token} onComplete={() => { window.history.replaceState({}, "", "/admin"); setAuthed(true); }} />;
   }
+  if (authed && window.location.pathname === "/login") window.history.replaceState({}, "", "/admin");
   return authed ? (
-    <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
+    <SuperUserGate><AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} /></SuperUserGate>
   ) : authScreen === "forgot" ? (
     <ForgotPassword onBack={() => setAuthScreen("login")} />
   ) : (
-    <Login onLogin={() => setAuthed(true)} onForgotPassword={() => setAuthScreen("forgot")} />
+    <Login onLogin={() => { window.history.replaceState({}, "", safeAdminReturnPath()); setAuthed(true); }} onForgotPassword={() => setAuthScreen("forgot")} />
   );
+}
+
+function safeAdminReturnPath() {
+  const candidate = new URLSearchParams(window.location.search).get("returnTo");
+  return candidate === "/admin" ? candidate : "/admin";
+}
+
+function SuperUserGate({ children }: React.PropsWithChildren) {
+  const access = useQuery({
+    queryKey: ["admin-access"],
+    queryFn: () => api.get("/admin/access").then((response) => response.data),
+    retry: false,
+  });
+  if (access.isLoading) return <Centered title="OpsWorkbench"><p className="text-sm text-muted">Verifying Super User access…</p></Centered>;
+  if (access.isError || access.data?.authorized !== true) return <Centered title="Access denied"><p role="alert" className="text-sm text-danger">This area requires the platform Owner role.</p><a className="text-sm text-primary hover:underline" href="/">Return to OpsWorkbench</a></Centered>;
+  return children;
 }
 
 type SetupResult = {

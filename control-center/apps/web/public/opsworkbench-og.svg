@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">OpsWorkbench</title><desc id="desc">Deploy, build, monitor, and optimize websites.</desc>
+  <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#18c7e8"/><stop offset=".55" stop-color="#14c8a3"/><stop offset="1" stop-color="#52d43b"/></linearGradient><radialGradient id="r"><stop stop-color="#0d6584" stop-opacity=".5"/><stop offset="1" stop-color="#03101d" stop-opacity="0"/></radialGradient></defs>
+  <rect width="1200" height="630" fill="#03101d"/><circle cx="930" cy="260" r="380" fill="url(#r)"/>
+  <g opacity=".18" stroke="#18c7e8"><path d="M0 520h1200M0 560h1200M0 600h1200"/><path d="M120 480v150M240 480v150M360 480v150M480 480v150M600 480v150M720 480v150M840 480v150M960 480v150M1080 480v150"/></g>
+  <path d="M88 104l62-36 62 36v72l-62 36-62-36z" fill="none" stroke="url(#g)" stroke-width="9"/><text x="115" y="157" fill="#18c7e8" font-family="Arial,sans-serif" font-size="34" font-weight="800">OW</text>
+  <text x="242" y="155" fill="#fff" font-family="Arial,sans-serif" font-size="64" font-weight="700">Ops<tspan fill="#18c7e8">Work</tspan><tspan fill="#52d43b">Bench</tspan></text>
+  <text x="86" y="330" fill="#fff" font-family="Arial,sans-serif" font-size="66" font-weight="700">Deploy with confidence.</text>
+  <text x="86" y="410" fill="#fff" font-family="Arial,sans-serif" font-size="66" font-weight="700">Build with <tspan fill="#18c7e8">AI.</tspan> Grow with <tspan fill="#52d43b">SEO.</tspan></text>
+  <text x="90" y="485" fill="#a9bcc9" font-family="Arial,sans-serif" font-size="28">One secure workspace for your websites and servers.</text>
+</svg>

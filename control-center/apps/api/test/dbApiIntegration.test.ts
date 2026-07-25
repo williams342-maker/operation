@@ -235,6 +235,9 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(auditSnapshot.includes("duplicate-password"), false);
 
     let ownerA = await login("phase-1b-a", "owner-a@example.test", "owner-a-password");
+    const ownerAdminAccess = await request<{ authorized: boolean; role: string }>("GET", "/admin/access", undefined, jsonHeaders(ownerA));
+    assert.equal(ownerAdminAccess.status, 200);
+    assert.deepEqual(ownerAdminAccess.body, { authorized: true, role: "Owner" });
     const noSlugLogin = await request<{ csrfToken: string }>("POST", "/auth/login", { email: "owner-a@example.test", password: "owner-a-password" }, { "content-type": "application/json" });
     assert.equal(noSlugLogin.status, 200);
     assert.ok(noSlugLogin.body.csrfToken);
@@ -661,6 +664,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     for (const forbidden of [credentials.agentSecret, "not-a-credential", "mongodb://", "agentSecretHash", "encryptedConnectionString", "payload"]) assert.equal(serializedOverview.includes(forbidden), false);
 
     const overviewViewer = await login("phase-1b-a", "viewer-a@example.test", viewerTemporaryPassword);
+    const viewerAdminAccess = await request("GET", "/admin/access", undefined, jsonHeaders(overviewViewer));
+    assert.equal(viewerAdminAccess.status, 403);
     const viewerProjectOverview = await request<any>("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(overviewViewer));
     assert.equal(viewerProjectOverview.status, 200, JSON.stringify(viewerProjectOverview.body));
     assert.equal(viewerProjectOverview.body.project.paths, undefined);

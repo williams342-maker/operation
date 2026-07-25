@@ -45,6 +45,7 @@ function renderRoot() {
 }
 
 function authenticatedApi(path: string) {
+  if (path === "/admin/access") return Promise.resolve({ data: { authorized: true, role: "Owner" } });
   if (path === "/me") return Promise.resolve({ data: { user: { role: "Owner" } } });
   if (path === "/servers") return Promise.resolve({ data: { servers: [] } });
   if (path === "/projects") return Promise.resolve({ data: { projects: [] } });
@@ -68,7 +69,7 @@ const projectBurnIn = {
 describe("Login experience", () => {
   beforeEach(() => {
     localStorage.clear();
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, "", "/login?returnTo=%2Fadmin");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
     mocks.authCapabilities.mockResolvedValue({ emailLogin: { configured: true }, passwordLogin: true });
     mocks.login.mockReset();
@@ -156,12 +157,55 @@ describe("Login experience", () => {
   });
 });
 
+describe("Public landing and Super User routing", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.bootstrapStatus.mockReset();
+    mocks.apiGet.mockReset();
+    window.history.replaceState({}, "", "/");
+  });
+
+  afterEach(() => { cleanup(); window.history.replaceState({}, "", "/"); });
+
+  it("renders public product content at root without calling authenticated APIs", async () => {
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: /deploy with confidence/i, level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "How It Works" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /prompt to a polished/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /find what holds your website back/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Super User sign in" })).toHaveAttribute("href", "/login?returnTo=%2Fadmin");
+    expect(mocks.bootstrapStatus).not.toHaveBeenCalled();
+    expect(mocks.apiGet).not.toHaveBeenCalled();
+  });
+
+  it("opens and closes the accessible mobile menu with Escape", async () => {
+    renderRoot();
+    const trigger = await screen.findByRole("button", { name: "Open menu" });
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "false"));
+    expect(trigger).toHaveFocus();
+  });
+
+  it("denies authenticated non-owners at the protected admin route", async () => {
+    localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/admin");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockRejectedValueOnce(new Error("Insufficient permission"));
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Access denied" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
+  });
+});
+
 describe("Sign Out", () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/admin");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
-    mocks.apiGet.mockResolvedValue({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
+    mocks.apiGet.mockImplementation(authenticatedApi);
     mocks.logout.mockReset();
   });
 
@@ -247,6 +291,7 @@ describe("Responsive navigation", () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/admin");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
     mocks.apiGet.mockImplementation(authenticatedApi);
     mocks.logout.mockReset();
@@ -327,7 +372,7 @@ describe("Durable project routes", () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem("cc.csrf", "csrf-token");
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, "", "/admin");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
     mocks.apiGet.mockImplementation((path: string) => path === "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview" ? Promise.resolve({ data: projectOverview }) : path === "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/burn-in" ? Promise.resolve({ data: projectBurnIn }) : authenticatedApi(path));
   });

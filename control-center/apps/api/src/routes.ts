@@ -561,6 +561,9 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
 });
 
 router.use(requireSession, requireCsrf);
+router.get("/admin/access", noStore, requirePermission("org:manage"), (req, res) => {
+  res.json({ authorized: true, role: req.user!.role });
+});
 router.get("/system/health", requirePermission("status:view"), async (req, res) => res.json(await runtimeHealth(req.orgId)));
 router.get("/system/diagnostics", requirePermission("audit:view"), async (req, res) => res.json(await internalDiagnostics(req.orgId)));
 router.use(adminEnrollmentRouter);
