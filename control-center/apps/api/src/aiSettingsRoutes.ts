@@ -6,11 +6,12 @@ import { collections } from "./db.js";
 import { aiAssistantConfig, organizationProvider } from "./aiAssistant.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
 import { defaultAiSettings, effectiveAiSettings, usageSummary } from "./aiOperations.js";
+import { providerCredential, workforceStatus } from "./aiWorkforce.js";
 
 export const aiSettingsRouter = express.Router();
 const safe = async (req: express.Request) => {
   const config = aiAssistantConfig(); const org = await collections.organizations.findOne({ _id: req.orgId! }); if (!org) return null; const settings = effectiveAiSettings(org);
-  return { globalEnabled: config.enabled, settings: { ...settings, providerDataRetentionAcknowledgedBy: undefined }, allowlists: { providers: config.allowedProviders, models: config.allowedModels }, providerStatus: { configured: Boolean(organizationProvider(config, settings.provider, settings.model)), credentialPresent: Boolean(config.apiKey || settings.provider === "mock"), provider: settings.provider || null, model: settings.model || null }, usage: await usageSummary(req.orgId!), readOnly: true, noActionsCanBeExecuted: true };
+  return { globalEnabled: config.enabled, settings: { ...settings, providerDataRetentionAcknowledgedBy: undefined }, allowlists: { providers: config.allowedProviders, models: config.allowedModels }, providerStatus: { configured: Boolean(organizationProvider(config, settings.provider, settings.model)), credentialPresent: Boolean(providerCredential(settings.provider || "")), provider: settings.provider || null, model: settings.model || null }, workforce: workforceStatus(config.allowedProviders, config.allowedModels), usage: await usageSummary(req.orgId!), readOnly: true, noActionsCanBeExecuted: true };
 };
 
 aiSettingsRouter.get("/org/ai-assistant", noStore, requirePermission("ai:admin"), async (req, res, next) => { try { const value = await safe(req); if (!value) return res.status(404).json({ error: "Organization not found" }); await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "ai.settings.view", targetType: "organization", targetId: req.orgId, result: "success", requestId: req.requestId }); return res.json(value); } catch (error) { return next(error); } });
