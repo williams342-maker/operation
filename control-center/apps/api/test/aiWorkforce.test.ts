@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { modelRegistry, probeWorkforceProvider, providerBaseUrl, providerCredential, roleAcceptsResource, routeWorkforceRole, workforceRoles, workforceStatus } from "../src/aiWorkforce.js";
+import { buildWorkforceMockSummary } from "../src/aiWorkforceWorker.js";
 
 test("workforce registry exposes four bounded read-only roles", () => {
   assert.deepEqual(workforceRoles.map((role) => role.id), ["operations-analyst", "seo-analyst", "website-planner", "reviewer"]);
@@ -61,3 +62,18 @@ test("provider probe remains inert when configuration is absent", async () => {
   let calls = 0; const previous = globalThis.fetch; globalThis.fetch = (async () => { calls++; throw new Error("unexpected"); }) as typeof fetch;
   try { const result = await probeWorkforceProvider("anthropic", {}); assert.equal(result.category, "unconfigured"); assert.equal(calls, 0); } finally { globalThis.fetch = previous; }
 });
+
+test("mock worker summarizes SEO audit metadata without page content", () => {
+  const summary = buildWorkforceMockSummary({ roleId: "seo-analyst", resourceType: "seo_audit" }, { score: 82, pagesCrawled: 7, pages: [{ text: "sensitive content" }] }); assert.match(summary, /82/); assert.match(summary, /7/); assert.doesNotMatch(summary, /sensitive/);
+});
+
+test("mock worker summarizes website workflow without answers", () => {
+  const summary = buildWorkforceMockSummary({ roleId: "website-planner", resourceType: "website_workflow" }, { websiteType: "business", stage: "brief_review", answers: [{ value: "private answer" }] }); assert.match(summary, /business/); assert.match(summary, /brief_review/); assert.doesNotMatch(summary, /private answer/);
+});
+
+test("mock worker summaries remain bounded to operational identifiers", () => {
+  assert.match(buildWorkforceMockSummary({ roleId: "operations-analyst", resourceType: "server" }, { name: "Web", agentStatus: "online", metadata: { secret: "hidden" } }), /Web.*online/);
+  assert.equal(buildWorkforceMockSummary({ roleId: "operations-analyst", resourceType: "project" }, { name: "Portal", repoPath: "/secret/path" }).includes("/secret/path"), false);
+});
+
+test("mock worker rejects deleted resources", () => { assert.throws(() => buildWorkforceMockSummary({ roleId: "reviewer", resourceType: "seo_audit" }, null), /resource_missing/); });

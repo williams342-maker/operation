@@ -11,6 +11,7 @@ import { validateRuntimeSecrets } from "./crypto.js";
 import { assertValidEnvironment } from "./environmentValidation.js";
 import { initializeRuntimeReadiness, runtimeHealth } from "./runtimeReadiness.js";
 import { router } from "./routes.js";
+import { startAiWorkforceWorker } from "./aiWorkforceWorker.js";
 
 const environmentValidation = assertValidEnvironment();
 initializeRuntimeReadiness(environmentValidation);
@@ -65,6 +66,7 @@ app.use((error: unknown, req: express.Request, res: express.Response, _next: exp
 
 if (process.env.NODE_ENV !== "test") {
   await connectDb();
+  await startAiWorkforceWorker();
   console.log(JSON.stringify({ event: "startup_validation", mode: environmentValidation.mode, valid: environmentValidation.valid, warnings: environmentValidation.diagnostics.filter((item) => item.level === "warning").map((item) => ({ code: item.code, variable: item.variable })), aiState: environmentValidation.ai.state }));
   app.listen(port, () => {
     console.log(`Control Center API listening on http://localhost:${port}`);

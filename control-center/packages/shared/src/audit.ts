@@ -60,6 +60,8 @@ export type AuditAction =
   | "ai.provider.probe"
   | "ai.workforce.run.create"
   | "ai.workforce.run.cancel"
+  | "ai.workforce.run.start"
+  | "ai.workforce.run.complete"
   | "website.workflow.create"
   | "website.discovery.answer"
   | "seo.audit.create"
