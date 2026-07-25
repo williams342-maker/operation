@@ -40,6 +40,7 @@ import { clearProjectDiscoveryValues, discoveredGithubRepositories, eligibleProj
 import {
   api,
   apiError,
+  authCapabilities,
   bootstrapOwner,
   bootstrapStatus,
   changePassword,
@@ -181,7 +182,10 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
 }
 function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPassword: () => void }) {
   const f = useForm({ email: "", password: "" });
-  const [passwordMode, setPasswordMode] = useState(false);
+  const capabilities = useQuery({ queryKey: ["auth-capabilities"], queryFn: authCapabilities, retry: false });
+  const [requestedMode, setRequestedMode] = useState<"email" | "password">("email");
+  const emailAvailable = capabilities.data?.emailLogin.configured === true;
+  const passwordMode = !emailAvailable || requestedMode === "password";
   const [linkRequested, setLinkRequested] = useState(false);
   const passwordMutation = useMutation({
     mutationFn: () => login(f.values.email, f.values.password),
@@ -195,7 +199,7 @@ function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPas
   return (
     <Centered title="OpsWorkbench">
       <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (pending) return; if (passwordMode) passwordMutation.mutate(); else emailMutation.mutate(); }}>
-        <p className="text-sm text-muted">Sign in with a short-lived, single-use link sent to your secure email.</p>
+        <p className="text-sm text-muted">{passwordMode ? emailAvailable ? "Use your password recovery path or switch to a secure email link." : "Secure email delivery is not configured. Use the password recovery path." : "Sign in with a short-lived, single-use link sent to your secure email."}</p>
         <Field
           aria-label="Email"
           placeholder="Email"
@@ -217,7 +221,7 @@ function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPas
         </Button>
         {linkRequested && <p role="status" className="text-sm text-success">If an active account exists, a secure sign-in link has been sent.</p>}
         <div className="text-center">
-          <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setPasswordMode((current) => !current); setLinkRequested(false); }}>{passwordMode ? "Use secure email link" : "Use password instead"}</button>
+          {emailAvailable && <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setRequestedMode((current) => current === "email" ? "password" : "email"); setLinkRequested(false); }}>{passwordMode ? "Use secure email link" : "Use password instead"}</button>}
           {passwordMode && <button type="button" className="mt-2 block w-full text-sm text-primary hover:underline" onClick={onForgotPassword}>Forgot password?</button>}
         </div>
         <ErrorText error={passwordMutation.error || emailMutation.error} />

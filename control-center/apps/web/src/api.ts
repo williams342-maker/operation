@@ -20,6 +20,7 @@ export function apiError(error: unknown) {
 }
 export function isRecentAuthRequired(error: unknown) { return axios.isAxiosError(error) && error.response?.status === 403 && error.response?.data?.code === "RECENT_AUTH_REQUIRED"; }
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean }; }
+export async function authCapabilities() { return (await api.get("/auth/capabilities")).data as { emailLogin: { configured: boolean }; passwordLogin: true }; }
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }
 export async function login(email: string, password: string) { const { data } = await api.post("/auth/login", { email, password }); sessionExpiryReported = false; localStorage.setItem("cc.csrf", data.csrfToken); return data; }
 export async function requestEmailLogin(email: string) { return (await api.post("/auth/email-login/request", { email })).data as { ok: true; message: string }; }

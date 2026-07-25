@@ -186,6 +186,10 @@ router.post("/auth/login", noStore, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/auth/capabilities", noStore, (_req, res) => {
+  res.json({ emailLogin: { configured: Boolean(process.env.CONTROL_CENTER_EMAIL_LOGIN_WEBHOOK_URL || process.env.CONTROL_CENTER_PASSWORD_RESET_WEBHOOK_URL) }, passwordLogin: true });
+});
+
 router.post("/auth/email-login/request", noStore, emailLoginRequestLimiter, emailLoginIdentifierLimit, async (req, res, next) => {
   try {
     const body = z.object({ email: z.string().email() }).parse(req.body);

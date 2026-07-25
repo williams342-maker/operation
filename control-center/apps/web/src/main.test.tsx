@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
   bootstrapStatus: vi.fn(),
+  authCapabilities: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPatch: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("./api", () => ({
   apiError: (error: unknown) => error instanceof Error ? error.message : "Unexpected logout failure",
   bootstrapOwner: vi.fn(),
   bootstrapStatus: mocks.bootstrapStatus,
+  authCapabilities: mocks.authCapabilities,
   changePassword: mocks.changePassword,
   completePasswordReset: mocks.completePasswordReset,
   completeEmailLogin: mocks.completeEmailLogin,
@@ -68,6 +70,7 @@ describe("Login experience", () => {
     localStorage.clear();
     window.history.replaceState({}, "", "/");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.authCapabilities.mockResolvedValue({ emailLogin: { configured: true }, passwordLogin: true });
     mocks.login.mockReset();
     mocks.requestPasswordReset.mockReset();
     mocks.completePasswordReset.mockReset();
@@ -106,6 +109,15 @@ describe("Login experience", () => {
 
     await waitFor(() => expect(mocks.login).toHaveBeenCalledWith("owner@example.test", "owner-password"));
     expect(mocks.login.mock.calls[0]).toHaveLength(2);
+  });
+
+  it("fails closed to password recovery when secure email delivery is unavailable", async () => {
+    mocks.authCapabilities.mockResolvedValue({ emailLogin: { configured: false }, passwordLogin: true });
+    renderRoot();
+    expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign in with password/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /use secure email link/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/secure email delivery is not configured/i)).toBeInTheDocument();
   });
 
   it("exchanges a fragment-only email token and removes it from browser history", async () => {
