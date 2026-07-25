@@ -1,4 +1,4 @@
-import type { SeoFinding } from "./models.js";
+import type { SeoAuditPage, SeoFinding } from "./models.js";
 
 export function analyzeSeoHtml(html: string, httpStatus: number) {
   const clean = (value?: string) => value?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -21,4 +21,25 @@ export function analyzeSeoHtml(html: string, httpStatus: number) {
   ];
   const deductions = findings.reduce((sum, item) => sum + (item.severity === "error" ? 12 : item.severity === "warning" ? 5 : 0), 0);
   return { score: Math.max(0, 100 - deductions), findings, pageTitle: title, metaDescription: description };
+}
+
+export function extractSameOriginLinks(html: string, pageUrl: string) {
+  const origin = new URL(pageUrl).origin; const links = new Set<string>();
+  for (const match of html.matchAll(/<a\s+[^>]*href=["']([^"'#]+)["']/gi)) {
+    try { const url = new URL(match[1], pageUrl); url.hash = ""; if (url.origin === origin && ["http:", "https:"].includes(url.protocol)) links.add(url.toString()); } catch { /* ignore malformed links */ }
+  }
+  return [...links];
+}
+
+export function siteFindings(pages: SeoAuditPage[]): SeoFinding[] {
+  const duplicates = (key: "pageTitle" | "metaDescription") => {
+    const seen = new Map<string, number>(); for (const page of pages) { const value = page[key]?.toLowerCase(); if (value) seen.set(value, (seen.get(value) || 0) + 1); }
+    return [...seen.values()].filter((count) => count > 1).reduce((sum, count) => sum + count, 0);
+  };
+  const broken = pages.filter((page) => page.httpStatus === 0 || page.httpStatus >= 400).length; const duplicateTitles = duplicates("pageTitle"); const duplicateDescriptions = duplicates("metaDescription");
+  return [
+    { id: "site-broken-pages", severity: broken ? "error" : "pass", title: "Broken pages", detail: broken ? `${broken} crawled pages returned an error` : "No broken crawled pages" },
+    { id: "site-duplicate-titles", severity: duplicateTitles ? "warning" : "pass", title: "Duplicate titles", detail: duplicateTitles ? `${duplicateTitles} pages share a title` : "Crawled page titles are unique" },
+    { id: "site-duplicate-descriptions", severity: duplicateDescriptions ? "warning" : "pass", title: "Duplicate descriptions", detail: duplicateDescriptions ? `${duplicateDescriptions} pages share a description` : "Crawled meta descriptions are unique" },
+  ];
 }
