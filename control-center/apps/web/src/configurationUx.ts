@@ -7,7 +7,7 @@ export function configurationCategory(name: string) {
   if (/(STRIPE|PAYPAL|PAYMENT)/i.test(name)) return "Payments";
   if (/(MAIL|EMAIL|SMTP|SENDGRID|BREVO|RESEND|POSTMARK)/i.test(name)) return "Email";
   if (/(ANALYTICS|GA4|GADS|PIXEL|SEGMENT)/i.test(name)) return "Analytics";
-  if (/(OPENAI|ANTHROPIC|AI_|MODEL)/i.test(name)) return "AI";
+  if (/(OPENAI|ANTHROPIC|GEMINI|OPENROUTER|AI_|MODEL)/i.test(name)) return "AI";
   if (/(URL|URI|DOMAIN|ORIGIN|HOST|CALLBACK|REDIRECT)/i.test(name)) return "Domains and URLs";
   return "Custom APIs";
 }

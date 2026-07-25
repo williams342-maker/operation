@@ -15,6 +15,8 @@ test("guided configuration categories remain provider neutral", () => {
   assert.equal(configurationCategory("MONGO_URL"), "Database");
   assert.equal(configurationCategory("R2_BUCKET_NAME"), "Storage");
   assert.equal(configurationCategory("PUBLIC_ORIGIN"), "Domains and URLs");
+  assert.equal(configurationCategory("GEMINI_API_KEY"), "AI");
+  assert.equal(configurationCategory("OPENROUTER_MODELS"), "AI");
   assert.equal(configurationCategory("PARTNER_ENDPOINT_KEY"), "Custom APIs");
 });
 

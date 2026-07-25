@@ -1,6 +1,7 @@
 const patterns: Array<[string, RegExp]> = [
   ["private_key", /-----BEGIN[\s\S]{0,80}PRIVATE KEY-----[\s\S]*?-----END[\s\S]{0,80}PRIVATE KEY-----/gi],
   ["authorization", /\b(authorization\s*[:=]\s*|bearer\s+)[^\s,;"']+/gi],
+  ["provider_api_key", /\b(?:sk-ant-[A-Za-z0-9_-]{16,}|sk-or-v1-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{20,})\b/g],
   ["enrollment_token", /\bowenr_[A-Za-z0-9_-]{16,}\b/g],
   ["database_url", /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis):\/\/[^\s"']+/gi],
   ["credential_url", /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@:]+:[^\s/@]+@[^\s"']+/gi],

@@ -210,8 +210,13 @@ AI status is `disabled`, `unconfigured`, or `ready`. Credential values are never
 
 The first staging deployment keeps `AI_ASSISTANT_ENABLED=false`.
 
-1. Select `openai`, `anthropic`, or `mock`; configure provider/model allowlists.
-2. Install `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in the host-only secret file.
+1. Select `openai`, `anthropic`, `gemini`, `openrouter`, or `mock`; configure
+   `AI_ALLOWED_PROVIDERS` and the matching provider-specific model registry
+   (`OPENAI_MODELS`, `ANTHROPIC_MODELS`, `GEMINI_MODELS`,
+   `OPENROUTER_MODELS`, or `MOCK_AI_MODELS`).
+2. Install only the selected provider credential (`OPENAI_API_KEY`,
+   `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY`) in the
+   host-only secret file.
 3. Keep organizations disabled, set the global flag true, and restart.
 4. Verify `/readyz` reports `ready`; this check makes no provider request.
 5. Acknowledge retention/costs and enable one staging organization.

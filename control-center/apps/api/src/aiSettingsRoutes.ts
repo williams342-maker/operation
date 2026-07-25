@@ -3,14 +3,15 @@ import { aiOrganizationSettingsUpdateSchema } from "@control-center/shared";
 import { requirePermission, noStore } from "./auth.js";
 import { audit } from "./audit.js";
 import { collections } from "./db.js";
-import { aiAssistantConfig, organizationProvider } from "./aiAssistant.js";
+import { aiAssistantConfig, organizationProvider, providerReadinessCatalog } from "./aiAssistant.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
 import { defaultAiSettings, effectiveAiSettings, usageSummary } from "./aiOperations.js";
 
 export const aiSettingsRouter = express.Router();
 const safe = async (req: express.Request) => {
   const config = aiAssistantConfig(); const org = await collections.organizations.findOne({ _id: req.orgId! }); if (!org) return null; const settings = effectiveAiSettings(org);
-  return { globalEnabled: config.enabled, settings: { ...settings, providerDataRetentionAcknowledgedBy: undefined }, allowlists: { providers: config.allowedProviders, models: config.allowedModels }, providerStatus: { configured: Boolean(organizationProvider(config, settings.provider, settings.model)), credentialPresent: Boolean(config.apiKey || settings.provider === "mock"), provider: settings.provider || null, model: settings.model || null }, usage: await usageSummary(req.orgId!), readOnly: true, noActionsCanBeExecuted: true };
+  const providers = providerReadinessCatalog(config); const selected = providers.find((provider) => provider.id === settings.provider);
+  return { globalEnabled: config.enabled, settings: { ...settings, providerDataRetentionAcknowledgedBy: undefined }, allowlists: { providers: config.allowedProviders, models: config.allowedModels, modelsByProvider: config.modelsByProvider || {} }, providers, providerStatus: { configured: Boolean(organizationProvider(config, settings.provider, settings.model)), credentialPresent: Boolean(selected?.credentialPresent), provider: settings.provider || null, model: settings.model || null }, usage: await usageSummary(req.orgId!), readOnly: true, noActionsCanBeExecuted: true };
 };
 
 aiSettingsRouter.get("/org/ai-assistant", noStore, requirePermission("ai:admin"), async (req, res, next) => { try { const value = await safe(req); if (!value) return res.status(404).json({ error: "Organization not found" }); await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "ai.settings.view", targetType: "organization", targetId: req.orgId, result: "success", requestId: req.requestId }); return res.json(value); } catch (error) { return next(error); } });
@@ -19,7 +20,7 @@ aiSettingsRouter.put("/org/ai-assistant", noStore, requirePermission("ai:admin")
   try {
     const body = aiOrganizationSettingsUpdateSchema.parse(req.body); const config = aiAssistantConfig();
     if (body.provider && !config.allowedProviders.includes(body.provider)) return res.status(400).json({ error: "Provider is not allowed", code: "provider_not_allowed" });
-    if (body.model && !config.allowedModels.includes(body.model)) return res.status(400).json({ error: "Model is not allowed", code: "model_not_allowed" });
+    if (body.model && (!body.provider || !(config.modelsByProvider?.[body.provider] || []).includes(body.model))) return res.status(400).json({ error: "Model is not allowed for the selected provider", code: "model_not_allowed" });
     if (body.enabled && (!body.provider || !body.model)) return res.status(400).json({ error: "Provider and model are required", code: "provider_unconfigured" });
     if (body.enabled && !body.retentionAcknowledged) return res.status(400).json({ error: "Data-retention acknowledgement is required", code: "retention_acknowledgement_required" });
     const existing = await collections.organizations.findOne({ _id: req.orgId! }); if (!existing) return res.status(404).json({ error: "Organization not found" });

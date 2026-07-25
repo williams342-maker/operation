@@ -10,6 +10,8 @@ test("configuration names reject injection-shaped and lowercase input", () => {
 
 test("provider-neutral classifiers recognize common names without values", () => {
   assert.equal(recognizeProvider("STRIPE_API_KEY"), "Stripe");
+  assert.equal(recognizeProvider("GEMINI_API_KEY"), "Google Gemini");
+  assert.equal(recognizeProvider("OPENROUTER_MODELS"), "OpenRouter");
   assert.equal(classifySecret("CUSTOM_SIGNING_SECRET"), true);
   assert.equal(classifySettingType("PUBLIC_ORIGIN"), "url");
   assert.equal(discoveredSettingSchema.safeParse({ name: "R2_ACCESS_KEY", applicationPath: "/srv/app", sources: ["runtime-name"], sourcePaths: ["/srv/app/.env"], secret: true, type: "secret" }).success, true);

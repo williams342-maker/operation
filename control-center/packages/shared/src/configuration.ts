@@ -105,7 +105,7 @@ export type SettingType = typeof settingTypes[number];
 const providerRules: Array<[RegExp, string]> = [
   [/^(MONGO|MONGODB)_/, "MongoDB"], [/^(POSTGRES|PG)_/, "PostgreSQL"], [/^REDIS_/, "Redis"],
   [/^R2_/, "Cloudflare R2"], [/^(AWS_|S3_)/, "Amazon S3"], [/^STRIPE_/, "Stripe"],
-  [/^PAYPAL_/, "PayPal"], [/^OPENAI_/, "OpenAI"], [/^ANTHROPIC_/, "Anthropic"],
+  [/^PAYPAL_/, "PayPal"], [/^OPENAI_/, "OpenAI"], [/^ANTHROPIC_/, "Anthropic"], [/^GEMINI_/, "Google Gemini"], [/^OPENROUTER_/, "OpenRouter"],
   [/^(SENDGRID|BREVO|RESEND|MAILERSEND|MAILTRAP|POSTMARK|MAILGUN)_/, "Email"],
   [/^TWILIO_/, "Twilio"], [/^(GOOGLE|GA4|GADS)_/, "Google"], [/^(AZURE|ENTRA|MICROSOFT)_/, "Microsoft"],
   [/^(GITHUB|GH)_/, "GitHub"], [/^CLOUDFLARE_/, "Cloudflare"]

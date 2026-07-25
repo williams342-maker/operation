@@ -4,24 +4,28 @@ import { api } from "./api";
 import { Badge, Button, Card, Field } from "./ui";
 
 type Scope = { type: "server" | "application"; id: string };
-const suggestions = ["Explain the current health evidence.", "What changed before the latest failure?", "Which low-risk diagnostic should I run next?", "Is this similar to a previous incident?"];
+const fallbackSuggestions = ["Explain the current health evidence.", "What changed before the latest failure?", "Which low-risk diagnostic should I run next?", "Is this similar to a previous incident?"];
 const tone = (value: string) => value === "high" || value === "fresh" || value === "healthy" ? "success" : value === "critical" || value === "stale" ? "danger" : "warning";
 const title = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 
 export function AiAssistantPanel({ scope }: { scope: Scope }) {
   const [question, setQuestion] = useState("");
+  const [roleId, setRoleId] = useState("operations_analyst");
   const status = useQuery({ queryKey: ["ai-assistant-status"], queryFn: () => api.get("/ai-assistant/status").then((r) => r.data), retry: false });
-  const analysis = useMutation({ mutationFn: () => api.post("/ai-assistant/analyze", { scope, question, contextOptions: { includeHealth: true, includeDiscovery: true, includeRecentLogs: true, includeDeployments: true, includeCiSummary: true } }).then((r) => r.data) });
+  const analysis = useMutation({ mutationFn: () => api.post("/ai-assistant/analyze", { scope, roleId, question, contextOptions: { includeHealth: true, includeDiscovery: true, includeRecentLogs: true, includeDeployments: true, includeCiSummary: true } }).then((r) => r.data) });
   const result = analysis.data?.result; const metadata = analysis.data?.metadata; const operational = analysis.data?.operational; const errorCode = (analysis.error as any)?.response?.data?.code;
   const disabled = status.data && (!status.data.enabled || !status.data.configured);
+  const roles = (status.data?.roles || []).filter((role: any) => role.allowedScopeTypes?.includes(scope.type));
+  const selectedRole = roles.find((role: any) => role.id === roleId);
+  const suggestions = selectedRole?.suggestedQuestions || fallbackSuggestions;
   const healthEvidence = result?.evidence?.filter((item: any) => item.sourceType === "health_check" || item.sourceType === "server") || [];
   const deploymentEvidence = result?.evidence?.filter((item: any) => item.sourceType === "deployment" || item.sourceType === "rollback") || [];
   return <Card><div className="min-w-0 space-y-4" aria-live="polite">
     <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold">AI Assistant — Operations Intelligence</h3><p className="text-sm text-muted">Evidence-backed, read-only analysis from authorized OpsWorkbench data.</p></div><Badge tone="success">Read only</Badge></div>
     {status.isLoading && <p className="text-sm text-muted">Checking assistant availability…</p>}
     {disabled && <div className="rounded-md border border-warning/40 p-3 text-sm"><strong>{status.data.enabled ? "Assistant is not configured" : "Assistant is disabled"}</strong><p className="text-muted">Operational data remains available. No provider is enabled by this panel.</p></div>}
-    {!disabled && <><label className="block text-sm" htmlFor={`ai-question-${scope.type}-${scope.id}`}>Ask about this {scope.type}<Field id={`ai-question-${scope.type}-${scope.id}`} className="mt-1" value={question} maxLength={1000} onChange={(e) => setQuestion(e.target.value)} placeholder="What changed before the latest failure?" /></label>
-      <div className="flex flex-wrap gap-2" aria-label="Suggested follow-up questions">{suggestions.map((item) => <button key={item} type="button" className="max-w-full rounded-full border border-border px-3 py-1 text-left text-xs" onClick={() => setQuestion(item)}>{item}</button>)}</div>
+    {!disabled && <><label className="block text-sm">Workforce role<select name="roleId" aria-label="AI workforce role" className="mt-1 w-full rounded-md border border-border bg-background p-2" value={roleId} onChange={(event) => setRoleId(event.target.value)}>{roles.length ? roles.map((role: any) => <option key={role.id} value={role.id}>{role.label}</option>) : <option value="operations_analyst">Operations analyst</option>}</select>{selectedRole && <span className="mt-1 block text-xs text-muted">{selectedRole.description}</span>}</label><label className="block text-sm" htmlFor={`ai-question-${scope.type}-${scope.id}`}>Ask about this {scope.type}<Field id={`ai-question-${scope.type}-${scope.id}`} className="mt-1" value={question} maxLength={1000} onChange={(e) => setQuestion(e.target.value)} placeholder="What changed before the latest failure?" /></label>
+      <div className="flex flex-wrap gap-2" aria-label="Suggested follow-up questions">{suggestions.map((item: string) => <button key={item} type="button" className="max-w-full rounded-full border border-border px-3 py-1 text-left text-xs" onClick={() => setQuestion(item)}>{item}</button>)}</div>
       <Button disabled={question.trim().length < 3 || analysis.isPending} onClick={() => analysis.mutate()}>{analysis.isPending ? "Analyzing…" : "Analyze evidence"}</Button></>}
     {analysis.isError && <div className="rounded-md border border-danger/40 p-3 text-sm" role="alert"><strong>{errorCode === "provider_timeout" ? "Assistant timed out" : errorCode === "resource_not_found" ? "You cannot access this resource" : "Assistant could not complete the analysis"}</strong><p className="text-muted">No infrastructure changes were attempted.</p></div>}
     {metadata && Object.values(metadata.redactions || {}).some(Boolean) && <p className="rounded-md border border-warning/40 p-2 text-sm">Sensitive values were redacted before analysis.</p>}

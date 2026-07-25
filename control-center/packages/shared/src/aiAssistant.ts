@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { aiWorkforceRoleIdSchema } from "./aiWorkforce.js";
 
 export const aiAssistantScopeSchema = z.object({ type: z.enum(["server", "application"]), id: z.string().min(1).max(128) }).strict();
 export const aiAssistantRequestSchema = z.object({
   scope: aiAssistantScopeSchema,
+  roleId: aiWorkforceRoleIdSchema.default("operations_analyst"),
   question: z.string().trim().min(3).max(1000),
   contextOptions: z.object({ includeHealth: z.boolean().default(true), includeDiscovery: z.boolean().default(true), includeRecentLogs: z.boolean().default(false), includeDeployments: z.boolean().default(true), includeCiSummary: z.boolean().default(true) }).strict().default({})
 }).strict();
