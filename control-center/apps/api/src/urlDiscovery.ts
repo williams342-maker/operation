@@ -1,5 +1,6 @@
 import dns from "node:dns/promises";
 import net from "node:net";
+import { Agent } from "undici";
 import { deriveWebsiteTarget, isSafeHttpCheckUrl } from "@control-center/shared";
 
 export type WebsiteDiscovery = ReturnType<typeof deriveWebsiteTarget> & {
@@ -48,15 +49,19 @@ export async function validatePublicHealthCheckUrl(raw: string) {
   return url.toString();
 }
 
-async function fetchBounded(initialUrl: string) {
+export async function fetchPublicHtml(initialUrl: string) {
   let current = initialUrl;
   for (let redirects = 0; redirects <= 3; redirects++) {
     const parsed = new URL(current);
-    await resolvePublic(parsed.hostname);
+    const validated = await resolvePublic(parsed.hostname);
+    const dispatcher = new Agent({ connect: { lookup: (_hostname, options, callback) => {
+      const addresses = validated.map((entry) => ({ address: entry.address, family: entry.family as 4 | 6 }));
+      if (options.all) callback(null, addresses); else callback(null, addresses[0].address, addresses[0].family);
+    } } });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await fetch(current, { redirect: "manual", signal: controller.signal, headers: { "user-agent": "OpsWorkbench-Discovery/1.0", accept: "text/html,*/*;q=0.1" } });
+      const response = await fetch(current, { redirect: "manual", signal: controller.signal, headers: { "user-agent": "OpsWorkbench-Discovery/1.0", accept: "text/html,*/*;q=0.1" }, dispatcher } as RequestInit & { dispatcher: Agent });
       if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
         if (redirects === 3) throw new Error("Too many redirects");
         current = new URL(response.headers.get("location")!, current).toString();
@@ -73,8 +78,8 @@ async function fetchBounded(initialUrl: string) {
         chunks.push(part.value);
       }
       await reader?.cancel().catch(() => undefined);
-      return { response, text: new TextDecoder().decode(Buffer.concat(chunks)), redirected: redirects > 0 };
-    } finally { clearTimeout(timer); }
+      return { response, text: new TextDecoder().decode(Buffer.concat(chunks)), redirected: redirects > 0, finalUrl: current };
+    } finally { clearTimeout(timer); await dispatcher.close(); }
   }
   throw new Error("Discovery failed");
 }
@@ -82,7 +87,7 @@ async function fetchBounded(initialUrl: string) {
 export async function discoverWebsite(input: string): Promise<WebsiteDiscovery> {
   const derived = deriveWebsiteTarget(input);
   const resolved = await resolvePublic(derived.domain);
-  const { response, text, redirected } = await fetchBounded(derived.normalizedUrl);
+  const { response, text, redirected } = await fetchPublicHtml(derived.normalizedUrl);
   const title = /<title[^>]*>([^<]{1,300})<\/title>/i.exec(text)?.[1]?.replace(/\s+/g, " ").trim();
   const safeHeaders: Record<string, string> = {};
   for (const name of ["content-type", "content-length", "server", "cache-control", "strict-transport-security"]) {

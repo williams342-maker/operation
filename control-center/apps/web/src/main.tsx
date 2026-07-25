@@ -82,6 +82,7 @@ const queryClient = new QueryClient();
 type Page =
   | "overview"
   | "ai-builder"
+  | "seo"
   | "org"
   | "users"
   | "servers"
@@ -1736,6 +1737,20 @@ function Header({
     </Toolbar>
   );
 }
+function SeoOptimizerPage({ toast }: { toast: (message: string) => void }) {
+  const [url, setUrl] = useState("");
+  const client = useQueryClient();
+  const audits = useQuery({ queryKey: ["seo-audits"], queryFn: () => api.get("/seo-audits").then((r) => r.data.audits) });
+  const run = useMutation({
+    mutationFn: () => api.post("/seo-audits", { url }).then((r) => r.data.audit),
+    onSuccess: (audit) => { setUrl(""); client.invalidateQueries({ queryKey: ["seo-audits"] }); toast(`SEO audit complete: ${audit.score}/100`); },
+  });
+  return <div className="space-y-5">
+    <Card><div className="flex flex-col gap-4 lg:flex-row lg:items-end"><div className="flex-1"><h2 className="text-lg font-semibold">Audit a public page</h2><p className="mt-1 text-sm text-muted">Check search metadata, headings, indexing, mobile setup, and image accessibility. Audits are read-only.</p><label className="mt-4 block text-sm font-medium" htmlFor="seo-url">Website URL</label><Field id="seo-url" type="url" placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} /></div><Button disabled={!url || run.isPending} onClick={() => run.mutate()}>{run.isPending ? "Auditing..." : "Run SEO audit"}</Button></div>{run.isError && <p role="alert" className="mt-3 text-sm text-danger">{apiError(run.error)}</p>}</Card>
+    {audits.isLoading ? <Skeleton /> : (audits.data || []).length === 0 ? <Card><p className="text-sm text-muted">No SEO audits yet. Enter a public URL to create the first report.</p></Card> : (audits.data || []).map((audit: any) => <Card key={audit._id}><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{audit.pageTitle || audit.finalUrl}</h3><p className="break-all text-xs text-muted">{audit.finalUrl}</p><p className="mt-1 text-xs text-muted">{fmt(audit.createdAt)} / HTTP {audit.httpStatus}</p></div><div className={`rounded-full px-4 py-2 text-xl font-bold ${audit.score >= 80 ? "bg-emerald-100 text-emerald-800" : audit.score >= 60 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{audit.score}/100</div></div><div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{audit.findings.map((item: any) => <div key={item.id} className="rounded-lg border border-border p-3"><div className="flex items-center gap-2"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${item.severity === "pass" ? "bg-emerald-500" : item.severity === "warning" ? "bg-amber-500" : "bg-red-500"}`} /><span className="text-sm font-medium">{item.title}</span></div><p className="mt-1 text-xs text-muted">{item.detail}</p></div>)}</div></Card>)}
+  </div>;
+}
+
 function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
   const toast = useToast();
   const [page, setPage] = useState<Page>("overview");
@@ -1750,6 +1765,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
   const nav: Array<[Page, string, any]> = [
     ["overview", "Overview", LayoutDashboard],
     ["ai-builder", "AI Website Builder", Sparkles],
+    ["seo", "SEO Optimizer", LineChart],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
@@ -1867,7 +1883,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         </button>
         {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
-      <main className={page === "overview" || page === "ai-builder" ? "bg-slate-50 p-5" : "p-5"}>
+      <main className={page === "overview" || page === "ai-builder" || page === "seo" ? "bg-slate-50 p-5" : "p-5"}>
         <div className={`${page === "overview" ? "hidden" : "mb-5 flex"} items-center justify-between ${page === "ai-builder" ? "text-slate-950" : ""}`}>
           <div>
             <div className="text-xs text-muted">OpsWorkbench / {pageTitle}</div>
@@ -1885,6 +1901,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         <ErrorBoundary>
           {page === "overview" && <Overview onNavigate={navigate} />}
           {page === "ai-builder" && <AiWebsiteBuilderPage />}
+          {page === "seo" && <SeoOptimizerPage toast={toast.show} />}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}

@@ -23,7 +23,8 @@ import type {
   AgentUpgradePlanDoc,
   AgentRolloutDoc,
   CloudflareAccessIntegrationDoc,
-  WebsiteBuildWorkflowDoc
+  WebsiteBuildWorkflowDoc,
+  SeoAuditDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -49,6 +50,7 @@ export const collections = {
   agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results"),
   aiUsage: db.collection<AiUsageDoc>("ai_usage"),
   websiteBuildWorkflows: db.collection<WebsiteBuildWorkflowDoc>("website_build_workflows"),
+  seoAudits: db.collection<SeoAuditDoc>("seo_audits"),
   configurationEnvironments: db.collection<ConfigurationEnvironmentDoc>("configuration_environments"),
   configurationDefinitions: db.collection<ConfigurationDefinitionDoc>("configuration_definitions"),
   configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions"),
@@ -111,6 +113,8 @@ async function ensureIndexes() {
     collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.websiteBuildWorkflows.createIndex({ orgId: 1, createdAt: -1 }),
     collections.websiteBuildWorkflows.createIndex({ orgId: 1, stage: 1, updatedAt: -1 }),
+    collections.seoAudits.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.seoAudits.createIndex({ orgId: 1, projectId: 1, createdAt: -1 }),
     collections.configurationEnvironments.createIndex({ orgId: 1, projectId: 1, name: 1 }, { unique: true }),
     collections.configurationDefinitions.createIndex({ orgId: 1, projectId: 1, applicationPath: 1, name: 1 }, { unique: true }),
     collections.configurationVersions.createIndex({ orgId: 1, definitionId: 1, environmentId: 1, version: -1 }, { unique: true }),

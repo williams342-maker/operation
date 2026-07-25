@@ -175,7 +175,7 @@ describe("Responsive navigation", () => {
 
     const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
     expect(screen.getAllByRole("complementary", { name: "Primary navigation" })).toHaveLength(1);
-    for (const destination of ["Overview", "AI Website Builder", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
+    for (const destination of ["Overview", "AI Website Builder", "SEO Optimizer", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
       expect(navigation).toHaveTextContent(destination);
     }
     expect(screen.getByRole("button", { name: "Close navigation" })).toHaveAttribute("aria-expanded", "true");
@@ -249,6 +249,19 @@ describe("Responsive navigation", () => {
     await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(2, "/website-builder/workflows/workflow-1/answers", { questionId: "business_name", value: "Acme Makers" }));
     expect(await screen.findByRole("heading", { name: "What does your business do?" })).toBeInTheDocument();
     expect(screen.getByText("No AI credits used during manual discovery.")).toBeInTheDocument();
+  });
+
+  it("runs a read-only SEO audit and renders deterministic findings", async () => {
+    mocks.apiGet.mockImplementation((path: string) => path === "/seo-audits" ? Promise.resolve({ data: { audits: [] } }) : authenticatedApi(path));
+    mocks.apiPost.mockResolvedValue({ data: { audit: { _id: "audit-1", score: 88 } } });
+    renderRoot();
+    await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^SEO Optimizer$/ }));
+    expect(await screen.findByRole("heading", { name: "Audit a public page" })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Website URL"), "https://example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Run SEO audit" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/seo-audits", { url: "https://example.com" }));
+    expect(await screen.findByText("SEO audit complete: 88/100")).toBeInTheDocument();
   });
 
   it("collects Cloudflare Access credentials inside server onboarding without exposing the secret", async () => {

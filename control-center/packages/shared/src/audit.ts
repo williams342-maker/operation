@@ -59,6 +59,7 @@ export type AuditAction =
   | "ai.assistant.rate_limited"
   | "website.workflow.create"
   | "website.discovery.answer"
+  | "seo.audit.create"
   | "configuration.definition.create"
   | "configuration.version.create"
   | "configuration.discovery.received"
