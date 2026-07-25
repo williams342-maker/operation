@@ -3,7 +3,7 @@ import type { AiWorkforceRunDoc } from "./models.js";
 import { collections } from "./db.js";
 import { audit } from "./audit.js";
 
-const worker = { enabled: false, running: false, lastPollAt: null as Date | null, lastCompletedAt: null as Date | null, lastFailureCategory: null as string | null };
+const worker = { enabled: false, running: false, polling: false, processedRuns: 0, lastBatchSize: 0, lastPollAt: null as Date | null, lastCompletedAt: null as Date | null, lastFailureCategory: null as string | null };
 export function aiWorkforceWorkerStatus() { return { ...worker, externalProvidersEnabled: false, supportedProviders: ["mock"] }; }
 export function buildWorkforceMockSummary(run: Pick<AiWorkforceRunDoc, "roleId" | "resourceType">, resource: Record<string, unknown> | null) {
   if (!resource) throw new Error("resource_missing");
@@ -36,9 +36,20 @@ export async function processOneMockWorkforceRun() {
   }
   return true;
 }
+export async function drainWorkforceBatch(processOne: () => Promise<boolean> = processOneMockWorkforceRun, maxRuns = 10) {
+  let processed = 0;
+  while (processed < maxRuns && await processOne()) processed++;
+  return processed;
+}
 export async function startAiWorkforceWorker() {
   worker.enabled = process.env.AI_WORKFORCE_WORKER_ENABLED === "true"; if (!worker.enabled || worker.running) return;
   worker.running = true; const stale = new Date(Date.now() - 5 * 60_000); await collections.aiWorkforceRuns.updateMany({ state: "running", provider: "mock", startedAt: { $lt: stale } }, { $set: { state: "queued", availableAt: new Date(), updatedAt: new Date() }, $unset: { startedAt: "" }, $inc: { version: 1 } });
-  const poll = async () => { try { while (await processOneMockWorkforceRun()) { /* drain bounded queue serially */ } } catch { worker.lastFailureCategory = "poll_failure"; } };
+  const poll = async () => {
+    if (worker.polling) return;
+    worker.polling = true;
+    try { worker.lastBatchSize = await drainWorkforceBatch(); worker.processedRuns += worker.lastBatchSize; }
+    catch { worker.lastFailureCategory = "poll_failure"; }
+    finally { worker.polling = false; }
+  };
   await poll(); const timer = setInterval(poll, 5000); timer.unref();
 }

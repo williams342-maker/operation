@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { modelRegistry, probeWorkforceProvider, providerBaseUrl, providerCredential, roleAcceptsResource, routeWorkforceRole, workforceRoles, workforceStatus } from "../src/aiWorkforce.js";
-import { buildWorkforceMockSummary } from "../src/aiWorkforceWorker.js";
+import { buildWorkforceMockSummary, drainWorkforceBatch } from "../src/aiWorkforceWorker.js";
 
 test("workforce registry exposes four bounded read-only roles", () => {
   assert.deepEqual(workforceRoles.map((role) => role.id), ["operations-analyst", "seo-analyst", "website-planner", "reviewer"]);
@@ -77,3 +77,14 @@ test("mock worker summaries remain bounded to operational identifiers", () => {
 });
 
 test("mock worker rejects deleted resources", () => { assert.throws(() => buildWorkforceMockSummary({ roleId: "reviewer", resourceType: "seo_audit" }, null), /resource_missing/); });
+
+test("mock worker drain caps each polling batch", async () => {
+  let calls = 0;
+  assert.equal(await drainWorkforceBatch(async () => { calls++; return true; }, 10), 10);
+  assert.equal(calls, 10);
+});
+
+test("mock worker drain stops when the queue is empty", async () => {
+  let remaining = 3;
+  assert.equal(await drainWorkforceBatch(async () => remaining-- > 0, 10), 3);
+});
