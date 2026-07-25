@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import {
   Activity,
+  BarChart3,
   Boxes,
   CircleHelp,
   ClipboardList,
@@ -64,6 +65,7 @@ import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import { ProjectOverviewPage } from "./ProjectOverviewPage";
 import { ProjectHistoryPage } from "./ProjectHistoryPage";
 import { PublicLandingPage } from "./PublicLandingPage";
+import { MarketingAnalyticsPage } from "./MarketingAnalyticsPage";
 import {
   Badge,
   Button,
@@ -90,7 +92,8 @@ type Page =
   | "health"
   | "mongo"
   | "tasks"
-  | "audit";
+  | "audit"
+  | "marketing";
 function fmt(v?: string) {
   return v ? new Date(v).toLocaleString() : "-";
 }
@@ -1835,14 +1838,15 @@ function Header({
     </Toolbar>
   );
 }
-const pagePaths: Record<Page, string> = { overview: "/admin", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit" };
+const pagePaths: Record<Page, string> = { overview: "/admin", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit", marketing: "/marketing" };
 function currentRoute() {
   const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/(overview|deployments|rollbacks))?\/?$/i);
   if (match) return { page: "projects" as Page, projectId: match[1], projectView: (match[2] || "overview") as "overview" | "deployments" | "rollbacks" };
+  if (/^\/marketing(?:\/(?:campaigns|channels|conversions|content|attribution|reports|settings))?\/?$/i.test(window.location.pathname)) return { page: "marketing" as Page, projectId: undefined, projectView: undefined };
   const page = (Object.entries(pagePaths).find(([, path]) => path !== "/" && window.location.pathname === path)?.[0] || "overview") as Page;
   return { page, projectId: undefined, projectView: undefined };
 }
-function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
+function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown; marketingOnly?: boolean }) {
   const toast = useToast();
   const initialRoute = currentRoute();
   const [page, setPage] = useState<Page>(initialRoute.page);
@@ -1856,7 +1860,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     queryFn: () => api.get("/me").then((response) => response.data),
   });
   const isAdmin = ["Owner", "Administrator"].includes(me.data?.user?.role);
-  const nav: Array<[Page, string, any]> = [
+  const fullNav: Array<[Page, string, any]> = [
     ["overview", "Overview", LayoutDashboard],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
@@ -1868,7 +1872,9 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     ["mongo", "Mongo", Database],
     ["tasks", "Tasks", ListChecks],
     ["audit", "Audit", ClipboardList],
+    ["marketing", "Marketing Analytics", BarChart3],
   ];
+  const nav = marketingOnly ? fullNav.filter(([key]) => key === "marketing") : fullNav;
   const pageTitle =
     page === "enrollments"
       ? "Administration / Enrollment"
@@ -1954,7 +1960,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
             {label}
           </button>
         ))}
-        {isAdmin && (
+        {isAdmin && !marketingOnly && (
           <>
             <div className="mb-1 mt-5 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted">
               <Shield className="h-3.5 w-3.5" />
@@ -2014,6 +2020,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           {page === "mongo" && <MongoPage toast={toast.show} />}
           {page === "tasks" && <TasksPage toast={toast.show} />}
           {page === "audit" && <AuditPage />}
+          {page === "marketing" && <MarketingAnalyticsPage />}
         </ErrorBoundary>
       </main>
     </div>
@@ -2104,7 +2111,9 @@ export function Root() {
   }
   if (authed && window.location.pathname === "/login") window.history.replaceState({}, "", "/admin");
   return authed ? (
-    <SuperUserGate><AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} /></SuperUserGate>
+    /^\/marketing(?:\/|$)/.test(window.location.pathname)
+      ? <AppShell marketingOnly onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
+      : <SuperUserGate><AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} /></SuperUserGate>
   ) : authScreen === "forgot" ? (
     <ForgotPassword onBack={() => setAuthScreen("login")} />
   ) : (
@@ -2113,8 +2122,8 @@ export function Root() {
 }
 
 function safeAdminReturnPath() {
-  const candidate = new URLSearchParams(window.location.search).get("returnTo");
-  return candidate === "/admin" ? candidate : "/admin";
+  const candidate = new URLSearchParams(window.location.search).get("returnTo") || window.location.pathname;
+  return candidate === "/admin" || /^\/marketing(?:\/(?:campaigns|channels|conversions|content|attribution|reports|settings))?$/.test(candidate || "") ? candidate! : "/admin";
 }
 
 function SuperUserGate({ children }: React.PropsWithChildren) {

@@ -80,6 +80,10 @@ export type AuditAction =
   | "agent.upgrade.approve"
   | "agent.upgrade.complete"
   | "agent.upgrade.rollback"
-  | "agent.rollout.change";
+  | "agent.rollout.change"
+  | "marketing.import"
+  | "marketing.account.change"
+  | "marketing.goal.change"
+  | "marketing.report.export";
 
 export type AuditResult = "success" | "failure" | "denied";

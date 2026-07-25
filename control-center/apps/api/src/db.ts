@@ -26,7 +26,12 @@ import type {
   AgentRolloutDoc,
   ProjectDeploymentDoc,
   ProjectRollbackDoc,
-  ConnectivityConfigDoc
+  ConnectivityConfigDoc,
+  MarketingAccountDoc,
+  MarketingCampaignDoc,
+  MarketingMetricDailyDoc,
+  MarketingGoalDoc,
+  MarketingInsightDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -62,7 +67,12 @@ export const collections = {
   agentRollouts: db.collection<AgentRolloutDoc>("agent_rollouts"),
   projectDeployments: db.collection<ProjectDeploymentDoc>("project_deployments"),
   projectRollbacks: db.collection<ProjectRollbackDoc>("project_rollbacks"),
-  connectivityConfigs: db.collection<ConnectivityConfigDoc>("connectivity_configs")
+  connectivityConfigs: db.collection<ConnectivityConfigDoc>("connectivity_configs"),
+  marketingAccounts: db.collection<MarketingAccountDoc>("marketing_accounts"),
+  marketingCampaigns: db.collection<MarketingCampaignDoc>("marketing_campaigns"),
+  marketingMetricsDaily: db.collection<MarketingMetricDailyDoc>("marketing_metrics_daily"),
+  marketingGoals: db.collection<MarketingGoalDoc>("marketing_goals"),
+  marketingInsights: db.collection<MarketingInsightDoc>("marketing_insights")
 };
 
 export async function connectDb() {
@@ -138,7 +148,16 @@ async function ensureIndexes() {
     collections.projectRollbacks.createIndex({ orgId: 1, projectId: 1, createdAt: -1, _id: -1 }),
     collections.projectRollbacks.createIndex({ orgId: 1, taskId: 1 }, { unique: true }),
     collections.projectRollbacks.createIndex({ orgId: 1, sourceDeploymentId: 1 }),
-    collections.connectivityConfigs.createIndex({ orgId: 1, serverId: 1, provider: 1 }, { unique: true })
+    collections.connectivityConfigs.createIndex({ orgId: 1, serverId: 1, provider: 1 }, { unique: true }),
+    collections.marketingAccounts.createIndex({ orgId: 1, provider: 1, externalAccountId: 1 }, { unique: true, partialFilterExpression: { externalAccountId: { $type: "string" } } }),
+    collections.marketingAccounts.createIndex({ orgId: 1, provider: 1, displayName: 1 }, { unique: true }),
+    collections.marketingCampaigns.createIndex({ orgId: 1, provider: 1, marketingAccountId: 1, name: 1 }, { unique: true }),
+    collections.marketingMetricsDaily.createIndex({ orgId: 1, provider: 1, marketingAccountId: 1, campaignId: 1, date: 1 }, { unique: true }),
+    collections.marketingMetricsDaily.createIndex({ orgId: 1, date: 1, channel: 1 }),
+    collections.marketingMetricsDaily.createIndex({ orgId: 1, campaignId: 1, date: 1 }),
+    collections.marketingGoals.createIndex({ orgId: 1, name: 1 }, { unique: true }),
+    collections.marketingInsights.createIndex({ orgId: 1, status: 1, generatedAt: -1 }),
+    collections.marketingInsights.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   ]);
 }
 

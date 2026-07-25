@@ -198,6 +198,24 @@ describe("Public landing and Super User routing", () => {
     expect(await screen.findByRole("heading", { name: "Access denied" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
   });
+
+  it("allows a marketing viewer into the scoped marketing shell without exposing Super User navigation", async () => {
+    localStorage.setItem("cc.csrf", "csrf-token"); window.history.replaceState({}, "", "/marketing");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockImplementation((path: string) => {
+      if (path === "/me") return Promise.resolve({ data: { user: { role: "Viewer" } } });
+      if (path.startsWith("/marketing/overview")) return Promise.resolve({ data: { range: {}, currency: "USD", totals: { spend: null, impressions: null, reach: null, clicks: null, landingPageViews: null, leads: null, applications: null, signups: null, purchases: null, conversions: null, revenue: null, videoViews: null, videoCompletions: null }, derived: { ctr: null, landingPageViewRate: null, leadConversionRate: null, conversionRate: null, purchaseConversionRate: null, cpc: null, costPerLead: null, costPerConversion: null, costPerPurchase: null, roas: null, averageOrderValue: null }, comparison: null, hasData: false } });
+      if (path.startsWith("/marketing/timeseries")) return Promise.resolve({ data: { points: [] } });
+      if (path.startsWith("/marketing/funnel")) return Promise.resolve({ data: { stages: [] } });
+      if (path.startsWith("/marketing/channels")) return Promise.resolve({ data: { channels: [] } });
+      if (path.startsWith("/marketing/campaigns")) return Promise.resolve({ data: { campaigns: [] } });
+      return Promise.resolve({ data: {} });
+    });
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Marketing Analytics", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Servers" })).not.toBeInTheDocument();
+    expect(mocks.apiGet).not.toHaveBeenCalledWith("/admin/access");
+  });
 });
 
 describe("Sign Out", () => {

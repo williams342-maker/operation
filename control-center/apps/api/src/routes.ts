@@ -32,6 +32,7 @@ import { bootstrapArtifactMetadata } from "./bootstrapArtifact.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 import { emailLoginUrl, passwordResetUrl, sendEmailLoginEmail, sendPasswordResetEmail } from "./passwordResetMailer.js";
 import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
+import { marketingRouter } from "./marketingRoutes.js";
 
 export const router = express.Router();
 
@@ -571,6 +572,7 @@ router.use(aiAssistantRouter);
 router.use(aiSettingsRouter);
 router.use(configurationRouter);
 router.use(agentUpgradeRouter);
+router.use(marketingRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

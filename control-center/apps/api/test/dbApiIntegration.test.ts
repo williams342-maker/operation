@@ -177,6 +177,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await assertIndex(collections.agentTaskResults, { expiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.emailLoginTokens, { tokenHash: 1 }, { unique: true });
     await assertIndex(collections.emailLoginTokens, { expiresAt: 1 }, { ttl: 0 });
+    await assertIndex(collections.marketingMetricsDaily, { orgId: 1, provider: 1, marketingAccountId: 1, campaignId: 1, date: 1 }, { unique: true });
+    await assertIndex(collections.marketingMetricsDaily, { orgId: 1, date: 1, channel: 1 });
 
     const bootstrapStatus = await request<{ available: boolean }>("GET", "/auth/bootstrap");
     assert.equal(bootstrapStatus.status, 200);
@@ -666,6 +668,19 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const overviewViewer = await login("phase-1b-a", "viewer-a@example.test", viewerTemporaryPassword);
     const viewerAdminAccess = await request("GET", "/admin/access", undefined, jsonHeaders(overviewViewer));
     assert.equal(viewerAdminAccess.status, 403);
+    const invalidMarketingRange = await request("GET", "/marketing/overview?start=2026-07-30&end=2026-07-01", undefined, jsonHeaders(ownerA));
+    assert.equal(invalidMarketingRange.status, 400);
+    const marketingCsv = "date,provider,channel,campaign,impressions,clicks,landing_page_views,spend,leads,applications,signups,purchases,revenue,currency\n2026-07-01,meta,Social,Summer Launch,1000,100,80,200,10,2,3,4,800,USD";
+    const deniedMarketingPreview = await request("POST", "/marketing/imports/preview", { csv: marketingCsv }, jsonHeaders(overviewViewer));
+    assert.equal(deniedMarketingPreview.status, 403);
+    const marketingPreview = await request<any>("POST", "/marketing/imports/preview", { csv: marketingCsv }, jsonHeaders(ownerA));
+    assert.equal(marketingPreview.status, 200); assert.equal(marketingPreview.body.rowCount, 1);
+    const marketingImport = await request<any>("POST", "/marketing/imports", { csv: marketingCsv, previewDigest: marketingPreview.body.previewDigest }, jsonHeaders(ownerA));
+    assert.equal(marketingImport.status, 201); assert.equal(marketingImport.body.imported, 1);
+    const repeatedMarketingImport = await request<any>("POST", "/marketing/imports", { csv: marketingCsv, previewDigest: marketingPreview.body.previewDigest }, jsonHeaders(ownerA));
+    assert.equal(repeatedMarketingImport.status, 201); assert.equal(repeatedMarketingImport.body.skipped, 1);
+    const marketingOverview = await request<any>("GET", "/marketing/overview?start=2026-07-01&end=2026-07-01&compare=none", undefined, jsonHeaders(overviewViewer));
+    assert.equal(marketingOverview.status, 200); assert.equal(marketingOverview.body.totals.spend, 200); assert.equal(marketingOverview.body.totals.conversions, 9); assert.equal(marketingOverview.body.derived.roas, 4);
     const viewerProjectOverview = await request<any>("GET", `/projects/${project.body.id}/overview`, undefined, jsonHeaders(overviewViewer));
     assert.equal(viewerProjectOverview.status, 200, JSON.stringify(viewerProjectOverview.body));
     assert.equal(viewerProjectOverview.body.project.paths, undefined);
@@ -824,6 +839,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal((await request("GET", `/projects/${project.body.id}/deployments`, undefined, jsonHeaders(ownerB))).status, 404);
     assert.equal((await request("GET", `/projects/${project.body.id}/rollbacks`, undefined, jsonHeaders(ownerB))).status, 404);
     const orgBAudit = await request<{ events: unknown[] }>("GET", "/org/audit", undefined, jsonHeaders(ownerB));
+    const orgBMarketing = await request<any>("GET", "/marketing/overview?start=2026-07-01&end=2026-07-01&compare=none", undefined, jsonHeaders(ownerB));
+    assert.equal(orgBMarketing.status, 200); assert.equal(orgBMarketing.body.hasData, false); assert.equal(orgBMarketing.body.totals.spend, null);
     assert.equal(orgBAudit.status, 200);
     assert.equal(JSON.stringify(orgBAudit.body).includes(project.body.id), false);
 
