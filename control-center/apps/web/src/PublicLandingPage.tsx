@@ -9,6 +9,7 @@ import {
   Code2,
   Gauge,
   GitBranch,
+  Github,
   LockKeyhole,
   Menu,
   MonitorCheck,
@@ -29,6 +30,7 @@ type MarketingEvent =
   | "see_how_it_works"
   | "ai_builder_cta"
   | "seo_optimizer_cta"
+  | "seo_optimizer_repository"
   | "sign_in"
   | "super_user_access";
 
@@ -37,6 +39,7 @@ function trackMarketingEvent(name: MarketingEvent) {
 }
 
 const adminLoginPath = "/login?returnTo=%2Fadmin";
+const seoOptimizerRepositoryUrl = "https://github.com/williams342-maker/SEO-Optimizer";
 
 function Brand() {
   return (
@@ -221,7 +224,7 @@ export function PublicLandingPage() {
         <section id="seo" className="product-section product-section--light" aria-labelledby="seo-title">
           <div className="marketing-container product-layout product-layout--reverse">
             <div className="product-visual seo-visual" aria-label="Example website optimization score"><div className="score-ring"><strong>92</strong><span>Site score</span></div><div className="seo-bars">{[["Technical SEO", 94], ["Content", 86], ["Performance", 91]].map(([label, score]) => <div key={String(label)}><span>{label}<b>{score}%</b></span><i><b style={{ width: `${score}%` }} /></i></div>)}</div></div>
-            <div><p className="section-kicker"><SearchCheck /> SEO OPTIMIZER</p><h2 id="seo-title">Find what holds your website back—and fix it safely.</h2><p>Audit technical SEO, metadata, content, sitemaps, indexing, and performance. Material changes stay behind an explicit approval gate.</p><ul className="check-grid">{["Site and technical audit", "Metadata recommendations", "Keyword suggestions", "Content optimization", "Sitemap and indexing checks", "Performance tracking", "Approval before material changes"].map(item => <li key={item}><Check />{item}</li>)}</ul><a className="marketing-button marketing-button--gradient" href={adminLoginPath} onClick={() => trackMarketingEvent("seo_optimizer_cta")}>Analyze My Website <ArrowRight /></a></div>
+            <div><p className="section-kicker"><SearchCheck /> SEO OPTIMIZER</p><h2 id="seo-title">Find what holds your website back—and fix it safely.</h2><p>Audit technical SEO, metadata, content, sitemaps, indexing, and performance. Material changes stay behind an explicit approval gate.</p><ul className="check-grid">{["Site and technical audit", "Metadata recommendations", "Keyword suggestions", "Content optimization", "Sitemap and indexing checks", "Performance tracking", "Approval before material changes"].map(item => <li key={item}><Check />{item}</li>)}</ul><div className="product-actions"><a className="marketing-button marketing-button--gradient" href={adminLoginPath} onClick={() => trackMarketingEvent("seo_optimizer_cta")}>Analyze My Website <ArrowRight /></a><a className="marketing-button marketing-button--source" href={seoOptimizerRepositoryUrl} target="_blank" rel="noreferrer" onClick={() => trackMarketingEvent("seo_optimizer_repository")}><Github /> View SEO Optimizer Project</a></div></div>
           </div>
         </section>
 

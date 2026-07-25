@@ -173,6 +173,7 @@ describe("Public landing and Super User routing", () => {
     expect(screen.getByRole("heading", { name: "How It Works" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /prompt to a polished/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /find what holds your website back/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View SEO Optimizer Project" })).toHaveAttribute("href", "https://github.com/williams342-maker/SEO-Optimizer");
     expect(screen.getByRole("link", { name: "Super User sign in" })).toHaveAttribute("href", "/login?returnTo=%2Fadmin");
     expect(mocks.bootstrapStatus).not.toHaveBeenCalled();
     expect(mocks.apiGet).not.toHaveBeenCalled();
