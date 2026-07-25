@@ -2,6 +2,7 @@ export type WorkforceProviderId = "openai" | "anthropic" | "gemini" | "openroute
 export type WorkforceCapability = "operations_analysis" | "seo_analysis" | "website_planning" | "review";
 export type WorkforceRole = { id: string; name: string; capability: WorkforceCapability; description: string; readOnly: true };
 export type WorkforceModel = { id: string; provider: WorkforceProviderId; capabilities: WorkforceCapability[] };
+export type WorkforceResourceType = "server" | "project" | "seo_audit" | "website_workflow";
 
 export const providerRegistry: Record<WorkforceProviderId, { name: string; credentialVariable?: string; defaultBaseUrl?: string }> = {
   openai: { name: "OpenAI", credentialVariable: "OPENAI_API_KEY", defaultBaseUrl: "https://api.openai.com/v1" },
@@ -17,6 +18,8 @@ export const workforceRoles: WorkforceRole[] = [
   { id: "website-planner", name: "Website Planner", capability: "website_planning", description: "Turns approved discovery answers into a structured draft brief.", readOnly: true },
   { id: "reviewer", name: "AI Reviewer", capability: "review", description: "Checks drafts for evidence, safety, completeness, and policy compliance.", readOnly: true },
 ];
+const roleResources: Record<string, WorkforceResourceType[]> = { "operations-analyst": ["server", "project"], "seo-analyst": ["seo_audit"], "website-planner": ["website_workflow"], reviewer: ["seo_audit", "website_workflow"] };
+export function roleAcceptsResource(roleId: string, resourceType: WorkforceResourceType) { return roleResources[roleId]?.includes(resourceType) || false; }
 
 const allCapabilities: WorkforceCapability[] = ["operations_analysis", "seo_analysis", "website_planning", "review"];
 export function modelRegistry(allowedProviders: string[], allowedModels: string[], mapping = process.env.AI_WORKFORCE_MODEL_MAP || ""): WorkforceModel[] {

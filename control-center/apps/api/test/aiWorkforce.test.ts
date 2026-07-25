@@ -1,10 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { modelRegistry, probeWorkforceProvider, providerBaseUrl, providerCredential, routeWorkforceRole, workforceRoles, workforceStatus } from "../src/aiWorkforce.js";
+import { modelRegistry, probeWorkforceProvider, providerBaseUrl, providerCredential, roleAcceptsResource, routeWorkforceRole, workforceRoles, workforceStatus } from "../src/aiWorkforce.js";
 
 test("workforce registry exposes four bounded read-only roles", () => {
   assert.deepEqual(workforceRoles.map((role) => role.id), ["operations-analyst", "seo-analyst", "website-planner", "reviewer"]);
   assert.equal(workforceRoles.every((role) => role.readOnly), true);
+});
+
+test("workforce roles accept only their bounded resource types", () => {
+  assert.equal(roleAcceptsResource("operations-analyst", "server"), true);
+  assert.equal(roleAcceptsResource("operations-analyst", "seo_audit"), false);
+  assert.equal(roleAcceptsResource("seo-analyst", "seo_audit"), true);
+  assert.equal(roleAcceptsResource("website-planner", "website_workflow"), true);
+});
+
+test("reviewer accepts draft resources but not infrastructure", () => {
+  assert.equal(roleAcceptsResource("reviewer", "seo_audit"), true);
+  assert.equal(roleAcceptsResource("reviewer", "website_workflow"), true);
+  assert.equal(roleAcceptsResource("reviewer", "server"), false);
 });
 
 test("provider status reports configuration booleans without credential values", () => {

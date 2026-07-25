@@ -27,6 +27,7 @@ import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
 import { seoAuditRouter } from "./seoAuditRoutes.js";
+import { aiWorkforceRouter } from "./aiWorkforceRoutes.js";
 
 export const router = express.Router();
 
@@ -360,6 +361,7 @@ router.use(configurationRouter);
 router.use(agentUpgradeRouter);
 router.use(websiteBuilderRouter);
 router.use(seoAuditRouter);
+router.use(aiWorkforceRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

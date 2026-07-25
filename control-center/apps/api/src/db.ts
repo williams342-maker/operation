@@ -24,7 +24,8 @@ import type {
   AgentRolloutDoc,
   CloudflareAccessIntegrationDoc,
   WebsiteBuildWorkflowDoc,
-  SeoAuditDoc
+  SeoAuditDoc,
+  AiWorkforceRunDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -49,6 +50,7 @@ export const collections = {
   agentTasks: db.collection<AgentTaskDoc>("agent_tasks"),
   agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results"),
   aiUsage: db.collection<AiUsageDoc>("ai_usage"),
+  aiWorkforceRuns: db.collection<AiWorkforceRunDoc>("ai_workforce_runs"),
   websiteBuildWorkflows: db.collection<WebsiteBuildWorkflowDoc>("website_build_workflows"),
   seoAudits: db.collection<SeoAuditDoc>("seo_audits"),
   configurationEnvironments: db.collection<ConfigurationEnvironmentDoc>("configuration_environments"),
@@ -111,6 +113,9 @@ async function ensureIndexes() {
     collections.aiUsage.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
     collections.aiUsage.createIndex({ orgId: 1, concurrencySlot: 1 }, { unique: true, partialFilterExpression: { concurrencySlot: { $type: "number" } } }),
     collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.aiWorkforceRuns.createIndex({ orgId: 1, state: 1, availableAt: 1 }),
+    collections.aiWorkforceRuns.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.aiWorkforceRuns.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.websiteBuildWorkflows.createIndex({ orgId: 1, createdAt: -1 }),
     collections.websiteBuildWorkflows.createIndex({ orgId: 1, stage: 1, updatedAt: -1 }),
     collections.seoAudits.createIndex({ orgId: 1, createdAt: -1 }),
