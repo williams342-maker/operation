@@ -174,7 +174,7 @@ describe("Responsive navigation", () => {
 
     const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
     expect(screen.getAllByRole("complementary", { name: "Primary navigation" })).toHaveLength(1);
-    for (const destination of ["Overview", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
+    for (const destination of ["Overview", "AI Website Builder", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
       expect(navigation).toHaveTextContent(destination);
     }
     expect(screen.getByRole("button", { name: "Close navigation" })).toHaveAttribute("aria-expanded", "true");
@@ -218,6 +218,18 @@ describe("Responsive navigation", () => {
       expect(control.className).toContain("min-h-11");
       expect(control.className).toContain("focus-visible:ring-2");
     }
+  });
+
+  it("opens the guided AI Website Builder without starting generation", async () => {
+    renderRoot();
+    await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^AI Website Builder$/ }));
+    expect(await screen.findByRole("heading", { name: "What would you like to create?", level: 2 })).toBeInTheDocument();
+    const start = screen.getByRole("button", { name: "Start guided discovery" });
+    expect(start).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: /New business website/ }));
+    expect(start).toBeEnabled();
+    expect(mocks.apiPost).not.toHaveBeenCalled();
   });
 
   it("collects Cloudflare Access credentials inside server onboarding without exposing the secret", async () => {

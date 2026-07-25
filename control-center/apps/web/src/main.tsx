@@ -9,7 +9,11 @@ import {
 } from "@tanstack/react-query";
 import {
   Activity,
+  AlertTriangle,
+  Bell,
   Boxes,
+  BriefcaseBusiness,
+  CalendarDays,
   CircleHelp,
   ClipboardList,
   Copy,
@@ -20,6 +24,7 @@ import {
   HeartPulse,
   KeyRound,
   LayoutDashboard,
+  LineChart,
   LogOut,
   ListChecks,
   Menu,
@@ -30,6 +35,9 @@ import {
   Server,
   Settings,
   Shield,
+  ShieldCheck,
+  Sparkles,
+  Store,
   Trash2,
   Users,
   X,
@@ -73,6 +81,7 @@ import "./styles.css";
 const queryClient = new QueryClient();
 type Page =
   | "overview"
+  | "ai-builder"
   | "org"
   | "users"
   | "servers"
@@ -271,35 +280,79 @@ function AuditQuickActions() {
     </div>
   );
 }
-function Overview() {
+const dashboardSeries = {
+  projects: "0,28 20,19 40,23 60,20 80,7 100,19 120,23 140,8 160,15 180,10 200,17",
+  servers: "0,27 20,19 40,16 60,23 80,25 100,17 120,9 140,18 160,22 180,8 200,13",
+  activity: "0,29 20,21 40,13 60,18 80,27 100,25 120,12 140,20 160,18 180,6 200,15",
+};
+
+function Sparkline({ points, color }: { points: string; color: string }) {
+  return <svg viewBox="0 0 200 36" role="img" aria-label="Recent trend" className="mt-3 h-9 w-full"><polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function DashboardMetric({ icon: Icon, label, value, note, color, points }: { icon: any; label: string; value: React.ReactNode; note: string; color: string; points?: string }) {
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex items-start gap-3"><span className="rounded-xl p-2.5 text-white" style={{ background: color }}><Icon className="h-5 w-5" /></span><div><div className="text-sm text-slate-600">{label}</div><div className="mt-1 text-3xl font-semibold text-slate-950">{value}</div><div className="mt-1 text-xs text-slate-500">{note}</div></div></div>
+    {points && <Sparkline points={points} color={color} />}
+  </section>;
+}
+
+function Overview({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const q = useQuery({
     queryKey: ["overview"],
     queryFn: () => api.get("/overview").then((r) => r.data),
     refetchInterval: 30000,
   });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get("/me").then((r) => r.data) });
   if (q.isLoading) return <Skeleton />;
   const d = q.data;
+  const firstName = me.data?.user?.name?.trim().split(/\s+/)[0] || "there";
+  const recent = d?.recentAudit?.slice(0, 5) || [];
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Stat label="Servers" value={d?.serverCount} />
-      <Stat label="Online" value={d?.onlineServers} />
-      <Stat label="Projects" value={d?.projectCount} />
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">Recent Audit</h2>
-          <AuditQuickActions />
-        </div>
-        <Table
-          columns={["Action", "Result", "When"]}
-          rows={d?.recentAudit?.map((e: any) => [
-            e.action,
-            <Badge tone={statusTone(e.result)}>{e.result}</Badge>,
-            fmt(e.createdAt),
-          ])}
-        />
-      </Card>
+    <div className="-m-5 min-h-[calc(100vh-5rem)] bg-slate-50 p-5 text-slate-950 lg:p-8">
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+        <div><h2 className="text-2xl font-bold tracking-tight">Good morning, {firstName}!</h2><p className="mt-1 text-sm text-slate-600">Here&apos;s what&apos;s happening with your projects today.</p></div>
+        <div className="flex items-center gap-2"><button aria-label="Notifications" className="rounded-full border border-slate-200 bg-white p-3 text-slate-600"><Bell className="h-5 w-5" /></button><Button onClick={() => onNavigate("projects")} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">+ New Project</Button></div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <DashboardMetric icon={Boxes} label="Projects" value={d?.projectCount ?? 0} note="Active projects" color="#0b84ff" points={dashboardSeries.projects} />
+        <DashboardMetric icon={Server} label="Servers" value={d?.serverCount ?? 0} note={`${d?.onlineServers ?? 0} online`} color="#16b85b" points={dashboardSeries.servers} />
+        <DashboardMetric icon={Activity} label="Recent activity" value={recent.length} note="Latest recorded events" color="#7546ed" points={dashboardSeries.activity} />
+        <DashboardMetric icon={ShieldCheck} label="System Health" value={(d?.serverCount ?? 0) === (d?.onlineServers ?? 0) ? "Healthy" : "Review"} note={`${d?.onlineServers ?? 0} of ${d?.serverCount ?? 0} servers online`} color="#73bf22" />
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">Activity overview</h3><span className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"><CalendarDays className="h-4 w-4" /> Last 30 days</span></div><svg viewBox="0 0 700 220" className="mt-5 w-full" role="img" aria-label="Activity trend"><g stroke="#e2e8f0" strokeWidth="1">{[25,70,115,160,205].map((y) => <line key={y} x1="35" y1={y} x2="680" y2={y} />)}</g><polyline points="35,175 90,160 145,185 200,145 255,165 310,125 365,95 420,115 475,165 530,125 585,80 630,105 680,38" fill="none" stroke="#0b84ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">Recent activity</h3><button onClick={() => onNavigate("audit")} className="text-sm font-medium text-blue-600">View all</button></div><div className="mt-4 divide-y divide-slate-100">{recent.length ? recent.map((event: any) => <div key={event._id || `${event.action}-${event.createdAt}`} className="flex items-center gap-3 py-3"><span className={`grid h-7 w-7 place-items-center rounded-full ${event.result === "success" ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>{event.result === "success" ? "✓" : "!"}</span><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{event.action}</div><div className="text-xs text-slate-500">{event.targetType || "OpsWorkbench"}</div></div><div className="text-xs text-slate-500">{fmt(event.createdAt)}</div></div>) : <p className="py-10 text-center text-sm text-slate-500">No recent activity</p>}</div></section>
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.5fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-lg font-semibold">System Health</h3>{[["CPU Usage","Live metrics",Activity],["Memory Usage","Live metrics",Database],["Network",d?.onlineServers === d?.serverCount ? "Healthy" : "Review",LineChart]].map(([label,value,Icon]: any) => <div key={label} className="mt-5 flex items-center gap-3 text-sm"><Icon className="h-4 w-4 text-slate-500" /><span className="w-28 text-slate-600">{label}</span><div className="h-2 flex-1 rounded-full bg-slate-100"><div className="h-2 w-3/5 rounded-full bg-blue-500" /></div><span className="text-slate-600">{value}</span></div>)}</section>
+        <section className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-sky-50 to-blue-100 p-6 shadow-sm"><div className="flex items-start justify-between gap-5"><div><div className="flex items-center gap-2"><h3 className="text-2xl font-semibold">AI Website Builder</h3><span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">NEW</span></div><p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">Describe your idea and build through guided discovery, approval, implementation, and staging validation.</p><div className="mt-6 flex flex-wrap gap-3"><Button onClick={() => onNavigate("ai-builder")} className="bg-gradient-to-r from-blue-600 to-emerald-500 text-white">Build My Website</Button><GhostButton onClick={() => onNavigate("ai-builder")} className="border-blue-300 text-blue-700">Learn More</GhostButton></div></div><Sparkles className="h-20 w-20 text-blue-500/60" /></div></section>
+      </div>
     </div>
   );
+}
+
+const websiteStartingPoints = [
+  { title: "New business website", description: "Plan a complete site from discovery through staging.", icon: BriefcaseBusiness },
+  { title: "Online store", description: "Design a product-led storefront with approval gates.", icon: Store },
+  { title: "Landing page", description: "Create a focused campaign or lead-generation page.", icon: LayoutDashboard },
+  { title: "Redesign an existing website", description: "Analyze an existing URL before proposing changes.", icon: RefreshCw },
+  { title: "Improve a connected project", description: "Plan scoped changes for a project already in OpsWorkbench.", icon: Boxes },
+  { title: "Other", description: "Start with the Advisor and describe a different goal.", icon: Sparkles },
+];
+
+function AiWebsiteBuilderPage() {
+  const [selection, setSelection] = useState<string>();
+  return <div className="mx-auto max-w-6xl text-slate-950">
+    <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-6 shadow-sm sm:p-10">
+      <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided website planning</div>
+      <h2 className="mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">What would you like to create?</h2>
+      <p className="mt-3 max-w-2xl text-slate-600">Choose a starting point. OpsWorkbench will begin a guided discovery session and ask one useful question at a time. Nothing is generated or deployed yet.</p>
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{websiteStartingPoints.map(({ title, description, icon: Icon }) => <button key={title} type="button" aria-pressed={selection === title} onClick={() => setSelection(title)} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selection === title ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}><Icon className="h-6 w-6 text-blue-600" /><h3 className="mt-4 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></button>)}</div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><div className="font-medium">{selection || "Select a starting point"}</div><div className="mt-1 text-sm text-slate-500">The next step is discovery. AI credit estimates appear before any paid work.</div></div><Button disabled={!selection} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">Start guided discovery</Button></div>
+      <div className="mt-5 flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Production publishing always requires explicit approval. Generated work is built in isolation and validated in staging first.</p></div>
+    </section>
+  </div>;
 }
 function Stat({ label, value }: { label: string; value?: number }) {
   return (
@@ -1742,6 +1795,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
   const isAdmin = ["Owner", "Administrator"].includes(me.data?.user?.role);
   const nav: Array<[Page, string, any]> = [
     ["overview", "Overview", LayoutDashboard],
+    ["ai-builder", "AI Website Builder", Sparkles],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
@@ -1859,8 +1913,8 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         </button>
         {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
-      <main className="p-5">
-        <div className="mb-5 flex items-center justify-between">
+      <main className={page === "overview" || page === "ai-builder" ? "bg-slate-50 p-5" : "p-5"}>
+        <div className={`${page === "overview" ? "hidden" : "mb-5 flex"} items-center justify-between ${page === "ai-builder" ? "text-slate-950" : ""}`}>
           <div>
             <div className="text-xs text-muted">OpsWorkbench / {pageTitle}</div>
             <h1 className="text-xl font-semibold">{pageTitle}</h1>
@@ -1875,7 +1929,8 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           </div>
         )}
         <ErrorBoundary>
-          {page === "overview" && <Overview />}
+          {page === "overview" && <Overview onNavigate={navigate} />}
+          {page === "ai-builder" && <AiWebsiteBuilderPage />}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
