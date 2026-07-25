@@ -147,6 +147,7 @@ describe("Responsive navigation", () => {
     localStorage.setItem("cc.csrf", "csrf-token");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
     mocks.apiGet.mockImplementation(authenticatedApi);
+    mocks.apiPost.mockReset();
     mocks.logout.mockReset();
     vi.stubGlobal("matchMedia", vi.fn(() => ({
       matches: false,
@@ -230,6 +231,24 @@ describe("Responsive navigation", () => {
     await userEvent.click(screen.getByRole("button", { name: /New business website/ }));
     expect(start).toBeEnabled();
     expect(mocks.apiPost).not.toHaveBeenCalled();
+  });
+
+  it("creates a workflow and saves one guided discovery answer at a time", async () => {
+    mocks.apiPost
+      .mockResolvedValueOnce({ data: { workflow: { id: "workflow-1", currentQuestionIndex: 0, stage: "discovery" }, question: { id: "business_name", prompt: "What is the name of your business or organization?", help: "Use the public name visitors should see." } } })
+      .mockResolvedValueOnce({ data: { workflow: { id: "workflow-1", currentQuestionIndex: 1, stage: "discovery" }, question: { id: "business_purpose", prompt: "What does your business do?", help: "Describe your work." } } });
+    renderRoot();
+    await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^AI Website Builder$/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /New business website/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Start guided discovery" }));
+    expect(await screen.findByRole("heading", { name: "What is the name of your business or organization?" })).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Your answer" }), "Acme Makers");
+    await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(1, "/website-builder/workflows", { websiteType: "business" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(2, "/website-builder/workflows/workflow-1/answers", { questionId: "business_name", value: "Acme Makers" }));
+    expect(await screen.findByRole("heading", { name: "What does your business do?" })).toBeInTheDocument();
+    expect(screen.getByText("No AI credits used during manual discovery.")).toBeInTheDocument();
   });
 
   it("collects Cloudflare Access credentials inside server onboarding without exposing the secret", async () => {

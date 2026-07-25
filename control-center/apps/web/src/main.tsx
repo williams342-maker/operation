@@ -229,57 +229,6 @@ function Centered({
   );
 }
 
-function AuditQuickActions() {
-  const qc = useQueryClient();
-  const me = useQuery({
-    queryKey: ["me"],
-    queryFn: () => api.get("/me").then((r) => r.data),
-  });
-  const canManage = ["Owner", "Administrator"].includes(me.data?.user?.role);
-  const clear = useMutation({
-    mutationFn: () =>
-      api.delete("/org/audit", { data: { confirmation: "CLEAR" } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["audit"] });
-      qc.invalidateQueries({ queryKey: ["overview"] });
-    },
-  });
-  const downloadCompressed = async () => {
-    const response = await api.get("/org/audit/export", {
-      params: { format: "gzip", limit: 1000 },
-      responseType: "blob",
-    });
-    const url = URL.createObjectURL(response.data);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `opsworkbench-audit-${new Date().toISOString().slice(0, 10)}.jsonl.gz`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  const clearLogs = () => {
-    if (
-      confirm(
-        "Clear all audit logs? This cannot be undone. A record of this cleanup will be retained.",
-      )
-    )
-      clear.mutate();
-  };
-  return (
-    <div className="flex flex-wrap gap-1">
-      <GhostButton onClick={downloadCompressed}>
-        <Download className="h-4 w-4" />
-        Compress
-      </GhostButton>
-      {canManage && (
-        <GhostButton onClick={clearLogs} disabled={clear.isPending}>
-          <Trash2 className="h-4 w-4" />
-          {clear.isPending ? "Clearing…" : "Delete audit"}
-        </GhostButton>
-      )}
-      <ErrorText error={clear.error} />
-    </div>
-  );
-}
 const dashboardSeries = {
   projects: "0,28 20,19 40,23 60,20 80,7 100,19 120,23 140,8 160,15 180,10 200,17",
   servers: "0,27 20,19 40,16 60,23 80,25 100,17 120,9 140,18 160,22 180,8 200,13",
@@ -333,23 +282,28 @@ function Overview({ onNavigate }: { onNavigate: (page: Page) => void }) {
 }
 
 const websiteStartingPoints = [
-  { title: "New business website", description: "Plan a complete site from discovery through staging.", icon: BriefcaseBusiness },
-  { title: "Online store", description: "Design a product-led storefront with approval gates.", icon: Store },
-  { title: "Landing page", description: "Create a focused campaign or lead-generation page.", icon: LayoutDashboard },
-  { title: "Redesign an existing website", description: "Analyze an existing URL before proposing changes.", icon: RefreshCw },
-  { title: "Improve a connected project", description: "Plan scoped changes for a project already in OpsWorkbench.", icon: Boxes },
-  { title: "Other", description: "Start with the Advisor and describe a different goal.", icon: Sparkles },
+  { title: "New business website", type: "business", description: "Plan a complete site from discovery through staging.", icon: BriefcaseBusiness },
+  { title: "Online store", type: "store", description: "Design a product-led storefront with approval gates.", icon: Store },
+  { title: "Landing page", type: "landing_page", description: "Create a focused campaign or lead-generation page.", icon: LayoutDashboard },
+  { title: "Redesign an existing website", type: "redesign", description: "Analyze an existing URL before proposing changes.", icon: RefreshCw },
+  { title: "Improve a connected project", type: "connected_project", description: "Plan scoped changes for a project already in OpsWorkbench.", icon: Boxes },
+  { title: "Other", type: "other", description: "Start with the Advisor and describe a different goal.", icon: Sparkles },
 ];
 
 function AiWebsiteBuilderPage() {
-  const [selection, setSelection] = useState<string>();
+  const [selection, setSelection] = useState<(typeof websiteStartingPoints)[number]>();
+  const [workflow, setWorkflow] = useState<any>(); const [question, setQuestion] = useState<any>(); const [answer, setAnswer] = useState("");
+  const create = useMutation({ mutationFn: () => api.post("/website-builder/workflows", { websiteType: selection!.type }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); } });
+  const submit = useMutation({ mutationFn: () => api.post(`/website-builder/workflows/${workflow.id}/answers`, { questionId: question.id, value: answer }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setAnswer(""); } });
+  if (workflow) return <div className="mx-auto max-w-3xl text-slate-950"><section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10"><div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided discovery</div><span className="text-sm text-slate-500">Question {Math.min(workflow.currentQuestionIndex + 1, 8)} of 8</span></div>{question ? <><div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-emerald-500" style={{ width: `${(workflow.currentQuestionIndex / 8) * 100}%` }} /></div><h2 className="mt-8 text-2xl font-bold">{question.prompt}</h2><p className="mt-2 text-sm text-slate-500">{question.help}</p><textarea aria-label="Your answer" value={answer} onChange={(event) => setAnswer(event.target.value)} rows={6} maxLength={4000} className="mt-6 w-full rounded-2xl border border-slate-300 p-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><div className="mt-4 flex items-center justify-between gap-4"><span className="text-xs text-slate-500">No AI credits used during manual discovery.</span><Button disabled={!answer.trim() || submit.isPending} onClick={() => submit.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{submit.isPending ? "Saving..." : "Save and continue"}</Button></div><ErrorText error={submit.error} /></> : <div className="py-16 text-center"><ShieldCheck className="mx-auto h-12 w-12 text-emerald-500" /><h2 className="mt-5 text-2xl font-bold">Discovery complete</h2><p className="mt-2 text-slate-600">Your answers are saved. The next milestone will generate a versioned project brief for your approval.</p><p className="mt-5 text-sm font-medium text-blue-700">Brief review pending</p></div>}</section></div>;
   return <div className="mx-auto max-w-6xl text-slate-950">
     <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-6 shadow-sm sm:p-10">
       <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided website planning</div>
       <h2 className="mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">What would you like to create?</h2>
       <p className="mt-3 max-w-2xl text-slate-600">Choose a starting point. OpsWorkbench will begin a guided discovery session and ask one useful question at a time. Nothing is generated or deployed yet.</p>
-      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{websiteStartingPoints.map(({ title, description, icon: Icon }) => <button key={title} type="button" aria-pressed={selection === title} onClick={() => setSelection(title)} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selection === title ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}><Icon className="h-6 w-6 text-blue-600" /><h3 className="mt-4 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></button>)}</div>
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><div className="font-medium">{selection || "Select a starting point"}</div><div className="mt-1 text-sm text-slate-500">The next step is discovery. AI credit estimates appear before any paid work.</div></div><Button disabled={!selection} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">Start guided discovery</Button></div>
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{websiteStartingPoints.map((option) => { const { title, description, icon: Icon } = option; return <button key={title} type="button" aria-pressed={selection?.type === option.type} onClick={() => setSelection(option)} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selection?.type === option.type ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}><Icon className="h-6 w-6 text-blue-600" /><h3 className="mt-4 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></button>; })}</div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><div className="font-medium">{selection?.title || "Select a starting point"}</div><div className="mt-1 text-sm text-slate-500">The next step is discovery. AI credit estimates appear before any paid work.</div></div><Button disabled={!selection || create.isPending} onClick={() => create.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{create.isPending ? "Starting..." : "Start guided discovery"}</Button></div>
+      <ErrorText error={create.error} />
       <div className="mt-5 flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Production publishing always requires explicit approval. Generated work is built in isolation and validated in staging first.</p></div>
     </section>
   </div>;

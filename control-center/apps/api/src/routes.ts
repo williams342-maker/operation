@@ -25,6 +25,7 @@ import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
+import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
 
 export const router = express.Router();
 
@@ -356,6 +357,7 @@ router.use(aiAssistantRouter);
 router.use(aiSettingsRouter);
 router.use(configurationRouter);
 router.use(agentUpgradeRouter);
+router.use(websiteBuilderRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 
