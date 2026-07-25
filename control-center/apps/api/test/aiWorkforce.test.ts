@@ -8,9 +8,16 @@ test("workforce registry exposes four bounded read-only roles", () => {
 });
 
 test("provider status reports configuration booleans without credential values", () => {
-  const env = { OPENAI_API_KEY: "super-secret-value" }; const status = workforceStatus(["openai", "anthropic", "mock"], ["safe-model"], env);
+  const env = { OPENAI_API_KEY: "super-secret-value", AI_WORKFORCE_MODEL_MAP: "openai=safe-model,anthropic=safe-model,mock=safe-model" }; const status = workforceStatus(["openai", "anthropic", "mock"], ["safe-model"], env);
   assert.deepEqual(status.providers.map((item) => [item.id, item.configured]), [["openai", true], ["anthropic", false], ["mock", true]]);
   assert.equal(JSON.stringify(status).includes("super-secret-value"), false);
+});
+
+test("multi-provider routing fails closed without explicit model mappings", () => {
+  const status = workforceStatus(["openai", "anthropic"], ["shared-name"], { OPENAI_API_KEY: "present", ANTHROPIC_API_KEY: "present" });
+  assert.equal(status.models.length, 0);
+  assert.equal(status.providers.every((provider) => provider.health === "models_not_mapped"), true);
+  assert.equal(routeWorkforceRole("reviewer", ["openai", "anthropic"], ["shared-name"], { OPENAI_API_KEY: "present", ANTHROPIC_API_KEY: "present" }), null);
 });
 
 test("model registry and routing remain environment allowlisted", () => {

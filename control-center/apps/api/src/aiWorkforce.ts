@@ -19,8 +19,11 @@ export const workforceRoles: WorkforceRole[] = [
 ];
 
 const allCapabilities: WorkforceCapability[] = ["operations_analysis", "seo_analysis", "website_planning", "review"];
-export function modelRegistry(allowedProviders: string[], allowedModels: string[]): WorkforceModel[] {
-  return allowedModels.flatMap((id) => allowedProviders.filter((provider): provider is WorkforceProviderId => provider in providerRegistry).map((provider) => ({ id, provider, capabilities: allCapabilities }))).filter((model, index, rows) => rows.findIndex((row) => row.id === model.id && row.provider === model.provider) === index);
+export function modelRegistry(allowedProviders: string[], allowedModels: string[], mapping = process.env.AI_WORKFORCE_MODEL_MAP || ""): WorkforceModel[] {
+  const providers = allowedProviders.filter((provider): provider is WorkforceProviderId => provider in providerRegistry);
+  const pairs = mapping.split(",").map((item) => item.trim()).filter(Boolean).map((item) => { const split = item.indexOf("="); return split > 0 ? { provider: item.slice(0, split).trim(), id: item.slice(split + 1).trim() } : null; }).filter((item): item is { provider: string; id: string } => Boolean(item?.provider && item.id));
+  if (!pairs.length && providers.length === 1) return allowedModels.map((id) => ({ id, provider: providers[0], capabilities: allCapabilities }));
+  return pairs.filter((pair): pair is { provider: WorkforceProviderId; id: string } => providers.includes(pair.provider as WorkforceProviderId) && allowedModels.includes(pair.id)).map((pair) => ({ ...pair, capabilities: allCapabilities })).filter((model, index, rows) => rows.findIndex((row) => row.id === model.id && row.provider === model.provider) === index);
 }
 export function providerCredential(provider: string, env: NodeJS.ProcessEnv = process.env) {
   if (provider === "mock") return "mock";
@@ -32,12 +35,13 @@ export function providerBaseUrl(provider: string, env: NodeJS.ProcessEnv = proce
   return env.AI_BASE_URL || env[`${prefix}_BASE_URL`] || providerRegistry[provider as WorkforceProviderId]?.defaultBaseUrl;
 }
 export function workforceStatus(allowedProviders: string[], allowedModels: string[], env: NodeJS.ProcessEnv = process.env) {
-  const providers = allowedProviders.filter((id): id is WorkforceProviderId => id in providerRegistry).map((id) => ({ id, name: providerRegistry[id].name, configured: id === "mock" || Boolean(providerCredential(id, env)) }));
-  return { providers, models: modelRegistry(allowedProviders, allowedModels), roles: workforceRoles };
+  const models = modelRegistry(allowedProviders, allowedModels, env.AI_WORKFORCE_MODEL_MAP); const providers = allowedProviders.filter((id): id is WorkforceProviderId => id in providerRegistry).map((id) => { const credentialPresent = id === "mock" || Boolean(providerCredential(id, env)); const modelsMapped = models.some((model) => model.provider === id); return { id, name: providerRegistry[id].name, configured: credentialPresent && modelsMapped, credentialPresent, modelsMapped, health: !credentialPresent ? "missing_credential" : !modelsMapped ? "models_not_mapped" : "ready" }; });
+  const assignments = workforceRoles.map((role) => ({ roleId: role.id, route: routeWorkforceRole(role.id, allowedProviders, allowedModels, env) }));
+  return { providers, models, roles: workforceRoles, assignments };
 }
 export function routeWorkforceRole(roleId: string, allowedProviders: string[], allowedModels: string[], env: NodeJS.ProcessEnv = process.env) {
   const role = workforceRoles.find((item) => item.id === roleId); if (!role) return null;
-  const configured = workforceStatus(allowedProviders, allowedModels, env).providers.filter((item) => item.configured).map((item) => item.id);
-  const model = modelRegistry(allowedProviders, allowedModels).find((item) => configured.includes(item.provider) && item.capabilities.includes(role.capability));
+  const configured = allowedProviders.filter((provider): provider is WorkforceProviderId => provider in providerRegistry && (provider === "mock" || Boolean(providerCredential(provider, env))));
+  const model = modelRegistry(allowedProviders, allowedModels, env.AI_WORKFORCE_MODEL_MAP).find((item) => configured.includes(item.provider) && item.capabilities.includes(role.capability));
   return model ? { role, provider: model.provider, model: model.id } : null;
 }

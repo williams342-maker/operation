@@ -211,6 +211,7 @@ AI status is `disabled`, `unconfigured`, or `ready`. Credential values are never
 The first staging deployment keeps `AI_ASSISTANT_ENABLED=false`.
 
 1. Select `openai`, `anthropic`, `gemini`, `openrouter`, or `mock`; configure provider/model allowlists.
+   When more than one provider is allowlisted, set `AI_WORKFORCE_MODEL_MAP` to explicit comma-delimited `provider=model` pairs so routing cannot cross provider boundaries.
 2. Install the selected provider's server-side key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY`) in the host-only secret file.
 3. Keep organizations disabled, set the global flag true, and restart.
 4. Verify `/readyz` reports `ready`; this check makes no provider request.
