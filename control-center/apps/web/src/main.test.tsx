@@ -175,7 +175,7 @@ describe("Responsive navigation", () => {
 
     const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
     expect(screen.getAllByRole("complementary", { name: "Primary navigation" })).toHaveLength(1);
-    for (const destination of ["Overview", "AI Website Builder", "SEO Optimizer", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
+    for (const destination of ["Overview", "AI Website Builder", "SEO Optimizer", "AI Workforce", "Organization", "Users", "Servers", "Agent Upgrades", "Projects", "Configuration", "Health", "Mongo", "Tasks", "Audit", "Enrollment", "Sign out"]) {
       expect(navigation).toHaveTextContent(destination);
     }
     expect(screen.getByRole("button", { name: "Close navigation" })).toHaveAttribute("aria-expanded", "true");

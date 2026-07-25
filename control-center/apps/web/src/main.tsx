@@ -64,6 +64,7 @@ import { AiSettingsCard } from "./AiSettingsCard";
 import { SystemHealthCard } from "./SystemHealthCard";
 import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
+import { AiWorkforcePage } from "./AiWorkforcePage";
 import { TaskResultSummary } from "./TaskResultSummary";
 import {
   Badge,
@@ -83,6 +84,7 @@ type Page =
   | "overview"
   | "ai-builder"
   | "seo"
+  | "ai-workforce"
   | "org"
   | "users"
   | "servers"
@@ -1766,6 +1768,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     ["overview", "Overview", LayoutDashboard],
     ["ai-builder", "AI Website Builder", Sparkles],
     ["seo", "SEO Optimizer", LineChart],
+    ["ai-workforce", "AI Workforce", Users],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
@@ -1902,6 +1905,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           {page === "overview" && <Overview onNavigate={navigate} />}
           {page === "ai-builder" && <AiWebsiteBuilderPage />}
           {page === "seo" && <SeoOptimizerPage toast={toast.show} />}
+          {page === "ai-workforce" && <AiWorkforcePage toast={toast.show} />}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
