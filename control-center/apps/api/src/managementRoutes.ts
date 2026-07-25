@@ -39,6 +39,10 @@ managementRouter.get("/org/settings", requirePermission("org:manage"), async (re
       passwordResetEmail: {
         configured: Boolean(process.env.CONTROL_CENTER_PASSWORD_RESET_WEBHOOK_URL),
         guidance: "Set CONTROL_CENTER_PASSWORD_RESET_WEBHOOK_URL to send password reset links."
+      },
+      emailLogin: {
+        configured: Boolean(process.env.CONTROL_CENTER_EMAIL_LOGIN_WEBHOOK_URL || process.env.CONTROL_CENTER_PASSWORD_RESET_WEBHOOK_URL),
+        guidance: "Set CONTROL_CENTER_EMAIL_LOGIN_WEBHOOK_URL to send secure sign-in links."
       }
     });
   } catch (error) { next(error); }

@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   requestPasswordReset: vi.fn(),
   completePasswordReset: vi.fn(),
-  changePassword: vi.fn()
+  completeEmailLogin: vi.fn(),
+  changePassword: vi.fn(),
+  requestEmailLogin: vi.fn()
 }));
 
 vi.mock("./api", () => ({
@@ -23,11 +25,13 @@ vi.mock("./api", () => ({
   bootstrapStatus: mocks.bootstrapStatus,
   changePassword: mocks.changePassword,
   completePasswordReset: mocks.completePasswordReset,
+  completeEmailLogin: mocks.completeEmailLogin,
   isRecentAuthRequired: vi.fn(() => false),
   login: mocks.login,
   logout: mocks.logout,
   reauthenticate: vi.fn(),
   requestPasswordReset: mocks.requestPasswordReset,
+  requestEmailLogin: mocks.requestEmailLogin,
   SESSION_EXPIRED_EVENT: "cc:session-expired"
 }));
 
@@ -67,18 +71,33 @@ describe("Login experience", () => {
     mocks.login.mockReset();
     mocks.requestPasswordReset.mockReset();
     mocks.completePasswordReset.mockReset();
+    mocks.completeEmailLogin.mockReset();
+    mocks.requestEmailLogin.mockReset();
   });
 
   afterEach(() => cleanup());
 
-  it("does not ask for an organization slug and submits with Enter", async () => {
+  it("requests a secure email login without asking for a password or organization slug", async () => {
+    mocks.requestEmailLogin.mockResolvedValue({ ok: true });
+    renderRoot();
+
+    expect(await screen.findByRole("button", { name: /email secure sign-in link/i })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/organization slug/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "owner@example.test{Enter}");
+    await waitFor(() => expect(mocks.requestEmailLogin).toHaveBeenCalledWith("owner@example.test"));
+    expect(await screen.findByRole("status")).toHaveTextContent(/secure sign-in link has been sent/i);
+  });
+
+  it("retains password login as an explicit recovery path", async () => {
     mocks.login.mockImplementation(async () => {
       localStorage.setItem("cc.csrf", "csrf-token");
       return { csrfToken: "csrf-token" };
     });
     renderRoot();
 
-    expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /use password instead/i }));
+    expect(screen.getByRole("button", { name: /sign in with password/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "OpsWorkbench" }).closest("section")?.parentElement).toHaveClass("w-full", "max-w-sm");
     expect(screen.queryByPlaceholderText(/organization slug/i)).not.toBeInTheDocument();
 
@@ -89,10 +108,20 @@ describe("Login experience", () => {
     expect(mocks.login.mock.calls[0]).toHaveLength(2);
   });
 
+  it("exchanges a fragment-only email token and removes it from browser history", async () => {
+    mocks.completeEmailLogin.mockImplementation(async () => { localStorage.setItem("cc.csrf", "csrf-token"); return { csrfToken: "csrf-token" }; });
+    window.history.replaceState({}, "", "/email-login#token=opaque-email-token");
+    renderRoot();
+    await waitFor(() => expect(mocks.completeEmailLogin).toHaveBeenCalledWith("opaque-email-token"));
+    expect(window.location.hash).toBe("");
+    expect(document.body.textContent).not.toContain("opaque-email-token");
+  });
+
   it("requests password reset with a generic response", async () => {
     mocks.requestPasswordReset.mockResolvedValue({ ok: true, message: "If an active account exists, password reset instructions have been sent." });
     renderRoot();
 
+    await userEvent.click(await screen.findByRole("button", { name: /use password instead/i }));
     await userEvent.click(await screen.findByRole("button", { name: /forgot password/i }));
     await userEvent.type(screen.getByLabelText("Email"), "owner@example.test");
     await userEvent.click(screen.getByRole("button", { name: /send reset instructions/i }));
@@ -134,7 +163,7 @@ describe("Sign Out", () => {
 
     expect(mocks.logout).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.queryByRole("button", { name: /sign out/i })).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /email secure sign-in link/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "OpsWorkbench" })).toBeInTheDocument();
     expect(localStorage.getItem("cc.csrf")).toBeNull();
   });
@@ -145,7 +174,7 @@ describe("Sign Out", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /sign out/i }));
 
-    expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /email secure sign-in link/i })).toBeInTheDocument();
     expect(screen.queryByText("Overview")).not.toBeInTheDocument();
   });
 

@@ -30,7 +30,7 @@ import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { revealConnectivity } from "./connectivityVault.js";
 import { bootstrapArtifactMetadata } from "./bootstrapArtifact.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
-import { passwordResetUrl, sendPasswordResetEmail } from "./passwordResetMailer.js";
+import { emailLoginUrl, passwordResetUrl, sendEmailLoginEmail, sendPasswordResetEmail } from "./passwordResetMailer.js";
 import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 
 export const router = express.Router();
@@ -48,6 +48,9 @@ const passwordResetCompletionLimiter = rateLimit({
   legacyHeaders: false
 });
 const passwordResetIdentifierAttempts = new Map<string, { count: number; resetAt: number }>();
+const emailLoginRequestLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 5, standardHeaders: true, legacyHeaders: false });
+const emailLoginCompletionLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const emailLoginIdentifierAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function boundedAttempt(map: Map<string, { count: number; resetAt: number }>, key: string, limit: number) {
   const now = Date.now();
@@ -74,6 +77,24 @@ function passwordResetTokenLimit(req: express.Request, res: express.Response, ne
   if (!token) return next();
   if (!boundedAttempt(passwordResetIdentifierAttempts, hashSecret(token), 10)) {
     return res.status(400).json({ error: "Reset link is invalid or expired" });
+  }
+  next();
+}
+
+function emailLoginIdentifierLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const email = z.object({ email: z.string().email() }).safeParse(req.body).data?.email.toLowerCase();
+  if (!email) return next();
+  if (!boundedAttempt(emailLoginIdentifierAttempts, hashSecret(email), 3)) {
+    return res.status(202).json({ ok: true, message: "If an active account exists, a secure sign-in link has been sent." });
+  }
+  next();
+}
+
+function emailLoginTokenLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const token = z.object({ token: z.string().min(1) }).safeParse(req.body).data?.token;
+  if (!token) return next();
+  if (!boundedAttempt(emailLoginIdentifierAttempts, hashSecret(token), 10)) {
+    return res.status(400).json({ error: "Sign-in link is invalid or expired" });
   }
   next();
 }
@@ -163,6 +184,59 @@ router.post("/auth/login", noStore, async (req, res, next) => {
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId });
     res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
+});
+
+router.post("/auth/email-login/request", noStore, emailLoginRequestLimiter, emailLoginIdentifierLimit, async (req, res, next) => {
+  try {
+    const body = z.object({ email: z.string().email() }).parse(req.body);
+    const org = await resolveLoginOrganization();
+    const user = org?._id && org.status !== "suspended" ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
+    if (org?._id && user?._id) {
+      const token = randomToken(32);
+      const now = new Date();
+      const requestedTtl = Number(process.env.CONTROL_CENTER_EMAIL_LOGIN_TTL_MINUTES || 10);
+      const ttlMinutes = Number.isFinite(requestedTtl) ? Math.min(30, Math.max(5, requestedTtl)) : 10;
+      const expiresAt = new Date(now.getTime() + ttlMinutes * 60_000);
+      const delivery = await sendEmailLoginEmail({ email: user.email, loginUrl: emailLoginUrl(token), requestId: req.requestId });
+      await collections.emailLoginTokens.updateMany({ orgId: org._id, userId: user._id, usedAt: { $exists: false } }, { $set: { usedAt: now, updatedAt: now } });
+      if (delivery.status === "sent") {
+        await collections.emailLoginTokens.insertOne({ orgId: org._id, userId: user._id, tokenHash: hashSecret(token), expiresAt, deliveryStatus: delivery.status, createdAt: now, updatedAt: now });
+      }
+      await audit({ orgId: org._id, actorType: "anonymous", action: "auth.login", targetType: "user", targetId: user._id, result: delivery.status === "sent" ? "success" : "failure", requestId: req.requestId, metadata: { method: "email-token", stage: "requested", delivery: delivery.status } });
+    } else {
+      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "success", requestId: req.requestId, metadata: { method: "email-token", stage: "requested", accountMatched: false } });
+    }
+    return res.status(202).json({ ok: true, message: "If an active account exists, a secure sign-in link has been sent." });
+  } catch (error) { return next(error); }
+});
+
+router.post("/auth/email-login/complete", noStore, emailLoginCompletionLimiter, emailLoginTokenLimit, async (req, res, next) => {
+  try {
+    const body = z.object({ token: z.string().min(32).max(512) }).parse(req.body);
+    const now = new Date();
+    const loginToken = await collections.emailLoginTokens.findOneAndUpdate(
+      { tokenHash: hashSecret(body.token), deliveryStatus: "sent", expiresAt: { $gt: now }, usedAt: { $exists: false } },
+      { $set: { usedAt: now, updatedAt: now } },
+      { returnDocument: "after" }
+    );
+    if (!loginToken?._id) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { method: "email-token", reason: "invalid-or-expired" } });
+      return res.status(400).json({ error: "Sign-in link is invalid or expired" });
+    }
+    const [org, user] = await Promise.all([
+      collections.organizations.findOne({ _id: loginToken.orgId, status: { $ne: "suspended" } }),
+      collections.users.findOne({ _id: loginToken.userId, orgId: loginToken.orgId, disabledAt: { $exists: false } })
+    ]);
+    if (!org?._id || !user?._id) {
+      await audit({ orgId: loginToken.orgId, actorType: "anonymous", action: "auth.denied", targetType: "user", targetId: loginToken.userId, result: "denied", requestId: req.requestId, metadata: { method: "email-token", reason: "account-unavailable" } });
+      return res.status(400).json({ error: "Sign-in link is invalid or expired" });
+    }
+    await collections.emailLoginTokens.updateMany({ orgId: org._id, userId: user._id, usedAt: { $exists: false } }, { $set: { usedAt: now, updatedAt: now } });
+    const session = await createSession(user);
+    setSessionCookie(res, session.sessionId);
+    await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", targetType: "user", targetId: user._id, result: "success", requestId: req.requestId, metadata: { method: "email-token" } });
+    return res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
+  } catch (error) { return next(error); }
 });
 
 router.use("/auth/logout", noStore, allowExpiredLogout, requireSession, requireCsrf);

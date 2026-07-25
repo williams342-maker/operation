@@ -43,11 +43,13 @@ import {
   bootstrapOwner,
   bootstrapStatus,
   changePassword,
+  completeEmailLogin,
   completePasswordReset,
   isRecentAuthRequired,
   login,
   logout,
   reauthenticate,
+  requestEmailLogin,
   requestPasswordReset,
   SESSION_EXPIRED_EVENT,
 } from "./api";
@@ -179,39 +181,57 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
 }
 function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPassword: () => void }) {
   const f = useForm({ email: "", password: "" });
-  const mutation = useMutation({
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [linkRequested, setLinkRequested] = useState(false);
+  const passwordMutation = useMutation({
     mutationFn: () => login(f.values.email, f.values.password),
     onSuccess: onLogin,
   });
+  const emailMutation = useMutation({
+    mutationFn: () => requestEmailLogin(f.values.email),
+    onSuccess: () => setLinkRequested(true),
+  });
+  const pending = passwordMutation.isPending || emailMutation.isPending;
   return (
     <Centered title="OpsWorkbench">
-      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
+      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (pending) return; if (passwordMode) passwordMutation.mutate(); else emailMutation.mutate(); }}>
+        <p className="text-sm text-muted">Sign in with a short-lived, single-use link sent to your secure email.</p>
         <Field
           aria-label="Email"
           placeholder="Email"
           autoComplete="username"
           {...f.field("email")}
         />
-        <PasswordField
+        {passwordMode && <PasswordField
           aria-label="Password"
           placeholder="Password"
           autoComplete="current-password"
           {...f.field("password")}
-        />
+        />}
         <Button
           type="submit"
           className="w-full"
-          disabled={mutation.isPending || !f.values.email || !f.values.password}
+          disabled={pending || !f.values.email || (passwordMode && !f.values.password)}
         >
-          {mutation.isPending ? "Signing in..." : "Sign in"}
+          {pending ? "Signing in..." : passwordMode ? "Sign in with password" : "Email secure sign-in link"}
         </Button>
+        {linkRequested && <p role="status" className="text-sm text-success">If an active account exists, a secure sign-in link has been sent.</p>}
         <div className="text-center">
-          <button type="button" className="text-sm text-primary hover:underline" onClick={onForgotPassword}>Forgot password?</button>
+          <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setPasswordMode((current) => !current); setLinkRequested(false); }}>{passwordMode ? "Use secure email link" : "Use password instead"}</button>
+          {passwordMode && <button type="button" className="mt-2 block w-full text-sm text-primary hover:underline" onClick={onForgotPassword}>Forgot password?</button>}
         </div>
-        <ErrorText error={mutation.error} />
+        <ErrorText error={passwordMutation.error || emailMutation.error} />
       </form>
     </Centered>
   );
+}
+
+function EmailLogin({ token, onComplete }: { token: string; onComplete: () => void }) {
+  const mutation = useMutation({ mutationFn: () => completeEmailLogin(token), onSuccess: onComplete });
+  useEffect(() => { if (token && !mutation.isPending && !mutation.isSuccess && !mutation.isError) mutation.mutate(); }, [token]);
+  return <Centered title="Secure email sign-in">
+    {!token ? <p role="alert" className="text-sm text-danger">Sign-in link is invalid or expired.</p> : mutation.isPending ? <p className="text-sm text-muted">Verifying your single-use sign-in link…</p> : mutation.isError ? <ErrorText error={mutation.error} /> : <p className="text-sm text-muted">Completing secure sign-in…</p>}
+  </Centered>;
 }
 function ForgotPassword({ onBack }: { onBack: () => void }) {
   const f = useForm({ email: "" });
@@ -2053,6 +2073,11 @@ export function Root() {
   if (!authed && window.location.pathname === "/reset-password") {
     const token = new URLSearchParams(window.location.search).get("token") || "";
     return <ResetPassword token={token} onComplete={() => { window.history.replaceState({}, "", "/"); setAuthScreen("login"); }} />;
+  }
+  if (!authed && window.location.pathname === "/email-login") {
+    const token = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "";
+    if (window.location.hash) window.history.replaceState({}, "", "/email-login");
+    return <EmailLogin token={token} onComplete={() => { window.history.replaceState({}, "", "/"); setAuthed(true); }} />;
   }
   return authed ? (
     <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />

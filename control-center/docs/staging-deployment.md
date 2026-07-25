@@ -206,6 +206,14 @@ AI status is `disabled`, `unconfigured`, or `ready`. Credential values are never
 5. Set `CONTROL_CENTER_BOOTSTRAP_MODE=disabled` (or `invitation`) and restart.
 6. Confirm `/api/auth/bootstrap` reports unavailable.
 
+## Secure email login
+
+Passwordless login is the preferred beta sign-in method. Configure
+`CONTROL_CENTER_EMAIL_LOGIN_WEBHOOK_URL`, optionally add
+`CONTROL_CENTER_EMAIL_LOGIN_WEBHOOK_TOKEN`, and keep
+`CONTROL_CENTER_EMAIL_LOGIN_TTL_MINUTES=10`. Validate delivery and one-time
+exchange before removing password recovery. See `docs/secure-email-login.md`.
+
 ## AI enablement sequence (separate approval required)
 
 The first staging deployment keeps `AI_ASSISTANT_ENABLED=false`.

@@ -9,6 +9,7 @@ export type OrganizationDoc = { _id?: ObjectId; name: string; slug: string; defa
 export type UserDoc = BaseDoc & { email: string; name: string; role: Role; passwordHash: string; disabledAt?: Date; inviteIssuedAt?: Date; mustChangePassword?: boolean };
 export type SessionDoc = BaseDoc & { userId: ObjectId; csrfTokenHash: string; authenticatedAt: Date; expiresAt: Date; lastSeenAt: Date };
 export type PasswordResetTokenDoc = BaseDoc & { userId: ObjectId; tokenHash: string; expiresAt: Date; usedAt?: Date; deliveryStatus: "sent" | "not_configured" | "failed" };
+export type EmailLoginTokenDoc = BaseDoc & { userId: ObjectId; tokenHash: string; expiresAt: Date; usedAt?: Date; deliveryStatus: "sent" | "not_configured" | "failed" };
 export type EnrollmentUsage = { usedAt: Date; serverId: ObjectId; agentId: string; hostname: string };
 export type EnrollmentDoc = BaseDoc & { tokenHash: string; name: string; description?: string; expiresAt?: Date; maxUses?: number; uses: number; usage: EnrollmentUsage[]; usedAt?: Date; usedByAgentId?: ObjectId; createdByUserId: ObjectId; serverId?: ObjectId; artifactDeliveredAt?: Date; connectivityDeliveredAt?: Date; revokedAt?: Date };
 export type ConnectivityConfigDoc = BaseDoc & { serverId: ObjectId; provider: "cloudflare"; enabled: boolean; tunnelEnabled: boolean; accessEnabled: boolean; tunnelToken?: EnvelopeCiphertext; accessClientId?: EnvelopeCiphertext; accessClientSecret?: EnvelopeCiphertext; version: number; updatedByUserId: ObjectId };

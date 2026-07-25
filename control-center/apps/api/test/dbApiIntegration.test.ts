@@ -175,6 +175,8 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await assertIndex(collections.agentTasks, { historyExpiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.agentTaskResults, { orgId: 1, taskId: 1 }, { unique: true });
     await assertIndex(collections.agentTaskResults, { expiresAt: 1 }, { ttl: 0 });
+    await assertIndex(collections.emailLoginTokens, { tokenHash: 1 }, { unique: true });
+    await assertIndex(collections.emailLoginTokens, { expiresAt: 1 }, { ttl: 0 });
 
     const bootstrapStatus = await request<{ available: boolean }>("GET", "/auth/bootstrap");
     assert.equal(bootstrapStatus.status, 200);
@@ -238,6 +240,18 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(noSlugLogin.body.csrfToken);
     const noSlugSessionCookie = cookieFrom(noSlugLogin.headers);
     await collections.sessions.deleteOne({ _id: new ObjectId(noSlugSessionCookie.replace("cc_session=", "")), orgId: orgA._id });
+
+    const unknownEmailLogin = await request("POST", "/auth/email-login/request", { email: "missing@example.test" }, { "content-type": "application/json" });
+    assert.equal(unknownEmailLogin.status, 202);
+    assert.equal(JSON.stringify(unknownEmailLogin.body).includes("missing@example.test"), false);
+    const manualEmailLoginToken = crypto.randomBytes(32).toString("base64url");
+    await collections.emailLoginTokens.insertOne({ orgId: orgA._id, userId: ownerUserA._id, tokenHash: hashSecret(manualEmailLoginToken), expiresAt: new Date(Date.now() + 10 * 60_000), deliveryStatus: "sent", createdAt: new Date(), updatedAt: new Date() });
+    const completeEmailLogin = await request<{ csrfToken: string }>("POST", "/auth/email-login/complete", { token: manualEmailLoginToken }, { "content-type": "application/json" });
+    assert.equal(completeEmailLogin.status, 200);
+    assert.ok(completeEmailLogin.body.csrfToken);
+    assert.match(completeEmailLogin.headers.get("set-cookie") || "", /cc_session=/);
+    const reusedEmailLogin = await request("POST", "/auth/email-login/complete", { token: manualEmailLoginToken }, { "content-type": "application/json" });
+    assert.equal(reusedEmailLogin.status, 400);
 
     const unknownReset = await request("POST", "/auth/password-reset/request", { email: "missing@example.test" }, { "content-type": "application/json" });
     assert.equal(unknownReset.status, 202);
