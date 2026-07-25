@@ -86,6 +86,21 @@ test("agent activation uses bounded local-build compose flags", async () => {
   assert.deepEqual(calls[0].slice(0, 14), ["compose", "-f", item.compose, "-p", "fixture", "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull"]);
   assert.deepEqual(calls[0].slice(14), ["web"]);
 });
+test("agent activates the base and ordered Compose overrides together", async () => {
+  resetReplayStateForTests();
+  const item = fixture();
+  const override = path.join(item.root, "release.override.yml");
+  fs.writeFileSync(override, "services:\n  web:\n    image: fixture-release\n");
+  const calls: string[][] = [];
+  const result = await executeConfigurationDeployment({ ...item.payload, composeOverridePaths: [override] }, item.key, "compose-override-order", [...deploymentCapabilities], "0.1.0", {
+    ...safeNetwork,
+    compose: async (args) => { calls.push(args); return { code: 0 }; },
+    health: async () => true
+  });
+  assert.equal(result.phase, "succeeded");
+  assert.deepEqual(calls[0].slice(0, 7), ["compose", "-f", item.compose, "-f", override, "-p", "fixture"]);
+  assert.deepEqual(calls[0].slice(-1), ["web"]);
+});
 test("agent waits for delayed health before declaring success", async () => { resetReplayStateForTests(); const item = fixture(); let checks = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-002", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => ++checks > 1, healthRetryIntervalMs: 0 }); assert.equal(result.phase, "succeeded"); assert.equal(result.healthChecksPassed, 1); assert.equal(checks, 2); });
 test("agent rolls back and revalidates health", async () => { resetReplayStateForTests(); const item = fixture(); let composeCalls = 0; const result = await executeConfigurationDeployment(item.payload, item.key, "unique-nonce-rollback", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => { composeCalls += 1; return { code: 0 }; }, health: async () => composeCalls > 1, healthRetryWindowMs: 1, healthRetryIntervalMs: 0 }); assert.equal(result.phase, "rolled_back"); assert.equal(result.healthChecksPassed, 1); assert.equal(fs.readFileSync(item.env, "utf8"), "PUBLIC=value\n"); });
 test("agent distinguishes rollback activation and health failures", async () => { resetReplayStateForTests(); const activation = fixture(); let composeCalls = 0; const activationResult = await executeConfigurationDeployment(activation.payload, activation.key, "rollback-activation", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: ++composeCalls === 1 ? 1 : 2 }), health: async () => true }); assert.equal(activationResult.phase, "rollback_failed"); assert.equal(activationResult.rollbackErrorCategory, "activation"); resetReplayStateForTests(); const health = fixture(); const healthResult = await executeConfigurationDeployment(health.payload, health.key, "rollback-health", [...deploymentCapabilities], "0.1.0", { ...safeNetwork, compose: async () => ({ code: 0 }), health: async () => false, healthRetryWindowMs: 1, healthRetryIntervalMs: 0 }); assert.equal(healthResult.phase, "rollback_failed"); assert.equal(healthResult.rollbackErrorCategory, "health"); });

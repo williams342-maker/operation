@@ -5,6 +5,14 @@ import { configurationChangeDigest, configurationDeploymentPayloadSchema, deploy
 const base = { schemaVersion: "configuration-deployment-v1", action: "configuration.apply.v1", planId: "123456789012", planRevision: 1, deploymentId: "123456789013", environmentId: "123456789014", environmentKind: "staging", protected: false, targetProfileId: "123456789015", targetProfileRevision: 1, repositoryRoot: "/tmp/app", environmentFilePath: "/tmp/app/.env.staging", composePath: "/tmp/app/compose.yml", composeProject: "fixture", statelessServices: ["web"], protectedServices: ["mongo"], healthChecks: [{ id: "web", url: "http://127.0.0.1:3000/healthz", timeoutMs: 1000 }], mutations: [{ name: "EXAMPLE", versionId: "123456789016", secret: true, operation: "rotate", valueRef: "v:1" }], encryptedValues: { algorithm: "aes-256-gcm", ciphertext: "AA==", nonce: "AA==", authTag: "AA==", keyVersion: "v1" }, expectedConfigurationDigest: "a".repeat(64), automaticRollback: true };
 
 test("deployment schema permits typed non-production action", () => assert.equal(configurationDeploymentPayloadSchema.parse(base).environmentKind, "staging"));
+test("deployment schema preserves ordered Compose overrides", () => {
+  const parsed = configurationDeploymentPayloadSchema.parse({ ...base, composeOverridePaths: ["/tmp/app/release.yml", "/tmp/app/local.yml"] });
+  assert.deepEqual(parsed.composeOverridePaths, ["/tmp/app/release.yml", "/tmp/app/local.yml"]);
+});
+test("deployment schema rejects duplicate Compose paths", () => {
+  assert.throws(() => configurationDeploymentPayloadSchema.parse({ ...base, composeOverridePaths: [base.composePath] }));
+  assert.throws(() => configurationDeploymentPayloadSchema.parse({ ...base, composeOverridePaths: ["/tmp/app/release.yml", "/tmp/app/release.yml"] }));
+});
 test("deployment schema rejects production independently", () => assert.throws(() => configurationDeploymentPayloadSchema.parse({ ...base, environmentKind: "production" })));
 test("deployment schema rejects protected targets", () => assert.throws(() => configurationDeploymentPayloadSchema.parse({ ...base, protected: true })));
 test("deployment schema rejects stateful service overlap", () => assert.throws(() => configurationDeploymentPayloadSchema.parse({ ...base, statelessServices: ["mongo"] })));

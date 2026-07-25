@@ -2,14 +2,16 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { deployableEnvironmentKinds, deploymentCapabilities, encryptedValueBundleSchema, isCompatibleAgentVersion, minimumDeploymentAgentVersion } from "@control-center/shared";
 
-export type DeploymentTarget = { environmentKind: string; protected: boolean; repositoryRoot: string; environmentFilePath: string; composePath: string; statelessServices: string[]; protectedServices: string[] };
+export type DeploymentTarget = { environmentKind: string; protected: boolean; repositoryRoot: string; environmentFilePath: string; composePath: string; composeOverridePaths?: string[]; statelessServices: string[]; protectedServices: string[] };
 
 export function assertDeploymentPolicy(target: DeploymentTarget, capabilities: string[], agentVersion?: string) {
   if (target.protected || !(deployableEnvironmentKinds as readonly string[]).includes(target.environmentKind)) throw new Error("Production configuration deployment is unavailable");
   if (!isCompatibleAgentVersion(agentVersion)) throw new Error(`Agent version must be stable and at least ${minimumDeploymentAgentVersion}`);
   if (!deploymentCapabilities.every((item) => capabilities.includes(item))) throw new Error("Agent deployment capabilities are missing or incomplete");
   const root = path.resolve(target.repositoryRoot);
-  for (const candidate of [target.environmentFilePath, target.composePath]) { const resolved = path.resolve(candidate); if (resolved === root || !resolved.startsWith(`${root}${path.sep}`)) throw new Error("Deployment target escapes repository root"); }
+  const composePaths = [target.composePath, ...(target.composeOverridePaths || [])];
+  if (new Set(composePaths.map((item) => path.resolve(item))).size !== composePaths.length) throw new Error("Compose paths must be unique");
+  for (const candidate of [target.environmentFilePath, ...composePaths]) { const resolved = path.resolve(candidate); if (resolved === root || !resolved.startsWith(`${root}${path.sep}`)) throw new Error("Deployment target escapes repository root"); }
   const protectedSet = new Set(target.protectedServices);
   if (!target.statelessServices.length || target.statelessServices.some((service) => protectedSet.has(service))) throw new Error("Stateful or protected service cannot be recreated");
 }

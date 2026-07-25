@@ -102,5 +102,6 @@ denies an action, or that permits publication or signing.
 
 This authority profile is separate from a host-specific configuration target
 profile. A configuration deployment still needs its exact repository root,
-environment file, Compose path/project, service allowlist, and health checks
-before the control plane can create an immutable deployment plan.
+environment file, ordered base/override Compose paths, Compose project,
+service allowlist, and health checks before the control plane can create an
+immutable deployment plan.

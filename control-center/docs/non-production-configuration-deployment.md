@@ -10,7 +10,12 @@ OpsWorkbench can prepare and execute typed configuration changes only for `stagi
 - Agents must advertise every deployment capability. Older agents remain read-only; incomplete new agents cannot receive a deployment.
 - Agents must also report a stable semantic version at or above `0.1.0`; missing, malformed, prerelease, and older versions are rejected independently by the API and agent.
 - Secret values are decrypted only during approval, encrypted specifically for the assigned agent, and never returned by the API or included in audit metadata. Progress uses a strict value-free schema.
-- Target profiles pin the repository root, environment file, Compose file, project name, stateless services, protected services, and health checks. Paths must remain beneath the root. Symlinks, separate devices, and Linux mount points are rejected.
+- Target profiles pin the repository root, environment file, base Compose file,
+  ordered Compose override files, project name, stateless services, protected
+  services, and health checks. Every Compose file is passed to activation in
+  the recorded order so release-specific image/build overrides cannot be
+  silently dropped. Paths must remain beneath the root; duplicate, escaping,
+  symlinked, separate-device, and Linux mount-point targets are rejected.
 - Environment names and values are bounded. NUL, CR, LF, duplicate names, invalid syntax, unknown payload fields, and expected-version conflicts are rejected.
 - The agent creates an exclusive timestamped backup, preserves mode and ownership, writes and flushes a same-directory temporary file, then atomically renames it. Only fixed `docker compose` arguments are used; arbitrary shell execution is unavailable.
 - Only allowlisted stateless services are recreated. Protected/stateful service overlap is rejected. Failed activation or health verification restores the prior file and recreates the affected stateless services.

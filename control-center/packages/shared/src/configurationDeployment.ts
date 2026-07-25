@@ -30,6 +30,7 @@ export const configurationDeploymentPayloadSchema = z.object({
   repositoryRoot: z.string().min(1).max(1024),
   environmentFilePath: z.string().min(1).max(1024),
   composePath: z.string().min(1).max(1024),
+  composeOverridePaths: z.array(z.string().min(1).max(1024)).max(8).default([]),
   composeProject: safeId,
   statelessServices: z.array(safeId).min(1).max(30),
   protectedServices: z.array(safeId).max(30),
@@ -41,6 +42,8 @@ export const configurationDeploymentPayloadSchema = z.object({
   automaticRollback: z.literal(true)
 }).strict().superRefine((value, context) => {
   const protectedSet = new Set(value.protectedServices);
+  const composePaths = [value.composePath, ...value.composeOverridePaths];
+  if (new Set(composePaths).size !== composePaths.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "Compose paths must be unique", path: ["composeOverridePaths"] });
   for (const service of value.statelessServices) if (protectedSet.has(service)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Protected services cannot be activated", path: ["statelessServices"] });
   if (new Set(value.mutations.map((item) => item.name)).size !== value.mutations.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "Duplicate variable mutation", path: ["mutations"] });
 });

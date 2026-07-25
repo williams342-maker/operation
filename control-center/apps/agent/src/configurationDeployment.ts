@@ -162,7 +162,10 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const resolver = hooks.resolve;
   for (const check of payload.healthChecks) await withFailureStageAsync("health_preflight", "health", () => validateHealthUrl(check.url, resolver));
   let file = "";
-  try { file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath); assertSafePath(payload.repositoryRoot, payload.composePath); } catch (error) { throw tagFailure(error, categoryForPathGuard(error), "path_guard"); }
+  try {
+    file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath);
+    for (const composePath of [payload.composePath, ...payload.composeOverridePaths]) assertSafePath(payload.repositoryRoot, composePath);
+  } catch (error) { throw tagFailure(error, categoryForPathGuard(error), "path_guard"); }
   const stat = withFailureStage("file_guard", "environment", () => fs.lstatSync(file));
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw tagFailure(new Error("Environment file must be a regular file with one hard link"), "path", "file_guard");
   if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) throw tagFailure(new Error("Environment file permissions are too broad"), "environment", "file_guard");
@@ -171,7 +174,8 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const secrets = withFailureStage("decrypt", "parsing", () => decryptValues(payload, signingKey)); const proposed = withFailureStage("mutation", "parsing", () => applyEnvironmentMutations(original, payload.mutations, secrets));
   withFailureStage("write", "write", () => writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid));
   const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 300_000));
-  const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull", ...payload.statelessServices];
+  const composeFiles = [payload.composePath, ...payload.composeOverridePaths].flatMap((composePath) => ["-f", composePath]);
+  const args = ["compose", ...composeFiles, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", "--build", "--pull", "never", "--quiet-build", "--quiet-pull", ...payload.statelessServices];
   const activation = await compose(args, payload.repositoryRoot);
   const health = hooks.health || ((url: string, timeoutMs: number) => safeHealth(url, timeoutMs, resolver, hooks.httpRequest));
   const runHealth = (url: string, timeoutMs: number) => waitForHealth(url, timeoutMs, health, hooks.now || (() => new Date()), hooks.healthRetryWindowMs, hooks.healthRetryIntervalMs);
