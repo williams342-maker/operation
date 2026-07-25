@@ -57,6 +57,7 @@ export type AuditAction =
   | "ai.settings.disable"
   | "ai.settings.acknowledge"
   | "ai.assistant.rate_limited"
+  | "ai.provider.probe"
   | "website.workflow.create"
   | "website.discovery.answer"
   | "seo.audit.create"

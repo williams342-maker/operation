@@ -45,3 +45,16 @@ export function routeWorkforceRole(roleId: string, allowedProviders: string[], a
   const model = modelRegistry(allowedProviders, allowedModels, env.AI_WORKFORCE_MODEL_MAP).find((item) => configured.includes(item.provider) && item.capabilities.includes(role.capability));
   return model ? { role, provider: model.provider, model: model.id } : null;
 }
+
+export async function probeWorkforceProvider(provider: string, env: NodeJS.ProcessEnv = process.env, timeoutMs = 5000) {
+  const started = Date.now(); if (!(provider in providerRegistry)) return { ok: false, category: "unsupported", durationMs: 0 } as const;
+  if (provider === "mock") return { ok: true, category: "ready", durationMs: 0 } as const;
+  const credential = providerCredential(provider, env); const baseUrl = providerBaseUrl(provider, env); if (!credential || !baseUrl) return { ok: false, category: "unconfigured", durationMs: 0 } as const;
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), Math.min(10_000, Math.max(1000, timeoutMs)));
+  try {
+    const headers: Record<string, string> = provider === "anthropic" ? { "x-api-key": credential, "anthropic-version": "2023-06-01" } : provider === "gemini" ? { "x-goog-api-key": credential } : { authorization: `Bearer ${credential}` };
+    const suffix = provider === "gemini" ? "/models?pageSize=1" : "/models"; const response = await fetch(`${baseUrl.replace(/\/$/, "")}${suffix}`, { method: "GET", headers, signal: controller.signal }); await response.body?.cancel().catch(() => undefined);
+    if (!response.ok) return { ok: false, category: response.status === 401 || response.status === 403 ? "authentication" : response.status === 429 ? "rate_limited" : "provider", durationMs: Date.now() - started } as const;
+    return { ok: true, category: "ready", durationMs: Date.now() - started } as const;
+  } catch (error) { return { ok: false, category: error instanceof Error && error.name === "AbortError" ? "timeout" : "network", durationMs: Date.now() - started } as const; } finally { clearTimeout(timer); }
+}

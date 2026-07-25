@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { modelRegistry, providerBaseUrl, providerCredential, routeWorkforceRole, workforceRoles, workforceStatus } from "../src/aiWorkforce.js";
+import { modelRegistry, probeWorkforceProvider, providerBaseUrl, providerCredential, routeWorkforceRole, workforceRoles, workforceStatus } from "../src/aiWorkforce.js";
 
 test("workforce registry exposes four bounded read-only roles", () => {
   assert.deepEqual(workforceRoles.map((role) => role.id), ["operations-analyst", "seo-analyst", "website-planner", "reviewer"]);
@@ -31,4 +31,20 @@ test("provider credential and base URL lookup is provider specific", () => {
   assert.equal(providerCredential("openrouter", env), "router-key");
   assert.equal(providerCredential("gemini", env), "gemini-key");
   assert.equal(providerBaseUrl("openrouter", env), "https://openrouter.ai/api/v1");
+});
+
+test("provider probe sends authentication in headers and returns only normalized health", async () => {
+  let captured: RequestInit | undefined; const previous = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => { captured = init; return new Response("{}", { status: 200 }); }) as typeof fetch;
+  try { const result = await probeWorkforceProvider("openrouter", { OPENROUTER_API_KEY: "secret-value" }); assert.equal(result.ok, true); assert.equal(JSON.stringify(result).includes("secret-value"), false); assert.match(String((captured?.headers as Record<string, string>).authorization), /^Bearer /); } finally { globalThis.fetch = previous; }
+});
+
+test("provider probe normalizes authentication failures", async () => {
+  const previous = globalThis.fetch; globalThis.fetch = (async () => new Response("{}", { status: 401 })) as typeof fetch;
+  try { const result = await probeWorkforceProvider("gemini", { GEMINI_API_KEY: "secret-value" }); assert.equal(result.ok, false); assert.equal(result.category, "authentication"); } finally { globalThis.fetch = previous; }
+});
+
+test("provider probe remains inert when configuration is absent", async () => {
+  let calls = 0; const previous = globalThis.fetch; globalThis.fetch = (async () => { calls++; throw new Error("unexpected"); }) as typeof fetch;
+  try { const result = await probeWorkforceProvider("anthropic", {}); assert.equal(result.category, "unconfigured"); assert.equal(calls, 0); } finally { globalThis.fetch = previous; }
 });
