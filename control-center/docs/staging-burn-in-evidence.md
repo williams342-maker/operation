@@ -704,9 +704,56 @@ Ed25519 signature.
   or signing action occurred. The owner-controlled Ed25519 publication boundary
   remains mandatory and unchanged.
 
+### Bounded multi-page SEO crawl staging activation
+
+- Exact feature commit `e429a6aba75113f4f6275e4f6b485232c60f9bc5`
+  extends the read-only SEO workspace with sitemap-first and same-origin link
+  discovery, a configurable 1-to-25-page limit, a 20-second scheduling bound,
+  per-page evidence, duplicate title and description findings, canonical
+  mismatch findings, and safely bounded page-fetch failures. Every discovered
+  URL remains subject to public-address validation, pinned DNS, redirect
+  revalidation, same-origin enforcement, response-size limits, and request
+  timeouts.
+- Validation passed the complete workspace test suite, workspace type checking,
+  and all production builds. This includes 117 API tests with 2 guarded database
+  skips, 96 web component tests, 27 web structural checks, and 75 shared tests
+  with 1 platform skip. The production dependency audit reports zero runtime
+  vulnerabilities.
+- The immutable control-center archive SHA-256 digest is
+  `5ee139764facff5d7f65c9a3540db16dd92ce60a190b662be75b300afb6da390`.
+  API image digest
+  `cbdaf7ea949bc5328c5ecc7211ff1056923981516da8095e0ccbe30a3746859a`
+  and web image digest
+  `e0ae973de3ad0ebd907e6d8e1cd77ec365f0e3035887305211acc0e0d7fc8b76`
+  carry the exact source revision. The commit-bound agent package digest is
+  `1710f0ffd426fd934fb04cdcc7371dfd635a2866338e1ecaf7fc1d345fa1cd42`.
+- The active application release is
+  `/opt/opsworkbench/releases/review-e429a6ab/app`; immediate application
+  rollback remains `/opt/opsworkbench/releases/review-fbca8e7b/app`. Checkpoint
+  `/opt/opsworkbench/checkpoints/deploy-e429a6ab-20260726T052305Z` preserves the
+  prior release pointer and override, container inventory, prior image data,
+  and configuration digests. Agent rollback is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T052412Z`, and the previously
+  approved agent artifact was retained separately before replacement.
+- API and web are healthy with zero container restarts. Internal `/healthz` and
+  `/readyz` report the exact commit and ready MongoDB, agent heartbeat, audit,
+  rate-limiting, and environment state. The agent service is active on the same
+  exact commit. The SEO API returns 401 without application authentication, and
+  Cloudflare Access continues to protect external requests before they reach the
+  application. Recent API/web/agent logs contain no application error evidence.
+- Disk use is 87%, above the configured warning threshold but below the 90%
+  critical threshold. This activation resets the continuous staging burn-in.
+  Authenticated crawl creation and rendered page-inventory validation remain a
+  separate browser check and are not inferred from health evidence.
+- No production publication, DNS, payment, database migration, secret rotation,
+  or signing action occurred. The owner-controlled Ed25519 publication boundary
+  remains mandatory and unchanged.
+
 ## Remaining gates
 
-- Continue the new continuous staging burn-in for exact commit `8836151b`.
+- Continue the new continuous staging burn-in for exact commit `e429a6ab`.
+- Complete an authenticated staging browser crawl and verify its persisted page
+  inventory, duplicate/canonical findings, history entry, and audit event.
 - Exercise plan creation, independent approval by a
   different administrator, dispatch, acknowledgement, and a controlled
   rollback record. Do not bypass the separate-approver policy.
