@@ -13,7 +13,7 @@ target:
 - environment file:
   `/etc/opsworkbench-agent/targets/opsworkbench-staging/env/.env.staging`;
 - ordered Compose inputs: the shared base file first, then the active
-  `f4f584ac` release override, both copied byte-for-byte into that boundary;
+  `a93767e5` release override, both copied byte-for-byte into that boundary;
 - Compose project: `opsworkbench`;
 - recreatable services: `api` and `web`;
 - protected stateful service: `mongo`; and

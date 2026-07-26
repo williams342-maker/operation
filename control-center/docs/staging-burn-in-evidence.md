@@ -447,12 +447,57 @@ Ed25519 signature.
   base and override. No profile was registered or applied, and no service was
   built, recreated, restarted, or changed.
 
+### Audited target-registration candidate deployment
+
+- Exact commit `a93767e5896a7c4487ea2f8290241b91307b922a` was deployed to
+  staging only on 2026-07-26 UTC. The transferred immutable Git archive had
+  SHA-256 digest
+  `c1a9d8423da24d7dff4990de8bee250c9e50c56fdc16f3767f7a69456d53435d`.
+- The API and web images, OCI revision labels, API build identity, and bundled
+  agent artifact source marker all matched the exact candidate commit before
+  activation. API and web were recreated without recreating MongoDB or the
+  edge proxy.
+- After activation, API and web were healthy, public `/healthz` returned the
+  exact candidate commit, and public `/readyz` reported API, MongoDB, agent
+  heartbeat monitoring, audit indexes, rate limiting, cache, and environment
+  validation ready. AI remained disabled.
+- The restricted agent was atomically upgraded from the verified embedded
+  artifact. It reported active/running with zero systemd restarts and a fresh
+  authenticated heartbeat; its prior source remains at
+  `/opt/opsworkbench-agent/source.rollback-20260726T021518Z`.
+- The active release pointer is
+  `/opt/opsworkbench/releases/review-a93767e5/app`. The immediate application
+  rollback remains `/opt/opsworkbench/releases/review-f4f584ac/app`, whose
+  completed 24-hour burn-in evidence is preserved.
+- The new rollback checkpoint is
+  `/opt/opsworkbench/checkpoints/deploy-a93767e5-20260726T021017Z`. Its sorted
+  per-file SHA-256 evidence digest is
+  `dc658d4c45bee73e307fee6cbe6a8164efea61ff7acc48862c14a07a04fbf714`.
+- The restricted target copy was aligned to the active candidate. The base
+  Compose digest remains
+  `b9388757b8dc4f78b7f6b6a3fc69f1c3dc83b6afcb06a28d3f27c289d82ef770`;
+  the candidate override digest is
+  `68448343084c4b76792fd2601cfe80d806c6cd4e166f17cf917478c9d9c06b34`;
+  and the unprinted environment-file digest remains
+  `2f7bbe24480df6b91bc467c6ba42459219d9403a80a252eb3b1b424b60e7ddb4`.
+  Compose parsing passed as the unprivileged agent user.
+- The authenticated Configuration UI loaded the new audited registration
+  flow, and the committed value-free profile passed its strict client-side
+  validation. The server refused the final registration because the session
+  was older than the ten-minute recent-authentication window. No target
+  revision, deployment plan, configuration mutation, secret write, or service
+  activation resulted from that attempt.
+- This candidate does not inherit the completed `f4f584ac` observation
+  window. A new continuous burn-in must be completed for `a93767e5` before it
+  can become a release candidate.
+
 ## Remaining gates
 
-- Exercise the end-to-end control-plane configuration plan, separate approval,
-  dispatch, acknowledgement, and successful controlled rollback record.
-- Register the committed target candidate through the authenticated control
-  plane, then exercise plan creation, independent approval, dispatch,
-  acknowledgement, and a controlled rollback record.
+- Sign out and sign back in, then register the already validated target within
+  the ten-minute recent-authentication window.
+- After registration, exercise plan creation, independent approval by a
+  different administrator, dispatch, acknowledgement, and a controlled
+  rollback record. Do not bypass the separate-approver policy.
+- Complete a new continuous staging burn-in for exact commit `a93767e5`.
 - Before any production publication, insert the owner public-key identifier
   into a new policy revision and apply the required offline Ed25519 signatures.
