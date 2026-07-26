@@ -330,6 +330,53 @@ describe("Configuration workspace foundation", () => {
     expect(document.body.textContent).not.toMatch(/password|ciphertext|private key|bearer token/i);
   });
 
+  it("views, edits, disables, and enables audited target revisions through protected APIs", async () => {
+    const projectId = "aaaaaaaaaaaaaaaaaaaaaaaa";
+    const environmentId = "cccccccccccccccccccccccc";
+    const targetId = "ffffffffffffffffffffffff";
+    const updatedAt = "2026-07-26T02:30:00.000Z";
+    const summary = { _id: targetId, serverId: "111111111111111111111111", revision: 2, composeProject: "site-staging", statelessServices: ["api", "web"], protectedServices: ["mongo"], healthChecks: [{ id: "site-health", url: "https://staging.example.com/healthz", timeoutMs: 5000 }], currentConfigurationDigest: "a".repeat(64), enabled: true, updatedAt };
+    const detail = { ...summary, projectId, environmentId, repositoryRoot: "/etc/opsworkbench-agent/targets/site", environmentFilePath: "/etc/opsworkbench-agent/targets/site/env/.env.staging", composePath: "/etc/opsworkbench-agent/targets/site/docker-compose.yml", composeOverridePaths: ["/etc/opsworkbench-agent/targets/site/app.override.yml"] };
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: projectId, name: "Staging Site" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: environmentId, projectId, name: "Staging", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-targets" && options?.params?.environmentId === environmentId) return Promise.resolve({ data: { targets: [summary] } });
+      if (path === `/configuration/deployment-targets/${targetId}`) return Promise.resolve({ data: { target: detail } });
+      if (path === "/configuration/definitions") return Promise.resolve({ data: { definitions: [], versions: [] } });
+      return Promise.resolve({ data: { plan: null, history: [] } });
+    });
+    apiPatch.mockResolvedValue({ data: { id: "eeeeeeeeeeeeeeeeeeeeeeee", revision: 3, productionDeployment: false } });
+    apiPost.mockResolvedValue({ data: { id: targetId, revision: 2, enabled: false } });
+    const confirmation = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage(`/configuration?projectId=${projectId}`);
+
+    await userEvent.click(await screen.findByRole("button", { name: "View revision 2" }));
+    expect(await screen.findByLabelText("Deployment target profile details")).toHaveTextContent("/etc/opsworkbench-agent/targets/site");
+    await userEvent.click(screen.getByRole("button", { name: "Edit revision 2" }));
+    const editor = await screen.findByRole("textbox", { name: "Deployment target profile JSON" });
+    expect((editor as HTMLTextAreaElement).value).toContain('"composeProject": "site-staging"');
+    await userEvent.click(screen.getByRole("button", { name: "Validate target profile" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Create edited revision" }));
+    await waitFor(() => expect(apiPatch).toHaveBeenCalledWith(`/configuration/deployment-targets/${targetId}`, expect.objectContaining({ projectId, environmentId, composeProject: "site-staging" })));
+
+    await userEvent.click(screen.getByRole("button", { name: "Disable revision 2" }));
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining("Disable deployment target revision 2"));
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith(`/configuration/deployment-targets/${targetId}/status`, { enabled: false, expectedUpdatedAt: updatedAt }));
+    confirmation.mockRestore();
+  });
+
+  it("shows duplicate target registration conflicts without creating a revision", async () => {
+    const target = { projectId: "aaaaaaaaaaaaaaaaaaaaaaaa", environmentId: "cccccccccccccccccccccccc", serverId: "111111111111111111111111", repositoryRoot: "/etc/opsworkbench-agent/targets/site", environmentFilePath: "/etc/opsworkbench-agent/targets/site/env/.env.staging", composePath: "/etc/opsworkbench-agent/targets/site/docker-compose.yml", composeOverridePaths: [], composeProject: "site", statelessServices: ["web"], protectedServices: ["mongo"], healthChecks: [{ id: "health", url: "https://staging.example.com/healthz", timeoutMs: 5000 }] };
+    apiGet.mockImplementation((path: string) => path === "/projects" ? Promise.resolve({ data: { projects: [{ _id: target.projectId, name: "Site" }] } }) : path === "/configuration/environments" ? Promise.resolve({ data: { environments: [{ _id: target.environmentId, projectId: target.projectId, name: "Staging", kind: "staging", protected: false }] } }) : path === "/configuration/deployment-targets" ? Promise.resolve({ data: { targets: [] } }) : Promise.resolve({ data: { definitions: [], versions: [] } }));
+    apiPost.mockRejectedValue({ response: { status: 409, data: { error: "An identical target profile already exists as revision 1" } } });
+    renderPage(`/configuration?projectId=${target.projectId}`);
+    await userEvent.click(await screen.findByRole("button", { name: "Register deployment target" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Deployment target profile JSON" }), { target: { value: JSON.stringify(target) } });
+    await userEvent.click(screen.getByRole("button", { name: "Validate target profile" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Register target profile" }));
+    expect(await screen.findByText("An identical target profile already exists as revision 1")).toBeInTheDocument();
+  });
+
   it("approves an existing pending immutable deployment plan with the exact change digest", async () => {
     const digest = "a".repeat(64);
     const changeDigest = "d".repeat(64);

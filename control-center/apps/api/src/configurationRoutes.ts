@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import express from "express";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
@@ -109,6 +110,21 @@ configurationRouter.get("/configuration/capabilities/:serverId", requirePermissi
 });
 
 const targetProfileBody = z.object({ projectId: z.string(), environmentId: z.string(), serverId: z.string(), repositoryRoot: z.string().min(1).max(1024), environmentFilePath: z.string().min(1).max(1024), composePath: z.string().min(1).max(1024), composeOverridePaths: z.array(z.string().min(1).max(1024)).max(8).default([]), composeProject: z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/), statelessServices: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).min(1).max(30), protectedServices: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).max(30), healthChecks: z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/), url: z.string().url(), timeoutMs: z.number().int().min(100).max(30000) }).strict()).min(1).max(30), currentConfigurationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
+type TargetProfileBody = z.infer<typeof targetProfileBody>;
+
+function targetProfileDigest(body: TargetProfileBody) { return crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex"); }
+function targetProfileFields(body: TargetProfileBody) { return { serverId: oid(body.serverId), repositoryRoot: body.repositoryRoot, environmentFilePath: body.environmentFilePath, composePath: body.composePath, composeOverridePaths: body.composeOverridePaths, composeProject: body.composeProject, statelessServices: body.statelessServices, protectedServices: body.protectedServices, healthChecks: body.healthChecks, currentConfigurationDigest: body.currentConfigurationDigest }; }
+async function validateTargetProfileScope(body: TargetProfileBody, org: ObjectId) {
+  const projectId = oid(body.projectId); const environmentId = oid(body.environmentId); const serverId = oid(body.serverId);
+  const [project, environment, server] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org, primaryServerId: serverId }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId }), collections.servers.findOne({ _id: serverId, orgId: org })]);
+  if (!project || !environment || !server) return null;
+  assertDeploymentPolicy({ ...body, environmentKind: environment.kind, protected: environment.protected }, server.agentCapabilities || [], server.agentVersion);
+  await Promise.all(body.healthChecks.map((check) => validatePublicHealthCheckUrl(check.url)));
+  return { projectId, environmentId, serverId };
+}
+async function duplicateTargetProfile(org: ObjectId, projectId: ObjectId, environmentId: ObjectId, body: TargetProfileBody, digest: string) {
+  return collections.configurationTargetProfiles.findOne({ orgId: org, projectId, environmentId, $or: [{ profileDigest: digest }, targetProfileFields(body)] });
+}
 
 configurationRouter.get("/configuration/deployment-targets", requirePermission("configuration:view"), async (req, res, next) => {
   try {
@@ -116,22 +132,65 @@ configurationRouter.get("/configuration/deployment-targets", requirePermission("
     const org = orgId(req); const projectId = oid(query.projectId); const environmentId = oid(query.environmentId);
     const [project, environment] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId })]);
     if (!project || !environment) return res.status(404).json({ error: "Scoped project or environment not found" });
-    const targets = await collections.configurationTargetProfiles.find({ orgId: org, projectId, environmentId, enabled: true }, { projection: { orgId: 0, repositoryRoot: 0, environmentFilePath: 0, composePath: 0, composeOverridePaths: 0, createdByUserId: 0 } }).sort({ revision: -1 }).toArray();
+    const targets = await collections.configurationTargetProfiles.find({ orgId: org, projectId, environmentId }, { projection: { orgId: 0, profileDigest: 0, repositoryRoot: 0, environmentFilePath: 0, composePath: 0, composeOverridePaths: 0, createdByUserId: 0, predecessorId: 0, statusChangedByUserId: 0 } }).sort({ revision: -1 }).toArray();
     res.json({ targets });
+  } catch (error) { next(error); }
+});
+
+configurationRouter.get("/configuration/deployment-targets/:id", noStore, requireRecentAuth, requirePermission("configuration:manage-integrations"), async (req, res, next) => {
+  try {
+    const target = await collections.configurationTargetProfiles.findOne({ _id: oid(String(req.params.id)), orgId: orgId(req) }, { projection: { orgId: 0, profileDigest: 0, createdByUserId: 0, statusChangedByUserId: 0 } });
+    if (!target?._id) return res.status(404).json({ error: "Deployment target not found" });
+    res.json({ target });
   } catch (error) { next(error); }
 });
 
 configurationRouter.post("/configuration/deployment-targets", noStore, requireRecentAuth, requirePermission("configuration:manage-integrations"), async (req, res, next) => {
   try {
-    const body = targetProfileBody.parse(req.body); const org = orgId(req); const projectId = oid(body.projectId); const environmentId = oid(body.environmentId); const serverId = oid(body.serverId);
-    const [project, environment, server] = await Promise.all([collections.projects.findOne({ _id: projectId, orgId: org, primaryServerId: serverId }), collections.configurationEnvironments.findOne({ _id: environmentId, orgId: org, projectId }), collections.servers.findOne({ _id: serverId, orgId: org })]);
-    if (!project || !environment || !server) return res.status(404).json({ error: "Scoped deployment target was not found" });
-    assertDeploymentPolicy({ ...body, environmentKind: environment.kind, protected: environment.protected }, server.agentCapabilities || [], server.agentVersion);
-    await Promise.all(body.healthChecks.map((check) => validatePublicHealthCheckUrl(check.url)));
+    const body = targetProfileBody.parse(req.body); const org = orgId(req); const scope = await validateTargetProfileScope(body, org);
+    if (!scope) return res.status(404).json({ error: "Scoped deployment target was not found" });
+    const { projectId, environmentId, serverId } = scope; const profileDigest = targetProfileDigest(body);
+    const duplicate = await duplicateTargetProfile(org, projectId, environmentId, body, profileDigest);
+    if (duplicate?._id) { await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "configuration.target.create", targetType: "configuration-target-profile", targetId: duplicate._id, result: "failure", requestId: req.requestId, metadata: { reason: "duplicate", existingRevision: duplicate.revision } }); return res.status(409).json({ error: `An identical target profile already exists as revision ${duplicate.revision}` }); }
     const latest = await collections.configurationTargetProfiles.find({ orgId: org, projectId, environmentId }).sort({ revision: -1 }).limit(1).next(); const revision = (latest?.revision || 0) + 1; const now = new Date();
-    const result = await collections.configurationTargetProfiles.insertOne({ orgId: org, projectId, environmentId, serverId, revision, repositoryRoot: body.repositoryRoot, environmentFilePath: body.environmentFilePath, composePath: body.composePath, composeOverridePaths: body.composeOverridePaths, composeProject: body.composeProject, statelessServices: body.statelessServices, protectedServices: body.protectedServices, healthChecks: body.healthChecks, currentConfigurationDigest: body.currentConfigurationDigest, enabled: true, createdByUserId: actorId(req), createdAt: now, updatedAt: now });
+    let result; try { result = await collections.configurationTargetProfiles.insertOne({ orgId: org, projectId, environmentId, serverId, revision, profileDigest, repositoryRoot: body.repositoryRoot, environmentFilePath: body.environmentFilePath, composePath: body.composePath, composeOverridePaths: body.composeOverridePaths, composeProject: body.composeProject, statelessServices: body.statelessServices, protectedServices: body.protectedServices, healthChecks: body.healthChecks, currentConfigurationDigest: body.currentConfigurationDigest, enabled: true, createdByUserId: actorId(req), createdAt: now, updatedAt: now }); } catch (error) { if ((error as { code?: number }).code === 11000) return res.status(409).json({ error: "An identical target profile or revision already exists" }); throw error; }
+    await collections.configurationTargetProfiles.updateMany({ orgId: org, projectId, environmentId, _id: { $ne: result.insertedId }, enabled: true }, { $set: { enabled: false, statusChangedAt: now, statusChangedByUserId: actorId(req), updatedAt: now } });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "configuration.target.create", targetType: "configuration-target-profile", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { revision, composeFileCount: 1 + body.composeOverridePaths.length, statelessServiceCount: body.statelessServices.length, protectedServiceCount: body.protectedServices.length, healthCheckCount: body.healthChecks.length, configurationDigestRecorded: Boolean(body.currentConfigurationDigest) } });
     res.status(201).json({ id: result.insertedId, revision, productionDeployment: false });
+  } catch (error) { next(error); }
+});
+
+configurationRouter.patch("/configuration/deployment-targets/:id", noStore, requireRecentAuth, requirePermission("configuration:manage-integrations"), async (req, res, next) => {
+  try {
+    const body = targetProfileBody.parse(req.body); const org = orgId(req); const previous = await collections.configurationTargetProfiles.findOne({ _id: oid(String(req.params.id)), orgId: org });
+    if (!previous?._id) return res.status(404).json({ error: "Deployment target not found" });
+    if (previous.projectId.toHexString() !== body.projectId || previous.environmentId.toHexString() !== body.environmentId) return res.status(409).json({ error: "Target revisions cannot change project or environment scope" });
+    const scope = await validateTargetProfileScope(body, org); if (!scope) return res.status(404).json({ error: "Scoped deployment target was not found" });
+    const { projectId, environmentId } = scope; const profileDigest = targetProfileDigest(body); const duplicate = await duplicateTargetProfile(org, projectId, environmentId, body, profileDigest);
+    if (duplicate?._id) { await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "configuration.target.update", targetType: "configuration-target-profile", targetId: previous._id, result: "failure", requestId: req.requestId, metadata: { reason: "duplicate", existingRevision: duplicate.revision } }); return res.status(409).json({ error: `An identical target profile already exists as revision ${duplicate.revision}` }); }
+    const latest = await collections.configurationTargetProfiles.find({ orgId: org, projectId, environmentId }).sort({ revision: -1 }).limit(1).next(); const revision = (latest?.revision || 0) + 1; const now = new Date();
+    let result; try { result = await collections.configurationTargetProfiles.insertOne({ orgId: org, projectId, environmentId, revision, profileDigest, ...targetProfileFields(body), enabled: true, predecessorId: previous._id, createdByUserId: actorId(req), createdAt: now, updatedAt: now }); } catch (error) { if ((error as { code?: number }).code === 11000) return res.status(409).json({ error: "An identical target profile or revision already exists" }); throw error; }
+    await collections.configurationTargetProfiles.updateMany({ orgId: org, projectId, environmentId, _id: { $ne: result.insertedId }, enabled: true }, { $set: { enabled: false, statusChangedAt: now, statusChangedByUserId: actorId(req), updatedAt: now } });
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "configuration.target.update", targetType: "configuration-target-profile", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { revision, predecessorRevision: previous.revision, composeFileCount: 1 + body.composeOverridePaths.length, healthCheckCount: body.healthChecks.length } });
+    res.status(201).json({ id: result.insertedId, revision, predecessorRevision: previous.revision, productionDeployment: false });
+  } catch (error) { next(error); }
+});
+
+configurationRouter.post("/configuration/deployment-targets/:id/status", noStore, requireRecentAuth, requirePermission("configuration:manage-integrations"), async (req, res, next) => {
+  try {
+    const body = z.object({ enabled: z.boolean(), expectedUpdatedAt: z.string().datetime() }).strict().parse(req.body); const org = orgId(req); const id = oid(String(req.params.id));
+    const target = await collections.configurationTargetProfiles.findOne({ _id: id, orgId: org }); if (!target?._id) return res.status(404).json({ error: "Deployment target not found" });
+    if (target.enabled === body.enabled) return res.status(409).json({ error: `Deployment target is already ${body.enabled ? "enabled" : "disabled"}` });
+    if (body.enabled) {
+      const scopeBody = targetProfileBody.parse({ projectId: target.projectId.toHexString(), environmentId: target.environmentId.toHexString(), serverId: target.serverId.toHexString(), repositoryRoot: target.repositoryRoot, environmentFilePath: target.environmentFilePath, composePath: target.composePath, composeOverridePaths: target.composeOverridePaths || [], composeProject: target.composeProject, statelessServices: target.statelessServices, protectedServices: target.protectedServices, healthChecks: target.healthChecks, currentConfigurationDigest: target.currentConfigurationDigest });
+      if (!await validateTargetProfileScope(scopeBody, org)) return res.status(409).json({ error: "Deployment target scope is no longer valid" });
+    }
+    const now = new Date(); const update = await collections.configurationTargetProfiles.updateOne({ _id: id, orgId: org, updatedAt: new Date(body.expectedUpdatedAt), enabled: !body.enabled }, { $set: { enabled: body.enabled, statusChangedAt: now, statusChangedByUserId: actorId(req), updatedAt: now } });
+    if (!update.modifiedCount) return res.status(409).json({ error: "Deployment target changed; refresh before retrying" });
+    if (body.enabled) await collections.configurationTargetProfiles.updateMany({ orgId: org, projectId: target.projectId, environmentId: target.environmentId, _id: { $ne: id }, enabled: true }, { $set: { enabled: false, statusChangedAt: now, statusChangedByUserId: actorId(req), updatedAt: now } });
+    const action = body.enabled ? "configuration.target.enable" as const : "configuration.target.disable" as const;
+    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action, targetType: "configuration-target-profile", targetId: id, result: "success", requestId: req.requestId, metadata: { revision: target.revision, enabled: body.enabled } });
+    res.json({ id, revision: target.revision, enabled: body.enabled, updatedAt: now });
   } catch (error) { next(error); }
 });
 

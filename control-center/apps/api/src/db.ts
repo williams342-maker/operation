@@ -136,6 +136,7 @@ async function ensureIndexes() {
     collections.configurationVersions.createIndex({ orgId: 1, definitionId: 1, environmentId: 1, version: -1 }, { unique: true }),
     collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 }),
     collections.configurationTargetProfiles.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
+    collections.configurationTargetProfiles.createIndex({ orgId: 1, projectId: 1, environmentId: 1, profileDigest: 1 }, { unique: true, partialFilterExpression: { profileDigest: { $type: "string" } } }),
     collections.configurationDeploymentPlans.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
     collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 }),
     collections.agentReleases.createIndex({ orgId: 1, id: 1 }, { unique: true }),
