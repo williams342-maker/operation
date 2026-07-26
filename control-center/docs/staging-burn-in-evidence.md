@@ -704,6 +704,56 @@ Ed25519 signature.
   or signing action occurred. The owner-controlled Ed25519 publication boundary
   remains mandatory and unchanged.
 
+### Non-production deployment executor staging activation
+
+- Exact feature commit `87e1eaf30f755356eba6ab3617e75c89e2071dd6`
+  adds the signed `project.deploy` task, current separate-approver and recent
+  preflight enforcement, enabled target-profile binding, exact 40-character Git
+  revision activation, ordered base/override Compose support, a mandatory
+  current-revision checkpoint, health gating, and automatic checkpoint restore
+  plus health revalidation. Production, protected services, arbitrary commands,
+  database migrations, secret changes, and publication remain unavailable.
+- Shared validation passed 75 of 76 tests with one platform skip. Agent
+  validation passed 57 of 63 tests with six platform or disposable-Docker
+  skips, including exact-revision execution and verified automatic rollback.
+  API validation passed 120 of 122 tests with two guarded database skips. Web
+  validation passed 100 component tests plus 27 structural tests. All workspace
+  type checks and production builds passed.
+- The immutable control-center archive SHA-256 digest is
+  `4088549b53fc012ba30d2e3c2ad842361ddf8b5711877a30a1bf651663f3f719`.
+  API image identity is
+  `399e931dcb2a1e54858dfe4b73a14f38996ed913f6d4e7064d7027543fe6af71`
+  and web image identity is
+  `ef8cf019e5c469a3e189bb3eb17954ef6a4593c86e759ace5f490c500dfbacda`.
+  The API-produced agent source artifact SHA-256 digest is
+  `c691557de28a484802c29c89e70a8c931e905fe2d420b4871072195f17e5e999`.
+- The active application release is
+  `/opt/opsworkbench/releases/review-87e1eaf3/app`. Immediate application
+  rollback is preserved by checkpoint
+  `/opt/opsworkbench/checkpoints/deploy-87e1eaf3-20260726T141730Z`, which binds
+  the prior `050edf2a` images, override, release path, containers, and sorted
+  configuration digests. Agent rollback is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T142121Z`.
+- API and web are healthy on the exact feature commit with zero restarts.
+  Internal `/healthz` reports the exact revision. The agent is active on the
+  same revision with zero service restarts, a fresh `2026-07-26T14:21:22.504Z`
+  heartbeat, and advertised `projectDeploymentExecution` and
+  `projectDeploymentRollback` capabilities.
+- The existing browser session had expired; reloading `/dashboard` produced the
+  expected secure sign-in page. No credentials, login bypass, or session data
+  were used. An authenticated visual executor pass therefore remains gated on a
+  new supported sign-in.
+- Executor dispatch currently fails closed for the OpsWorkbench staging project:
+  its project record has no registered `repoPath`, and enabled target-profile
+  revision 1 at `/etc/opsworkbench-agent/targets/opsworkbench-staging` is a
+  reviewed Compose/configuration snapshot rather than a Git worktree. No direct
+  database insert or unaudited record manipulation was used. The supported UI
+  must register an exact Git-backed project and matching non-production target
+  before plan approval, dispatch, and controlled rollback testing.
+- No production publication, DNS, payment, database migration, secret rotation,
+  or signing action occurred. The owner-controlled Ed25519 publication boundary
+  remains mandatory and unchanged.
+
 ### Bounded multi-page SEO crawl staging activation
 
 - Exact feature commit `e429a6aba75113f4f6275e4f6b485232c60f9bc5`
@@ -848,15 +898,17 @@ Ed25519 signature.
 
 ## Remaining gates
 
-- Continue the new continuous staging burn-in for exact commit `050edf2a` and
-  complete the signed-in `/dashboard` visual pass when an authenticated browser
+- Continue continuous staging observation for exact commit `87e1eaf3` and
+  complete the signed-in executor visual pass when an authenticated browser
   session is available.
 - Decide whether `opsworkbench.org` should expose a public crawlable landing page
   outside Cloudflare Access or whether SEO audits should use a separately
   reviewed public target. This decision may affect a public access policy and is
   not made by staging automation.
-- Exercise plan creation, independent approval by a
-  different administrator, dispatch, acknowledgement, and a controlled
-  rollback record. Do not bypass the separate-approver policy.
+- Register the OpsWorkbench project and a matching reviewed Git-backed staging
+  target through the authenticated UI, then exercise plan creation, independent
+  approval by a different administrator, dispatch, acknowledgement, and a
+  controlled rollback record. Do not bypass the supported registration or
+  separate-approver policies.
 - Before any production publication, insert the owner public-key identifier
   into a new policy revision and apply the required offline Ed25519 signatures.
