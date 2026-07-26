@@ -66,6 +66,7 @@ export type AuditAction =
   | "configuration.environment.update"
   | "configuration.definition.create"
   | "configuration.version.create"
+  | "configuration.target.create"
   | "configuration.discovery.received"
   | "configuration.drift.detected"
   | "configuration.deployment.plan"

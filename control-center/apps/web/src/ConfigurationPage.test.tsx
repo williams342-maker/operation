@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -290,6 +290,44 @@ describe("Configuration workspace foundation", () => {
     expect(screen.getByText("Approval workflow pending")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue rollback request" })).toBeDisabled();
     expect(document.body.textContent).not.toMatch(/actual-secret|mongodb:\/\/|bearer token|ciphertext|credential value/i);
+  });
+
+  it("validates and registers an exact value-free non-production deployment target", async () => {
+    const target = {
+      projectId: "aaaaaaaaaaaaaaaaaaaaaaaa",
+      environmentId: "cccccccccccccccccccccccc",
+      serverId: "111111111111111111111111",
+      repositoryRoot: "/etc/opsworkbench-agent/targets/site",
+      environmentFilePath: "/etc/opsworkbench-agent/targets/site/env/.env.staging",
+      composePath: "/etc/opsworkbench-agent/targets/site/docker-compose.yml",
+      composeOverridePaths: ["/etc/opsworkbench-agent/targets/site/app.override.yml"],
+      composeProject: "site-staging",
+      statelessServices: ["api", "web"],
+      protectedServices: ["mongo"],
+      healthChecks: [{ id: "site-health", url: "https://staging.example.com/healthz", timeoutMs: 5000 }],
+      currentConfigurationDigest: "a".repeat(64)
+    };
+    apiGet.mockImplementation((path: string, options?: { params?: { projectId?: string; environmentId?: string } }) => {
+      if (path === "/projects") return Promise.resolve({ data: { projects: [{ _id: target.projectId, name: "Staging Site" }] } });
+      if (path === "/configuration/environments") return Promise.resolve({ data: { environments: [{ _id: target.environmentId, projectId: target.projectId, name: "Staging", kind: "staging", protected: false }] } });
+      if (path === "/configuration/deployment-targets" && options?.params?.environmentId === target.environmentId) return Promise.resolve({ data: { targets: [] } });
+      if (path === "/configuration/definitions" && options?.params?.projectId === target.projectId) return Promise.resolve({ data: { definitions: [], versions: [] } });
+      return Promise.resolve({ data: { definitions: [], versions: [] } });
+    });
+    apiPost.mockImplementation((path: string) => path === "/configuration/deployment-targets" ? Promise.resolve({ data: { id: "ffffffffffffffffffffffff", revision: 1, productionDeployment: false } }) : Promise.resolve({ data: { id: "unexpected" } }));
+    renderPage(`/configuration?projectId=${target.projectId}`);
+
+    const open = await screen.findByRole("button", { name: "Register deployment target" });
+    await waitFor(() => expect(open).toBeEnabled());
+    await userEvent.click(open);
+    fireEvent.change(screen.getByRole("textbox", { name: "Deployment target profile JSON" }), { target: { value: JSON.stringify(target) } });
+    await userEvent.click(screen.getByRole("button", { name: "Validate target profile" }));
+
+    expect(await screen.findByText("Ready to register")).toBeInTheDocument();
+    expect(screen.getByText("site-staging: api, web via 2 ordered Compose files; 1 health check.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Register target profile" }));
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/configuration/deployment-targets", target));
+    expect(document.body.textContent).not.toMatch(/password|ciphertext|private key|bearer token/i);
   });
 
   it("approves an existing pending immutable deployment plan with the exact change digest", async () => {

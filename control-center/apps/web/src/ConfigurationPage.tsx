@@ -4,6 +4,7 @@ import { api, apiError } from "./api";
 import { Badge, Button, Card, Field, GhostButton, Select, Skeleton, Table } from "./ui";
 import { configurationCategory, parseEnvironmentText, plainLanguageChangeSummary, type ImportedEnvironmentVariable } from "./configurationUx";
 import { ConfigurationDeploymentWorkflow, type DeploymentWorkflowState } from "./ConfigurationDeploymentWorkflow";
+import { parseDeploymentTargetProfile, type DeploymentTargetProfile } from "./deploymentTargetProfile";
 
 type Project = { _id: string; name: string; slug?: string };
 type Environment = { _id: string; projectId: string; name: string; kind: string; protected: boolean };
@@ -63,6 +64,27 @@ export function ConfigurationPage({ toast, navigate }: { toast: (message: string
   const selectedEnvironment = projectEnvironments.find((environment) => environment._id === environmentId);
   const deploymentTargets = useQuery<DeploymentTarget[]>({ queryKey: ["configuration-deployment-targets", projectId, environmentId], queryFn: () => api.get("/configuration/deployment-targets", { params: { projectId, environmentId } }).then((response) => response.data.targets || []), enabled: Boolean(projectId && environmentId) });
   const deploymentHistory = useQuery<{ history?: DeploymentHistoryItem[] }>({ queryKey: ["configuration-deployment-history", projectId, environmentId], queryFn: () => api.get("/configuration/deployment-history", { params: { projectId, environmentId, limit: 10 } }).then((response) => response.data), enabled: Boolean(projectId && environmentId) });
+  const [targetMode, setTargetMode] = useState(false);
+  const [targetText, setTargetText] = useState("");
+  const [targetPreview, setTargetPreview] = useState<DeploymentTargetProfile | null>(null);
+  const [targetValidationError, setTargetValidationError] = useState("");
+  useEffect(() => { setTargetMode(false); setTargetText(""); setTargetPreview(null); setTargetValidationError(""); }, [projectId, environmentId]);
+  const validateTargetProfile = () => {
+    const parsed = parseDeploymentTargetProfile(targetText, { projectId, environmentId, environmentKind: selectedEnvironment?.kind, protectedEnvironment: selectedEnvironment?.protected });
+    if (!parsed.ok) { setTargetPreview(null); setTargetValidationError(parsed.error); return; }
+    setTargetPreview(parsed.profile); setTargetValidationError("");
+  };
+  const createDeploymentTarget = useMutation({
+    mutationFn: () => {
+      if (!targetPreview) throw new Error("Validate the target profile before registration.");
+      return api.post("/configuration/deployment-targets", targetPreview).then((response) => response.data as { id: string; revision: number; productionDeployment: false });
+    },
+    onSuccess: (created) => {
+      setTargetMode(false); setTargetText(""); setTargetPreview(null); setTargetValidationError("");
+      queryClient.invalidateQueries({ queryKey: ["configuration-deployment-targets", projectId, environmentId] });
+      toast(`Deployment target revision ${created.revision} registered`);
+    }
+  });
 
   const [mode, setMode] = useState<"none" | "add" | "import" | "onboarding">("none");
   const [selected, setSelected] = useState<Definition | null>(null);
@@ -146,7 +168,7 @@ export function ConfigurationPage({ toast, navigate }: { toast: (message: string
   const history = deploymentHistory.data?.history || [];
   const lastDeployment = history[0];
   const rollbackAvailable = history.some((item) => item.state === "succeeded");
-  const error = createEnvironment.error || updateEnvironment.error || createDefinition.error || createVersion.error || createDeploymentPlan.error || approveDeploymentPlan.error || matrix.error || deploymentTargets.error || pendingDeploymentPlan.error || deploymentHistory.error;
+  const error = createEnvironment.error || updateEnvironment.error || createDefinition.error || createVersion.error || createDeploymentTarget.error || createDeploymentPlan.error || approveDeploymentPlan.error || matrix.error || deploymentTargets.error || pendingDeploymentPlan.error || deploymentHistory.error;
   const deploymentPlanActionError = createDeploymentPlan.error ? apiError(createDeploymentPlan.error) : approveDeploymentPlan.error ? apiError(approveDeploymentPlan.error) : "";
   const go = (path: string) => { if (navigate) navigate(path); else { window.history.pushState({}, "", path); window.dispatchEvent(new PopStateEvent("popstate")); } };
   const [validationReport, setValidationReport] = useState<{ status: "ready" | "needs_attention"; checkedAt: string; items: Array<{ label: string; status: string; detail: string; tone: "success" | "warning" | "danger" }> } | null>(null);
@@ -175,6 +197,12 @@ export function ConfigurationPage({ toast, navigate }: { toast: (message: string
     {validationReport && <Card><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Website validation</h3><p className="text-sm text-muted">Read-only project and environment readiness check. No deployment, promotion, server action, or secret display occurred.</p></div><Badge tone={validationReport.status === "ready" ? "success" : "warning"}>{validationReport.status === "ready" ? "Ready" : "Needs attention"}</Badge></div><div className="mt-3 max-w-full overflow-x-auto"><Table columns={["Check", "Status", "Detail"]} rows={validationReport.items.map((item) => [item.label, <Badge tone={item.tone}>{item.status}</Badge>, item.detail])} /></div><p className="mt-2 text-xs text-muted">Checked {new Date(validationReport.checkedAt).toLocaleString()}.</p></Card>}
 
     <Card><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Variables</h3><p className="text-sm text-muted">Required, missing, configured, pending, invalid, drifted, and unused settings appear here for the selected project and environment only. Secret values never appear.</p></div><div className="flex gap-2"><GhostButton disabled>Fix Missing Variables</GhostButton><GhostButton disabled>Review Drift</GhostButton></div></div><div className="mt-3 max-w-full overflow-x-auto">{matrix.isLoading ? <Skeleton /> : <Table columns={["Name", "Category", "Status", "Used By", "Type", "Last Updated", "Deployment State", "Action"]} rows={rows} empty={!projectId ? "Select an application" : !environmentId ? "Create an environment before adding values" : "No variables discovered or defined for this project"} />}</div></Card>
+
+    <Card><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">Deployment target</h3><p className="text-sm text-muted">Register an exact, value-free non-production target after host preflight. Registration creates a revision only; it does not deploy or reveal environment values.</p></div><Badge tone={enabledDeploymentTarget ? "success" : "neutral"}>{enabledDeploymentTarget ? `Revision ${enabledDeploymentTarget.revision}` : "Not registered"}</Badge></div>
+      {enabledDeploymentTarget && <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Compose project</dt><dd>{enabledDeploymentTarget.composeProject}</dd></div><div><dt className="text-muted">Stateless services</dt><dd>{enabledDeploymentTarget.statelessServices.join(", ")}</dd></div><div><dt className="text-muted">Protected services</dt><dd>{enabledDeploymentTarget.protectedServices.join(", ") || "None"}</dd></div><div><dt className="text-muted">Configuration digest</dt><dd>{enabledDeploymentTarget.currentConfigurationDigest ? "Recorded" : "Missing"}</dd></div></dl>}
+      <div className="mt-3"><GhostButton disabled={!projectId || !environmentId || selectedEnvironment?.protected || selectedEnvironment?.kind === "production"} onClick={() => { setTargetMode((current) => !current); setTargetPreview(null); setTargetValidationError(""); }}>{targetMode ? "Close target registration" : enabledDeploymentTarget ? "Register new target revision" : "Register deployment target"}</GhostButton></div>
+      {targetMode && <div className="mt-4 space-y-3 rounded-md border border-border bg-background/50 p-4"><label className="block text-sm">Target profile JSON<textarea aria-label="Deployment target profile JSON" className="mt-1 min-h-56 w-full rounded-md border border-border bg-background p-3 font-mono text-xs outline-none focus:border-primary" value={targetText} onChange={(event) => { setTargetText(event.target.value); setTargetPreview(null); setTargetValidationError(""); }} placeholder="Paste a reviewed value-free target profile" /></label><p className="text-xs text-muted">Only project/environment/server identifiers, paths, ordered Compose files, service allowlists, health checks, and an optional configuration digest are accepted. Credentials and unknown fields are rejected.</p><div className="flex flex-wrap gap-2"><Button disabled={!targetText.trim()} onClick={validateTargetProfile}>Validate target profile</Button><GhostButton onClick={() => { setTargetText(""); setTargetPreview(null); setTargetValidationError(""); }}>Clear</GhostButton></div>{targetValidationError && <p role="alert" className="text-sm text-danger">{targetValidationError}</p>}{targetPreview && <div className="rounded-md border border-success/40 bg-success/10 p-3 text-sm"><div className="font-semibold">Ready to register</div><p className="mt-1 text-muted">{targetPreview.composeProject}: {targetPreview.statelessServices.join(", ")} via {1 + targetPreview.composeOverridePaths.length} ordered Compose file{targetPreview.composeOverridePaths.length ? "s" : ""}; {targetPreview.healthChecks.length} health check{targetPreview.healthChecks.length === 1 ? "" : "s"}.</p><Button className="mt-3" disabled={createDeploymentTarget.isPending} onClick={() => createDeploymentTarget.mutate()}>Register target profile</Button></div>}</div>}
+    </Card>
 
     {pending.length > 0 && <Card><h3 className="font-semibold">Plain-language deployment plan</h3><p className="mt-1">{plan.heading}</p><ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">{plan.steps.map((step) => <li key={step}>{step}</li>)}</ol></Card>}
     <ConfigurationDeploymentWorkflow environmentKind={selectedEnvironment?.kind} protectedEnvironment={selectedEnvironment?.protected} state={deploymentWorkflowState} onPlan={() => createDeploymentPlan.mutate()} onApprove={() => approveDeploymentPlan.mutate()} planningDisabled={pending.length === 0 || deploymentVersionIds.length !== pending.length || !enabledDeploymentTarget?.currentConfigurationDigest || createDeploymentPlan.isPending} approving={approveDeploymentPlan.isPending} actionError={deploymentPlanActionError} />
