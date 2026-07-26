@@ -651,6 +651,59 @@ Ed25519 signature.
   action occurred. The owner-controlled Ed25519 publication boundary remains
   mandatory and unchanged.
 
+### Project SEO Optimizer staging activation
+
+- Exact feature commit `fbca8e7ba5931109e3b6808d35f799f380e9f882`
+  adds the authenticated project-scoped SEO workspace, explicit `seo:view` and
+  `seo:scan` permissions, bounded target-phrase checks, deterministic category
+  scoring, revisioned organization-isolated evidence, and audited scan success
+  and failure events. It does not claim search volume, rankings, or Core Web
+  Vitals and cannot modify content, deploy, publish, change DNS, or bypass the
+  owner release boundary.
+- The scanner accepts no request-supplied target URL. It uses the project's
+  reviewed server primary URL or the origin of an enabled health check, validates
+  public DNS, pins the request address, revalidates every redirect, rejects
+  credential-bearing and private destinations, caps response size and time, and
+  records non-HTML targets as invalid website evidence.
+- Validation passed API and security tests (113 passed, 2 guarded database
+  skips), web component tests (95 passed), web structural/accessibility checks
+  (27 passed), shared policy tests (75 passed, 1 platform skip), workspace API
+  and web type checking, and all production workspace builds. The initial full
+  workspace run also passed the agent, updater, deployment, and reproducible
+  signed-bootstrap suites. A transient Windows sandbox read error on the first
+  repeated web invocation cleared on an unchanged retry and was not a test
+  assertion failure.
+- The immutable control-center archive SHA-256 digest is
+  `58570848d0339191ac77fc8796b726ff380bab3b90ed439679517ad33343b1f3`.
+  API image digest
+  `c40847efd4d550d43a2bf32840709294643ce421360c8fbdb5051da172ad46c4`
+  and web image digest
+  `39fd702df130f1dd1bbdaf5fa89f738f25e79567ef3a6f65b8a63d5674edc04f`
+  both carry the exact source revision label. The agent package digest is
+  `702061981489f15f9b91d2223b26268dbd5f4d517f2ef7bc23fb57aa16935777`.
+- The active application release is
+  `/opt/opsworkbench/releases/review-fbca8e7b/app`; immediate application
+  rollback remains `/opt/opsworkbench/releases/review-332cadce/app`. Checkpoint
+  `/opt/opsworkbench/checkpoints/deploy-fbca8e7b-20260726T045400Z` preserves the
+  prior release pointer and override, container inventory, exact candidate image
+  data, and configuration digests. Agent rollback is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T045800Z`.
+- Post-activation API, web, and agent restart counts are zero. Local `/healthz`
+  and `/readyz` report the exact commit and ready MongoDB, audit, rate limiting,
+  and environment state. The `seo_audits` collection has the required unique
+  organization/project/revision index. The protected SEO API returns 401 without
+  a session, and the deployed browser route renders secure sign-in with no
+  client console errors. Cloudflare continues to return its expected external
+  access redirect.
+- Recent API/web logs contain no application errors, the agent warning journal
+  is empty, and disk use is 87%. This is above the warning threshold but remains
+  below the 90% critical threshold. The activation resets continuous burn-in.
+  Authenticated scan creation and result rendering require a renewed owner
+  browser session and are not inferred from unauthenticated evidence.
+- No production publication, DNS, payment, database migration, secret rotation,
+  or signing action occurred. The owner-controlled Ed25519 publication boundary
+  remains mandatory and unchanged.
+
 ## Remaining gates
 
 - Continue the new continuous staging burn-in for exact commit `8836151b`.
