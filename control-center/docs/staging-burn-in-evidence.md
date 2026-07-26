@@ -547,6 +547,56 @@ Ed25519 signature.
   signing action occurred. The owner-controlled Ed25519 boundary remains
   mandatory and unchanged.
 
+### Public landing page and secure sign-in activation
+
+- Exact commit `d17d67403472e940435930513713be81a8e59849` completes the
+  aqua/green public landing experience and branded sign-in, password-recovery,
+  reset, and email-link verification screens. Secure email remains the primary
+  sign-in method, password access remains an explicit recovery path, protected
+  routes remain non-indexable, and unsafe return paths still collapse to
+  `/admin`.
+- Validation before transfer passed: 88 web component tests, 27 supplemental
+  web UI tests, focused authentication and routing coverage (25 tests), web
+  type checking, workspace linting, and the production web build. Browser
+  validation at 1440, 390, and 360 CSS pixels found no horizontal overflow;
+  the mobile menu trapped focus, closed with Escape, and returned focus to its
+  trigger.
+- The final immutable Git archive had SHA-256 digest
+  `246a9b894ef529177f342d9fc7b72331dd1af598ab52ad35d0e15b816a0d270c`.
+  API and web images, public `/healthz`, public `/readyz`, and the restricted
+  agent source marker all report the exact final commit. API, web, and agent
+  restart counts are zero, and their recent error scans are empty.
+- The active release pointer is
+  `/opt/opsworkbench/releases/review-d17d6740/app`. The immediate rollback
+  release is `/opt/opsworkbench/releases/review-5a5e64bb/app`; the rollback
+  checkpoint is
+  `/opt/opsworkbench/checkpoints/deploy-d17d6740-20260726T032900Z`, with sorted
+  evidence digest
+  `decc40c622eb093dc1c1ab0aabe1f0aa9b88465bc4108c9637a99509d64d2ecc`.
+  The prior agent source is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T033200Z`.
+- The restricted target copy parses successfully as `opsworkbench-agent`. Its
+  base Compose digest remains
+  `b9388757b8dc4f78b7f6b6a3fc69f1c3dc83b6afcb06a28d3f27c289d82ef770`,
+  its final override digest is
+  `20a72aed81a25d9be91b3940eb8f60597a2c85767ebc32fba75594b7a37c1461`,
+  and the unprinted environment-file digest remains
+  `2f7bbe24480df6b91bc467c6ba42459219d9403a80a252eb3b1b424b60e7ddb4`.
+- The authenticated browser verified that signed-in `/login` visits resolve to
+  `/admin` with title `Super User | OpsWorkbench`, while the public root keeps
+  its canonical URL, public metadata, marketing calls to action, SEO Optimizer
+  repository link, and discreet Super User entry point.
+- A new continuous observation window began at `2026-07-26T03:32:48Z`, with
+  earliest completion at `2026-07-27T03:32:48Z`. Its first three samples report
+  `observing`, 100.000% availability, 0.000% HTTP errors, 48 ms p95 latency,
+  30.4-second maximum heartbeat gap, 84.21% maximum disk use, and zero
+  unexpected restarts or critical alerts. The disk value is above the warning
+  threshold but remains below the 90% critical threshold; observation remains
+  active.
+- No production publication, production data, DNS, payment, secret, or signing
+  action occurred. The owner-controlled Ed25519 publication boundary remains
+  mandatory and unchanged.
+
 ## Remaining gates
 
 - Continue the new continuous staging burn-in for exact commit `8836151b`.
