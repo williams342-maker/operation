@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, regenerateSiteSection } from "../src/websiteBuilder.js";
+import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, inferWebsiteType, normalizeWebsiteObjective, regenerateSiteSection } from "../src/websiteBuilder.js";
 
 const brief = buildProjectBrief([
   { questionId: "business_name", value: "Acme Makers" },
@@ -17,6 +17,14 @@ test("website builder creates a structured brief from bounded discovery answers"
   assert.equal(brief.business.name, "Acme Makers");
   assert.deepEqual(brief.website.requiredPages, ["Home", "Services", "About", "Contact"]);
   assert.deepEqual(brief.brand.personality, ["warm", "trustworthy"]);
+});
+
+test("plain-language objectives are normalized and classified without provider use", () => {
+  assert.equal(normalizeWebsiteObjective("  Build   an online store\r\nfor our ceramics.  "), "Build an online store\nfor our ceramics.");
+  assert.equal(inferWebsiteType("Build an online store for our ceramics"), "store");
+  assert.equal(inferWebsiteType("Refresh our existing website and keep the same domain"), "redesign");
+  assert.equal(inferWebsiteType("Create a waitlist landing page for the summer launch"), "landing_page");
+  assert.equal(inferWebsiteType("Create a professional website for my consulting firm"), "business");
 });
 
 test("website architecture assigns stable routes and accessibility target", () => {

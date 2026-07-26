@@ -4,7 +4,7 @@ import { z } from "zod";
 import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections } from "./db.js";
-import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, regenerateSiteSection } from "./websiteBuilder.js";
+import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, inferWebsiteType, normalizeWebsiteObjective, regenerateSiteSection } from "./websiteBuilder.js";
 
 export const websiteBuilderRouter = express.Router();
 
@@ -22,7 +22,7 @@ export const discoveryQuestions = [
 const websiteTypeSchema = z.enum(["business", "store", "landing_page", "redesign", "connected_project", "other"]);
 function workflowResponse(workflow: any) {
   const question = discoveryQuestions[workflow.currentQuestionIndex] || null;
-  return { workflow: { id: workflow._id, websiteType: workflow.websiteType, stage: workflow.stage, version: workflow.version, currentQuestionIndex: workflow.currentQuestionIndex, answerCount: workflow.answers.length, brief: workflow.brief, architecture: workflow.architecture, brandDirections: workflow.brandDirections, selectedBrandId: workflow.selectedBrandId, sections: workflow.sections, implementationPlan: workflow.implementationPlan, artifact: workflow.artifact, validation: workflow.validation, approvals: workflow.approvals || [], estimatedCredits: workflow.estimatedCredits, actualCredits: workflow.actualCredits, createdAt: workflow.createdAt, updatedAt: workflow.updatedAt }, question };
+  return { workflow: { id: workflow._id, websiteType: workflow.websiteType, objective: workflow.objective, stage: workflow.stage, version: workflow.version, currentQuestionIndex: workflow.currentQuestionIndex, answerCount: workflow.answers.length, brief: workflow.brief, architecture: workflow.architecture, brandDirections: workflow.brandDirections, selectedBrandId: workflow.selectedBrandId, sections: workflow.sections, implementationPlan: workflow.implementationPlan, artifact: workflow.artifact, validation: workflow.validation, approvals: workflow.approvals || [], estimatedCredits: workflow.estimatedCredits, actualCredits: workflow.actualCredits, createdAt: workflow.createdAt, updatedAt: workflow.updatedAt }, question };
 }
 
 async function loadWorkflow(req: express.Request, res: express.Response) {
@@ -43,10 +43,11 @@ websiteBuilderRouter.get("/website-builder/workflows", noStore, requirePermissio
 
 websiteBuilderRouter.post("/website-builder/workflows", noStore, requirePermission("ai:use"), async (req, res, next) => {
   try {
-    const body = z.object({ websiteType: websiteTypeSchema }).strict().parse(req.body); const now = new Date();
-    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType: body.websiteType, stage: "discovery", version: 1, currentQuestionIndex: 0, answers: [], estimatedCredits: 5, actualCredits: 0, createdAt: now, updatedAt: now });
+    const body = z.object({ websiteType: websiteTypeSchema.optional(), objective: z.string().trim().min(12).max(4000) }).strict().parse(req.body); const now = new Date();
+    const objective = normalizeWebsiteObjective(body.objective); const websiteType = body.websiteType || inferWebsiteType(objective);
+    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType, objective, stage: "discovery", version: 1, currentQuestionIndex: 0, answers: [], estimatedCredits: 5, actualCredits: 0, createdAt: now, updatedAt: now });
     const workflow = await collections.websiteBuildWorkflows.findOne({ _id: result.insertedId, orgId: req.orgId! });
-    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.workflow.create", targetType: "website_workflow", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { websiteType: body.websiteType, stage: "discovery", estimatedCredits: 5 } });
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.workflow.create", targetType: "website_workflow", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { websiteType, websiteTypeSource: body.websiteType ? "selected" : "inferred", objectiveChars: objective.length, stage: "discovery", estimatedCredits: 5 } });
     res.status(201).json(workflowResponse(workflow));
   } catch (error) { next(error); }
 });

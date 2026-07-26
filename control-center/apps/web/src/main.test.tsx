@@ -226,8 +226,10 @@ describe("Responsive navigation", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
     await userEvent.click(screen.getByRole("button", { name: /^AI Website Builder$/ }));
     expect(await screen.findByRole("heading", { name: "What would you like to create?", level: 2 })).toBeInTheDocument();
-    const start = screen.getByRole("button", { name: "Start guided discovery" });
+    const start = screen.getByRole("button", { name: "Plan this website" });
     expect(start).toBeDisabled();
+    await userEvent.type(screen.getByRole("textbox", { name: "What do you want to build or improve?" }), "Build a trustworthy business website");
+    expect(start).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: /New business website/ }));
     expect(start).toBeEnabled();
     expect(mocks.apiPost).not.toHaveBeenCalled();
@@ -240,12 +242,13 @@ describe("Responsive navigation", () => {
     renderRoot();
     await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
     await userEvent.click(screen.getByRole("button", { name: /^AI Website Builder$/ }));
+    await userEvent.type(screen.getByRole("textbox", { name: "What do you want to build or improve?" }), "Build a trustworthy website for local makers");
     await userEvent.click(await screen.findByRole("button", { name: /New business website/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Start guided discovery" }));
+    await userEvent.click(screen.getByRole("button", { name: "Plan this website" }));
     expect(await screen.findByRole("heading", { name: "What is the name of your business or organization?" })).toBeInTheDocument();
     await userEvent.type(screen.getByRole("textbox", { name: "Your answer" }), "Acme Makers");
     await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
-    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(1, "/website-builder/workflows", { websiteType: "business" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(1, "/website-builder/workflows", { websiteType: "business", objective: "Build a trustworthy website for local makers" }));
     await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(2, "/website-builder/workflows/workflow-1/answers", { questionId: "business_name", value: "Acme Makers" }));
     expect(await screen.findByRole("heading", { name: "What does your business do?" })).toBeInTheDocument();
     expect(screen.getByText("No AI credits used during manual discovery.")).toBeInTheDocument();

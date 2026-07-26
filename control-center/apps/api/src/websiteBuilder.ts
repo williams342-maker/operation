@@ -1,5 +1,6 @@
 export type WebsiteBuildStage = "discovery" | "brief_review" | "architecture_review" | "brand_review" | "content_review" | "implementation_approval" | "preview_ready" | "user_review" | "staging_approval" | "paused";
 export type DiscoveryAnswer = { questionId: string; value: string };
+export type WebsiteType = "business" | "store" | "landing_page" | "redesign" | "connected_project" | "other";
 import crypto from "node:crypto";
 
 export type SiteSection = { id: string; type: "hero" | "features" | "about" | "cta"; heading: string; body: string; cta?: string; version: number };
@@ -7,6 +8,19 @@ export type SiteSection = { id: string; type: "hero" | "features" | "about" | "c
 const answerMap = (answers: DiscoveryAnswer[]) => Object.fromEntries(answers.map((answer) => [answer.questionId, answer.value.trim()]));
 const list = (value = "") => value.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 12);
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
+
+export function normalizeWebsiteObjective(value: string) {
+  return value.replace(/\r\n?/g, "\n").replace(/[\t ]+/g, " ").trim();
+}
+
+export function inferWebsiteType(objective: string): WebsiteType {
+  const value = normalizeWebsiteObjective(objective).toLowerCase();
+  if (/\b(redesign|refresh|moderni[sz]e|replace).{0,30}\b(site|website)\b|\b(existing|current) (site|website)\b/.test(value)) return "redesign";
+  if (/\b(connected project|existing project|repository|repo)\b/.test(value)) return "connected_project";
+  if (/\b(online store|storefront|e-?commerce|shop|sell (?:my |our )?(?:products|goods|items))\b/.test(value)) return "store";
+  if (/\b(landing page|campaign page|waitlist|lead capture|single page)\b/.test(value)) return "landing_page";
+  return "business";
+}
 
 export function buildProjectBrief(answers: DiscoveryAnswer[], websiteType: string) {
   const value = answerMap(answers);
