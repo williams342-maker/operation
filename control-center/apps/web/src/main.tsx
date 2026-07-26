@@ -200,22 +200,30 @@ function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPas
     onSuccess: () => setLinkRequested(true),
   });
   const pending = passwordMutation.isPending || emailMutation.isPending;
+  if (capabilities.isLoading) return <AuthShell title="Welcome back" description="Checking the secure sign-in methods available for this workspace."><p role="status" className="auth-status">Loading secure sign-in…</p></AuthShell>;
   return (
-    <Centered title="OpsWorkbench">
-      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (pending) return; if (passwordMode) passwordMutation.mutate(); else emailMutation.mutate(); }}>
-        <p className="text-sm text-muted">{passwordMode ? emailAvailable ? "Use your password recovery path or switch to a secure email link." : "Secure email delivery is not configured. Use the password recovery path." : "Sign in with a short-lived, single-use link sent to your secure email."}</p>
+    <AuthShell title="Welcome back" description={passwordMode ? emailAvailable ? "Use your account password as a recovery sign-in method." : "Secure email delivery is not configured. Use the password recovery path." : "We’ll send a short-lived, single-use sign-in link to your secure email."}>
+      <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (pending) return; if (passwordMode) passwordMutation.mutate(); else emailMutation.mutate(); }}>
+        <label className="auth-field-label" htmlFor="login-email">Email address</label>
         <Field
+          id="login-email"
           aria-label="Email"
-          placeholder="Email"
+          placeholder="you@example.com"
+          type="email"
+          inputMode="email"
           autoComplete="username"
+          autoFocus
+          required
           {...f.field("email")}
         />
-        {passwordMode && <PasswordField
+        {passwordMode && <div><label className="auth-field-label" htmlFor="login-password">Password</label><PasswordField
+          id="login-password"
           aria-label="Password"
-          placeholder="Password"
+          placeholder="Enter your password"
           autoComplete="current-password"
+          required
           {...f.field("password")}
-        />}
+        /></div>}
         <Button
           type="submit"
           className="w-full"
@@ -223,23 +231,24 @@ function Login({ onLogin, onForgotPassword }: { onLogin: () => void; onForgotPas
         >
           {pending ? "Signing in..." : passwordMode ? "Sign in with password" : "Email secure sign-in link"}
         </Button>
-        {linkRequested && <p role="status" className="text-sm text-success">If an active account exists, a secure sign-in link has been sent.</p>}
-        <div className="text-center">
+        {linkRequested && <div role="status" className="auth-success"><Shield className="h-4 w-4" /><span>If an active account exists, a secure sign-in link has been sent. It may take a minute to arrive.</span></div>}
+        <div className="auth-alternatives">
           {emailAvailable && <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setRequestedMode((current) => current === "email" ? "password" : "email"); setLinkRequested(false); }}>{passwordMode ? "Use secure email link" : "Use password instead"}</button>}
           {passwordMode && <button type="button" className="mt-2 block w-full text-sm text-primary hover:underline" onClick={onForgotPassword}>Forgot password?</button>}
         </div>
+        {capabilities.isError && <p role="alert" className="auth-note">Secure email availability could not be verified. Password recovery remains available.</p>}
         <ErrorText error={passwordMutation.error || emailMutation.error} />
       </form>
-    </Centered>
+    </AuthShell>
   );
 }
 
 function EmailLogin({ token, onComplete }: { token: string; onComplete: () => void }) {
   const mutation = useMutation({ mutationFn: () => completeEmailLogin(token), onSuccess: onComplete });
   useEffect(() => { if (token && !mutation.isPending && !mutation.isSuccess && !mutation.isError) mutation.mutate(); }, [token]);
-  return <Centered title="Secure email sign-in">
-    {!token ? <p role="alert" className="text-sm text-danger">Sign-in link is invalid or expired.</p> : mutation.isPending ? <p className="text-sm text-muted">Verifying your single-use sign-in link…</p> : mutation.isError ? <ErrorText error={mutation.error} /> : <p className="text-sm text-muted">Completing secure sign-in…</p>}
-  </Centered>;
+  return <AuthShell title="Secure email sign-in" description="Your link is verified once and never displayed or stored in page content.">
+    {!token ? <p role="alert" className="text-sm text-danger">Sign-in link is invalid or expired.</p> : mutation.isPending ? <p role="status" className="auth-status">Verifying your single-use sign-in link…</p> : mutation.isError ? <ErrorText error={mutation.error} /> : <p role="status" className="auth-status">Completing secure sign-in…</p>}
+  </AuthShell>;
 }
 function ForgotPassword({ onBack }: { onBack: () => void }) {
   const f = useForm({ email: "" });
@@ -249,7 +258,7 @@ function ForgotPassword({ onBack }: { onBack: () => void }) {
     onSuccess: () => setSubmitted(true),
   });
   return (
-    <Centered title="Reset password">
+    <AuthShell title="Reset password" description="Request a private reset link for an active OpsWorkbench account.">
       <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
         <p className="text-sm text-muted">Enter your email address. If an active account exists, reset instructions will be sent.</p>
         <Field aria-label="Email" placeholder="Email" autoComplete="username" {...f.field("email")} />
@@ -258,7 +267,7 @@ function ForgotPassword({ onBack }: { onBack: () => void }) {
         <button type="button" className="w-full text-sm text-primary hover:underline" onClick={onBack}>Back to sign in</button>
         <ErrorText error={mutation.error} />
       </form>
-    </Centered>
+    </AuthShell>
   );
 }
 function ResetPassword({ token, onComplete }: { token: string; onComplete: () => void }) {
@@ -269,7 +278,7 @@ function ResetPassword({ token, onComplete }: { token: string; onComplete: () =>
   });
   const valid = token && f.values.password.length >= 12 && f.values.password === f.values.confirmPassword;
   return (
-    <Centered title="Choose a new password">
+    <AuthShell title="Choose a new password" description="Use at least 12 characters and keep this password unique to OpsWorkbench.">
       <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (valid && !mutation.isPending) mutation.mutate(); }}>
         <PasswordField aria-label="New password" placeholder="New password" autoComplete="new-password" {...f.field("password")} />
         <PasswordField aria-label="Confirm new password" placeholder="Confirm new password" autoComplete="new-password" {...f.field("confirmPassword")} />
@@ -277,7 +286,42 @@ function ResetPassword({ token, onComplete }: { token: string; onComplete: () =>
         {f.values.confirmPassword && f.values.password !== f.values.confirmPassword && <p className="text-sm text-danger">New passwords do not match.</p>}
         <ErrorText error={mutation.error} />
       </form>
-    </Centered>
+    </AuthShell>
+  );
+}
+
+function AuthShell({
+  title,
+  description,
+  children,
+}: React.PropsWithChildren<{ title: string; description: string }>) {
+  return (
+    <main className="auth-page">
+      <a className="auth-brand" href="/" aria-label="OpsWorkbench home">
+        <span className="auth-brand__mark" aria-hidden="true">OW</span>
+        <span>Ops<span>Work</span><strong>Bench</strong></span>
+      </a>
+      <div className="auth-layout">
+        <aside className="auth-story" aria-label="OpsWorkbench security overview">
+          <p className="auth-kicker">SECURE WORKSPACE ACCESS</p>
+          <h2>Deploy with confidence.<br />Operate with control.</h2>
+          <p>Access deployments, monitoring, automation, and audit history from one approval-gated workspace.</p>
+          <ul>
+            <li><Shield /> Short-lived, single-use email links</li>
+            <li><KeyRound /> Role-based access and protected admin routes</li>
+            <li><Activity /> Audited operational activity</li>
+          </ul>
+        </aside>
+        <section className="auth-card" aria-labelledby="auth-title">
+          <div className="auth-card__icon" aria-hidden="true"><KeyRound /></div>
+          <p className="auth-card__eyebrow">OPSWORKBENCH</p>
+          <h1 id="auth-title">{title}</h1>
+          <p className="auth-card__description">{description}</p>
+          {children}
+          <p className="auth-card__footer"><Shield className="h-4 w-4" /> Secure by design · <a href="/">Back to home</a></p>
+        </section>
+      </div>
+    </main>
   );
 }
 function Centered({

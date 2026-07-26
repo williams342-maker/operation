@@ -88,6 +88,8 @@ describe("Login experience", () => {
     expect(await screen.findByRole("button", { name: /email secure sign-in link/i })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/organization slug/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveAttribute("type", "email");
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveAttribute("autocomplete", "username");
     await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "owner@example.test{Enter}");
     await waitFor(() => expect(mocks.requestEmailLogin).toHaveBeenCalledWith("owner@example.test"));
     expect(await screen.findByRole("status")).toHaveTextContent(/secure sign-in link has been sent/i);
@@ -102,7 +104,7 @@ describe("Login experience", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /use password instead/i }));
     expect(screen.getByRole("button", { name: /sign in with password/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "OpsWorkbench" }).closest("section")?.parentElement).toHaveClass("w-full", "max-w-sm");
+    expect(screen.getByRole("heading", { name: "Welcome back" }).closest("section")).toHaveClass("auth-card");
     expect(screen.queryByPlaceholderText(/organization slug/i)).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByRole("textbox", { name: "Email" }), "owner@example.test");
@@ -184,6 +186,7 @@ describe("Public landing and Super User routing", () => {
     const trigger = await screen.findByRole("button", { name: "Open menu" });
     await userEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Site menu" })).toHaveAttribute("aria-modal", "true");
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "false"));
     expect(trigger).toHaveFocus();
@@ -239,7 +242,7 @@ describe("Sign Out", () => {
     expect(mocks.logout).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.queryByRole("button", { name: /sign out/i })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: /email secure sign-in link/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "OpsWorkbench" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     expect(localStorage.getItem("cc.csrf")).toBeNull();
   });
 

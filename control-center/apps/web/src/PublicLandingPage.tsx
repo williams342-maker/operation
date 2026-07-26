@@ -171,7 +171,7 @@ export function PublicLandingPage() {
         </div>
       </header>
       {menuOpen && <button className="mobile-menu-scrim" type="button" aria-label="Close menu" onClick={() => closeMenu()} />}
-      <div ref={menuRef} id="marketing-mobile-menu" className={`mobile-menu ${menuOpen ? "is-open" : ""}`} aria-hidden={!menuOpen}>
+      <div ref={menuRef} id="marketing-mobile-menu" className={`mobile-menu ${menuOpen ? "is-open" : ""}`} aria-hidden={!menuOpen} aria-modal={menuOpen || undefined} role={menuOpen ? "dialog" : undefined} aria-label={menuOpen ? "Site menu" : undefined}>
         <Brand />
         <nav aria-label="Mobile public navigation">{nav.map(([label, href]) => <a key={label} href={href} onClick={() => closeMenu(false)}>{label}</a>)}</nav>
         <a className="marketing-button marketing-button--outline" href={adminLoginPath} onClick={() => trackMarketingEvent("sign_in")}>Sign In</a>
