@@ -73,9 +73,9 @@ jobs:
       CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
       CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
-      # Linux TAP inventory: agent 53 + API 92 + shared 53 + web 34 = 232.
-      CI_EXPECTED_TEST_SUITES: "agent=53,api=92,shared=53,web=34"
-      CI_EXPECTED_TESTS: "232"
+      # Linux TAP inventory: agent 53 + API 99 + shared 53 + web 34 = 239.
+      CI_EXPECTED_TEST_SUITES: "agent=53,api=99,shared=53,web=34"
+      CI_EXPECTED_TESTS: "239"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
