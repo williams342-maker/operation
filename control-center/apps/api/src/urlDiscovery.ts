@@ -47,6 +47,7 @@ export type PublicWebsiteHooks = {
   resolve?: AddressResolver;
   request?: (url: URL, address: string) => Promise<PublicWebsiteResponse>;
   allowedOrigins?: string[];
+  captureBlockedRedirect?: boolean;
 };
 
 function requestPinnedWebsite(url: URL, address: string): Promise<PublicWebsiteResponse> {
@@ -108,7 +109,9 @@ export async function fetchPublicWebsite(initialUrl: string, hooks: PublicWebsit
     const location = response.headers.location;
     if (response.status >= 300 && response.status < 400 && location) {
       if (redirects === 3) throw new Error("Too many redirects");
-      current = new URL(location, current).toString();
+      const destination = new URL(location, current).toString();
+      if (hooks.captureBlockedRedirect && !isSafeHttpCheckUrl(destination)) return { response, redirected: redirects > 0, blockedRedirect: true };
+      current = destination;
       continue;
     }
     return { response, redirected: redirects > 0 };

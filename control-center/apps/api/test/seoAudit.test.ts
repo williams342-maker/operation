@@ -39,6 +39,22 @@ test("SEO audit rejects a registered target that resolves privately", async () =
   await assert.rejects(() => runSeoAudit("https://private.example.test", [], 1, { resolve: async () => [{ address: "10.0.0.9", family: 4 }] }), /private or reserved/);
 });
 
+test("SEO audit records a protected login redirect instead of following query state", async () => {
+  const requested: string[] = [];
+  const result = await runSeoAudit("https://protected.example.test/", [], 1, {
+    resolve: async () => [{ address: "1.1.1.1", family: 4 }],
+    request: async (url) => {
+      requested.push(url.toString());
+      if (url.pathname === "/robots.txt" || url.pathname === "/sitemap.xml") return { status: 404, url: url.toString(), headers: {}, text: "" };
+      return { status: 302, url: url.toString(), headers: { location: "https://access.example.test/login?state=sensitive" }, text: "" };
+    }
+  });
+  assert.equal(result.pages.length, 1);
+  assert.equal(result.evidence.redirectBlocked, true);
+  assert.ok(result.findings.some((finding) => finding.code === "protected-redirect" && finding.severity === "critical"));
+  assert.equal(requested.includes("https://access.example.test/login?state=sensitive"), false);
+});
+
 test("page discovery keeps normalized same-origin HTML candidates only", () => {
   const html = '<a href="/about?utm=x#team">About</a><a href="https://external.test/page">External</a><a href="/asset.png">Image</a><a href="mailto:test@example.test">Mail</a><a href="/about">Duplicate</a>';
   assert.deepEqual(discoverSeoPageUrls(html, "https://public.example.test/"), ["https://public.example.test/about"]);

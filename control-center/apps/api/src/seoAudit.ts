@@ -9,6 +9,7 @@ export type SeoPageEvidence = {
   contentBytes: number;
   contentType?: string;
   redirected: boolean;
+  redirectBlocked?: boolean;
   title?: string;
   metaDescription?: string;
   canonical?: string;
@@ -60,7 +61,7 @@ export function sitemapPageUrls(xml: string, base: string, origin = new URL(base
   return [...new Set([...xml.matchAll(/<loc\b[^>]*>([\s\S]*?)<\/loc>/gi)].map((match) => text(match[1])).filter((value): value is string => Boolean(value)).map((value) => normalizedPageUrl(value, base, origin)).filter((value): value is string => Boolean(value)))];
 }
 
-export function analyzeSeoDocument(input: { html: string; requestedUrl: string; finalUrl: string; status: number; responseTimeMs: number; redirected: boolean; contentType?: string; robotsStatus?: number; sitemapStatus?: number; keywords?: string[] }) {
+export function analyzeSeoDocument(input: { html: string; requestedUrl: string; finalUrl: string; status: number; responseTimeMs: number; redirected: boolean; redirectBlocked?: boolean; contentType?: string; robotsStatus?: number; sitemapStatus?: number; keywords?: string[] }) {
   const { html } = input;
   const pageTitle = text(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]);
   const description = meta(html, "description");
@@ -71,9 +72,10 @@ export function analyzeSeoDocument(input: { html: string; requestedUrl: string; 
   const pageOrigin = new URL(input.finalUrl).origin;
   let internalLinkCount = 0; let externalLinkCount = 0;
   for (const href of anchors) { try { const resolved = new URL(href, input.finalUrl); if (resolved.protocol === "http:" || resolved.protocol === "https:") resolved.origin === pageOrigin ? internalLinkCount++ : externalLinkCount++; } catch { /* malformed links are ignored */ } }
-  const evidence: SeoPageEvidence = { requestedUrl: input.requestedUrl, finalUrl: input.finalUrl, status: input.status, responseTimeMs: input.responseTimeMs, contentBytes: Buffer.byteLength(html), contentType: input.contentType, redirected: input.redirected, title: pageTitle, metaDescription: description, canonical, h1Count: h1s.length, imageCount: images.length, imagesMissingAlt: images.filter((tag) => !attr(tag, "alt")?.trim()).length, internalLinkCount, externalLinkCount, robotsStatus: input.robotsStatus, sitemapStatus: input.sitemapStatus };
+  const evidence: SeoPageEvidence = { requestedUrl: input.requestedUrl, finalUrl: input.finalUrl, status: input.status, responseTimeMs: input.responseTimeMs, contentBytes: Buffer.byteLength(html), contentType: input.contentType, redirected: input.redirected, redirectBlocked: input.redirectBlocked, title: pageTitle, metaDescription: description, canonical, h1Count: h1s.length, imageCount: images.length, imagesMissingAlt: images.filter((tag) => !attr(tag, "alt")?.trim()).length, internalLinkCount, externalLinkCount, robotsStatus: input.robotsStatus, sitemapStatus: input.sitemapStatus };
   const findings: SeoFinding[] = [];
   const add = (finding: SeoFinding) => findings.push(finding);
+  if (input.redirectBlocked) add({ code: "protected-redirect", category: "technical", severity: "critical", title: "Protected redirect blocks public crawling", summary: "The page redirects to a URL containing authentication or other query state, so the audit refused to follow it.", recommendation: "Expose the intended public landing page without an authentication redirect, or register a separate reviewed public SEO target.", evidence: { status: input.status, sourceUrl: input.finalUrl } });
   if (input.status < 200 || input.status >= 400) add({ code: "page-http-status", category: "technical", severity: "critical", title: "Page does not return a successful status", summary: `The audited page returned HTTP ${input.status}.`, recommendation: "Restore a 2xx response or an intentional permanent redirect before optimizing page content.", evidence: { status: input.status } });
   if (input.contentType && !/text\/html|application\/xhtml\+xml/i.test(input.contentType)) add({ code: "content-type", category: "technical", severity: "critical", title: "Audit target is not an HTML page", summary: `The target returned ${input.contentType}.`, recommendation: "Set the project's public URL to the rendered website rather than an API or health endpoint.", evidence: { contentType: input.contentType } });
   if (!input.finalUrl.startsWith("https://")) add({ code: "https-missing", category: "technical", severity: "critical", title: "HTTPS is not active", summary: "The final audited URL uses unencrypted HTTP.", recommendation: "Serve the public page over HTTPS with a valid certificate and redirect HTTP traffic.", evidence: { finalUrl: input.finalUrl } });
@@ -100,13 +102,13 @@ export function analyzeSeoDocument(input: { html: string; requestedUrl: string; 
 export async function runSeoAudit(targetUrl: string, keywords: string[] = [], maxPages = 10, hooks: PublicWebsiteHooks = {}) {
   const requestedUrl = await validatePublicHealthCheckUrl(targetUrl, hooks.resolve);
   const started = Date.now();
-  const page = await fetchPublicWebsite(requestedUrl, hooks);
+  const page = await fetchPublicWebsite(requestedUrl, { ...hooks, captureBlockedRedirect: true });
   const responseTimeMs = Date.now() - started;
   const origin = new URL(page.response.url).origin;
   const sameOriginHooks = { ...hooks, allowedOrigins: [origin] };
   const optionalFetch = async (path: string) => { try { return await fetchPublicWebsite(new URL(path, origin).toString(), sameOriginHooks); } catch { return null; } };
   const [robots, sitemap] = await Promise.all([optionalFetch("/robots.txt"), optionalFetch("/sitemap.xml")]);
-  const root = analyzeSeoDocument({ html: page.response.text, requestedUrl, finalUrl: page.response.url, status: page.response.status, responseTimeMs, redirected: page.redirected, contentType: page.response.headers["content-type"], robotsStatus: robots?.response.status || 0, sitemapStatus: sitemap?.response.status || 0, keywords });
+  const root = analyzeSeoDocument({ html: page.response.text, requestedUrl, finalUrl: page.response.url, status: page.response.status, responseTimeMs, redirected: page.redirected, redirectBlocked: page.blockedRedirect, contentType: page.response.headers["content-type"], robotsStatus: robots?.response.status || 0, sitemapStatus: sitemap?.response.status || 0, keywords });
   const analyses = [{ analysis: root, html: page.response.text }];
   const queued = [...new Set([...(sitemap ? sitemapPageUrls(sitemap.response.text, page.response.url, origin) : []), ...discoverSeoPageUrls(page.response.text, page.response.url, origin)])];
   const seen = new Set([normalizedPageUrl(page.response.url, page.response.url, origin) || page.response.url]);
@@ -118,7 +120,7 @@ export async function runSeoAudit(targetUrl: string, keywords: string[] = [], ma
     const pageStarted = Date.now();
     try {
       const fetched = await fetchPublicWebsite(candidate, sameOriginHooks);
-      const analysis = analyzeSeoDocument({ html: fetched.response.text, requestedUrl: candidate, finalUrl: fetched.response.url, status: fetched.response.status, responseTimeMs: Date.now() - pageStarted, redirected: fetched.redirected, contentType: fetched.response.headers["content-type"], keywords });
+      const analysis = analyzeSeoDocument({ html: fetched.response.text, requestedUrl: candidate, finalUrl: fetched.response.url, status: fetched.response.status, responseTimeMs: Date.now() - pageStarted, redirected: fetched.redirected, redirectBlocked: fetched.blockedRedirect, contentType: fetched.response.headers["content-type"], keywords });
       analyses.push({ analysis, html: fetched.response.text });
       for (const discovered of discoverSeoPageUrls(fetched.response.text, fetched.response.url, origin)) if (!seen.has(discovered) && !queued.includes(discovered)) queued.push(discovered);
     } catch (error) {

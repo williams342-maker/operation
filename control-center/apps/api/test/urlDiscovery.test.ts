@@ -51,3 +51,18 @@ test("website discovery rejects credential-bearing redirect destinations", async
     request: async (url) => ({ status: 302, url: url.toString(), headers: { location: "https://user:secret@public.example.test/private" }, text: "" })
   }), /not an approved public HTTP target/);
 });
+
+test("SEO discovery can capture a protected redirect without following its query state", async () => {
+  const requested: string[] = [];
+  const result = await fetchPublicWebsite("https://public.example.test/", {
+    captureBlockedRedirect: true,
+    resolve: async () => [{ address: "1.1.1.1", family: 4 }],
+    request: async (url) => {
+      requested.push(url.toString());
+      return { status: 302, url: url.toString(), headers: { location: "https://login.example.test/access?state=sensitive" }, text: "" };
+    }
+  });
+  assert.equal(result.blockedRedirect, true);
+  assert.equal(result.response.status, 302);
+  assert.deepEqual(requested, ["https://public.example.test/"]);
+});
