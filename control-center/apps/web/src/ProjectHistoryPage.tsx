@@ -6,7 +6,7 @@ import { Badge, Button, Card, Field, GhostButton, Select, Skeleton } from "./ui"
 
 const when = (value?: string) => value ? new Date(value).toLocaleString() : "Unavailable";
 const tone = (status: string): "neutral" | "success" | "danger" | "warning" => status === "succeeded" ? "success" : status === "failed" ? "danger" : status === "cancelled" || status === "rolled_back" ? "warning" : "neutral";
-export const shouldPollProjectHistory = (records: Array<ProjectDeploymentHistoryItem | ProjectRollbackHistoryItem>, now = Date.now()) => records.some((record) => "requestedRevision" in record && Boolean(record.approvalExpiresAt && Date.parse(record.approvalExpiresAt) > now) && (record.gitPreflight?.status === "queued" || record.gitPreflight?.status === "running"));
+export const shouldPollProjectHistory = (records: Array<ProjectDeploymentHistoryItem | ProjectRollbackHistoryItem>, now = Date.now()) => records.some((record) => "requestedRevision" in record && (["preparing", "activating", "validating"].includes(record.status) || (Boolean(record.approvalExpiresAt && Date.parse(record.approvalExpiresAt) > now) && (record.gitPreflight?.status === "queued" || record.gitPreflight?.status === "running"))));
 
 export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: string; kind: "deployments" | "rollbacks"; navigate: (path: string) => void }) {
   const query = useQuery({
@@ -30,7 +30,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
   });
   const approvePlan = useMutation({
     mutationFn: async (deployment: ProjectDeploymentHistoryItem) => api.post(`/projects/${projectId}/deployments/${deployment.id}/approve`, { planDigest: deployment.planDigest, confirm: true }),
-    onSuccess: async () => { setPlanMessage("Deployment plan approved. Execution remains unavailable."); await query.refetch(); },
+    onSuccess: async () => { setPlanMessage("Deployment plan approved. Run both preflight gates before execution."); await query.refetch(); },
     onError: (error) => setPlanMessage(apiError(error))
   });
   const cancelPlan = useMutation({
@@ -45,7 +45,12 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
   });
   const runGitPreflight = useMutation({
     mutationFn: async (deployment: ProjectDeploymentHistoryItem) => api.post(`/projects/${projectId}/deployments/${deployment.id}/git-preflight`, { planDigest: deployment.planDigest, confirm: true }),
-    onSuccess: async () => { setPlanMessage("Read-only Git preflight queued. Deployment execution remains unavailable."); await query.refetch(); },
+    onSuccess: async () => { setPlanMessage("Read-only Git preflight queued. Execution becomes available after it passes."); await query.refetch(); },
+    onError: (error) => { setPlanMessage(apiError(error)); void query.refetch(); }
+  });
+  const executeDeployment = useMutation({
+    mutationFn: async (deployment: ProjectDeploymentHistoryItem) => api.post(`/projects/${projectId}/deployments/${deployment.id}/execute`, { planDigest: deployment.planDigest, confirm: "DEPLOY_WITH_AUTOMATIC_ROLLBACK" }),
+    onSuccess: async () => { setPlanMessage("Deployment queued with a required rollback checkpoint and automatic rollback."); await query.refetch(); },
     onError: (error) => { setPlanMessage(apiError(error)); void query.refetch(); }
   });
   const lastSuccessful = useMemo(() => kind === "deployments" ? query.data?.records.find((record) => "requestedRevision" in record && record.status === "succeeded") as ProjectDeploymentHistoryItem | undefined : undefined, [kind, query.data?.records]);
@@ -54,6 +59,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
   const data = query.data!;
   const approvalCurrent = (record: ProjectDeploymentHistoryItem) => Boolean(record.approvalExpiresAt && Date.parse(record.approvalExpiresAt) > Date.now());
   const gitPreflightCandidate = kind === "deployments" ? data.records.find((record) => "requestedRevision" in record && record.status === "approved" && record.controlPlanePreflight?.status === "passed" && approvalCurrent(record)) as ProjectDeploymentHistoryItem | undefined : undefined;
+  const executionCandidate = gitPreflightCandidate?.gitPreflight?.status === "passed" && gitPreflightCandidate.gitPreflight.checks.every((check) => check.passed) ? gitPreflightCandidate : undefined;
   const failedPreflightCandidate = kind === "deployments" ? data.records.find((record) => "requestedRevision" in record && record.status === "approved" && record.controlPlanePreflight?.status === "failed") as ProjectDeploymentHistoryItem | undefined : undefined;
   const expiredApprovalCandidate = kind === "deployments" ? data.records.find((record) => "requestedRevision" in record && record.status === "approved" && !approvalCurrent(record)) as ProjectDeploymentHistoryItem | undefined : undefined;
 
@@ -73,6 +79,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
       </div>
       {gitPreflightCandidate.gitPreflight?.checks.length ? <p className="mt-2 break-all text-sm">{gitPreflightCandidate.gitPreflight.checks.filter((check) => check.passed).length}/{gitPreflightCandidate.gitPreflight.checks.length} checks passed{gitPreflightCandidate.gitPreflight.resolvedRevision ? ` · resolved ${gitPreflightCandidate.gitPreflight.resolvedRevision}` : ""}{gitPreflightCandidate.gitPreflight.headRevision ? ` · HEAD ${gitPreflightCandidate.gitPreflight.headRevision}` : ""}</p> : null}
       <div className="mt-3"><GhostButton disabled={runGitPreflight.isPending || !gitPreflightCandidate.planDigest || Boolean(gitPreflightCandidate.gitPreflight)} onClick={() => runGitPreflight.mutate(gitPreflightCandidate)}>Run read-only Git preflight</GhostButton></div>
+      {executionCandidate && <div className="mt-3 rounded border border-border p-3"><strong>Execution gate satisfied</strong><p className="mt-1 text-sm text-muted">Queues the exact approved revision through the enabled target profile. A rollback checkpoint is mandatory and failed activation or health validation restores it automatically.</p><div className="mt-3"><Button disabled={executeDeployment.isPending || !executionCandidate.planDigest} onClick={() => executeDeployment.mutate(executionCandidate)}>Execute approved deployment</Button></div></div>}
     </Card>}
     <Card>
       <div className="text-xs text-muted">Project workspace</div>
@@ -92,7 +99,7 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
           <h3 className="font-semibold">Deployment Manager plan review</h3>
           <p className="text-sm text-muted">Draft a value-free immutable deployment plan before the separately reviewed execution slice. Creating a plan does not queue tasks, contact agents, or mutate infrastructure.</p>
         </div>
-        <Badge tone="warning">Planning only</Badge>
+        <Badge>Approval gated</Badge>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">Git revision<Field aria-label="Git revision" value={candidateRevision} onChange={(event) => { setCandidateRevision(event.target.value); setShowPlanPreview(false); }} placeholder="Commit SHA, 7-40 hex characters" /></label>
@@ -109,13 +116,13 @@ export function ProjectHistoryPage({ projectId, kind, navigate }: { projectId: s
       <div className="mt-3 flex flex-wrap gap-2">
         <Button disabled={!revisionReady} onClick={() => setShowPlanPreview(true)}>Preview immutable plan</Button>
         <GhostButton disabled={!showPlanPreview || createPlan.isPending} onClick={() => createPlan.mutate()}>Create plan record</GhostButton>
-        <GhostButton disabled title="Requires separate deployment execution authorization">Queue deployment</GhostButton>
+        <GhostButton disabled title="Complete approval and both preflight gates first">Queue deployment</GhostButton>
       </div>
       {!revisionReady && candidateRevision && <p role="alert" className="mt-2 text-sm text-danger">Enter a 7 to 40 character hexadecimal Git revision.</p>}
       {planMessage && <p role="status" className="mt-2 text-sm text-muted">{planMessage}</p>}
       {showPlanPreview && <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm" aria-label="Immutable deployment plan preview">
         <div className="flex flex-wrap items-center justify-between gap-2"><strong>Immutable plan preview</strong><Badge>Not queued</Badge></div>
-        <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Project</dt><dd>{data.project.name}</dd></div><div><dt className="text-muted">Revision</dt><dd className="break-all font-mono">{candidateRevision.trim()}</dd></div><div><dt className="text-muted">Environment</dt><dd>{candidateEnvironment}</dd></div><div><dt className="text-muted">Approval</dt><dd>Separate administrator required</dd></div><div><dt className="text-muted">Health gate</dt><dd>Required</dd></div><div><dt className="text-muted">Readiness gate</dt><dd>Required</dd></div><div><dt className="text-muted">Rollback</dt><dd>Prepared before activation</dd></div><div><dt className="text-muted">Execution</dt><dd>Unavailable in this milestone</dd></div></dl>
+        <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><div><dt className="text-muted">Project</dt><dd>{data.project.name}</dd></div><div><dt className="text-muted">Revision</dt><dd className="break-all font-mono">{candidateRevision.trim()}</dd></div><div><dt className="text-muted">Environment</dt><dd>{candidateEnvironment}</dd></div><div><dt className="text-muted">Approval</dt><dd>Separate administrator required</dd></div><div><dt className="text-muted">Health gate</dt><dd>Required</dd></div><div><dt className="text-muted">Readiness gate</dt><dd>Required</dd></div><div><dt className="text-muted">Rollback</dt><dd>Prepared before activation</dd></div><div><dt className="text-muted">Execution</dt><dd>Available after both preflight gates</dd></div></dl>
       </div>}
     </Card>}
     <Card>

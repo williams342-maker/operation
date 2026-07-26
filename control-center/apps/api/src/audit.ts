@@ -33,14 +33,15 @@ export async function audit(input: {
     safeMetadata[key] = redactValue(value);
   }
   try {
-    await collections.auditEvents.insertOne({
+    const result = await collections.auditEvents.insertOne({
       ...input,
       metadata: safeMetadata,
       createdAt: new Date()
     });
+    if (/^(health-check|mongo-check|task\.complete|ai\.settings|deployment|rollback)/.test(input.action)) invalidateOperationalContext();
+    return result.insertedId;
   } catch (error) {
     if (input.dedupeKey && (error as { code?: number }).code === 11000) return;
     throw error;
   }
-  if (/^(health-check|mongo-check|task\.complete|ai\.settings|deployment|rollback)/.test(input.action)) invalidateOperationalContext();
 }

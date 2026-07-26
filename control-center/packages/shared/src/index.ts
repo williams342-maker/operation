@@ -15,6 +15,7 @@ export * from "./aiSettings.js";
 export * from "./agentUpgrades.js";
 export * from "./projectOverview.js";
 export * from "./projectHistory.js";
+export * from "./projectDeployment.js";
 export * from "./connectivity.js";
 export * from "./releasePolicy.js";
 export * from "./marketing.js";

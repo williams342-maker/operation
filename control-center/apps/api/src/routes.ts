@@ -558,6 +558,21 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
     if (result.status === 200 && body.event !== "claimed") {
       const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : "task.complete";
       await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: oid(body.taskId), result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
+      if (body.event === "succeeded" || body.event === "failed") {
+        const taskId = oid(body.taskId); const deployment = await collections.projectDeployments.findOne({ orgId: req.agentServer!.orgId, taskId });
+        if (deployment?._id) {
+          const metadata = (result.auditMetadata || {}) as Record<string, string | number | boolean>;
+          const evidenceId = await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action: "project.deployment.complete", targetType: "project-deployment", targetId: deployment._id, result: body.event === "succeeded" ? "success" : "failure", requestId: req.requestId, dedupeKey: `project-deployment-complete:${deployment._id.toHexString()}`, metadata });
+          if (evidenceId) await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: req.agentServer!.orgId }, { $addToSet: { auditEventIds: evidenceId } });
+          if (metadata.automaticRollbackAttempted === true) {
+            const rollback = await collections.projectRollbacks.findOne({ orgId: req.agentServer!.orgId, taskId });
+            if (rollback?._id) {
+              const rollbackEvidenceId = await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action: "project.deployment.rollback", targetType: "project-rollback", targetId: rollback._id, result: metadata.automaticRollbackVerified === true ? "success" : "failure", requestId: req.requestId, dedupeKey: `project-deployment-rollback:${rollback._id.toHexString()}`, metadata: { phase: String(metadata.phase || "unknown"), automaticRollbackVerified: metadata.automaticRollbackVerified === true } });
+              if (rollbackEvidenceId) await collections.projectRollbacks.updateOne({ _id: rollback._id, orgId: req.agentServer!.orgId }, { $addToSet: { auditEventIds: rollbackEvidenceId } });
+            }
+          }
+        }
+      }
     }
     res.status(result.status).json(result.body);
   } catch (error) { next(error); }

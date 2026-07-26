@@ -1,7 +1,7 @@
 ﻿import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
-import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentUpgradeResultSchema, deploymentProgressSchema, projectDeploymentResultSchema, payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ServerDoc } from "./models.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -50,10 +50,11 @@ export function ensureBounded(value: unknown) {
 }
 
 export function safeTaskSummary(type: string, message: unknown, result: unknown, event: "succeeded" | "failed" = "failed") {
-  if (type === "configuration.apply" || type === "configuration.rollback" || type === "agent.upgrade") {
-    if (event === "succeeded") return `${type === "agent.upgrade" ? "Agent upgrade" : "Configuration deployment"} completed successfully`;
+  if (type === "configuration.apply" || type === "configuration.rollback" || type === "project.deploy" || type === "agent.upgrade") {
+    if (event === "succeeded") return `${type === "agent.upgrade" ? "Agent upgrade" : type === "project.deploy" ? "Project deployment" : "Configuration deployment"} completed successfully`;
     const category = result && typeof result === "object" && typeof (result as Record<string, unknown>).errorCategory === "string" ? (result as Record<string, unknown>).errorCategory : "unknown";
-    return `${type === "agent.upgrade" ? "Agent upgrade" : "Configuration deployment"} failed (${String(category).replace(/[^a-z_]/g, "").slice(0, 32) || "unknown"})`;
+    const projectCategory = result && typeof result === "object" && typeof (result as Record<string, unknown>).failureClassification === "string" ? (result as Record<string, unknown>).failureClassification : category;
+    return `${type === "agent.upgrade" ? "Agent upgrade" : type === "project.deploy" ? "Project deployment" : "Configuration deployment"} failed (${String(projectCategory).replace(/[^a-z_]/g, "").slice(0, 32) || "unknown"})`;
   }
   const sanitized = sanitizeResult(typeof message === "string" ? message : event === "succeeded" ? "Task completed successfully" : "Task failed");
   return [...String(sanitized)].map((character) => { const code = character.charCodeAt(0); return code < 32 || code === 127 ? " " : character; }).join("").replace(/\s+/g, " ").slice(0, 500);
@@ -70,7 +71,7 @@ export function gitPreflightChecks(row: Record<string, unknown> | undefined, req
   return [{ name: "repository_inspected", passed: Boolean(row) }, { name: "requested_revision_bound", passed: revisionBound }, { name: "requested_revision_resolved", passed: resolvedRevision }, { name: "requested_revision_exists", passed: revisionExists }, { name: "expected_branch_checked_out", passed: row?.branch === expectedBranch }, { name: "worktree_clean", passed: row?.dirty === false }];
 }
 
-export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
+export async function createTask(input: { orgId: ObjectId; server: ServerDoc & { _id: ObjectId }; projectId?: ObjectId; taskId?: ObjectId; type: TaskType; payload: TaskPayload; idempotencyKey: string; createdByUserId?: ObjectId; availableAt?: Date; expiresAt?: Date }) {
   const registry = taskRegistry[input.type];
   if (!registry) throw new Error("Unsupported task type");
   const payload = registry.payload.parse(input.payload);
@@ -95,7 +96,7 @@ export async function createTask(input: { orgId: ObjectId; server: ServerDoc & {
     updatedAt: now
   };
   try {
-    const result = await collections.agentTasks.insertOne(doc);
+    const result = await collections.agentTasks.insertOne(input.taskId ? { ...doc, _id: input.taskId } : doc);
     invalidateOperationalContext(input.server._id.toHexString());
     if (input.projectId) invalidateOperationalContext(input.projectId.toHexString());
     return { ...doc, _id: result.insertedId };
@@ -156,6 +157,7 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   if (body.event === "progress") { set.progress = body.progress ?? task.progress ?? 0; }
   if (body.event === "succeeded" || body.event === "failed") {
     if (task.type === "configuration.apply" || task.type === "configuration.rollback") deploymentProgressSchema.parse(body.result);
+    if (task.type === "project.deploy") projectDeploymentResultSchema.parse(body.result);
     if (task.type === "agent.upgrade") agentUpgradeResultSchema.parse(body.result);
     nextState = body.event;
     set.completedAt = now;
@@ -184,12 +186,28 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
     const state = configurationPlanStateForDeploymentPhase(deployment.phase);
     await collections.configurationDeploymentPlans.updateOne({ orgId: task.orgId, deploymentTaskId: id }, { $set: { state, updatedAt: now } });
   }
+  if (task.type === "project.deploy") {
+    if (body.event === "started") await collections.projectDeployments.updateOne({ orgId: task.orgId, taskId: id, status: "preparing" }, { $set: { status: "activating", updatedAt: now } });
+    if (body.event === "succeeded" || body.event === "failed") {
+      const result = projectDeploymentResultSchema.parse(set.result);
+      const deployment = await collections.projectDeployments.findOne({ orgId: task.orgId, taskId: id });
+      if (deployment?._id) {
+        const status = result.phase === "succeeded" ? "succeeded" : result.phase === "rolled_back" ? "rolled_back" : "failed";
+        const validationPassed = result.phase === "succeeded";
+        await collections.projectDeployments.updateOne({ _id: deployment._id, orgId: task.orgId, status: { $in: ["preparing", "activating", "validating"] } }, { $set: { status, deployedRevision: result.deployedRevision, artifactDigest: result.artifactDigest, releaseId: result.releaseId, completedAt: now, validation: { health: validationPassed ? "passed" : "failed", readiness: validationPassed ? "passed" : "failed", checkedAt: now }, rollbackAvailable: result.phase === "succeeded" && Boolean(result.checkpointRevision), evidenceConfidence: "verified", failureClassification: result.failureClassification, updatedAt: now } });
+        if (result.rollbackAttempted) {
+          await collections.projectRollbacks.updateOne({ orgId: task.orgId, taskId: id }, { $setOnInsert: { orgId: task.orgId, projectId: deployment.projectId, serverId: deployment.serverId, sourceDeploymentId: deployment._id, restoredReleaseId: result.restoredRevision ? `git-${result.restoredRevision.slice(0, 12)}` : undefined, taskId: id, actorId: task.createdByUserId || deployment.actorId, reasonClassification: result.failureClassification || "automatic_activation_failure", status: result.rollbackVerified ? "succeeded" : "failed", startedAt: task.startedAt || now, completedAt: now, verification: { health: result.rollbackVerified ? "passed" : "failed", readiness: result.rollbackVerified ? "passed" : "failed", checkedAt: now }, failureClassification: result.rollbackVerified ? undefined : "rollback_verification_failed", auditEventIds: [], createdAt: now, updatedAt: now } }, { upsert: true });
+        }
+      }
+    }
+  }
   if (task.type === "agent.upgrade" && body.event === "progress") { const upgrade = agentUpgradeResultSchema.parse(body.result); const state = upgrade.phase === "queued" ? "queued" : upgrade.phase === "upgrading" ? "upgrading" : "validating"; await collections.agentUpgradePlans.updateOne({ orgId: task.orgId, taskId: id }, { $set: { state, updatedAt: now } }); await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, { $set: { upgradeState: state, updatedAt: now } }); }
   if (task.type === "agent.upgrade" && (body.event === "succeeded" || body.event === "failed")) { const upgrade = agentUpgradeResultSchema.parse(set.result); const state = upgrade.phase === "complete" ? "complete" : upgrade.phase === "rolled_back" ? "rolled_back" : "failed"; await collections.agentUpgradePlans.updateOne({ orgId: task.orgId, taskId: id }, { $set: { state, failureCategory: upgrade.errorCategory, rollbackState: upgrade.phase.startsWith("rollback") ? upgrade.phase : undefined, updatedAt: now } }); await collections.servers.updateOne({ _id: server._id, orgId: server.orgId }, { $set: { upgradeState: state, updatedAt: now } }); }
   invalidateOperationalContext(server._id.toHexString());
   if (task.projectId) invalidateOperationalContext(task.projectId.toHexString());
   const deployment = task.type === "configuration.apply" || task.type === "configuration.rollback" ? deploymentProgressSchema.safeParse(set.result) : undefined;
-  return { status: 200, body: { ok: true }, auditMetadata: gitAuditMetadata || (deployment?.success ? { phase: deployment.data.phase, deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none", rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none" } : undefined) };
+  const projectDeployment = task.type === "project.deploy" ? projectDeploymentResultSchema.safeParse(set.result) : undefined;
+  return { status: 200, body: { ok: true }, auditMetadata: gitAuditMetadata || (deployment?.success ? { phase: deployment.data.phase, deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none", rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none" } : projectDeployment?.success ? { phase: projectDeployment.data.phase, failureClassification: projectDeployment.data.failureClassification || "none", automaticRollbackAttempted: projectDeployment.data.rollbackAttempted, automaticRollbackVerified: projectDeployment.data.rollbackVerified } : undefined) };
 }
 
 export const createTaskSchema = z.object({

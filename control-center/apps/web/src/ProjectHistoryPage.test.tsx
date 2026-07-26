@@ -16,6 +16,7 @@ describe("Project history workspace", () => {
     expect(shouldPollProjectHistory([{ ...base, approvalExpiresAt: new Date(now + 60_000).toISOString(), gitPreflight: { taskId: "e".repeat(24), status: "queued", checks: [] } }], now)).toBe(true);
     expect(shouldPollProjectHistory([{ ...base, approvalExpiresAt: new Date(now - 1).toISOString(), gitPreflight: { taskId: "e".repeat(24), status: "running", checks: [] } }], now)).toBe(false);
     expect(shouldPollProjectHistory([{ ...base, approvalExpiresAt: new Date(now + 60_000).toISOString(), gitPreflight: { taskId: "e".repeat(24), status: "passed", checks: [] } }], now)).toBe(false);
+    expect(shouldPollProjectHistory([{ ...base, status: "activating" as const }], now)).toBe(true);
   });
   it("renders truthful empty deployment history and routes without mutation", async () => {
     apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false } }); const navigate = vi.fn();
@@ -42,7 +43,7 @@ describe("Project history workspace", () => {
     apiGet.mockResolvedValue({ data: { project: { id: "a".repeat(24), name: "Project", archived: false }, records: [], limit: 20, hasMore: false } });
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={"a".repeat(24)} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
     expect(await screen.findByRole("heading", { name: "Deployment Manager plan review" })).toBeInTheDocument();
-    expect(screen.getByText("Planning only")).toBeInTheDocument();
+    expect(screen.getByText("Approval gated")).toBeInTheDocument();
     expect(screen.getByLabelText("Git revision")).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Run preflight" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
@@ -82,7 +83,7 @@ describe("Project history workspace", () => {
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
     await userEvent.click(await screen.findByRole("button", { name: "Approve exact plan as different administrator" }));
     expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${planned.id}/approve`, { planDigest: planned.planDigest, confirm: true });
-    expect(await screen.findByText("Deployment plan approved. Execution remains unavailable.")).toBeInTheDocument();
+    expect(await screen.findByText("Deployment plan approved. Run both preflight gates before execution.")).toBeInTheDocument();
     expect(await screen.findByText("approved")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve exact plan as different administrator" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
@@ -121,9 +122,20 @@ describe("Project history workspace", () => {
     render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
     await userEvent.click(await screen.findByRole("button", { name: "Run read-only Git preflight" }));
     expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${checked.id}/git-preflight`, { planDigest: checked.planDigest, confirm: true });
-    expect(await screen.findByText("Read-only Git preflight queued. Deployment execution remains unavailable.")).toBeInTheDocument();
+    expect(await screen.findByText("Read-only Git preflight queued. Execution becomes available after it passes.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run read-only Git preflight" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Queue deployment" })).toBeDisabled();
+  });
+  it("executes only a fully checked plan with automatic rollback confirmation", async () => {
+    const ready = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "2".repeat(40), branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "approved", controlPlanePreflight: { status: "passed", checks: [{ name: "execution_not_queued", passed: true }], checkedAt: new Date().toISOString() }, gitPreflight: { taskId: "e".repeat(24), status: "passed", checks: [{ name: "requested_revision_resolved", passed: true }], headRevision: "1".repeat(40), resolvedRevision: "2".repeat(40), branch: "main", dirty: false, checkedAt: new Date().toISOString() }, validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };
+    const queued = { ...ready, status: "preparing" };
+    const project = { id: ready.projectId, name: "Project", archived: false };
+    apiGet.mockResolvedValueOnce({ data: { project, records: [ready], limit: 20, hasMore: false } }).mockResolvedValueOnce({ data: { project, records: [queued], limit: 20, hasMore: false } });
+    apiPost.mockResolvedValue({ data: { deployment: queued } });
+    render(<QueryClientProvider client={client()}><ProjectHistoryPage projectId={project.id} kind="deployments" navigate={vi.fn()} /></QueryClientProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "Execute approved deployment" }));
+    expect(apiPost).toHaveBeenCalledWith(`/projects/${project.id}/deployments/${ready.id}/execute`, { planDigest: ready.planDigest, confirm: "DEPLOY_WITH_AUTOMATIC_ROLLBACK" });
+    expect(await screen.findByText("Deployment queued with a required rollback checkpoint and automatic rollback.")).toBeInTheDocument();
   });
   it("shows failed control-plane prerequisites without enabling Git preflight", async () => {
     const blocked = { id: "b".repeat(24), projectId: "a".repeat(24), server: { id: "c".repeat(24), name: "Beta" }, environment: "staging", requestedRevision: "238b3a1", branch: "main", taskId: "d".repeat(24), planDigest: "f".repeat(64), approvalExpiresAt: new Date(Date.now() + 60_000).toISOString(), status: "approved", controlPlanePreflight: { status: "failed", checks: [{ name: "agent_online", passed: true }, { name: "git_revision_preflight_supported", passed: false }], checkedAt: new Date().toISOString() }, validation: { health: "not_run", readiness: "not_run" }, rollbackAvailable: false, evidenceConfidence: "reported", createdAt: new Date().toISOString() };

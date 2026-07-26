@@ -1,17 +1,18 @@
 ﻿import os from "node:os";
-import { agentMonitoringPlanSchema, agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type HttpMonitoringTarget, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentMonitoringPlanSchema, agentPollRequestSchema, agentSigningKey, deploymentCapabilities, projectDeploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type HttpMonitoringTarget, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
 import { executeConfigurationDeployment, safeConfigurationFailureProgress } from "./configurationDeployment.js";
+import { executeProjectDeployment, safeProjectDeploymentFailure } from "./projectDeployment.js";
 import { handoffUpgrade } from "./upgradeHandoff.js";
 import { collectConnectivity } from "./connectivity.js";
 import { shouldEnroll } from "./enrollmentDecision.js";
 import { dueHttpMonitoringChecks } from "./monitoring.js";
 
-const advertisedCapabilities = ["system", "docker", "compose", "git", "gitRevisionPreflight", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
+const advertisedCapabilities = ["system", "docker", "compose", "git", "gitRevisionPreflight", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "projectDeploymentExecution", "projectDeploymentRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
 function writeUpdaterHeartbeat(config: AgentConfig, discoveryComplete: boolean) { try { fs.mkdirSync(path.dirname(heartbeatStateFile), { recursive: true, mode: 0o750 }); const temporary = `${heartbeatStateFile}.pending`; fs.writeFileSync(temporary, `${JSON.stringify({ agentVersion: config.agentVersion, capabilities: advertisedCapabilities, discoveryComplete, recordedAt: new Date().toISOString() })}\n`, { mode: 0o600 }); fs.renameSync(temporary, heartbeatStateFile); } catch { /* updater heartbeat is best-effort; polling remains authoritative */ } }
 
@@ -102,6 +103,10 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
       if (!payload.configurationDeployment) throw new Error("Missing typed configuration deployment payload");
       result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion);
       break;
+    case "project.deploy":
+      if (!payload.projectDeployment) throw new Error("Missing typed project deployment payload");
+      result = await executeProjectDeployment(payload.projectDeployment, envelope.nonce, [...projectDeploymentCapabilities]);
+      break;
     case "agent.upgrade":
       if (!payload.agentUpgrade) throw new Error("Missing typed agent upgrade manifest");
       result = handoffUpgrade(config, payload.agentUpgrade, envelope.serverId, envelope.taskId);
@@ -110,8 +115,9 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     default:
       throw new Error("Unsupported task type");
   }
-  const deploymentResult = envelope.taskType === "configuration.apply" || envelope.taskType === "configuration.rollback" ? result as { phase?: string } : undefined;
-  await acknowledge(config, envelope.taskId, deploymentResult && deploymentResult.phase !== "succeeded" ? "failed" : "succeeded", result, deploymentResult ? `Configuration deployment ${deploymentResult.phase || "failed"}` : undefined);
+  const deploymentResult = envelope.taskType === "configuration.apply" || envelope.taskType === "configuration.rollback" || envelope.taskType === "project.deploy" ? result as { phase?: string } : undefined;
+  const deploymentLabel = envelope.taskType === "project.deploy" ? "Project deployment" : "Configuration deployment";
+  await acknowledge(config, envelope.taskId, deploymentResult && deploymentResult.phase !== "succeeded" ? "failed" : "succeeded", result, deploymentResult ? `${deploymentLabel} ${deploymentResult.phase || "failed"}` : undefined);
 }
 
 async function pollOnce() {
@@ -136,9 +142,10 @@ async function pollOnce() {
       const taskId = task?.envelope?.taskId;
       if (taskId) {
         const configurationTask = task.envelope.taskType === "configuration.apply" || task.envelope.taskType === "configuration.rollback";
+        const projectDeploymentTask = task.envelope.taskType === "project.deploy";
         const upgradeTask = task.envelope.taskType === "agent.upgrade" && task.payload.agentUpgrade;
-        const result = configurationTask ? safeConfigurationFailureProgress(error) : upgradeTask ? { phase: "failed", upgradeId: upgradeTask.upgradeId, errorCategory: "unknown" } : { errorCategory: "unknown" };
-        await acknowledge(config, taskId, "failed", result, configurationTask ? "Configuration deployment failed" : (error as Error).message).catch(() => undefined);
+        const result = configurationTask ? safeConfigurationFailureProgress(error) : projectDeploymentTask ? safeProjectDeploymentFailure(error) : upgradeTask ? { phase: "failed", upgradeId: upgradeTask.upgradeId, errorCategory: "unknown" } : { errorCategory: "unknown" };
+        await acknowledge(config, taskId, "failed", result, configurationTask ? "Configuration deployment failed" : projectDeploymentTask ? "Project deployment failed" : (error as Error).message).catch(() => undefined);
       }
     }
   }
