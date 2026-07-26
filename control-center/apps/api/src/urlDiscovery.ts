@@ -88,6 +88,7 @@ function requestPinnedWebsite(url: URL, address: string): Promise<PublicWebsiteR
 export async function fetchPublicWebsite(initialUrl: string, hooks: PublicWebsiteHooks = {}) {
   let current = initialUrl;
   for (let redirects = 0; redirects <= 3; redirects++) {
+    if (!isSafeHttpCheckUrl(current)) throw new Error("Redirect URL is not an approved public HTTP target");
     const parsed = new URL(current);
     const addresses = await resolvePublic(parsed.hostname, hooks.resolve);
     const response = await (hooks.request || requestPinnedWebsite)(parsed, addresses[0].address);

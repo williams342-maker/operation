@@ -34,3 +34,10 @@ test("website discovery pins a public address and revalidates redirects", async 
   }));
   assert.deepEqual(requested, [{ url: "https://public.example.test/start", address: "1.1.1.1" }]);
 });
+
+test("website discovery rejects credential-bearing redirect destinations", async () => {
+  await assert.rejects(() => fetchPublicWebsite("https://public.example.test/start", {
+    resolve: async () => [{ address: "1.1.1.1", family: 4 }],
+    request: async (url) => ({ status: 302, url: url.toString(), headers: { location: "https://user:secret@public.example.test/private" }, text: "" })
+  }), /not an approved public HTTP target/);
+});

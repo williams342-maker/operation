@@ -39,6 +39,8 @@ export type AuditAction =
   | "website.builder.save"
   | "website.builder.generate"
   | "website.builder.failure"
+  | "seo.audit.run"
+  | "seo.audit.failure"
   | "health-check.create"
   | "health-check.update"
   | "health-check.archive"

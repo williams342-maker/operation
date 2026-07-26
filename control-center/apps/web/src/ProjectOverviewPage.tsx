@@ -41,6 +41,7 @@ export function ProjectOverviewPage({ projectId, canViewAudit, navigate }: { pro
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/tasks")}>Tasks</button>
         {canViewAudit && <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/audit")}>Audit</button>}
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/builder`)}>Website Builder</button>
+        <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/seo`)}>SEO Optimizer</button>
       </nav>
     </Card>
     <div className="grid gap-4 lg:grid-cols-2">

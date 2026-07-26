@@ -24,3 +24,10 @@ test("marketing permissions separate administration, import, and read-only analy
   assert.equal(hasPermission("Viewer", "marketing:import"), false);
   assert.equal(hasPermission("Viewer", "marketing:manage-settings"), false);
 });
+test("SEO permissions separate read-only evidence from active scans", () => {
+  assert.equal(hasPermission("Owner", "seo:scan"), true);
+  assert.equal(hasPermission("Administrator", "seo:scan"), true);
+  assert.equal(hasPermission("Developer", "seo:scan"), true);
+  assert.equal(hasPermission("Viewer", "seo:view"), true);
+  assert.equal(hasPermission("Viewer", "seo:scan"), false);
+});

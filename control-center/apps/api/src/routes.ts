@@ -34,6 +34,7 @@ import { emailLoginUrl, passwordResetUrl, sendEmailLoginEmail, sendPasswordReset
 import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 import { marketingRouter } from "./marketingRoutes.js";
 import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
+import { seoRouter } from "./seoRoutes.js";
 
 export const router = express.Router();
 
@@ -571,6 +572,7 @@ router.get("/system/diagnostics", requirePermission("audit:view"), async (req, r
 router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
 router.use(websiteBuilderRouter);
+router.use(seoRouter);
 router.use(aiSettingsRouter);
 router.use(configurationRouter);
 router.use(agentUpgradeRouter);

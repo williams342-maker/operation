@@ -67,6 +67,7 @@ import { ProjectHistoryPage } from "./ProjectHistoryPage";
 import { PublicLandingPage } from "./PublicLandingPage";
 import { MarketingAnalyticsPage } from "./MarketingAnalyticsPage";
 import { WebsiteBuilderPage } from "./WebsiteBuilderPage";
+import { SeoOptimizerPage } from "./SeoOptimizerPage";
 import {
   Badge,
   Button,
@@ -1885,8 +1886,8 @@ function Header({
 }
 const pagePaths: Record<Page, string> = { overview: "/admin", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit", marketing: "/marketing" };
 function currentRoute() {
-  const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/(overview|deployments|rollbacks|builder))?\/?$/i);
-  if (match) return { page: "projects" as Page, projectId: match[1], projectView: (match[2] || "overview") as "overview" | "deployments" | "rollbacks" | "builder" };
+  const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/(overview|deployments|rollbacks|builder|seo))?\/?$/i);
+  if (match) return { page: "projects" as Page, projectId: match[1], projectView: (match[2] || "overview") as "overview" | "deployments" | "rollbacks" | "builder" | "seo" };
   if (/^\/marketing(?:\/(?:campaigns|channels|conversions|content|attribution|reports|settings))?\/?$/i.test(window.location.pathname)) return { page: "marketing" as Page, projectId: undefined, projectView: undefined };
   const page = (Object.entries(pagePaths).find(([, path]) => path !== "/" && window.location.pathname === path)?.[0] || "overview") as Page;
   return { page, projectId: undefined, projectView: undefined };
@@ -2057,6 +2058,7 @@ function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false 
           {page === "projects" && projectId && projectView === "deployments" && <ProjectHistoryPage projectId={projectId} kind="deployments" navigate={navigate} />}
           {page === "projects" && projectId && projectView === "rollbacks" && <ProjectHistoryPage projectId={projectId} kind="rollbacks" navigate={navigate} />}
           {page === "projects" && projectId && projectView === "builder" && <WebsiteBuilderPage projectId={projectId} navigate={navigate} />}
+          {page === "projects" && projectId && projectView === "seo" && <SeoOptimizerPage projectId={projectId} navigate={navigate} />}
           {page === "projects" && !projectId && <ProjectsPage toast={toast.show} onViewProject={(id) => navigate(`/projects/${id}/overview`)} />}
           {page === "configuration" && <ConfigurationPage toast={toast.show} navigate={navigate} />}
           {page === "enrollments" && isAdmin && (
