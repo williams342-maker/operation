@@ -749,11 +749,59 @@ Ed25519 signature.
   or signing action occurred. The owner-controlled Ed25519 publication boundary
   remains mandatory and unchanged.
 
+### SEO authenticated validation and runtime remediation
+
+- The first authenticated staging scan exposed a Node 22 lookup-callback
+  incompatibility before any SEO result was stored. Commit
+  `4c5277c4b66e69b5892c0325413b66cd932694d1` adds the missing all-address
+  callback form while retaining pinned public DNS. The next diagnostic reached
+  the existing query-bearing Cloudflare Access redirect and correctly refused
+  to follow it.
+- Commit `3e5f10ab32967e7a0318a9b0656ab280576fee9f` converts that expected security
+  refusal into durable `protected-redirect` audit evidence instead of an
+  internal server error. It never records or follows the protected destination
+  query. Validation passed 120 API tests with 2 guarded database skips, API type
+  checking, and the production API build.
+- The immutable control-center archive SHA-256 digest is
+  `08732b678308faa73a5e70cee209b9fea02d5d45ee78a91757c095cdc1124b02`.
+  API image digest
+  `b8cacbbafe2876619fa986b35d9ca751e6428014ecdff78d1803e60261447d07`
+  and web image digest
+  `76cb739fcce58340215e1d3da1ef58d458b6064a12ab18cfe7f83925ea5c072b`
+  carry the exact source revision. The agent package digest is
+  `b0a4a42c7ad608d70f748af5bc5d5528ceec379579449bc808ecee47a668f63e`.
+- The active application release is
+  `/opt/opsworkbench/releases/review-3e5f10ab/app`; immediate application
+  rollback remains `/opt/opsworkbench/releases/review-4c5277c4/app`. Checkpoint
+  `/opt/opsworkbench/checkpoints/deploy-3e5f10ab-20260726T054042Z` preserves the
+  prior release and configuration state. Agent rollback is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T054125Z`.
+- Authenticated browser validation completed revision 1 with score 84. It
+  persisted and rendered one audited page, a 302 status, seven findings,
+  `redirectBlocked=true`, a 1-of-1 crawl inventory, and a non-timed-out 74 ms
+  crawl summary. Audit history shows the revision, and the organization audit
+  log records `seo.audit.run` as success. The earlier failed attempt remains as
+  immutable `seo.audit.failure` evidence.
+- API, web, and agent report exact commit `3e5f10ab`; API and web are healthy
+  with zero restarts, and readiness reports healthy MongoDB, agent heartbeat,
+  audit, rate limiting, and environment state. Pruning only untagged dangling
+  image layers and build cache reclaimed 2.9 GB while preserving tagged active
+  and rollback images. Disk use is now 74%, below the warning threshold.
+- The critical SEO result is operationally truthful: Cloudflare Access currently
+  protects the registered landing URL, so public search crawlers cannot reach
+  the intended page. Resolving that requires an explicit public-access/product
+  decision; this staging work did not alter Cloudflare policy, DNS, or secrets.
+- No production publication, DNS, payment, database migration, secret rotation,
+  or signing action occurred. The owner-controlled Ed25519 publication boundary
+  remains mandatory and unchanged.
+
 ## Remaining gates
 
-- Continue the new continuous staging burn-in for exact commit `e429a6ab`.
-- Complete an authenticated staging browser crawl and verify its persisted page
-  inventory, duplicate/canonical findings, history entry, and audit event.
+- Continue the new continuous staging burn-in for exact commit `3e5f10ab`.
+- Decide whether `opsworkbench.org` should expose a public crawlable landing page
+  outside Cloudflare Access or whether SEO audits should use a separately
+  reviewed public target. This decision may affect a public access policy and is
+  not made by staging automation.
 - Exercise plan creation, independent approval by a
   different administrator, dispatch, acknowledgement, and a controlled
   rollback record. Do not bypass the separate-approver policy.
