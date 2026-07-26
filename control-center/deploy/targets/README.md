@@ -5,12 +5,15 @@ configuration deployment API. They identify exact non-production hosts and
 runtime paths; they do not contain environment values, credentials, or owner
 signatures.
 
-`opsworkbench-staging.profile.json` records the active private staging layout:
+`opsworkbench-staging.profile.json` records the prepared private staging
+target:
 
-- repository boundary: `/opt/opsworkbench`;
-- environment file: `/opt/opsworkbench/shared/compose/env/.env.staging`;
+- repository boundary:
+  `/etc/opsworkbench-agent/targets/opsworkbench-staging`;
+- environment file:
+  `/etc/opsworkbench-agent/targets/opsworkbench-staging/env/.env.staging`;
 - ordered Compose inputs: the shared base file first, then the active
-  `f4f584ac` release override;
+  `f4f584ac` release override, both copied byte-for-byte into that boundary;
 - Compose project: `opsworkbench`;
 - recreatable services: `api` and `web`;
 - protected stateful service: `mongo`; and
@@ -22,15 +25,18 @@ apply a configuration change.
 
 ## Host preflight
 
-Do not register or use a profile until the restricted agent can traverse the
-repository boundary, read the Compose inputs, and atomically back up and write
-the environment file under its systemd sandbox. At the time this candidate was
-recorded, the live staging files remained root-owned under directories with
-mode `0700`, while the agent unit exposed only `/etc/opsworkbench-agent` as a
-writable path. The candidate therefore remains fail-closed and unapplied until
-a separately reviewed, least-privilege host layout is prepared. Do not copy,
-print, or weaken permissions on the live secret file merely to satisfy this
-preflight.
+The target lives beneath the agent unit's existing
+`ReadWritePaths=/etc/opsworkbench-agent` sandbox. Its directory is mode `0750`;
+the Compose inputs are mode `0640`; and the environment file is mode `0600`.
+All are owned by `opsworkbench-agent:opsworkbench-agent`. The environment file
+was copied server-side without printing its contents, and its SHA-256 digest
+matches the active staging input.
+
+The restricted agent successfully parsed the ordered Compose inputs with
+`docker compose config --quiet`. That preflight did not register the profile,
+write configuration, build or recreate services, or change the active runtime.
+Registration and any immutable deployment plan remain separate authenticated
+control-plane actions.
 
 Run `npm test` or the focused Node test below to validate every committed
 profile:

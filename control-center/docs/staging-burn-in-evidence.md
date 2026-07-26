@@ -425,28 +425,34 @@ Ed25519 signature.
 - `deploy/targets/opsworkbench-staging.profile.json` records a value-free,
   version-controlled target request for the existing validation project,
   testing environment, and OpsWorkbench staging server.
-- The target binds repository boundary `/opt/opsworkbench`, environment file
-  `/opt/opsworkbench/shared/compose/env/.env.staging`, Compose project
-  `opsworkbench`, and the current configuration digest without recording any
-  environment value.
-- Ordered activation uses shared base Compose file
-  `/opt/opsworkbench/shared/compose/docker-compose.yml` followed by active
-  release override
-  `/opt/opsworkbench/releases/review-f4f584ac/app.override.yml`. The runtime
-  container labels independently reported those files in the same order.
+- The target binds least-privilege repository boundary
+  `/etc/opsworkbench-agent/targets/opsworkbench-staging`, environment file
+  `env/.env.staging`, Compose project `opsworkbench`, and the current
+  configuration digest without recording any environment value.
+- Ordered activation uses `docker-compose.yml` followed by
+  `app.override.yml`. Their SHA-256 digests match the live shared base and
+  active `f4f584ac` release override respectively; runtime container labels
+  independently reported the source files in the same order.
 - Only `api` and `web` are allowlisted as stateless activation services;
   `mongo` is explicitly protected. The public health validation remains
   `https://www.opsworkbench.org/healthz` with a five-second request timeout.
-- Host preflight remains fail-closed: the restricted agent cannot currently
-  traverse or atomically write the root-owned live configuration path through
-  its systemd sandbox. The candidate was not registered or applied, and no
-  secret file was copied, printed, permission-weakened, or changed.
+- The target was prepared beneath the agent's existing
+  `ReadWritePaths=/etc/opsworkbench-agent` systemd boundary. The directory is
+  mode `0750`, Compose inputs are mode `0640`, and the environment file is mode
+  `0600`; all are restricted-agent-owned.
+- The environment file was copied server-side without displaying its contents
+  and retained exact digest
+  `2f7bbe24480df6b91bc467c6ba42459219d9403a80a252eb3b1b424b60e7ddb4`.
+  The restricted agent passed `docker compose config --quiet` using the ordered
+  base and override. No profile was registered or applied, and no service was
+  built, recreated, restarted, or changed.
 
 ## Remaining gates
 
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
-- Prepare a least-privilege agent-writable staging target layout, revalidate
-  its file and mount boundaries, then register the committed target candidate.
+- Register the committed target candidate through the authenticated control
+  plane, then exercise plan creation, independent approval, dispatch,
+  acknowledgement, and a controlled rollback record.
 - Before any production publication, insert the owner public-key identifier
   into a new policy revision and apply the required offline Ed25519 signatures.

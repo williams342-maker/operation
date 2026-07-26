@@ -2,11 +2,11 @@
   "projectId": "6a60b64294e805e7b6e88269",
   "environmentId": "6a63b19f0369e57504ab2057",
   "serverId": "6a5f685ff8195a8813879bd7",
-  "repositoryRoot": "/opt/opsworkbench",
-  "environmentFilePath": "/opt/opsworkbench/shared/compose/env/.env.staging",
-  "composePath": "/opt/opsworkbench/shared/compose/docker-compose.yml",
+  "repositoryRoot": "/etc/opsworkbench-agent/targets/opsworkbench-staging",
+  "environmentFilePath": "/etc/opsworkbench-agent/targets/opsworkbench-staging/env/.env.staging",
+  "composePath": "/etc/opsworkbench-agent/targets/opsworkbench-staging/docker-compose.yml",
   "composeOverridePaths": [
-    "/opt/opsworkbench/releases/review-f4f584ac/app.override.yml"
+    "/etc/opsworkbench-agent/targets/opsworkbench-staging/app.override.yml"
   ],
   "composeProject": "opsworkbench",
   "statelessServices": [
