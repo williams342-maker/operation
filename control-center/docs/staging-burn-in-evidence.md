@@ -593,6 +593,60 @@ Ed25519 signature.
   unexpected restarts or critical alerts. The disk value is above the warning
   threshold but remains below the 90% critical threshold; observation remains
   active.
+
+### Authenticated Website Builder staging activation
+
+- Exact feature commit `332cadce749d3e7454b8d7358e808cf093653cff`
+  adds the project-scoped Website Builder, bounded structured draft schema,
+  organization-isolated version persistence, optimistic concurrency, explicit
+  allowlisted AI generation with existing usage controls, responsive component
+  preview, and escaped self-contained HTML export. Builder operations remain
+  draft-only and cannot deploy, publish, change DNS, or bypass owner approval.
+- Validation before transfer passed the complete workspace suite: 54 agent
+  tests with 6 platform skips, 106 API tests with 2 guarded database skips, 4
+  updater tests, 120 web tests, 73 shared tests with 1 platform skip, 15
+  deployment/bootstrap tests with 2 platform skips, the reproducible signed
+  bootstrap check, workspace type checking, linting, and production API/web
+  builds.
+- The immutable Git archive SHA-256 digest is
+  `a250c7e1ee580fe8579a6f82e23f4677f529e72fb6ccef7a978973adac38179b`.
+  API image digest
+  `6576c2c34f8deec1060a3b8e0da7235b6c55aa76fd3fda2161d51c80f261bfc2`
+  and web image digest
+  `026efe8e7def6f494cb6c5dd1882140f157890e7b1c89023e1b1cba894d60dd1`
+  both carry the exact source revision label.
+- The active application release is
+  `/opt/opsworkbench/releases/review-332cadce/app`; immediate application
+  rollback remains `/opt/opsworkbench/releases/review-d17d6740/app`. Checkpoint
+  `/opt/opsworkbench/checkpoints/deploy-332cadce-20260726T042149Z` preserves the
+  prior release pointer, prior override, container inventory, candidate image
+  identities, and configuration digests.
+- The first Compose invocation used the default `compose` project name and
+  created only isolated candidate API/web containers. The established
+  `opsworkbench-*` containers continued serving traffic. The isolated
+  candidates were removed, and activation was repeated with the explicit
+  `opsworkbench` project name before the active pointer changed.
+- The agent package digest is
+  `4e3ca10376e3f9cc3004642da65dd9a26f3627aa443b580b83779651305481aa`.
+  Its first activation correctly failed closed because runtime workspace
+  dependencies were absent, immediately restored the prior agent, and emitted
+  no control-plane outage. After installing only production dependencies in
+  the isolated candidate, the bounded retry succeeded. The agent marker now
+  reports the exact feature commit; rollback is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T042800Z`.
+- Post-activation API, web, and agent restart counts are zero. API and web are
+  healthy, `/healthz` and `/readyz` report the exact commit and ready MongoDB,
+  audit, and environment state, and recent API/web error scans plus the agent
+  warning journal are empty. Disk use is 86%, above warning but below the 90%
+  critical threshold.
+- The rebooted browser session no longer had authenticated OpsWorkbench state.
+  Direct access to the staged Builder route correctly rendered the protected
+  sign-in experience. Authenticated draft save, audit-event, version-history,
+  export-download, and responsive browser checks remain pending a renewed
+  owner login and are not inferred from unauthenticated evidence.
+- This activation resets the continuous burn-in. No production publication,
+  DNS, payment, database migration, secret rotation, or signing action occurred;
+  the owner-controlled Ed25519 publication boundary remains unchanged.
 - No production publication, production data, DNS, payment, secret, or signing
   action occurred. The owner-controlled Ed25519 publication boundary remains
   mandatory and unchanged.
