@@ -36,7 +36,7 @@ import {
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
-import { enrollmentInstallCommand } from "@control-center/shared";
+import { enrollmentInstallCommand, hasPermission, type Permission, type Role } from "@control-center/shared";
 import { clearProjectDiscoveryValues, discoveredGithubRepositories, eligibleProjectServers, normalizeGithubRepository, projectLocationChoices, projectServerDiscovery, projectSlug, repositoryName } from "./projectAutofill";
 import {
   api,
@@ -68,6 +68,7 @@ import { PublicLandingPage } from "./PublicLandingPage";
 import { MarketingAnalyticsPage } from "./MarketingAnalyticsPage";
 import { WebsiteBuilderPage } from "./WebsiteBuilderPage";
 import { SeoOptimizerPage } from "./SeoOptimizerPage";
+import { UserLandingPage } from "./UserLandingPage";
 import {
   Badge,
   Button,
@@ -84,6 +85,7 @@ import "./styles.css";
 const queryClient = new QueryClient();
 type Page =
   | "overview"
+  | "admin"
   | "org"
   | "users"
   | "servers"
@@ -1884,7 +1886,7 @@ function Header({
     </Toolbar>
   );
 }
-const pagePaths: Record<Page, string> = { overview: "/admin", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit", marketing: "/marketing" };
+const pagePaths: Record<Page, string> = { overview: "/dashboard", admin: "/admin", org: "/organization", users: "/users", servers: "/servers", upgrades: "/agent-upgrades", projects: "/projects", configuration: "/configuration", enrollments: "/enrollment", health: "/health", mongo: "/mongo", tasks: "/tasks", audit: "/audit", marketing: "/marketing" };
 function currentRoute() {
   const match = window.location.pathname.match(/^\/projects\/([^/]+)(?:\/(overview|deployments|rollbacks|builder|seo))?\/?$/i);
   if (match) return { page: "projects" as Page, projectId: match[1], projectView: (match[2] || "overview") as "overview" | "deployments" | "rollbacks" | "builder" | "seo" };
@@ -1905,26 +1907,34 @@ function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false 
     queryKey: ["me"],
     queryFn: () => api.get("/me").then((response) => response.data),
   });
-  const isAdmin = ["Owner", "Administrator"].includes(me.data?.user?.role);
-  const fullNav: Array<[Page, string, any]> = [
+  const role = me.data?.user?.role as Role | undefined;
+  const isAdmin = role === "Owner" || role === "Administrator";
+  const isOwner = role === "Owner";
+  const fullNav: Array<[Page, string, any, Permission?]> = [
     ["overview", "Overview", LayoutDashboard],
-    ["org", "Organization", Settings],
-    ["users", "Users", Users],
-    ["servers", "Servers", Server],
-    ["upgrades", "Agent Upgrades", Download],
-    ["projects", "Projects", Boxes],
-    ["configuration", "Configuration", KeyRound],
-    ["health", "Health", HeartPulse],
-    ["mongo", "Mongo", Database],
-    ["tasks", "Tasks", ListChecks],
-    ["audit", "Audit", ClipboardList],
-    ["marketing", "Marketing Analytics", BarChart3],
+    ["org", "Organization", Settings, "org:manage"],
+    ["users", "Users", Users, "users:manage"],
+    ["servers", "Servers", Server, "status:view"],
+    ["upgrades", "Agent Upgrades", Download, "agent:update"],
+    ["projects", "Projects", Boxes, "status:view"],
+    ["configuration", "Configuration", KeyRound, "configuration:view"],
+    ["health", "Health", HeartPulse, "status:view"],
+    ["mongo", "Mongo", Database, "status:view"],
+    ["tasks", "Tasks", ListChecks, "tasks:view"],
+    ["audit", "Audit", ClipboardList, "audit:view"],
+    ["marketing", "Marketing Analytics", BarChart3, "marketing:view"],
   ];
-  const nav = marketingOnly ? fullNav.filter(([key]) => key === "marketing") : fullNav;
+  const permittedNav = fullNav.filter(([, , , permission]) => !permission || Boolean(role && hasPermission(role, permission)));
+  const nav = marketingOnly ? permittedNav.filter(([key]) => key === "marketing") : permittedNav;
   const pageTitle =
     page === "enrollments"
       ? "Administration / Enrollment"
+      : page === "admin"
+        ? "Super User"
       : nav.find(([key]) => key === page)?.[1] || "Not Found";
+  useEffect(() => {
+    document.title = `${page === "overview" ? "Dashboard" : pageTitle} | OpsWorkbench`;
+  }, [page, pageTitle]);
   const closeMobileNavigation = (restoreFocus = true) => {
     setMobileNavigationOpen(false);
     if (restoreFocus) window.setTimeout(() => mobileNavigationTrigger.current?.focus(), 0);
@@ -2006,12 +2016,20 @@ function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false 
             {label}
           </button>
         ))}
-        {isAdmin && !marketingOnly && (
+        {(isAdmin || isOwner) && !marketingOnly && (
           <>
             <div className="mb-1 mt-5 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted">
               <Shield className="h-3.5 w-3.5" />
               Administration
             </div>
+            {isOwner && <button
+              onClick={() => navigate("admin")}
+              aria-current={page === "admin" ? "page" : undefined}
+              className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0 ${page === "admin" ? "bg-background text-text" : "text-muted hover:bg-background"}`}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Super User
+            </button>}
             <button
               onClick={() => navigate("enrollments")}
               aria-current={page === "enrollments" ? "page" : undefined}
@@ -2022,11 +2040,22 @@ function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false 
             </button>
           </>
         )}
+        <div className="mt-auto rounded-lg border border-border bg-background/60 p-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
+              {(me.data?.user?.name || me.data?.user?.email || "U").split(/\s+|@/).slice(0, 2).map((part: string) => part[0]).join("").toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{me.data?.user?.name || me.data?.user?.email || "Signed-in user"}</p>
+              <p className="text-xs text-muted">{role || "Loading role"}</p>
+            </div>
+          </div>
+        </div>
         <button
           type="button"
           disabled={logoutPending}
           onClick={onLogout}
-          className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
+          className="mt-2 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
         >
           <LogOut className="h-4 w-4" />
           {logoutPending ? "Signing out..." : "Sign out"}
@@ -2034,7 +2063,7 @@ function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false 
         {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
       <main className="p-5">
-        <div className="mb-5 flex items-center justify-between">
+        {page !== "overview" && <div className="mb-5 flex items-center justify-between">
           <div>
             <div className="text-xs text-muted">OpsWorkbench / {pageTitle}</div>
             <h1 className="text-xl font-semibold">{pageTitle}</h1>
@@ -2042,14 +2071,15 @@ function AppShell({ onLogout, logoutPending, logoutError, marketingOnly = false 
           <div className="text-xs text-muted">
             Last updated {new Date().toLocaleTimeString()}
           </div>
-        </div>
+        </div>}
         {toast.message && (
           <div className="mb-4 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
             {toast.message}
           </div>
         )}
         <ErrorBoundary>
-          {page === "overview" && <Overview />}
+          {page === "overview" && <UserLandingPage navigate={navigate} />}
+          {page === "admin" && isOwner && <Overview />}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
@@ -2114,7 +2144,7 @@ export function Root() {
       if (!robots) { robots = document.createElement("meta"); robots.name = "robots"; document.head.appendChild(robots); }
       robots.content = "noindex, nofollow, noarchive";
       canonical?.remove();
-      document.title = path === "/admin" ? "Super User | OpsWorkbench" : "Sign In | OpsWorkbench";
+      document.title = path === "/admin" ? "Super User | OpsWorkbench" : path === "/dashboard" ? "Dashboard | OpsWorkbench" : "Sign In | OpsWorkbench";
     }
   }, [path, publicLanding]);
   React.useEffect(() => {
@@ -2136,7 +2166,7 @@ export function Root() {
     onSuccess: () => {
       queryClient.clear();
       setAuthed(false);
-      window.history.replaceState({}, "", "/login?returnTo=%2Fadmin");
+      window.history.replaceState({}, "", "/login?returnTo=%2Fdashboard");
     },
   });
   if (publicLanding) return <PublicLandingPage />;
@@ -2150,31 +2180,34 @@ export function Root() {
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
   if (!authed && window.location.pathname === "/reset-password") {
     const token = new URLSearchParams(window.location.search).get("token") || "";
-    return <ResetPassword token={token} onComplete={() => { window.history.replaceState({}, "", "/login?returnTo=%2Fadmin"); setAuthScreen("login"); }} />;
+    return <ResetPassword token={token} onComplete={() => { window.history.replaceState({}, "", "/login?returnTo=%2Fdashboard"); setAuthScreen("login"); }} />;
   }
   if (!authed && window.location.pathname === "/email-login") {
     const token = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "";
     if (window.location.hash) window.history.replaceState({}, "", "/email-login");
-    return <EmailLogin token={token} onComplete={() => { window.history.replaceState({}, "", "/admin"); setAuthed(true); }} />;
+    return <EmailLogin token={token} onComplete={() => { window.history.replaceState({}, "", "/dashboard"); setAuthed(true); }} />;
   }
   if (authed && window.location.pathname === "/login") {
-    window.history.replaceState({}, "", "/admin");
-    document.title = "Super User | OpsWorkbench";
+    const returnPath = safeAuthenticatedReturnPath();
+    window.history.replaceState({}, "", returnPath);
+    document.title = returnPath === "/admin" ? "Super User | OpsWorkbench" : "Dashboard | OpsWorkbench";
   }
   return authed ? (
     /^\/marketing(?:\/|$)/.test(window.location.pathname)
       ? <AppShell marketingOnly onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
-      : <SuperUserGate><AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} /></SuperUserGate>
+      : window.location.pathname === "/admin"
+        ? <SuperUserGate><AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} /></SuperUserGate>
+        : <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
   ) : authScreen === "forgot" ? (
     <ForgotPassword onBack={() => setAuthScreen("login")} />
   ) : (
-    <Login onLogin={() => { window.history.replaceState({}, "", safeAdminReturnPath()); setAuthed(true); }} onForgotPassword={() => setAuthScreen("forgot")} />
+    <Login onLogin={() => { window.history.replaceState({}, "", safeAuthenticatedReturnPath()); setAuthed(true); }} onForgotPassword={() => setAuthScreen("forgot")} />
   );
 }
 
-function safeAdminReturnPath() {
+function safeAuthenticatedReturnPath() {
   const candidate = new URLSearchParams(window.location.search).get("returnTo") || window.location.pathname;
-  return candidate === "/admin" || /^\/marketing(?:\/(?:campaigns|channels|conversions|content|attribution|reports|settings))?$/.test(candidate || "") ? candidate! : "/admin";
+  return /^\/(?:dashboard|admin|organization|users|servers|agent-upgrades|projects(?:\/[^/?#]+(?:\/(?:overview|deployments|rollbacks|builder|seo))?)?|configuration|enrollment|health|mongo|tasks|audit|marketing(?:\/(?:campaigns|channels|conversions|content|attribution|reports|settings))?)\/?$/.test(candidate || "") ? candidate! : "/dashboard";
 }
 
 function SuperUserGate({ children }: React.PropsWithChildren) {

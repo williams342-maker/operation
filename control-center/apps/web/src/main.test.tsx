@@ -208,9 +208,28 @@ describe("Public landing and Super User routing", () => {
     mocks.bootstrapStatus.mockResolvedValue({ available: false });
     mocks.apiGet.mockImplementation(authenticatedApi);
     renderRoot();
-    expect(await screen.findByRole("heading", { name: "Overview", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Super User", level: 1 })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/admin");
     expect(document.title).toBe("Super User | OpsWorkbench");
+  });
+
+  it("opens the regular user dashboard without calling the Super User access gate", async () => {
+    localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/dashboard");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockImplementation((path: string) => {
+      if (path === "/me") return Promise.resolve({ data: { user: { name: "Taylor User", role: "Viewer" } } });
+      if (path === "/overview") return Promise.resolve({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
+      if (path === "/servers") return Promise.resolve({ data: { servers: [] } });
+      if (path === "/projects") return Promise.resolve({ data: { projects: [] } });
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    });
+    renderRoot();
+
+    expect(await screen.findByRole("heading", { name: /taylor!/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("button", { name: "Super User" })).not.toBeInTheDocument();
+    expect(mocks.apiGet).not.toHaveBeenCalledWith("/admin/access");
   });
 
   it("allows a marketing viewer into the scoped marketing shell without exposing Super User navigation", async () => {
@@ -431,7 +450,8 @@ describe("Durable project routes", () => {
 
   it("responds to browser back and forward popstate navigation", async () => {
     renderRoot();
-    expect(await screen.findByRole("heading", { name: "Overview", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Super User", level: 1 })).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Projects" });
     window.history.pushState({}, "", "/projects/aaaaaaaaaaaaaaaaaaaaaaaa/overview");
     window.dispatchEvent(new PopStateEvent("popstate"));
     expect(await screen.findByRole("heading", { name: "Direct Project" })).toBeInTheDocument();

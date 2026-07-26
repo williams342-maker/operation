@@ -38,7 +38,9 @@ function trackMarketingEvent(name: MarketingEvent) {
   window.dispatchEvent(new CustomEvent("opsworkbench:analytics", { detail: { name } }));
 }
 
-const adminLoginPath = "/login?returnTo=%2Fadmin";
+const adminLoginPath = "/login?returnTo=%2Fdashboard";
+const userLoginPath = "/login?returnTo=%2Fdashboard";
+const superUserLoginPath = "/login?returnTo=%2Fadmin";
 const seoOptimizerRepositoryUrl = "https://github.com/williams342-maker/SEO-Optimizer";
 
 function Brand() {
@@ -164,8 +166,8 @@ export function PublicLandingPage() {
             {nav.map(([label, href]) => <a key={label} href={href}>{label}{label === "Features" || label === "Resources" ? <ChevronDown aria-hidden="true" /> : null}</a>)}
           </nav>
           <div className="desktop-actions">
-            <a className="marketing-button marketing-button--outline" href={adminLoginPath} onClick={() => trackMarketingEvent("sign_in")}>Sign In</a>
-            <a className="marketing-button marketing-button--gradient" href={adminLoginPath} onClick={() => trackMarketingEvent("header_get_started")}>Get Started Free</a>
+            <a className="marketing-button marketing-button--outline" href={userLoginPath} onClick={() => trackMarketingEvent("sign_in")}>Sign In</a>
+            <a className="marketing-button marketing-button--gradient" href={userLoginPath} onClick={() => trackMarketingEvent("header_get_started")}>Get Started Free</a>
           </div>
           <button ref={triggerRef} className="mobile-menu-trigger" type="button" aria-expanded={menuOpen} aria-controls="marketing-mobile-menu" aria-label={menuOpen ? "Close menu" : "Open menu"} onClick={() => menuOpen ? closeMenu() : setMenuOpen(true)}>{menuOpen ? <X /> : <Menu />}</button>
         </div>
@@ -174,8 +176,8 @@ export function PublicLandingPage() {
       <div ref={menuRef} id="marketing-mobile-menu" className={`mobile-menu ${menuOpen ? "is-open" : ""}`} aria-hidden={!menuOpen} aria-modal={menuOpen || undefined} role={menuOpen ? "dialog" : undefined} aria-label={menuOpen ? "Site menu" : undefined}>
         <Brand />
         <nav aria-label="Mobile public navigation">{nav.map(([label, href]) => <a key={label} href={href} onClick={() => closeMenu(false)}>{label}</a>)}</nav>
-        <a className="marketing-button marketing-button--outline" href={adminLoginPath} onClick={() => trackMarketingEvent("sign_in")}>Sign In</a>
-        <a className="marketing-button marketing-button--gradient" href={adminLoginPath} onClick={() => trackMarketingEvent("header_get_started")}>Get Started Free</a>
+        <a className="marketing-button marketing-button--outline" href={userLoginPath} onClick={() => trackMarketingEvent("sign_in")}>Sign In</a>
+        <a className="marketing-button marketing-button--gradient" href={userLoginPath} onClick={() => trackMarketingEvent("header_get_started")}>Get Started Free</a>
       </div>
 
       <main id="main-content">
@@ -237,7 +239,7 @@ export function PublicLandingPage() {
 
       <footer id="about" className="marketing-footer">
         <div className="marketing-container footer-main"><div><Brand /><p>Deploy, monitor, protect, build, and grow from one secure workspace.</p></div><div><strong>Product</strong><a href="#features">Features</a><a href="#ai-builder">AI Website Builder</a><a href="#seo">SEO Optimizer</a></div><div><strong>Platform</strong><a href="#operations">Operations</a><a href="#how-it-works">How It Works</a><a href={adminLoginPath}>Sign In</a></div></div>
-        <a className="admin-diamond" href={adminLoginPath} aria-label="Super User sign in" title="Super User" onClick={() => trackMarketingEvent("super_user_access")}><span>OW</span></a>
+        <a className="admin-diamond" href={superUserLoginPath} aria-label="Super User sign in" title="Super User" onClick={() => trackMarketingEvent("super_user_access")}><span>OW</span></a>
         <div className="marketing-container footer-bottom"><span>© {new Date().getFullYear()} OpsWorkbench. All rights reserved.</span><span>Secure by design · Approval-gated operations</span></div>
       </footer>
     </div>
