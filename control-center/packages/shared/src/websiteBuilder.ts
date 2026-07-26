@@ -24,6 +24,7 @@ export const websiteBuilderContentSchema = z.object({
 
 export const websiteBuilderSaveSchema = z.object({
   baseRevision: z.number().int().min(0),
+  source: z.enum(["manual", "ai"]).default("manual"),
   content: websiteBuilderContentSchema
 }).strict();
 

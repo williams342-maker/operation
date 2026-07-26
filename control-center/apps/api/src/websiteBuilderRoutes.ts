@@ -64,7 +64,9 @@ websiteBuilderRouter.post("/projects/:id/website-builder/drafts", noStore, requi
     const currentRevision = latest?.revision || 0;
     if (body.baseRevision !== currentRevision) return res.status(409).json({ error: "This draft changed in another session. Reload before saving.", code: "draft_revision_conflict", currentRevision });
     const now = new Date();
-    const result = await collections.websiteBuilderDrafts.insertOne({ orgId: req.orgId, projectId, revision: currentRevision + 1, content: body.content, source: "manual", createdByUserId: req.user._id, createdAt: now, updatedAt: now });
+    let result;
+    try { result = await collections.websiteBuilderDrafts.insertOne({ orgId: req.orgId, projectId, revision: currentRevision + 1, content: body.content, source: body.source, createdByUserId: req.user._id, createdAt: now, updatedAt: now }); }
+    catch (error) { if ((error as { code?: number }).code === 11000) return res.status(409).json({ error: "This draft changed in another session. Reload before saving.", code: "draft_revision_conflict" }); throw error; }
     const draft = await collections.websiteBuilderDrafts.findOne({ _id: result.insertedId, orgId: req.orgId });
     if (!draft) throw new Error("Website draft was not saved");
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "website.builder.save", targetType: "website-builder-draft", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { projectId: projectId.toHexString(), revision: draft.revision, source: draft.source } });
@@ -84,7 +86,8 @@ websiteBuilderRouter.post("/projects/:id/website-builder/generate", noStore, req
     const org = await collections.organizations.findOne({ _id: req.orgId });
     const settings = org ? effectiveAiSettings(org) : null;
     const provider = settings ? organizationProvider(config, settings.provider, settings.model) : null;
-    if (!config.enabled || !settings?.enabled || !provider) return res.status(503).json({ error: "AI generation is not enabled and configured for this organization", code: "builder_ai_unavailable" });
+    if (!config.enabled || !settings?.enabled || !provider) { await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "website.builder.failure", targetType: "project", targetId: projectId, result: "denied", requestId: req.requestId, metadata: { reason: "ai_unavailable" } }); return res.status(503).json({ error: "AI generation is not enabled and configured for this organization", code: "builder_ai_unavailable" }); }
+    if (!settings.allowedScopeTypes.includes("application")) { await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "website.builder.failure", targetType: "project", targetId: projectId, result: "denied", requestId: req.requestId, metadata: { reason: "scope_not_allowed" } }); return res.status(403).json({ error: "AI generation is not allowed for application projects", code: "scope_not_allowed" }); }
     const context = JSON.stringify({ project: { name: project.name, slug: project.slug }, current: body.current || null });
     const reservation = await reserveAiUsage({ orgId: req.orgId, userId: req.user._id, settings, provider: provider.name, model: provider.model, scopeType: "application", contextBytes: Buffer.byteLength(context) });
     if (!reservation.ok) return res.status(429).json({ error: "AI usage limit reached", code: "builder_ai_rate_limited", limit: reservation.reason });

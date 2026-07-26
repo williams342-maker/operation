@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
 import { scopedFilter } from "../src/db.js";
 
-const resources = ["users", "servers", "projects", "enrollments", "healthChecks", "mongoChecks", "telemetry", "auditEvents", "marketingAccounts", "marketingCampaigns", "marketingMetricsDaily", "marketingGoals", "marketingInsights"];
+const resources = ["users", "servers", "projects", "enrollments", "healthChecks", "mongoChecks", "telemetry", "auditEvents", "marketingAccounts", "marketingCampaigns", "marketingMetricsDaily", "marketingGoals", "marketingInsights", "websiteBuilderDrafts"];
 
 for (const resource of resources) {
   test(`${resource} query scope overrides attacker-supplied organization`, () => {
