@@ -16,3 +16,9 @@ test("SEO scans derive the target from scoped project configuration and record a
   assert.match(source, /action: "seo\.audit\.run"/);
   assert.match(source, /action: "seo\.audit\.failure"/);
 });
+
+test("SEO routes persist only bounded crawl evidence and advertise the exact limit", () => {
+  assert.match(source, /runSeoAudit\(found\.targetUrl, body\.keywords, body\.maxPages\)/);
+  assert.match(source, /pages: result\.pages, crawl: result\.crawl/);
+  assert.match(source, /multiPageCrawl: true, maximumPages: 25/);
+});

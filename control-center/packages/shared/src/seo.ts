@@ -14,8 +14,9 @@ export const seoFindingSchema = z.object({
 }).strict();
 
 export const seoAuditRequestSchema = z.object({
-  keywords: z.array(z.string().trim().min(1).max(80)).max(10).default([])
-}).strict().transform((value) => ({ keywords: [...new Set(value.keywords.map((keyword) => keyword.toLocaleLowerCase()))] }));
+  keywords: z.array(z.string().trim().min(1).max(80)).max(10).default([]),
+  maxPages: z.number().int().min(1).max(25).default(10)
+}).strict().transform((value) => ({ keywords: [...new Set(value.keywords.map((keyword) => keyword.toLocaleLowerCase()))], maxPages: value.maxPages }));
 
 export type SeoCategory = z.infer<typeof seoCategorySchema>;
 export type SeoSeverity = z.infer<typeof seoSeveritySchema>;

@@ -46,6 +46,7 @@ type PublicWebsiteResponse = { status: number; url: string; headers: Record<stri
 export type PublicWebsiteHooks = {
   resolve?: AddressResolver;
   request?: (url: URL, address: string) => Promise<PublicWebsiteResponse>;
+  allowedOrigins?: string[];
 };
 
 function requestPinnedWebsite(url: URL, address: string): Promise<PublicWebsiteResponse> {
@@ -90,6 +91,7 @@ export async function fetchPublicWebsite(initialUrl: string, hooks: PublicWebsit
   for (let redirects = 0; redirects <= 3; redirects++) {
     if (!isSafeHttpCheckUrl(current)) throw new Error("Redirect URL is not an approved public HTTP target");
     const parsed = new URL(current);
+    if (hooks.allowedOrigins?.length && !hooks.allowedOrigins.includes(parsed.origin)) throw new Error("Redirect leaves the approved website origin");
     const addresses = await resolvePublic(parsed.hostname, hooks.resolve);
     const response = await (hooks.request || requestPinnedWebsite)(parsed, addresses[0].address);
     const location = response.headers.location;

@@ -15,7 +15,7 @@ const live = { archivedAt: { $exists: false } };
 const responseAudit = (item: SeoAuditDoc) => ({
   id: item._id?.toHexString(), revision: item.revision, targetUrl: item.targetUrl, finalUrl: item.finalUrl,
   keywords: item.keywords, score: item.score, categoryScores: item.categoryScores, evidence: item.evidence,
-  findings: item.findings, createdAt: item.createdAt.toISOString()
+  findings: item.findings, pages: item.pages || [], crawl: item.crawl || null, createdAt: item.createdAt.toISOString()
 });
 
 async function context(orgId: ObjectId, rawId: string) {
@@ -42,7 +42,7 @@ seoRouter.get("/projects/:id/seo", noStore, requirePermission("seo:view"), async
       target: found.targetUrl ? { available: true, url: found.targetUrl, source: found.targetSource } : { available: false, url: null, source: null },
       audit: audits[0] ? responseAudit(audits[0]) : null,
       history: audits.map((item) => ({ id: item._id?.toHexString(), revision: item.revision, score: item.score, createdAt: item.createdAt.toISOString() })),
-      capabilities: { readOnlyScan: true, automaticChanges: false, keywordResearch: false, coreWebVitals: false },
+      capabilities: { readOnlyScan: true, multiPageCrawl: true, maximumPages: 25, automaticChanges: false, keywordResearch: false, coreWebVitals: false },
       boundary: "SEO audits collect bounded public-page evidence only. They never modify content, deploy, publish, change DNS, or bypass release approval."
     });
   } catch (error) { next(error); }
@@ -55,15 +55,15 @@ seoRouter.post("/projects/:id/seo/audits", noStore, scanLimiter, requirePermissi
     const found = await context(req.orgId, String(req.params.id));
     if (!found) return res.status(404).json({ error: "Project not found" });
     if (!found.targetUrl) return res.status(409).json({ error: "Register an enabled public HTTP health check or server primary URL before scanning", code: "seo_target_unavailable" });
-    const result = await runSeoAudit(found.targetUrl, body.keywords);
+    const result = await runSeoAudit(found.targetUrl, body.keywords, body.maxPages);
     const latest = await collections.seoAudits.findOne({ orgId: req.orgId, projectId: found.projectId }, { sort: { revision: -1 }, projection: { revision: 1 } });
     const now = new Date();
     let inserted;
-    try { inserted = await collections.seoAudits.insertOne({ orgId: req.orgId, projectId: found.projectId, revision: (latest?.revision || 0) + 1, targetUrl: found.targetUrl, finalUrl: result.evidence.finalUrl, keywords: body.keywords, score: result.score, categoryScores: result.categoryScores, evidence: { ...result.evidence }, findings: result.findings, createdByUserId: req.user._id, createdAt: now, updatedAt: now }); }
+    try { inserted = await collections.seoAudits.insertOne({ orgId: req.orgId, projectId: found.projectId, revision: (latest?.revision || 0) + 1, targetUrl: found.targetUrl, finalUrl: result.evidence.finalUrl, keywords: body.keywords, score: result.score, categoryScores: result.categoryScores, evidence: { ...result.evidence }, findings: result.findings, pages: result.pages, crawl: result.crawl, createdByUserId: req.user._id, createdAt: now, updatedAt: now }); }
     catch (error) { if ((error as { code?: number }).code === 11000) return res.status(409).json({ error: "Another audit completed concurrently. Run the audit again.", code: "seo_revision_conflict" }); throw error; }
     const item = await collections.seoAudits.findOne({ _id: inserted.insertedId, orgId: req.orgId });
     if (!item) throw new Error("SEO audit result was not saved");
-    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "seo.audit.run", targetType: "seo-audit", targetId: inserted.insertedId, result: "success", requestId: req.requestId, metadata: { projectId: found.projectId.toHexString(), revision: item.revision, score: item.score, targetSource: found.targetSource || "unavailable" } });
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "seo.audit.run", targetType: "seo-audit", targetId: inserted.insertedId, result: "success", requestId: req.requestId, metadata: { projectId: found.projectId.toHexString(), revision: item.revision, score: item.score, pagesAudited: item.crawl?.pagesAudited || 1, targetSource: found.targetSource || "unavailable" } });
     res.status(201).json({ audit: responseAudit(item) });
   } catch (error) {
     if (req.orgId && req.user) await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "seo.audit.failure", targetType: "project", targetId: String(req.params.id), result: "failure", requestId: req.requestId, metadata: { reason: error instanceof Error ? error.name : "scan_failed" } });

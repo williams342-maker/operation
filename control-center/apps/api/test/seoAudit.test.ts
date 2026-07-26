@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeSeoDocument, runSeoAudit } from "../src/seoAudit.js";
+import { analyzeSeoDocument, discoverSeoPageUrls, runSeoAudit, sitemapPageUrls } from "../src/seoAudit.js";
 
 test("SEO analysis reports truthful category evidence and target phrase coverage", () => {
   const result = analyzeSeoDocument({
@@ -22,7 +22,7 @@ test("SEO analysis rejects a successful JSON health endpoint as website evidence
 
 test("SEO audit uses pinned public fetches for the registered page and origin files", async () => {
   const requested: string[] = [];
-  const result = await runSeoAudit("https://public.example.test/health", [], {
+  const result = await runSeoAudit("https://public.example.test/health", [], 1, {
     resolve: async () => [{ address: "1.1.1.1", family: 4 }],
     request: async (url, address) => {
       assert.equal(address, "1.1.1.1"); requested.push(url.toString());
@@ -36,5 +36,46 @@ test("SEO audit uses pinned public fetches for the registered page and origin fi
 });
 
 test("SEO audit rejects a registered target that resolves privately", async () => {
-  await assert.rejects(() => runSeoAudit("https://private.example.test", [], { resolve: async () => [{ address: "10.0.0.9", family: 4 }] }), /private or reserved/);
+  await assert.rejects(() => runSeoAudit("https://private.example.test", [], 1, { resolve: async () => [{ address: "10.0.0.9", family: 4 }] }), /private or reserved/);
+});
+
+test("page discovery keeps normalized same-origin HTML candidates only", () => {
+  const html = '<a href="/about?utm=x#team">About</a><a href="https://external.test/page">External</a><a href="/asset.png">Image</a><a href="mailto:test@example.test">Mail</a><a href="/about">Duplicate</a>';
+  assert.deepEqual(discoverSeoPageUrls(html, "https://public.example.test/"), ["https://public.example.test/about"]);
+  assert.deepEqual(sitemapPageUrls("<urlset><url><loc>https://public.example.test/pricing?ref=map</loc></url><url><loc>https://external.test/</loc></url></urlset>", "https://public.example.test/"), ["https://public.example.test/pricing"]);
+});
+
+test("multi-page audit follows bounded sitemap URLs and reports duplicates and broken pages", async () => {
+  const requested: string[] = [];
+  const pageHtml = (url: string) => `<title>Shared site title for testing</title><meta name="description" content="A sufficiently detailed shared description used to verify duplicate metadata across bounded audited pages."><link rel="canonical" href="${url}"><h1>Page heading</h1>`;
+  const result = await runSeoAudit("https://public.example.test/", [], 3, {
+    resolve: async () => [{ address: "1.1.1.1", family: 4 }],
+    request: async (url) => {
+      requested.push(url.toString());
+      if (url.pathname === "/robots.txt") return { status: 200, url: url.toString(), headers: { "content-type": "text/plain" }, text: "User-agent: *" };
+      if (url.pathname === "/sitemap.xml") return { status: 200, url: url.toString(), headers: { "content-type": "application/xml" }, text: '<urlset><url><loc>https://public.example.test/about</loc></url><url><loc>https://public.example.test/broken</loc></url></urlset>' };
+      if (url.pathname === "/broken") return { status: 500, url: url.toString(), headers: { "content-type": "text/html" }, text: pageHtml(url.toString()) };
+      return { status: 200, url: url.toString(), headers: { "content-type": "text/html" }, text: pageHtml(url.toString()) };
+    }
+  });
+  assert.equal(result.pages.length, 3);
+  assert.equal(result.crawl.limit, 3);
+  assert.ok(result.findings.some((finding) => finding.code.startsWith("duplicate-title")));
+  assert.ok(result.findings.some((finding) => finding.code.includes("page-http-status") && finding.evidence.url === "https://public.example.test/broken"));
+  assert.deepEqual(requested, ["https://public.example.test/", "https://public.example.test/robots.txt", "https://public.example.test/sitemap.xml", "https://public.example.test/about", "https://public.example.test/broken"]);
+});
+
+test("multi-page audit refuses cross-origin redirects without requesting the destination", async () => {
+  const requested: string[] = [];
+  const result = await runSeoAudit("https://public.example.test/", [], 2, {
+    resolve: async () => [{ address: "1.1.1.1", family: 4 }],
+    request: async (url) => {
+      requested.push(url.toString());
+      if (url.pathname === "/sitemap.xml") return { status: 200, url: url.toString(), headers: {}, text: '<urlset><url><loc>https://public.example.test/leaves</loc></url></urlset>' };
+      if (url.pathname === "/leaves") return { status: 302, url: url.toString(), headers: { location: "https://external.example.test/page" }, text: "" };
+      return { status: 200, url: url.toString(), headers: { "content-type": "text/html" }, text: '<title>Public website title that is long enough</title><meta name="description" content="A complete public website description that is long enough for the bounded metadata review range used here."><link rel="canonical" href="https://public.example.test/"><h1>Public website</h1>' };
+    }
+  });
+  assert.equal(requested.includes("https://external.example.test/page"), false);
+  assert.ok(result.findings.some((finding) => finding.evidence.reason === "cross-origin-redirect"));
 });
