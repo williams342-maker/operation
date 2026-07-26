@@ -202,6 +202,17 @@ describe("Public landing and Super User routing", () => {
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
   });
 
+  it("redirects an authenticated login visit to the protected admin route with the correct title", async () => {
+    localStorage.setItem("cc.csrf", "csrf-token");
+    window.history.replaceState({}, "", "/login?returnTo=%2Fadmin");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockImplementation(authenticatedApi);
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Overview", level: 1 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/admin");
+    expect(document.title).toBe("Super User | OpsWorkbench");
+  });
+
   it("allows a marketing viewer into the scoped marketing shell without exposing Super User navigation", async () => {
     localStorage.setItem("cc.csrf", "csrf-token"); window.history.replaceState({}, "", "/marketing");
     mocks.bootstrapStatus.mockResolvedValue({ available: false });

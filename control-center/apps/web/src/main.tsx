@@ -2153,7 +2153,10 @@ export function Root() {
     if (window.location.hash) window.history.replaceState({}, "", "/email-login");
     return <EmailLogin token={token} onComplete={() => { window.history.replaceState({}, "", "/admin"); setAuthed(true); }} />;
   }
-  if (authed && window.location.pathname === "/login") window.history.replaceState({}, "", "/admin");
+  if (authed && window.location.pathname === "/login") {
+    window.history.replaceState({}, "", "/admin");
+    document.title = "Super User | OpsWorkbench";
+  }
   return authed ? (
     /^\/marketing(?:\/|$)/.test(window.location.pathname)
       ? <AppShell marketingOnly onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
