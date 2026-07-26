@@ -491,13 +491,67 @@ Ed25519 signature.
   window. A new continuous burn-in must be completed for `a93767e5` before it
   can become a release candidate.
 
+### Authenticated target-profile lifecycle and staging activation
+
+- Exact commit `8836151b40ce020aab57894286bb5d7d0ed92236` adds the
+  authenticated target-profile lifecycle: safe revision listing, protected
+  value-free detail views, immutable edits, explicit enable/disable controls,
+  optimistic concurrency, duplicate prevention, and dedicated audit actions.
+- Validation passed before transfer: workspace type checking and linting, API
+  and web production builds, 104 API tests, 88 web component tests, 27 web
+  structural tests, 71 shared tests, 60 agent tests, and all updater,
+  deployment-script, and disposable-bootstrap tests. Guarded database and
+  platform-specific tests remained skipped by design.
+- The immutable Git archive had SHA-256 digest
+  `f7c9398843345bc45809e8984fe2aa16dac02aa6f05b38e3979db0d53242f5ef`.
+  API and web image labels, public `/healthz`, public `/readyz`, and the
+  restricted agent source marker all report the exact candidate commit.
+- An initial pre-activation Compose invocation derived the isolated project
+  name `compose`. Its API could not resolve the live `mongo` service, so the
+  health gate rejected it. The existing `opsworkbench` runtime remained
+  healthy and unchanged; the isolated containers and network were removed.
+  Activation was then repeated with explicit project name `opsworkbench` and
+  passed the bounded container and public health checks.
+- API and web have zero container restarts and healthy Docker health states.
+  The agent is active/running with zero systemd restarts; its prior source is
+  preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T030000Z`.
+- The active release pointer is
+  `/opt/opsworkbench/releases/review-8836151b/app`. The immediate rollback
+  checkpoint is
+  `/opt/opsworkbench/checkpoints/deploy-8836151b-20260726T024500Z`; its sorted
+  per-file SHA-256 evidence digest is
+  `7b231a9f834dc838110c84e727b562439aaa373577a6365e6c65817665072f58`.
+- The restricted target copy now matches the active ordered Compose inputs.
+  The base digest is
+  `b9388757b8dc4f78b7f6b6a3fc69f1c3dc83b6afcb06a28d3f27c289d82ef770`,
+  the override digest is
+  `6c27ee235c2008f094e6b46556867e1a07a5f4d15157d55b474fc1ae75434a3b`,
+  and the unprinted environment-file digest remains
+  `2f7bbe24480df6b91bc467c6ba42459219d9403a80a252eb3b1b424b60e7ddb4`.
+  Compose parsing passed as `opsworkbench-agent`; no configuration value was
+  printed or changed.
+- The authenticated Configuration UI registered target revision 1 as enabled
+  using the committed value-free profile. The protected detail view returned
+  the exact repository boundary, ordered Compose paths, service allowlists,
+  health check, and configuration digest. The Audit workspace recorded
+  `configuration.target.create` with result `success` for target
+  `227f0ce5b76070a724d81e856e2f713e`.
+- The activation started a new observation window at
+  `2026-07-26T02:51:33Z`, with earliest completion at
+  `2026-07-27T02:51:33Z`. The first 12 samples report `observing`, 100.000%
+  availability, 0.000% HTTP errors, 54 ms p95 latency, 32.2-second maximum
+  heartbeat gap, 80.26% maximum disk use, and zero unexpected restarts or
+  critical alerts. This window does not inherit earlier completed evidence.
+- No production publication, DNS, payment, database, secret-rotation, or
+  signing action occurred. The owner-controlled Ed25519 boundary remains
+  mandatory and unchanged.
+
 ## Remaining gates
 
-- Sign out and sign back in, then register the already validated target within
-  the ten-minute recent-authentication window.
-- After registration, exercise plan creation, independent approval by a
+- Continue the new continuous staging burn-in for exact commit `8836151b`.
+- Exercise plan creation, independent approval by a
   different administrator, dispatch, acknowledgement, and a controlled
   rollback record. Do not bypass the separate-approver policy.
-- Complete a new continuous staging burn-in for exact commit `a93767e5`.
 - Before any production publication, insert the owner public-key identifier
   into a new policy revision and apply the required offline Ed25519 signatures.
