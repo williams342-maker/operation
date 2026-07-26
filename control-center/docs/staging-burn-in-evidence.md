@@ -420,11 +420,33 @@ Ed25519 signature.
   secret-rotation, or signing action. Production publication remains disabled
   and still requires the owner-controlled Ed25519 boundary.
 
+### Host-specific configuration target candidate
+
+- `deploy/targets/opsworkbench-staging.profile.json` records a value-free,
+  version-controlled target request for the existing validation project,
+  testing environment, and OpsWorkbench staging server.
+- The target binds repository boundary `/opt/opsworkbench`, environment file
+  `/opt/opsworkbench/shared/compose/env/.env.staging`, Compose project
+  `opsworkbench`, and the current configuration digest without recording any
+  environment value.
+- Ordered activation uses shared base Compose file
+  `/opt/opsworkbench/shared/compose/docker-compose.yml` followed by active
+  release override
+  `/opt/opsworkbench/releases/review-f4f584ac/app.override.yml`. The runtime
+  container labels independently reported those files in the same order.
+- Only `api` and `web` are allowlisted as stateless activation services;
+  `mongo` is explicitly protected. The public health validation remains
+  `https://www.opsworkbench.org/healthz` with a five-second request timeout.
+- Host preflight remains fail-closed: the restricted agent cannot currently
+  traverse or atomically write the root-owned live configuration path through
+  its systemd sandbox. The candidate was not registered or applied, and no
+  secret file was copied, printed, permission-weakened, or changed.
+
 ## Remaining gates
 
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
-- Create the host-specific configuration target profile containing the exact
-  repository, environment-file, Compose, service, and health-check inputs.
+- Prepare a least-privilege agent-writable staging target layout, revalidate
+  its file and mount boundaries, then register the committed target candidate.
 - Before any production publication, insert the owner public-key identifier
   into a new policy revision and apply the required offline Ed25519 signatures.

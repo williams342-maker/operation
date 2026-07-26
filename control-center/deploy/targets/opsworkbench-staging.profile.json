@@ -1,0 +1,27 @@
+{
+  "projectId": "6a60b64294e805e7b6e88269",
+  "environmentId": "6a63b19f0369e57504ab2057",
+  "serverId": "6a5f685ff8195a8813879bd7",
+  "repositoryRoot": "/opt/opsworkbench",
+  "environmentFilePath": "/opt/opsworkbench/shared/compose/env/.env.staging",
+  "composePath": "/opt/opsworkbench/shared/compose/docker-compose.yml",
+  "composeOverridePaths": [
+    "/opt/opsworkbench/releases/review-f4f584ac/app.override.yml"
+  ],
+  "composeProject": "opsworkbench",
+  "statelessServices": [
+    "api",
+    "web"
+  ],
+  "protectedServices": [
+    "mongo"
+  ],
+  "healthChecks": [
+    {
+      "id": "opsworkbench-public-health",
+      "url": "https://www.opsworkbench.org/healthz",
+      "timeoutMs": 5000
+    }
+  ],
+  "currentConfigurationDigest": "2f7bbe24480df6b91bc467c6ba42459219d9403a80a252eb3b1b424b60e7ddb4"
+}
