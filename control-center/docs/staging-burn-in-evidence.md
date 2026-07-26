@@ -795,9 +795,62 @@ Ed25519 signature.
   or signing action occurred. The owner-controlled Ed25519 publication boundary
   remains mandatory and unchanged.
 
+### Authenticated user dashboard staging activation
+
+- Exact feature commit `050edf2a92cf7250ae2c005009a1438f5586f0de`
+  adds the normal authenticated `/dashboard` landing page, personalized from
+  `/me` and backed only by current overview, project, server, audit, and agent
+  telemetry. Empty deployment history and unavailable metrics remain explicit;
+  the UI does not invent activity or success rates.
+- Ordinary sign-in and product calls to action now return users to `/dashboard`.
+  The separate `/admin` route remains Owner-gated, the hidden Super User entry
+  still targets it directly, and navigation is filtered through the shared RBAC
+  permission model. Viewer tests confirm that loading `/dashboard` does not call
+  the Super User access endpoint or expose its navigation control.
+- Web validation passed type checking, the production build, 99 component tests,
+  and 27 structural checks. Focused dashboard and routing coverage passed 28 of
+  28 tests, including personalized live data, truthful empty evidence,
+  telemetry-derived alerts, Viewer access, and protected Owner routing.
+- The immutable control-center archive SHA-256 digest is
+  `51b48f1097435b9fb5017adb5c27589a2decd76fdcd1f01e6252632b20116876`.
+  API image digest
+  `db8496d50c451468a2033678e7b9776f515cb86c2ddc4e8e20c237deda24b410`
+  and web image digest
+  `f0061d8d19c7075874f1aef936ca433d1174c9c3d681473388aef7bb70a2436e`
+  carry the exact source revision. The commit-bound agent package digest is
+  `953a3f86526ae242530cc04b3795062f6200a10cd0a394dd47f6457bf4f86dea`.
+- The active application release is
+  `/opt/opsworkbench/releases/review-050edf2a/app`; immediate application
+  rollback remains `/opt/opsworkbench/releases/review-3e5f10ab/app` through
+  checkpoint `/opt/opsworkbench/checkpoints/deploy-050edf2a-20260726T062100Z`.
+  Agent rollback is preserved at
+  `/opt/opsworkbench-agent/source.rollback-20260726T062700Z`.
+- An initial activation command omitted the established Compose project name and
+  created three isolated `compose-*` containers. They never replaced or served
+  the live `opsworkbench-*` stack, were removed immediately, and activation was
+  repeated with the explicit `opsworkbench` project name. The edge proxy was
+  restarted once to refresh service addresses after the intended containers
+  were recreated.
+- API and web are healthy on the exact commit with zero restarts. Internal
+  `/healthz` and `/readyz` report the exact revision and ready MongoDB, agent
+  heartbeat monitoring, audit, rate limiting, and environment state. The agent
+  service is active on the same revision, warning logs are empty, application
+  logs contain no error evidence, and disk use is 75%, below the warning
+  threshold.
+- An unauthenticated browser reached `/dashboard`, received the expected secure
+  sign-in experience, and reported the correct dashboard document title. A
+  signed-in visual pass remains pending because the available browser session
+  has no application login; no authentication bypass or credential handling was
+  attempted. This activation restarts continuous staging observation.
+- No production publication, DNS, payment, database migration, secret rotation,
+  or signing action occurred. The owner-controlled Ed25519 publication boundary
+  remains mandatory and unchanged.
+
 ## Remaining gates
 
-- Continue the new continuous staging burn-in for exact commit `3e5f10ab`.
+- Continue the new continuous staging burn-in for exact commit `050edf2a` and
+  complete the signed-in `/dashboard` visual pass when an authenticated browser
+  session is available.
 - Decide whether `opsworkbench.org` should expose a public crawlable landing page
   outside Cloudflare Access or whether SEO audits should use a separately
   reviewed public target. This decision may affect a public access policy and is
