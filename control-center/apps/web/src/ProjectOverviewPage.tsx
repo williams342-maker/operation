@@ -40,7 +40,7 @@ export function ProjectOverviewPage({ projectId, canViewAudit, navigate }: { pro
         {unavailable.map(([name]) => <button key={name} disabled title="Planned" className="rounded-md border border-border px-3 py-2 text-sm text-muted opacity-60">{name} · Planned</button>)}
         <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/tasks")}>Tasks</button>
         {canViewAudit && <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate("/audit")}>Audit</button>}
-        <button disabled title="Future capability" className="rounded-md border border-border px-3 py-2 text-sm text-muted opacity-60">Builder · Future</button>
+        <button className="rounded-md border border-border px-3 py-2 text-sm" onClick={() => navigate(`/projects/${projectId}/builder`)}>Website Builder</button>
       </nav>
     </Card>
     <div className="grid gap-4 lg:grid-cols-2">

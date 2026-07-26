@@ -33,6 +33,7 @@ import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 import { emailLoginUrl, passwordResetUrl, sendEmailLoginEmail, sendPasswordResetEmail } from "./passwordResetMailer.js";
 import { validatePublicHealthCheckUrl } from "./urlDiscovery.js";
 import { marketingRouter } from "./marketingRoutes.js";
+import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
 
 export const router = express.Router();
 
@@ -569,6 +570,7 @@ router.get("/system/health", requirePermission("status:view"), async (req, res) 
 router.get("/system/diagnostics", requirePermission("audit:view"), async (req, res) => res.json(await internalDiagnostics(req.orgId)));
 router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
+router.use(websiteBuilderRouter);
 router.use(aiSettingsRouter);
 router.use(configurationRouter);
 router.use(agentUpgradeRouter);

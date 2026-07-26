@@ -68,7 +68,7 @@ describe("Project Overview workspace", () => {
     await screen.findByTestId("project-overview");
     for (const title of ["Deployments", "Releases", "Rollbacks", "Logs"]) expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     expect(screen.getAllByText("Unavailable").length).toBeGreaterThanOrEqual(3);
-    expect(screen.getByRole("button", { name: /Builder · Future/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Website Builder" })).toBeEnabled();
   });
 
   it("handles missing and stale evidence honestly", async () => {

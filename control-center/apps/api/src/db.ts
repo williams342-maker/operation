@@ -31,7 +31,8 @@ import type {
   MarketingCampaignDoc,
   MarketingMetricDailyDoc,
   MarketingGoalDoc,
-  MarketingInsightDoc
+  MarketingInsightDoc,
+  WebsiteBuilderDraftDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -72,7 +73,8 @@ export const collections = {
   marketingCampaigns: db.collection<MarketingCampaignDoc>("marketing_campaigns"),
   marketingMetricsDaily: db.collection<MarketingMetricDailyDoc>("marketing_metrics_daily"),
   marketingGoals: db.collection<MarketingGoalDoc>("marketing_goals"),
-  marketingInsights: db.collection<MarketingInsightDoc>("marketing_insights")
+  marketingInsights: db.collection<MarketingInsightDoc>("marketing_insights"),
+  websiteBuilderDrafts: db.collection<WebsiteBuilderDraftDoc>("website_builder_drafts")
 };
 
 export async function connectDb() {
@@ -108,6 +110,7 @@ async function ensureIndexes() {
     collections.projects.createIndex({ orgId: 1, slug: 1 }, { unique: true }),
     collections.projects.createIndex({ orgId: 1, primaryServerId: 1 }),
     collections.projects.createIndex({ orgId: 1, archivedAt: 1 }),
+    collections.websiteBuilderDrafts.createIndex({ orgId: 1, projectId: 1, revision: -1 }, { unique: true }),
     collections.healthChecks.createIndex({ orgId: 1, projectId: 1 }),
     collections.healthChecks.createIndex({ orgId: 1, archivedAt: 1 }),
     collections.mongoChecks.createIndex({ orgId: 1, projectId: 1 }),
