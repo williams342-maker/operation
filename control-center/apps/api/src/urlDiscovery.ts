@@ -61,7 +61,7 @@ function requestPinnedWebsite(url: URL, address: string): Promise<PublicWebsiteR
     const request = transport.request(url, {
       method: "GET",
       headers: { "user-agent": "OpsWorkbench-Discovery/1.0", accept: "text/html,*/*;q=0.1" },
-      lookup: (_hostname, _options, callback) => callback(null, address, net.isIPv6(address) ? 6 : 4)
+      lookup: pinnedWebsiteLookup(address)
     }, (response) => {
       const chunks: Buffer[] = [];
       let size = 0;
@@ -84,6 +84,17 @@ function requestPinnedWebsite(url: URL, address: string): Promise<PublicWebsiteR
     request.once("error", (error) => finish(() => reject(error)));
     request.end();
   });
+}
+
+export function pinnedWebsiteLookup(address: string): net.LookupFunction {
+  const family = net.isIPv6(address) ? 6 : 4;
+  return (_hostname, options, callback) => {
+    if (typeof options === "object" && options.all) {
+      callback(null, [{ address, family }]);
+      return;
+    }
+    callback(null, address, family);
+  };
 }
 
 export async function fetchPublicWebsite(initialUrl: string, hooks: PublicWebsiteHooks = {}) {
