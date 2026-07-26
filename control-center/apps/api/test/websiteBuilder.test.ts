@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildValidation, regenerateSiteSection } from "../src/websiteBuilder.js";
+import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, regenerateSiteSection } from "../src/websiteBuilder.js";
 
 const brief = buildProjectBrief([
   { questionId: "business_name", value: "Acme Makers" },
@@ -54,4 +54,24 @@ test("section regeneration changes only one versioned artifact", () => {
   assert.equal(regenerated.id, original.id);
   assert.equal(regenerated.version, original.version + 1);
   assert.notEqual(regenerated.heading, original.heading);
+});
+
+test("static artifact escapes user-controlled HTML", () => {
+  const unsafe = { ...brief, business: { name: "<script>alert(1)</script>", description: "Safe & sound" } }; const architecture = buildArchitecture(unsafe); const artifact = buildStaticSiteArtifact(unsafe, architecture, buildBrandDirections(unsafe)[0], buildSiteContent(unsafe, architecture));
+  assert.doesNotMatch(artifact.html, /<script>alert/);
+  assert.match(artifact.html, /&lt;script&gt;/);
+  assert.match(artifact.html, /Safe &amp; sound/);
+});
+
+test("static artifact is reproducible and content addressed", () => {
+  const architecture = buildArchitecture(brief); const brand = buildBrandDirections(brief)[0]; const sections = buildSiteContent(brief, architecture); const first = buildStaticSiteArtifact(brief, architecture, brand, sections); const second = buildStaticSiteArtifact(brief, architecture, brand, sections);
+  assert.equal(first.html, second.html);
+  assert.equal(first.sha256, second.sha256);
+  assert.match(first.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("static artifact rejects untrusted color tokens", () => {
+  const architecture = buildArchitecture(brief); const artifact = buildStaticSiteArtifact(brief, architecture, { colors: ["red;position:fixed", "javascript:alert(1)", "url(evil)"] }, buildSiteContent(brief, architecture));
+  assert.doesNotMatch(artifact.html, /javascript:|url\(evil\)|position:fixed/);
+  assert.match(artifact.html, /--accent:#2563eb/);
 });

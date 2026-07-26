@@ -1,5 +1,7 @@
 export type WebsiteBuildStage = "discovery" | "brief_review" | "architecture_review" | "brand_review" | "content_review" | "implementation_approval" | "preview_ready" | "user_review" | "staging_approval" | "paused";
 export type DiscoveryAnswer = { questionId: string; value: string };
+import crypto from "node:crypto";
+
 export type SiteSection = { id: string; type: "hero" | "features" | "about" | "cta"; heading: string; body: string; cta?: string; version: number };
 
 const answerMap = (answers: DiscoveryAnswer[]) => Object.fromEntries(answers.map((answer) => [answer.questionId, answer.value.trim()]));
@@ -53,4 +55,15 @@ export function regenerateSiteSection(section: SiteSection, brief: any): SiteSec
     cta: { heading: "Let’s get started", body: `Take the next step with ${name}.` },
   };
   return { ...section, ...(alternatives[section.type] || alternatives.about), version: section.version + 1 };
+}
+
+const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
+const safeColor = (value: unknown, fallback: string) => /^#[0-9a-f]{6}$/i.test(String(value)) ? String(value) : fallback;
+export function buildStaticSiteArtifact(brief: any, architecture: any, brand: any, sections: SiteSection[]) {
+  const background = safeColor(brand?.colors?.[2], "#f8fafc"); const text = safeColor(brand?.colors?.[0], "#0f172a"); const accent = safeColor(brand?.colors?.[1], "#2563eb");
+  const navigation = architecture.navigation.map((item: any) => `<a href="${escapeHtml(item.route)}">${escapeHtml(item.title)}</a>`).join("");
+  const content = sections.map((section) => `<section class="section ${escapeHtml(section.type)}"><div class="inner"><h${section.type === "hero" ? "1" : "2"}>${escapeHtml(section.heading)}</h${section.type === "hero" ? "1" : "2"}><p>${escapeHtml(section.body)}</p>${section.cta ? `<a class="button" href="#contact">${escapeHtml(section.cta)}</a>` : ""}</div></section>`).join("");
+  const css = `:root{color-scheme:light;--bg:${background};--text:${text};--accent:${accent}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.6}header{display:flex;align-items:center;justify-content:space-between;gap:2rem;padding:1rem clamp(1rem,5vw,4rem);border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent)}nav{display:flex;flex-wrap:wrap;gap:1rem}a{color:inherit;text-decoration:none}.section{padding:clamp(3rem,8vw,7rem) clamp(1rem,5vw,4rem);text-align:center;border-bottom:1px solid color-mix(in srgb,var(--text) 10%,transparent)}.inner{max-width:64rem;margin:auto}h1{font-size:clamp(2.4rem,7vw,5.5rem);line-height:1.05;margin:0}h2{font-size:clamp(1.8rem,4vw,3rem);line-height:1.15;margin:0}.section p{max-width:48rem;margin:1.25rem auto 0}.button{display:inline-block;margin-top:2rem;padding:.85rem 1.25rem;border-radius:.65rem;background:var(--accent);color:#fff;font-weight:700}@media(max-width:640px){header nav{display:none}.section{padding-block:3.5rem}}`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(brief.business.name)}</title><meta name="description" content="${escapeHtml(brief.business.description).slice(0, 160)}"><style>${css}</style></head><body><header><strong>${escapeHtml(brief.business.name)}</strong><nav aria-label="Primary">${navigation}</nav></header><main>${content}</main></body></html>`;
+  return { version: 1, filename: `${slug(brief.business.name)}-website.html`, mimeType: "text/html; charset=utf-8", html, sha256: crypto.createHash("sha256").update(html).digest("hex"), bytes: Buffer.byteLength(html), generatedAt: new Date() };
 }
