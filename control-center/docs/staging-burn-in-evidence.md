@@ -391,11 +391,37 @@ Ed25519 signature.
   the full 316-test workspace suite with 305 passes and 11 intentional skips.
   The live UI milestone passed all 94 web tests.
 
+### Authoritative continuous burn-in completion
+
+- The authenticated Project Overview reported the `Staging-BurnIn-v1`
+  observation as `complete` after the minimum continuous window elapsed. The
+  window began at `2026-07-24T20:20:00.484Z` and its earliest completion was
+  `2026-07-25T20:20:00.484Z`.
+- At the final authenticated review on 2026-07-26 UTC, the policy evaluator
+  reported 3,440 telemetry samples from one enabled HTTP check, 100.000%
+  availability, 0.000% HTTP error rate, 46-millisecond p95 latency, a
+  30.6-second maximum agent heartbeat gap, 76.57% maximum disk use, zero
+  unexpected restarts, zero critical alerts, and no reset reason.
+- Public `/healthz` and `/readyz` remained healthy. The API and web containers,
+  their immutable OCI revision labels, the restricted agent source marker, and
+  the public build identity all aligned to exact staging commit
+  `f4f584ac86085a22ad1e935ab518d50a46e12f8f`.
+- API, web, edge, and MongoDB were running and healthy with zero Docker restart
+  counts. `opsworkbench-agent.service` was active/running with zero systemd
+  restart count.
+- The immediate rollback checkpoint is
+  `/opt/opsworkbench/checkpoints/deploy-f4f584ac-20260724T201801Z`. Its sorted
+  per-file SHA-256 evidence digest is
+  `34a21f0fb39132d16d58dc0fc01c27c947d5107cf3cc995c2f858be945eba03b`;
+  it binds candidate commit `f4f584ac86085a22ad1e935ab518d50a46e12f8f`
+  to prior release `/opt/opsworkbench/releases/review-32af4a76/app` and records
+  before/after container, health, readiness, and agent-state evidence.
+- The final review created no deployment, publication, DNS, payment, database,
+  secret-rotation, or signing action. Production publication remains disabled
+  and still requires the owner-controlled Ed25519 boundary.
+
 ## Remaining gates
 
-- Allow the active continuous observation window to run until at least
-  `2026-07-25T20:20:00.484Z`. A configured reset condition automatically moves
-  that completion boundary forward.
 - Exercise the end-to-end control-plane configuration plan, separate approval,
   dispatch, acknowledgement, and successful controlled rollback record.
 - Create the host-specific configuration target profile containing the exact
