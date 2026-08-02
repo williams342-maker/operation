@@ -59,7 +59,7 @@ const authLimiter = rateLimit({
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "test",
+  skip: () => process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "staging",
   message: { error: "Too many authentication attempts. Try again later.", code: "RATE_LIMITED" }
 });
 app.use(["/api/auth/login", "/api/auth/reauthenticate", "/api/auth/owner-replacement"], authLimiter);
