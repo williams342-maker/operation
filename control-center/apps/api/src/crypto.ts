@@ -52,8 +52,12 @@ export function validateRuntimeSecrets() {
 function encryptionKey() {
   const raw = process.env.CONTROL_CENTER_ENCRYPTION_KEY;
   if (!raw) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("CONTROL_CENTER_ENCRYPTION_KEY is required in production");
+    const env = process.env.NODE_ENV;
+    // Fail closed for any explicitly-named deployed environment (production, staging, preview, ci, ...).
+    // Only an unset NODE_ENV (local dev) or an explicit development/test build may fall back to a
+    // source-derivable key, so a mislabelled staging host can never seal real secrets under a public key.
+    if (env && env !== "development" && env !== "test") {
+      throw new Error("CONTROL_CENTER_ENCRYPTION_KEY is required outside local development and test");
     }
     return crypto.createHash("sha256").update("dev-encryption-key-change-me").digest();
   }
@@ -78,16 +82,31 @@ export function hashAgentSecret(agentSecret: string) {
   return agentSigningKey(agentSecret);
 }
 
-export function hashPassword(password: string, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.pbkdf2Sync(password, salt, 120_000, 32, "sha256").toString("hex");
-  return `pbkdf2$${salt}$${hash}`;
+const PBKDF2_ITERATIONS = 600_000;
+const LEGACY_PBKDF2_ITERATIONS = 120_000;
+
+function pbkdf2Hex(password: string, salt: string, iterations: number) {
+  return crypto.pbkdf2Sync(password, salt, iterations, 32, "sha256").toString("hex");
+}
+
+export function hashPassword(password: string, salt = crypto.randomBytes(16).toString("hex"), iterations = PBKDF2_ITERATIONS) {
+  return `pbkdf2$${iterations}$${salt}$${pbkdf2Hex(password, salt, iterations)}`;
 }
 
 export function verifyPassword(password: string, stored: string) {
-  const [, salt, expected] = stored.split("$");
-  if (!salt || !expected) return false;
-  const actual = hashPassword(password, salt).split("$")[2];
-  return crypto.timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
+  const parts = stored.split("$");
+  let iterations: number;
+  let salt: string;
+  let expected: string;
+  if (parts[0] !== "pbkdf2") return false;
+  if (parts.length === 4) { iterations = Number(parts[1]); salt = parts[2]; expected = parts[3]; }
+  else if (parts.length === 3) { iterations = LEGACY_PBKDF2_ITERATIONS; salt = parts[1]; expected = parts[2]; }
+  else return false;
+  if (!Number.isInteger(iterations) || iterations < 1 || !salt || !expected) return false;
+  const actual = Buffer.from(pbkdf2Hex(password, salt, iterations), "hex");
+  const target = Buffer.from(expected, "hex");
+  if (actual.length !== target.length) return false;
+  return crypto.timingSafeEqual(actual, target);
 }
 
 export function encryptSecret(secret: string) {

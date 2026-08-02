@@ -5,7 +5,11 @@ export type EnvelopeCiphertext = { algorithm: "aes-256-gcm"; keyVersion: string;
 function masterKey() {
   const raw = process.env.CONTROL_CENTER_ENCRYPTION_KEY;
   if (!raw) {
-    if (process.env.NODE_ENV === "production") throw new Error("CONTROL_CENTER_ENCRYPTION_KEY is required");
+    const env = process.env.NODE_ENV;
+    // Only local development (unset NODE_ENV) or an explicit development/test build may use the
+    // source-derivable fallback key. Any named deployed environment (production, staging, preview,
+    // ci, ...) must supply a real key, so secrets are never sealed under a public constant.
+    if (env && env !== "development" && env !== "test") throw new Error("CONTROL_CENTER_ENCRYPTION_KEY is required outside local development and test");
     return crypto.createHash("sha256").update("configuration-vault-development-key").digest();
   }
   const key = Buffer.from(raw, "base64");

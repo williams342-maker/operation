@@ -2,10 +2,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import dns from "node:dns/promises";
-import net from "node:net";
-import { configurationDeploymentPayloadSchema, deploymentCapabilities, isCompatibleAgentVersion, isSafeHttpCheckUrl, minimumDeploymentAgentVersion, type ConfigurationDeploymentPayload, type DeploymentProgress } from "@control-center/shared";
+import { configurationDeploymentPayloadSchema, deploymentCapabilities, isCompatibleAgentVersion, minimumDeploymentAgentVersion, type ConfigurationDeploymentPayload, type DeploymentProgress } from "@control-center/shared";
 import { execFixed } from "./safeExec.js";
 import { linuxMountPoints } from "./discoverySafety.js";
+import { validateHttpCheckUrl } from "./urlSafety.js";
 
 const MAX_VALUE = 16 * 1024;
 const usedNonces = new Map<string, number>();
@@ -78,23 +78,10 @@ export function decryptValues(payload: ConfigurationDeploymentPayload, signingKe
   return record as Record<string, string>;
 }
 
-function publicAddress(address: string) {
-  if (net.isIPv4(address)) { const [a, b] = address.split(".").map(Number); return !(a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224 || (a === 100 && b >= 64 && b <= 127)); }
-  if (net.isIPv6(address)) { const value = address.toLowerCase(); return !(value === "::" || value === "::1" || /^(fc|fd|fe[89ab]|ff)/.test(value)); }
-  return false;
-}
-
-async function validateHealthUrl(raw: string, resolver: (hostname: string) => Promise<string[]>) {
-  if (!isSafeHttpCheckUrl(raw)) throw new Error("Health check target rejected");
-  const url = new URL(raw); const hostname = url.hostname.replace(/^\[|\]$/g, ""); const addresses = net.isIP(hostname) ? [hostname] : await resolver(hostname);
-  if (!addresses.length || addresses.some((address) => !publicAddress(address))) throw new Error("Health check target rejected");
-  return url;
-}
-
 async function safeHealth(raw: string, timeoutMs: number, resolver: (hostname: string) => Promise<string[]>) {
   let current = raw;
   for (let redirects = 0; redirects <= 3; redirects += 1) {
-    await validateHealthUrl(current, resolver);
+    await validateHttpCheckUrl(current, resolver);
     const response = await fetch(current, { signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
     const location = response.headers.get("location");
     if (response.status >= 300 && response.status < 400 && location) { if (redirects === 3) return false; current = new URL(location, current).toString(); continue; }
@@ -118,7 +105,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   const now = (hooks.now || (() => new Date()))(); for (const [key, expiry] of usedNonces) if (expiry < now.getTime()) usedNonces.delete(key);
   if (usedNonces.has(nonce)) throw new Error("Replay rejected"); usedNonces.set(nonce, now.getTime() + 24 * 60 * 60 * 1000);
   const resolver = hooks.resolve || (async (hostname: string) => (await dns.lookup(hostname, { all: true, verbatim: true })).map((entry) => entry.address));
-  for (const check of payload.healthChecks) await validateHealthUrl(check.url, resolver);
+  for (const check of payload.healthChecks) await validateHttpCheckUrl(check.url, resolver);
   const file = assertSafePath(payload.repositoryRoot, payload.environmentFilePath); assertSafePath(payload.repositoryRoot, payload.composePath);
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw new Error("Environment file must be a regular file with one hard link");

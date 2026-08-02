@@ -8,6 +8,7 @@ import { capDiscovery, DISCOVERY_LIMITS, sanitizeGitRemote, walkSameDevice } fro
 import type { AgentConfig } from "./config.js";
 import { parseComposePsLine, parseDockerPsLine } from "./parsers.js";
 import { discoverConfiguration } from "./configurationDiscovery.js";
+import { probeHttp } from "./urlSafety.js";
 
 export async function collectSystem(agentVersion: string) {
   const cpus = os.cpus();
@@ -135,16 +136,16 @@ export async function collectHttp(checks: Array<{ id: string; url: string; timeo
   const rows = [];
   for (const check of checks) {
     const started = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), check.timeoutMs);
     try {
-      const response = await fetch(check.url, { method: "GET", signal: controller.signal });
-      rows.push({ healthCheckId: check.id, success: response.ok, statusCode: response.status, latencyMs: Date.now() - started, checkedAt: new Date().toISOString() });
+      // probeHttp blocks private/loopback/link-local/metadata targets and refuses to follow redirects
+      // into them, so a task cannot turn the agent into an SSRF proxy for the host's internal network.
+      const result = await probeHttp(check.url, check.timeoutMs);
+      rows.push({ healthCheckId: check.id, success: result.ok, statusCode: result.statusCode, latencyMs: Date.now() - started, checkedAt: new Date().toISOString() });
     } catch (error) {
-      const category = (error as Error).name === "AbortError" ? "timeout" : "network";
+      const name = (error as Error).name;
+      const message = (error as Error).message || "";
+      const category = name === "TimeoutError" || name === "AbortError" ? "timeout" : /rejected|redirects/i.test(message) ? "blocked" : "network";
       rows.push({ healthCheckId: check.id, success: false, latencyMs: Date.now() - started, errorCategory: category, checkedAt: new Date().toISOString() });
-    } finally {
-      clearTimeout(timer);
     }
   }
   return rows;

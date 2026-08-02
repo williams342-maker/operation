@@ -76,6 +76,7 @@ async function ensureIndexes() {
     collections.organizations.createIndex({ slug: 1 }, { unique: true }),
     collections.users.createIndex({ orgId: 1, email: 1 }, { unique: true }),
     collections.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.sessions.createIndex({ tokenHash: 1 }, { unique: true }),
     collections.sessions.createIndex({ orgId: 1, userId: 1 }),
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),
     collections.enrollments.createIndex({ orgId: 1, createdAt: -1 }),

@@ -98,7 +98,7 @@ router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
     const user = await collections.users.findOne({ _id: owners[0]._id, orgId: org._id });
     if (!user) throw new Error("Replaced owner is unavailable");
     const session = await createSession(user);
-    setSessionCookie(res, session.sessionId);
+    setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "system", action: "user.password.change", targetType: "user", targetId: user._id, result: "success", requestId: req.requestId, metadata: { oneTimeOwnerReplacement: true } });
     res.status(201).json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
@@ -149,7 +149,7 @@ router.post("/auth/login", noStore, async (req, res, next) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
     const session = await createSession(user);
-    setSessionCookie(res, session.sessionId);
+    setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId });
     res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }

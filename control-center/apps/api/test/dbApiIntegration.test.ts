@@ -139,6 +139,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     return { cookie: cookieFrom(response.headers), csrf: response.body.csrfToken };
   }
 
+  async function sessionIdFor(session: Session) {
+    const token = session.cookie.slice("cc_session=".length);
+    const doc = await collections.sessions.findOne({ tokenHash: hashSecret(token) });
+    assert.ok(doc?._id, "expected persisted session for cookie");
+    return doc._id;
+  }
+
   async function createEnrollment(session: Session, expiresInMinutes = 60) {
     const response = await request<{ id: string; token: string; expiresAt: string }>("POST", "/enrollments", { expiresInMinutes }, jsonHeaders(session));
     assert.equal(response.status, 201);
@@ -276,7 +283,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(deniedEnrollment.status, 403);
 
     const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
-    const viewerSessionId = new ObjectId(viewerLogout.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const viewerSessionId = await sessionIdFor(viewerLogout);
     const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerLogout.cookie });
     assert.equal(logoutWithoutCsrf.status, 403);
     assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 1);
@@ -287,14 +294,14 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
     const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
-    const expiredViewerSessionId = new ObjectId(expiredViewer.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const expiredViewerSessionId = await sessionIdFor(expiredViewer);
     await collections.sessions.updateOne({ _id: expiredViewerSessionId }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
     const expiredLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(expiredViewer));
     assert.equal(expiredLogout.status, 200);
     assert.equal(await collections.sessions.countDocuments({ _id: expiredViewerSessionId }), 0);
     assert.match(expiredLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
-    const ownerSessionId = new ObjectId(ownerA.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const ownerSessionId = await sessionIdFor(ownerA);
     await collections.sessions.updateOne(
       { _id: ownerSessionId },
       { $set: { authenticatedAt: new Date(Date.now() - 11 * 60_000) } }

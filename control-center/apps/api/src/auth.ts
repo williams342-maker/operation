@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { hasPermission, type Permission, type Role } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { collections } from "./db.js";
-import { hashCsrfToken, randomToken } from "./crypto.js";
+import { hashCsrfToken, hashSecret, randomToken } from "./crypto.js";
 import type { UserDoc } from "./models.js";
 
 declare global {
@@ -25,8 +25,8 @@ export function parseCookies(header = "") {
   }));
 }
 
-export function setSessionCookie(res: Response, sessionId: ObjectId) {
-  res.cookie("cc_session", sessionId.toHexString(), {
+export function setSessionCookie(res: Response, sessionToken: string) {
+  res.cookie("cc_session", sessionToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production" || process.env.CONTROL_CENTER_SECURE_COOKIES === "true",
     sameSite: "lax",
@@ -37,10 +37,15 @@ export function setSessionCookie(res: Response, sessionId: ObjectId) {
 
 export async function createSession(user: UserDoc & { _id: ObjectId }) {
   const csrfToken = randomToken(24);
+  // The session credential is a 256-bit CSPRNG token; only its hash is persisted, so a read of the
+  // sessions collection cannot reconstruct a usable cookie, and the value is not derivable/guessable
+  // from any identifier the client sees (unlike the former ObjectId cookie).
+  const sessionToken = randomToken(32);
   const now = new Date();
   const result = await collections.sessions.insertOne({
     orgId: user.orgId,
     userId: user._id,
+    tokenHash: hashSecret(sessionToken),
     csrfTokenHash: hashCsrfToken(csrfToken),
     authenticatedAt: now,
     expiresAt: new Date(now.getTime() + 1000 * 60 * 30),
@@ -48,7 +53,7 @@ export async function createSession(user: UserDoc & { _id: ObjectId }) {
     createdAt: now,
     updatedAt: now
   });
-  return { sessionId: result.insertedId, csrfToken };
+  return { sessionId: result.insertedId, sessionToken, csrfToken };
 }
 
 export function clearSessionCookie(res: Response) {
@@ -57,14 +62,13 @@ export function clearSessionCookie(res: Response) {
 
 export async function allowExpiredLogout(req: Request, res: Response, next: NextFunction) {
   const sessionRaw = parseCookies(req.headers.cookie).cc_session;
-  if (!sessionRaw || !ObjectId.isValid(sessionRaw)) {
+  if (!sessionRaw) {
     clearSessionCookie(res);
     return res.status(200).json({ ok: true });
   }
-  const sessionId = new ObjectId(sessionRaw);
-  const session = await collections.sessions.findOne({ _id: sessionId });
+  const session = await collections.sessions.findOne({ tokenHash: hashSecret(sessionRaw) });
   if (!session || session.expiresAt <= new Date()) {
-    if (session) await collections.sessions.deleteOne({ _id: sessionId, orgId: session.orgId });
+    if (session?._id) await collections.sessions.deleteOne({ _id: session._id, orgId: session.orgId });
     clearSessionCookie(res);
     return res.status(200).json({ ok: true });
   }
@@ -73,11 +77,11 @@ export async function allowExpiredLogout(req: Request, res: Response, next: Next
 export async function requireSession(req: Request, res: Response, next: NextFunction) {
   const cookies = parseCookies(req.headers.cookie);
   const sessionRaw = cookies.cc_session;
-  if (!sessionRaw || !ObjectId.isValid(sessionRaw)) {
+  if (!sessionRaw) {
     await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId });
     return res.status(401).json({ error: "Authentication required" });
   }
-  const session = await collections.sessions.findOne({ _id: new ObjectId(sessionRaw), expiresAt: { $gt: new Date() } });
+  const session = await collections.sessions.findOne({ tokenHash: hashSecret(sessionRaw), expiresAt: { $gt: new Date() } });
   if (!session) return res.status(401).json({ error: "Session expired" });
   const user = await collections.users.findOne({ _id: session.userId, orgId: session.orgId, disabledAt: { $exists: false } });
   if (!user?._id) return res.status(401).json({ error: "User unavailable" });
