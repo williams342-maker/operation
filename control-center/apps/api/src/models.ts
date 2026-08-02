@@ -8,6 +8,7 @@ export type AiOrganizationSettings = { enabled: boolean; provider?: string; mode
 export type OrganizationDoc = { _id?: ObjectId; name: string; slug: string; defaultTimezone?: string; status?: "active" | "suspended"; ownerReplacementCompletedAt?: Date; aiAssistant?: AiOrganizationSettings; createdAt: Date; updatedAt: Date };
 export type UserDoc = BaseDoc & { email: string; name: string; role: Role; passwordHash: string; disabledAt?: Date; inviteIssuedAt?: Date; mustChangePassword?: boolean };
 export type SessionDoc = BaseDoc & { userId: ObjectId; tokenHash: string; csrfTokenHash: string; authenticatedAt: Date; expiresAt: Date; lastSeenAt: Date };
+export type LoginThrottleDoc = { _id?: ObjectId; key: string; failures: number; lockedUntil: Date | null; updatedAt: Date; expiresAt: Date };
 export type EnrollmentUsage = { usedAt: Date; serverId: ObjectId; agentId: string; hostname: string };
 export type EnrollmentDoc = BaseDoc & { tokenHash: string; name: string; description?: string; expiresAt?: Date; maxUses?: number; uses: number; usage: EnrollmentUsage[]; usedAt?: Date; usedByAgentId?: ObjectId; createdByUserId: ObjectId; serverId?: ObjectId; cloudflareAccessIntegrationId?: ObjectId; bootstrapDownloadTokenHash?: string; bootstrapDownloadedAt?: Date; revokedAt?: Date };
 export type CloudflareAccessIntegrationDoc = BaseDoc & { name: string; clientIdEnvelope: EnvelopeCiphertext; clientSecretEnvelope: EnvelopeCiphertext; clientIdFingerprint: string; clientSecretFingerprint: string; createdByUserId: ObjectId; disabledAt?: Date };

@@ -6,7 +6,8 @@ import {
   taskAckSchema,
   DEFAULT_HEARTBEAT_STALE_SECONDS,
   isHeartbeatStale,
-  retentionCutoff
+  retentionCutoff,
+  timingSafeEqualHex
 } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { allowExpiredLogout, clearSessionCookie, createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
@@ -17,6 +18,7 @@ import { managementRouter } from "./managementRoutes.js";
 import { taskRouter } from "./taskRoutes.js";
 import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
 import { acknowledgeTask, claimTasksForAgent, taskAuditTargetId } from "./tasks.js";
+import { clearLoginThrottle, evaluateLoginThrottle, registerLoginFailure, throttleKey } from "./authThrottle.js";
 import { calculateAgentStatus } from "./serverStatus.js";
 import { aiAssistantRouter } from "./aiAssistantRoutes.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -55,8 +57,18 @@ async function bootstrapAvailable() {
   return await collections.organizations.countDocuments() === 0;
 }
 
+// The out-of-band recovery secret gates owner replacement. If it is unset, blank, too short, or a
+// placeholder, owner replacement is unavailable regardless of bootstrap mode — so leaving
+// CONTROL_CENTER_BOOTSTRAP_MODE=replacement on in production no longer permits an anonymous takeover.
+function ownerReplacementSecret(): string | null {
+  const raw = process.env.CONTROL_CENTER_OWNER_REPLACEMENT_TOKEN?.trim();
+  if (!raw || raw.length < 32 || /change-me|default|example/i.test(raw)) return null;
+  return raw;
+}
+
 async function ownerReplacementAvailable() {
   if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE !== "replacement") return false;
+  if (!ownerReplacementSecret()) return false;
   const organizations = await collections.organizations.find({ ownerReplacementCompletedAt: { $exists: false } }, { projection: { _id: 1 } }).limit(2).toArray();
   if (organizations.length !== 1) return false;
   return await collections.users.countDocuments({ orgId: organizations[0]._id, role: "Owner", disabledAt: { $exists: false } }) === 1;
@@ -80,9 +92,16 @@ router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
       await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "owner-replacement-unavailable" } });
       return res.status(409).json({ error: "Owner replacement is unavailable" });
     }
-    const parsed = z.object({ ownerEmail: z.string().email(), ownerName: z.string().min(1).max(200), password: z.string().min(12).max(256) }).safeParse(req.body);
+    const parsed = z.object({ ownerEmail: z.string().email(), ownerName: z.string().min(1).max(200), password: z.string().min(12).max(256), recoveryToken: z.string().min(1).max(512) }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid owner replacement request" });
     const body = parsed.data;
+    // Verify the out-of-band recovery token (constant-time over fixed-length hashes) BEFORE consuming
+    // the one-time claim, so an attacker without the token cannot burn the single break-glass attempt.
+    const secret = ownerReplacementSecret();
+    if (!secret || !timingSafeEqualHex(hashSecret(body.recoveryToken), hashSecret(secret))) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "owner-replacement-invalid-token" } });
+      return res.status(401).json({ error: "Owner replacement is unavailable" });
+    }
     const org = await singleOrganization();
     if (org?.ownerReplacementCompletedAt) return res.status(409).json({ error: "Owner replacement is unavailable" });
     if (!org?._id) return res.status(404).json({ error: "Organization not found" });
@@ -140,14 +159,23 @@ router.post("/auth/bootstrap", noStore, async (req, res, next) => {
 router.post("/auth/login", noStore, async (req, res, next) => {
   try {
     const body = z.object({ organizationSlug: z.string().optional(), email: z.string().email(), password: z.string() }).parse(req.body);
+    const throttle = throttleKey(body.organizationSlug, body.email);
+    const status = await evaluateLoginThrottle(throttle);
+    if (status.locked) {
+      await audit({ actorType: "anonymous", action: "auth.login", result: "denied", requestId: req.requestId, metadata: { email: body.email.toLowerCase(), reason: "account-locked" } });
+      res.setHeader("Retry-After", String(status.retryAfterSeconds));
+      return res.status(429).json({ error: "Too many failed attempts. Try again later.", code: "ACCOUNT_LOCKED", retryAfterSeconds: status.retryAfterSeconds });
+    }
     const org = body.organizationSlug
       ? await collections.organizations.findOne({ slug: body.organizationSlug })
       : await singleOrganization();
     const user = org?._id ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
     if (!org?._id || !user?._id || !verifyPassword(body.password, user.passwordHash)) {
-      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase() } });
+      const failure = await registerLoginFailure(throttle);
+      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase(), failures: failure.failures } });
       return res.status(401).json({ error: "Invalid credentials" });
     }
+    await clearLoginThrottle(throttle);
     const session = await createSession(user);
     setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId });

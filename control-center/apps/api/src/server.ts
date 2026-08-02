@@ -51,6 +51,18 @@ app.use(rateLimit({ windowMs: 60_000, limit: 180 }));
 app.use(express.json({ limit: "1mb", verify: captureRawBody }));
 app.get("/healthz", (_req, res) => res.json({ ok: true, status: "alive", version: process.env.BUILD_VERSION || "development", commit: process.env.GIT_COMMIT || "unknown" }));
 app.get("/readyz", async (_req, res) => { const health = await runtimeHealth(); res.status(health.status === "ready" ? 200 : 503).json(health); });
+// Coarse per-IP cap on the credential endpoints, on top of the global limiter and the per-account
+// progressive lockout (authThrottle). Disabled under test so the integration suite's many logins from
+// a single loopback IP do not trip it; the per-account lockout is exercised by tests instead.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
+  message: { error: "Too many authentication attempts. Try again later.", code: "RATE_LIMITED" }
+});
+app.use(["/api/auth/login", "/api/auth/reauthenticate", "/api/auth/owner-replacement"], authLimiter);
 app.use("/api", router);
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {

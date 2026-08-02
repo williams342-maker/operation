@@ -181,6 +181,9 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
   try {
     diagnostic("test.body.start");
     await assertIndex(collections.enrollments, { orgId: 1, tokenHash: 1 }, { unique: true });
+    await assertIndex(collections.sessions, { tokenHash: 1 }, { unique: true });
+    await assertIndex(collections.loginThrottle, { key: 1 }, { unique: true });
+    await assertIndex(collections.loginThrottle, { expiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.agentNonces, { orgId: 1, agentId: 1, nonce: 1 }, { unique: true });
     await assertIndex(collections.telemetry, { expiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.telemetry, { orgId: 1, serverId: 1, collectedAt: -1 });
@@ -281,6 +284,20 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const administratorA = await login("phase-1b-a", "administrator-a@example.test", createAdministrator.body.oneTimePassword);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
+
+    // Progressive per-account login lockout: five wrong-password attempts lock the account, after which
+    // even the correct password is refused with 429 ACCOUNT_LOCKED until the backoff window elapses.
+    const lockUser = await request<{ oneTimePassword: string }>("POST", "/org/users", { email: "lock-a@example.test", name: "Lock A", role: "Viewer" }, jsonHeaders(ownerA));
+    assert.equal(lockUser.status, 201);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const wrong = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "lock-a@example.test", password: "definitely-wrong-password" }, { "content-type": "application/json" });
+      assert.equal(wrong.status, 401);
+    }
+    const lockedOut = await request<{ code: string; retryAfterSeconds: number }>("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "lock-a@example.test", password: lockUser.body.oneTimePassword }, { "content-type": "application/json" });
+    assert.equal(lockedOut.status, 429);
+    assert.equal(lockedOut.body.code, "ACCOUNT_LOCKED");
+    assert.ok(lockedOut.body.retryAfterSeconds > 0);
+    assert.ok(Number(lockedOut.headers.get("retry-after")) > 0);
 
     const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
     const viewerSessionId = await sessionIdFor(viewerLogout);

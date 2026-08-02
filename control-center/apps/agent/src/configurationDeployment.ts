@@ -5,7 +5,7 @@ import dns from "node:dns/promises";
 import { configurationDeploymentPayloadSchema, deploymentCapabilities, isCompatibleAgentVersion, minimumDeploymentAgentVersion, type ConfigurationDeploymentPayload, type DeploymentProgress } from "@control-center/shared";
 import { execFixed } from "./safeExec.js";
 import { linuxMountPoints } from "./discoverySafety.js";
-import { validateHttpCheckUrl } from "./urlSafety.js";
+import { probeHttp, validateHttpCheckUrl } from "./urlSafety.js";
 
 const MAX_VALUE = 16 * 1024;
 const usedNonces = new Map<string, number>();
@@ -79,15 +79,8 @@ export function decryptValues(payload: ConfigurationDeploymentPayload, signingKe
 }
 
 async function safeHealth(raw: string, timeoutMs: number, resolver: (hostname: string) => Promise<string[]>) {
-  let current = raw;
-  for (let redirects = 0; redirects <= 3; redirects += 1) {
-    await validateHttpCheckUrl(current, resolver);
-    const response = await fetch(current, { signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
-    const location = response.headers.get("location");
-    if (response.status >= 300 && response.status < 400 && location) { if (redirects === 3) return false; current = new URL(location, current).toString(); continue; }
-    return response.ok;
-  }
-  return false;
+  // IP-pinned, redirect-revalidating probe (see urlSafety.probeHttp) — closes the DNS-rebind window.
+  return (await probeHttp(raw, timeoutMs, resolver)).ok;
 }
 
 function writeAtomic(file: string, content: string, mode: number, uid: number, gid: number) {
