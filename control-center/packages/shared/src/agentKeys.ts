@@ -32,6 +32,12 @@ function importPrivate(keyB64: string, kind: "ed25519" | "x25519") {
   return key;
 }
 
+// One-way SHA-256 over the DER SPKI bytes of a PUBLIC key. Safe to store in audit records and logs
+// (never derived from private material). Used to reference keys without exposing raw key bytes.
+export function keyFingerprint(publicKeyB64: string): string {
+  return crypto.createHash("sha256").update(fromB64u(publicKeyB64)).digest("hex");
+}
+
 export function generateAgentKeyPairs(): AgentKeyPairs {
   const signing = crypto.generateKeyPairSync("ed25519");
   const encryption = crypto.generateKeyPairSync("x25519");
