@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), get: vi.fn(), advance: vi.fn(), regen: vi.fn(), list: vi.fn() }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), get: vi.fn(), advance: vi.fn(), regen: vi.fn(), updateBrief: vi.fn(), list: vi.fn() }));
 
 vi.mock("./api", () => ({ apiError: (error: any) => error?.message ?? "error", api: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("./foundryApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./foundryApi")>();
-  return { ...actual, createWorkflowFromPrompt: mocks.create, getWorkflow: mocks.get, advanceWorkflow: mocks.advance, regenerateSection: mocks.regen, listWorkflows: mocks.list };
+  return { ...actual, createWorkflowFromPrompt: mocks.create, getWorkflow: mocks.get, advanceWorkflow: mocks.advance, regenerateSection: mocks.regen, updateWorkflowBrief: mocks.updateBrief, listWorkflows: mocks.list };
 });
 
 import { FoundryStudio } from "./FoundryStudio";
@@ -103,5 +103,19 @@ describe("Foundry studio", () => {
     // Contextual, project-specific, zero-credit suggestion is offered.
     expect(screen.getByText(/strengthen the homepage headline/i)).toBeInTheDocument();
     expect(screen.getAllByText(/estimated credits: 0/i).length).toBeGreaterThan(0);
+  });
+
+  it("names an unnamed project inline and refreshes the preview without creating another workflow", async () => {
+    mocks.get.mockResolvedValue({ workflow: wf("preview_ready", { architecture, sections, brandDirections, artifact, validation }) });
+    const updated = wf("preview_ready", { brief: { ...brief, business: { ...brief.business, name: "Cedar & Sage" } }, architecture, sections, brandDirections, artifact: { ...artifact, html: "<html>Cedar & Sage</html>" }, validation });
+    mocks.updateBrief.mockResolvedValue({ workflow: updated });
+    render(<FoundryStudio route={{ kind: "project", workflowId: "w1" }} navigate={vi.fn()} />);
+    await screen.findByTitle("Generated website preview");
+    const name = screen.getByLabelText(/business or project name/i);
+    await userEvent.type(name, "Cedar & Sage");
+    await userEvent.click(screen.getByRole("button", { name: /save and refresh preview/i }));
+    await waitFor(() => expect(mocks.updateBrief).toHaveBeenCalledTimes(1));
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(await screen.findByText("Cedar & Sage")).toBeInTheDocument();
   });
 });

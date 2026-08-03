@@ -6,7 +6,7 @@ import {
 import { apiError } from "./api";
 import {
   advanceWorkflow, createWorkflowFromPrompt, getWorkflow, listWorkflows, nextAutoAction,
-  regenerateSection, stageIndex, type FoundryWorkflow,
+  regenerateSection, stageIndex, updateWorkflowBrief, type FoundryWorkflow,
 } from "./foundryApi";
 import { buildTimeline, workspacePhase } from "./foundryTimeline";
 import { buildSuggestions, type Suggestion } from "./foundrySuggestions";
@@ -211,7 +211,7 @@ export function FoundryStudio({ route, navigate }: { route: FoundryRoute; naviga
         <ActivityTimeline steps={timeline} advancing={advancing} phase={phase} failed={failed} onRetry={retryAdvance} />
         {suggestions.length > 0 && <SuggestionsPanel suggestions={suggestions} onApply={applySuggestion} onDismiss={dismiss} error={actionError} />}
         <ApprovalControls workflow={workflow} phase={phase} onApprove={approvePreview} error={actionError} />
-        <BriefPanel workflow={workflow} />
+        <BriefPanel workflow={workflow} onUpdated={(next) => { setWorkflow(next); if (next.artifact?.html) setLastGoodHtml(next.artifact.html); }} />
       </aside>
     </div>
   );
@@ -415,13 +415,24 @@ export function FoundryProjectsPage({ navigate }: { navigate: (path: string) => 
   );
 }
 
-function BriefPanel({ workflow }: { workflow: FoundryWorkflow }) {
+function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpdated: (workflow: FoundryWorkflow) => void }) {
   const brief = workflow.brief;
   if (!brief) return null;
   const description = brief.business?.description || "";
   const fromUser = workflow.prompt ? description.trim() === workflow.prompt.trim() : false;
   const rawName = brief.business?.name;
   const hasName = Boolean(rawName) && rawName !== "Untitled business";
+  const [editing, setEditing] = useState(!hasName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ businessName: hasName ? rawName! : "", description, websiteType: workflow.websiteType, primaryAction: brief.goals?.primaryAction || "", requiredPages: (brief.website?.requiredPages || []).map(String).join(", ") });
+  const save = async () => {
+    setSaving(true); setError(null);
+    try {
+      const res = await updateWorkflowBrief(workflow.id, { ...form, requiredPages: form.requiredPages.split(",").map((v: string) => v.trim()).filter(Boolean) });
+      onUpdated(res.workflow); setEditing(false);
+    } catch (e) { setError(apiError(e)); } finally { setSaving(false); }
+  };
   const rows: Array<{ label: string; value: string; source: "user" | "derived" }> = [
     { label: "What it's about", value: description || "—", source: fromUser ? "user" : "derived" },
     { label: "Business name", value: hasName ? rawName! : "Not set yet — add your business name", source: hasName ? "user" : "derived" },
@@ -432,8 +443,19 @@ function BriefPanel({ workflow }: { workflow: FoundryWorkflow }) {
   ];
   return (
     <section aria-labelledby="foundry-brief-title" className="rounded-2xl border border-border bg-panel p-4">
-      <h2 id="foundry-brief-title" className="font-semibold">Project brief</h2>
+      <div className="flex items-center justify-between gap-2"><h2 id="foundry-brief-title" className="font-semibold">Project brief</h2><button type="button" onClick={() => setEditing((v) => !v)} className="min-h-9 rounded-md border border-border px-3 py-1.5 text-sm">{editing ? "Cancel" : "Edit brief"}</button></div>
       <p className="mt-1 text-xs text-muted">Foundry filled in sensible defaults from your request. Values marked <span className="font-medium text-text">Suggested</span> are safe to change.</p>
+      {editing && <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
+        {!hasName && <p className="text-xs text-muted">Name this project (optional). You can leave it blank to use a neutral preview name.</p>}
+        <label className="block text-xs font-medium">Business or project name<input aria-label="Business or project name" value={form.businessName} maxLength={80} onChange={(e) => setForm({ ...form, businessName: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
+        <label className="block text-xs font-medium">Purpose or description<textarea aria-label="Purpose or description" value={form.description} maxLength={4000} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
+        <label className="block text-xs font-medium">Website type<select aria-label="Website type" value={form.websiteType} onChange={(e) => setForm({ ...form, websiteType: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm"><option value="business">Business</option><option value="store">Store</option><option value="landing_page">Landing page</option><option value="redesign">Redesign</option><option value="connected_project">Connected project</option><option value="other">Other</option></select></label>
+        <label className="block text-xs font-medium">Primary call to action<input aria-label="Primary call to action" value={form.primaryAction} maxLength={80} onChange={(e) => setForm({ ...form, primaryAction: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
+        <label className="block text-xs font-medium">Key pages<input aria-label="Key pages" value={form.requiredPages} onChange={(e) => setForm({ ...form, requiredPages: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /><span className="mt-1 block text-[11px] text-muted">Separate pages with commas.</span></label>
+        <p className="text-xs text-muted">Saving refreshes the reversible preview. The current preview remains visible if refresh fails.</p>
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        <button type="button" disabled={saving} onClick={save} className="min-h-10 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primaryForeground disabled:opacity-60">{saving ? "Saving…" : "Save and refresh preview"}</button>
+      </div>}
       <dl className="mt-3 space-y-2">
         {rows.map((row) => (
           <div key={row.label} className="rounded-lg border border-border bg-background p-2">

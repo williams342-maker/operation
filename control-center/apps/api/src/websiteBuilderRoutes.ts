@@ -4,7 +4,7 @@ import { z } from "zod";
 import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections } from "./db.js";
-import { buildImplementationPlan, buildStaticSiteArtifact, buildValidation, inferWebsiteType } from "./websiteBuilder.js";
+import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildSiteContent, buildStaticSiteArtifact, buildValidation, inferWebsiteType, UNTITLED_BUSINESS } from "./websiteBuilder.js";
 import { resolveSiteGenerationProvider } from "./siteGenerationProvider.js";
 
 export const websiteBuilderRouter = express.Router();
@@ -23,7 +23,7 @@ export const discoveryQuestions = [
 const websiteTypeSchema = z.enum(["business", "store", "landing_page", "redesign", "connected_project", "other"]);
 function workflowResponse(workflow: any) {
   const question = discoveryQuestions[workflow.currentQuestionIndex] || null;
-  return { workflow: { id: workflow._id, websiteType: workflow.websiteType, prompt: workflow.prompt, stage: workflow.stage, version: workflow.version, currentQuestionIndex: workflow.currentQuestionIndex, answerCount: workflow.answers.length, brief: workflow.brief, architecture: workflow.architecture, brandDirections: workflow.brandDirections, selectedBrandId: workflow.selectedBrandId, sections: workflow.sections, implementationPlan: workflow.implementationPlan, artifact: workflow.artifact, validation: workflow.validation, approvals: workflow.approvals || [], estimatedCredits: workflow.estimatedCredits, actualCredits: workflow.actualCredits, createdAt: workflow.createdAt, updatedAt: workflow.updatedAt }, question };
+  return { workflow: { id: workflow._id, websiteType: workflow.websiteType, prompt: workflow.prompt, stage: workflow.stage, version: workflow.version, currentQuestionIndex: workflow.currentQuestionIndex, answerCount: workflow.answers.length, brief: workflow.brief, architecture: workflow.architecture, brandDirections: workflow.brandDirections, selectedBrandId: workflow.selectedBrandId, sections: workflow.sections, implementationPlan: workflow.implementationPlan, artifact: workflow.artifact, validation: workflow.validation, approvals: workflow.approvals || [], timelineEvents: workflow.timelineEvents || [], briefHistory: workflow.briefHistory || [], regeneration: workflow.regeneration, estimatedCredits: workflow.estimatedCredits, actualCredits: workflow.actualCredits, createdAt: workflow.createdAt, updatedAt: workflow.updatedAt }, question };
 }
 
 async function loadWorkflow(req: express.Request, res: express.Response) {
@@ -117,6 +117,66 @@ websiteBuilderRouter.post("/website-builder/workflows/:id/approve-content", noSt
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-implementation", noStore, requirePermission("ai:use"), async (req, res, next) => {
   try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "implementation_approval" || !workflow.implementationPlan || !workflow.sections || !workflow.brief || !workflow.architecture) return res.status(409).json({ error: "Implementation plan is not awaiting approval" }); const brand = (workflow.brandDirections || []).find((item: any) => item.id === workflow.selectedBrandId); if (!brand) return res.status(409).json({ error: "Approved brand direction is unavailable" }); const artifact = buildStaticSiteArtifact(workflow.brief, workflow.architecture, brand, workflow.sections as any); const validation = { ...buildValidation(workflow.sections as any), artifactSha256: artifact.sha256, artifactBytes: artifact.bytes }; const updated = await recordApproval(req, workflow, "implementation_plan", Number((workflow.implementationPlan as any).version) || 1, { stage: "preview_ready", artifact, validation, actualCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+});
+
+// Minimal, org-safe brief editing (business name is the priority). Only approved
+// fields may change; unknown keys are rejected. Editing is refused once the design
+// is approved for staging, preserving the approval boundary. Material changes
+// re-derive the downstream artifacts deterministically from the edited brief so
+// the new name propagates to title/hero/header/nav/metadata, while stage, brand
+// selection, and the plan are preserved. The previous name is kept in the audit.
+const briefPatchSchema = z.object({
+  businessName: z.string().trim().max(80).optional(),
+  description: z.string().trim().max(4000).optional(),
+  websiteType: websiteTypeSchema.optional(),
+  primaryAction: z.string().trim().min(1).max(80).optional(),
+  requiredPages: z.array(z.string().trim().min(1).max(60)).min(1).max(12).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, { message: "No editable fields were provided" });
+
+const BRIEF_EDITABLE_STAGES = new Set(["brief_review", "architecture_review", "brand_review", "content_review", "implementation_approval", "preview_ready", "user_review"]);
+
+websiteBuilderRouter.patch("/website-builder/workflows/:id/brief", noStore, requirePermission("ai:use"), async (req, res, next) => {
+  try {
+    const workflow = await loadWorkflow(req, res); if (!workflow) return;
+    if (!workflow.brief) return res.status(409).json({ error: "This project has no brief to edit yet" });
+    if (!BRIEF_EDITABLE_STAGES.has(workflow.stage)) return res.status(409).json({ error: "This project is approved for staging; the brief can no longer be edited" });
+    const body = briefPatchSchema.parse(req.body);
+    const previous = workflow.brief as any;
+    const nextBrief = {
+      ...previous,
+      business: { ...previous.business, ...(body.businessName !== undefined ? { name: body.businessName || UNTITLED_BUSINESS } : {}), ...(body.description !== undefined ? { description: body.description } : {}) },
+      goals: { ...previous.goals, ...(body.primaryAction !== undefined ? { primaryAction: body.primaryAction } : {}) },
+      website: { ...previous.website, ...(body.websiteType !== undefined ? { type: body.websiteType } : {}), ...(body.requiredPages !== undefined ? { requiredPages: body.requiredPages } : {}) },
+    };
+    const now = new Date();
+    const set: Record<string, unknown> = { brief: nextBrief, websiteType: body.websiteType ?? workflow.websiteType, updatedAt: now, regeneration: { status: "complete", reason: "brief_updated", completedAt: now } };
+    // Re-derive only what already exists, from the edited brief. Deterministic and
+    // reversible; the prior artifact remains until the new one is computed.
+    if (workflow.architecture) {
+      const architecture = buildArchitecture(nextBrief); set.architecture = architecture;
+      if (workflow.sections) {
+        const sections = buildSiteContent(nextBrief, architecture); set.sections = sections;
+        if (workflow.artifact) {
+          const brand = (workflow.brandDirections || []).find((item: any) => item.id === workflow.selectedBrandId) || buildBrandDirections(nextBrief)[0];
+          const artifact = buildStaticSiteArtifact(nextBrief, architecture, brand, sections as any);
+          set.artifact = artifact;
+          set.validation = { ...buildValidation(sections as any), artifactSha256: artifact.sha256, artifactBytes: artifact.bytes };
+        }
+      }
+    }
+    const changed = await collections.websiteBuildWorkflows.updateOne({ _id: workflow._id, orgId: req.orgId!, version: workflow.version }, {
+      $set: set,
+      $push: {
+        briefHistory: { changedAt: now, changedByUserId: req.user!._id, fields: Object.keys(body), previous: { businessName: previous.business?.name, description: previous.business?.description, websiteType: workflow.websiteType, primaryAction: previous.goals?.primaryAction, requiredPages: previous.website?.requiredPages }, next: { businessName: nextBrief.business?.name, description: nextBrief.business?.description, websiteType: body.websiteType ?? workflow.websiteType, primaryAction: nextBrief.goals?.primaryAction, requiredPages: nextBrief.website?.requiredPages } },
+        timelineEvents: { type: "brief_updated", message: "Project brief updated; affected preview content was refreshed.", actorUserId: req.user!._id, createdAt: now },
+      },
+      $inc: { version: 1 },
+    });
+    if (changed.modifiedCount !== 1) return res.status(409).json({ error: "Workflow changed; reload and try again" });
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.brief.update", targetType: "website_workflow", targetId: workflow._id, result: "success", requestId: req.requestId, metadata: { fields: Object.keys(body).join(","), previousName: previous.business?.name ?? null, newName: nextBrief.business?.name ?? null } });
+    const updated = await collections.websiteBuildWorkflows.findOne({ _id: workflow._id, orgId: req.orgId! });
+    res.json(workflowResponse(updated));
+  } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.get("/website-builder/workflows/:id/artifact", noStore, requirePermission("ai:use"), async (req, res, next) => {

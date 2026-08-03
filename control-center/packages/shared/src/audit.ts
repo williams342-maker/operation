@@ -63,6 +63,7 @@ export type AuditAction =
   | "ai.workforce.run.start"
   | "ai.workforce.run.complete"
   | "website.workflow.create"
+  | "website.brief.update"
   | "website.discovery.answer"
   | "website.artifact.approve"
   | "website.section.update"

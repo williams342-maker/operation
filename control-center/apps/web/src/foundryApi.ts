@@ -70,6 +70,11 @@ export async function regenerateSection(id: string, sectionId: string): Promise<
   return (await api.post(`/website-builder/workflows/${id}/sections/${sectionId}/regenerate`)).data;
 }
 
+export type BriefPatch = { businessName?: string; description?: string; websiteType?: string; primaryAction?: string; requiredPages?: string[] };
+export async function updateWorkflowBrief(id: string, patch: BriefPatch): Promise<WorkflowResponse> {
+  return (await api.patch(`/website-builder/workflows/${id}/brief`, patch)).data;
+}
+
 export async function listWorkflows(): Promise<FoundryWorkflow[]> {
   return (await api.get("/website-builder/workflows")).data?.workflows ?? [];
 }
