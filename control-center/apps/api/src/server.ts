@@ -5,8 +5,10 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { ZodError } from "zod";
+import { assertFlagOffRollbackSafe } from "@control-center/shared";
 import { captureRawBody } from "./agentAuth.js";
-import { connectDb } from "./db.js";
+import { connectDb, collections } from "./db.js";
+import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { validateRuntimeSecrets } from "./crypto.js";
 import { assertValidEnvironment } from "./environmentValidation.js";
 import { initializeRuntimeReadiness, runtimeHealth } from "./runtimeReadiness.js";
@@ -78,6 +80,13 @@ app.use((error: unknown, req: express.Request, res: express.Response, _next: exp
 
 if (process.env.NODE_ENV !== "test") {
   await connectDb();
+  // Fail-safe rollback preflight: if agent-v2 is DISABLED (v1-only) but active agents exist that have no
+  // usable v1 credential (fresh-v2 or legacy-invalidated), refuse to boot rather than silently strand
+  // them. The operator must re-enable v2 or roll back to a v2-capable release + state rollback.
+  if (!agentV2Enabled()) {
+    const activeAgents = await collections.servers.find({ archivedAt: { $exists: false }, revokedAt: { $exists: false } }, { projection: { keyProtocolVersion: 1, migrationState: 1, legacyCredentialUsable: 1, hostname: 1 } }).toArray();
+    assertFlagOffRollbackSafe(activeAgents.map((server) => ({ id: server._id.toHexString(), hostname: server.hostname, keyProtocolVersion: server.keyProtocolVersion, migrationState: server.migrationState, legacyCredentialUsable: server.legacyCredentialUsable })));
+  }
   await startAiWorkforceWorker();
   console.log(JSON.stringify({ event: "startup_validation", mode: environmentValidation.mode, valid: environmentValidation.valid, warnings: environmentValidation.diagnostics.filter((item) => item.level === "warning").map((item) => ({ code: item.code, variable: item.variable })), aiState: environmentValidation.ai.state }));
   app.listen(port, () => {

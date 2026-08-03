@@ -3,6 +3,16 @@ import { discoveredSettingSchema } from "./configuration.js";
 
 export const objectIdSchema = z.string().min(12).max(64);
 
+// agent-v2 self-service key rotation: an authenticated agent presents new public keys + a PoP by the
+// new signing key. Private keys never leave the agent.
+export const agentRotationRequestSchema = z.object({
+  signingPublicKey: z.string().min(32).max(512),
+  encryptionPublicKey: z.string().min(32).max(512),
+  issuedAt: z.string().datetime(),
+  protocolVersion: z.string().max(64),
+  proof: z.string().min(32).max(512)
+}).strict();
+
 export const agentEnrollmentRequestSchema = z.object({
   enrollmentToken: z.string().min(32),
   hostname: z.string().min(1).max(255),
@@ -22,6 +32,13 @@ export const agentEnrollmentRequestSchema = z.object({
   diskBytes: z.number().int().nonnegative().optional(),
   agentVersion: z.string().min(1).max(64),
   protocolVersion: z.string().max(64).optional(),
+  // agent-v2 asymmetric enrollment (optional; only honored when CONTROL_CENTER_AGENT_PROTOCOL_V2 is on).
+  // Public keys (base64url DER) + a proof-of-possession over the enrollment binding. Private keys stay
+  // on the agent and are never transmitted.
+  signingPublicKey: z.string().min(32).max(512).optional(),
+  encryptionPublicKey: z.string().min(32).max(512).optional(),
+  enrollmentIssuedAt: z.string().datetime().optional(),
+  enrollmentProof: z.string().min(32).max(512).optional(),
   packageType: z.enum(["tar", "deb", "rpm"]).optional(),
   releaseChannel: z.enum(["stable", "candidate", "preview"]).optional(),
   binarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),

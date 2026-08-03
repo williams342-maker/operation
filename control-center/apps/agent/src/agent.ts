@@ -1,5 +1,5 @@
 ﻿import os from "node:os";
-import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, isPrivilegedTaskType, authorizePrivilegedTask, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
@@ -46,8 +46,21 @@ function verifyTask(config: AgentConfig, task: ClaimedTask) {
   const envelope = task.envelope;
   if (envelope.agentId !== config.agentId) throw new Error("Task assigned to a different agent");
   if (isTaskExpired(envelope.expiresAt)) throw new Error("Task expired");
-  const valid = verifyTaskEnvelope(agentSigningKey(config.agentSecret), envelope, task.payload);
-  if (!valid) throw new Error("Invalid task signature");
+  // v2 envelopes are signed by the control plane's Ed25519 key and verified with its PUBLIC key; v1
+  // envelopes keep the legacy agent-keyed HMAC. The signed signingKeyVersion selects the path.
+  const useV2 = envelope.signingKeyVersion.startsWith("cp-ed25519");
+  if (useV2 && !config.controlPlanePublicKey) throw new Error("Control-plane public key unavailable for v2 task verification");
+  const verifyEnvelope = () => useV2
+    ? verifyTaskEnvelopeV2(config.controlPlanePublicKey!, envelope, task.payload)
+    : verifyTaskEnvelope(agentSigningKey(config.agentSecret), envelope, task.payload);
+  // Privileged tasks require BOTH the transport envelope AND an independent owner authorization (owner
+  // PUBLIC key). Enforced whenever the owner key is configured; the transport key alone never suffices.
+  if (isPrivilegedTaskType(envelope.taskType) && config.ownerPublicKey) {
+    const decision = authorizePrivilegedTask({ envelope, payload: task.payload, ownerAuthorization: task.payload.ownerAuthorization, ownerPublicKey: config.ownerPublicKey, verifyEnvelope });
+    if (!decision.authorized) throw new Error(`Privileged task authorization failed: ${decision.reason}`);
+    return;
+  }
+  if (!verifyEnvelope()) throw new Error("Invalid task signature");
 }
 
 async function acknowledge(config: AgentConfig, taskId: string, event: "claimed" | "started" | "progress" | "succeeded" | "failed", result?: unknown, message?: string) {
@@ -93,7 +106,7 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     case "configuration.apply":
     case "configuration.rollback":
       if (!payload.configurationDeployment) throw new Error("Missing typed configuration deployment payload");
-      result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion);
+      result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion, {}, config.encryptionPrivateKey);
       break;
     case "agent.upgrade":
       if (!payload.agentUpgrade) throw new Error("Missing typed agent upgrade manifest");

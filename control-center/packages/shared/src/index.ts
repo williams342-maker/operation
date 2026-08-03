@@ -12,3 +12,6 @@ export * from "./configuration.js";
 export * from "./configurationDeployment.js";
 export * from "./aiSettings.js";
 export * from "./agentUpgrades.js";
+export * from "./agentKeys.js";
+export * from "./agentProtocol.js";
+export * from "./ownerAuthorization.js";

@@ -11,6 +11,19 @@ test("deployment schema rejects stateful service overlap", () => assert.throws((
 test("deployment schema permits value-free remove and disable operations", () => { for (const operation of ["remove", "disable"]) assert.equal(configurationDeploymentPayloadSchema.parse({ ...base, mutations: [{ name: "EXAMPLE", versionId: "123456789016", secret: true, operation }] }).mutations[0].operation, operation); });
 test("change approval digest is value-free, deterministic, and mutation-bound", () => { const first = configurationChangeDigest([{ name: "B", operation: "remove", secret: false, versionId: "v-123456789012" }, { name: "A", operation: "rotate", secret: true, versionId: "v-123456789013" }]); const reordered = configurationChangeDigest([{ name: "A", operation: "rotate", secret: true, versionId: "v-123456789013" }, { name: "B", operation: "remove", secret: false, versionId: "v-123456789012" }]); assert.equal(first, reordered); assert.notEqual(first, configurationChangeDigest([{ name: "A", operation: "remove", secret: true, versionId: "v-123456789013" }])); assert.doesNotMatch(first, /secret|rotate|remove/); });
 test("proposed diffs contain no configuration values", () => { const diff = redactedConfigurationDiff([{ name: "API_SECRET", operation: "rotate", secret: true }, { name: "FEATURE", operation: "update", secret: false }]); assert.deepEqual(diff, [{ name: "API_SECRET", operation: "rotate", classification: "secret", proposedValue: "[redacted]" }, { name: "FEATURE", operation: "update", classification: "non-secret", proposedValue: "[pending value]" }]); });
+const sealed = { algorithm: "x25519-hkdf-sha256-aes256gcm", ephemeralPublicKey: "AA==", nonce: "AA==", authTag: "AA==", ciphertext: "AA==" };
+test("deployment schema accepts a v2 sealed bundle instead of the v1 encrypted bundle", () => {
+  const { encryptedValues, ...withoutEncrypted } = base;
+  void encryptedValues;
+  assert.equal(configurationDeploymentPayloadSchema.parse({ ...withoutEncrypted, sealedValues: sealed }).sealedValues!.algorithm, "x25519-hkdf-sha256-aes256gcm");
+});
+test("deployment schema requires exactly one of encryptedValues / sealedValues", () => {
+  const { encryptedValues, ...withoutEncrypted } = base;
+  assert.throws(() => configurationDeploymentPayloadSchema.parse({ ...base, sealedValues: sealed })); // both
+  assert.throws(() => configurationDeploymentPayloadSchema.parse(withoutEncrypted)); // neither
+  void encryptedValues;
+});
+
 test("task payload rejects unknown fields", () => assert.throws(() => taskPayloadSchema.parse({ unknown: true })));
 test("progress schema prevents secret-shaped extra fields", () => assert.throws(() => deploymentProgressSchema.parse({ phase: "failed", progress: 1, changedVariables: 0, services: [], healthChecksPassed: 0, secret: "bad" })));
 test("only owners and administrators may deploy and approve", () => { assert.equal(hasPermission("Owner", "configuration:deploy-non-production"), true); assert.equal(hasPermission("Administrator", "configuration:approve-non-production"), true); assert.equal(hasPermission("Developer", "configuration:deploy-non-production"), false); });

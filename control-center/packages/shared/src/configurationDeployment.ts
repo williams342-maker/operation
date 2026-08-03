@@ -14,6 +14,9 @@ export const configurationMutationSchema = z.discriminatedUnion("operation", [
   z.object({ ...mutationBase, operation: z.enum(["remove", "disable"]) }).strict()
 ]);
 export const encryptedValueBundleSchema = z.object({ algorithm: z.literal("aes-256-gcm"), ciphertext: z.string().max(400_000), nonce: z.string().max(64), authTag: z.string().max(64), keyVersion: z.string().max(40) }).strict();
+// agent-v2: deployment values sealed to the agent's X25519 encryption key (ECIES). No signing/encryption
+// key reuse; only the agent's private key opens it. Versioned via the algorithm literal.
+export const sealedValueBundleSchema = z.object({ algorithm: z.literal("x25519-hkdf-sha256-aes256gcm"), ephemeralPublicKey: z.string().max(512), nonce: z.string().max(64), authTag: z.string().max(64), ciphertext: z.string().max(400_000) }).strict();
 
 export const configurationDeploymentPayloadSchema = z.object({
   schemaVersion: z.literal("configuration-deployment-v1"),
@@ -34,7 +37,8 @@ export const configurationDeploymentPayloadSchema = z.object({
   protectedServices: z.array(safeId).max(30),
   healthChecks: z.array(z.object({ id: safeId, url: z.string().url(), timeoutMs: z.number().int().min(100).max(30_000) }).strict()).min(1).max(30),
   mutations: z.array(configurationMutationSchema).min(1).max(250),
-  encryptedValues: encryptedValueBundleSchema,
+  encryptedValues: encryptedValueBundleSchema.optional(),
+  sealedValues: sealedValueBundleSchema.optional(),
   expectedConfigurationDigest: z.string().regex(/^[a-f0-9]{64}$/),
   expectedActiveDeploymentId: z.string().min(12).max(64).optional(),
   automaticRollback: z.literal(true)
@@ -42,6 +46,7 @@ export const configurationDeploymentPayloadSchema = z.object({
   const protectedSet = new Set(value.protectedServices);
   for (const service of value.statelessServices) if (protectedSet.has(service)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Protected services cannot be activated", path: ["statelessServices"] });
   if (new Set(value.mutations.map((item) => item.name)).size !== value.mutations.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "Duplicate variable mutation", path: ["mutations"] });
+  if (Boolean(value.encryptedValues) === Boolean(value.sealedValues)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Exactly one of encryptedValues (v1) or sealedValues (v2) is required", path: ["encryptedValues"] });
 });
 
 const deploymentErrorCategory = z.enum(["capability", "environment", "version", "path", "symlink", "mount", "parsing", "backup", "write", "activation", "health", "rollback", "replay", "unknown"]);

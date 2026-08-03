@@ -7,8 +7,15 @@ import {
   DEFAULT_HEARTBEAT_STALE_SECONDS,
   isHeartbeatStale,
   retentionCutoff,
-  timingSafeEqualHex
+  timingSafeEqualHex,
+  verifyEnrollmentV2,
+  keyFingerprint,
+  buildMigrationReport,
+  agentRotationRequestSchema,
+  verifyRotationV2,
+  planKeyRotation
 } from "@control-center/shared";
+import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { audit } from "./audit.js";
 import { allowExpiredLogout, clearSessionCookie, createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
 import { requireSignedAgent } from "./agentAuth.js";
@@ -250,6 +257,21 @@ function compactServerIdentity(value: string) {
 router.post("/agent/enroll", noStore, async (req, res, next) => {
   try {
     const body = agentEnrollmentRequestSchema.parse(req.body);
+    // agent-v2 enrollment: validate proof-of-possession BEFORE consuming the one-time token, so a
+    // forged/expired/downgraded request cannot burn a valid enrollment token. Fails closed when the
+    // flag is off (no silent downgrade to v1 for an agent that presented v2 keys).
+    const wantsV2 = Boolean(body.signingPublicKey || body.encryptionPublicKey || body.enrollmentProof);
+    if (wantsV2) {
+      if (!agentV2Enabled()) {
+        await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: "v2-disabled" } });
+        return res.status(400).json({ error: "agent-v2 protocol is not enabled" });
+      }
+      const check = verifyEnrollmentV2({ enrollmentToken: body.enrollmentToken, signingPublicKey: body.signingPublicKey || "", encryptionPublicKey: body.encryptionPublicKey || "", issuedAt: body.enrollmentIssuedAt || "", protocolVersion: body.protocolVersion || "", proof: body.enrollmentProof || "" });
+      if (!check.valid) {
+        await audit({ actorType: "anonymous", action: "enrollment.failure", result: "failure", requestId: req.requestId, metadata: { reason: `v2-${check.reason}` } });
+        return res.status(401).json({ error: "Invalid agent-v2 enrollment" });
+      }
+    }
     const tokenHash = hashSecret(body.enrollmentToken);
     const tokenRecord = await collections.enrollments.findOne({ tokenHash }, { projection: { _id: 1, orgId: 1, serverId: 1 } });
     if (!tokenRecord?._id) {
@@ -289,7 +311,11 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
       const legacyCandidates = await collections.servers.find({ orgId: enrollment.orgId, archivedAt: { $exists: false } }).toArray();
       existing = legacyCandidates.find((server) => compactServerIdentity(server.slug || server.hostname) === compact) || null;
     }
-    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentProtocolVersion: body.protocolVersion, agentPackageType: body.packageType, agentReleaseChannel: body.releaseChannel, agentBinarySha256: body.binarySha256, agentCapabilities: body.capabilities, updatedAt: now };
+    // Fresh v2 enrollment: store PUBLIC keys + fingerprints, mark keyProtocolVersion/migrationState v2.
+    // agentSecretHash is set to a hash of a discarded random secret so the legacy field stays populated
+    // but v1 auth is impossible (the agent never receives that secret and uses its Ed25519 key instead).
+    const v2Fields = wantsV2 ? { keyProtocolVersion: "agent-v2" as const, migrationState: "v2" as const, signingPublicKey: body.signingPublicKey!, encryptionPublicKey: body.encryptionPublicKey!, signingKeyFingerprint: keyFingerprint(body.signingPublicKey!), encryptionKeyFingerprint: keyFingerprint(body.encryptionPublicKey!) } : {};
+    const serverFields = { hostname: body.hostname, ...v2Fields, legacyCredentialUsable: !wantsV2, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentProtocolVersion: body.protocolVersion, agentPackageType: body.packageType, agentReleaseChannel: body.releaseChannel, agentBinarySha256: body.binarySha256, agentCapabilities: body.capabilities, updatedAt: now };
     let serverId;
     if (existing?._id) {
       serverId = existing._id;
@@ -303,7 +329,33 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
     await collections.enrollments.updateOne({ _id: enrollment._id, orgId: enrollment.orgId }, { $set: { usedByAgentId: serverId, updatedAt: now }, $push: { usage: { usedAt: now, serverId, agentId, hostname: body.hostname } } });
     await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.use", targetType: "enrollment", targetId: enrollment._id, result: "success", requestId: req.requestId, metadata: { hostname: body.hostname, uses: enrollment.uses ?? 1 } });
     await audit({ orgId: enrollment.orgId, actorType: "agent", actorId: agentId, action: "enrollment.success", targetType: "server", targetId: serverId, result: "success", requestId: req.requestId, metadata: { merge: Boolean(existing), preservedSlug: existing?.slug || null } });
-    res.status(201).json({ agentId, agentSecret, serverId, pollIntervalSeconds: 30 });
+    // v2 agents authenticate with their own private key, so no secret is returned. v1 keeps returning
+    // the agent secret (issued once, never persisted in plaintext).
+    res.status(201).json(wantsV2 ? { agentId, serverId, keyProtocolVersion: "agent-v2", pollIntervalSeconds: 30 } : { agentId, agentSecret, serverId, pollIntervalSeconds: 30 });
+  } catch (error) { next(error); }
+});
+
+// Self-service v2 key rotation. The agent is already authenticated with its CURRENT credential
+// (requireSignedAgent) and proves possession of the NEW signing key. The update is atomic and guarded
+// by credentialVersion so a concurrent/interrupted rotation fails closed (409, safe to retry).
+router.post("/agent/rotate-keys", requireSignedAgent, async (req, res, next) => {
+  try {
+    const server = req.agentServer!;
+    if (!agentV2Enabled()) return res.status(400).json({ error: "agent-v2 protocol is not enabled" });
+    const body = agentRotationRequestSchema.parse(req.body);
+    const check = verifyRotationV2({ agentId: server.agentId, signingPublicKey: body.signingPublicKey, encryptionPublicKey: body.encryptionPublicKey, issuedAt: body.issuedAt, protocolVersion: body.protocolVersion, proof: body.proof });
+    if (!check.valid) {
+      await audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "agent.credential.rotate", targetType: "server", targetId: server._id, result: "failure", requestId: req.requestId, metadata: { reason: `v2-${check.reason}` } });
+      return res.status(401).json({ error: "Invalid key rotation" });
+    }
+    const plan = planKeyRotation(server, { signingPublicKey: body.signingPublicKey, encryptionPublicKey: body.encryptionPublicKey, now: new Date() });
+    const updated = await collections.servers.updateOne({ _id: server._id, orgId: server.orgId, credentialVersion: server.credentialVersion }, { $set: plan });
+    if (updated.modifiedCount !== 1) {
+      await audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "agent.credential.rotate", targetType: "server", targetId: server._id, result: "failure", requestId: req.requestId, metadata: { reason: "superseded" } });
+      return res.status(409).json({ error: "Rotation superseded by a concurrent update; retry" });
+    }
+    await audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "agent.credential.rotate", targetType: "server", targetId: server._id, result: "success", requestId: req.requestId, metadata: { migrationState: plan.migrationState, credentialVersion: plan.credentialVersion, signingKeyFingerprint: plan.signingKeyFingerprint } });
+    res.json({ keyProtocolVersion: "agent-v2", migrationState: plan.migrationState, credentialVersion: plan.credentialVersion });
   } catch (error) { next(error); }
 });
 
@@ -415,6 +467,16 @@ router.get("/servers", requirePermission("status:view"), async (req, res, next) 
     const servers = await collections.servers.find({ orgId, archivedAt: { $exists: false } }, { projection: { agentSecretHash: 0 } }).sort({ createdAt: -1 }).toArray();
     const now = new Date();
     res.json({ servers: servers.map((server) => { const agentStatus = calculateAgentStatus(server.lastHeartbeatAt, server.revokedAt, now); return { ...server, agentStatus, status: agentStatus === "online" ? "online" : agentStatus === "revoked" ? "revoked" : "offline" }; }) });
+  } catch (error) { next(error); }
+});
+
+router.get("/servers/migration-status", noStore, requirePermission("status:view"), async (req, res, next) => {
+  try {
+    const orgId = requireOrg(req);
+    // Project OUT the legacy secret hash and raw public keys; the report is built from fingerprints/
+    // state/version only, so no key material or secret can appear in the observability output.
+    const servers = await collections.servers.find({ orgId, archivedAt: { $exists: false } }, { projection: { agentSecretHash: 0, signingPublicKey: 0, encryptionPublicKey: 0 } }).sort({ createdAt: -1 }).toArray();
+    res.json(buildMigrationReport(servers.map((server) => ({ ...server, id: server._id.toHexString() }))));
   } catch (error) { next(error); }
 });
 

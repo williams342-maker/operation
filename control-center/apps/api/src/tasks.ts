@@ -1,7 +1,8 @@
 ﻿import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
-import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, signTaskEnvelopeV2, taskPayloadSchema, taskProtocolVersion, taskTypes, isPrivilegedTaskType, isTaskExpired, verifyOwnerAuthorization, privilegedActionDigest, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ServerDoc } from "./models.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -80,6 +81,17 @@ export async function createTask(input: { orgId: ObjectId; server: ServerDoc & {
   const registry = taskRegistry[input.type];
   if (!registry) throw new Error("Unsupported task type");
   const payload = registry.payload.parse(input.payload);
+  // Layer 2 boundary at the control plane: a privileged task cannot be created without a valid owner
+  // authorization once an owner public key is configured. The transport/envelope key cannot satisfy
+  // this. Inert until CONTROL_CENTER_OWNER_PUBLIC_KEY is set (today's RBAC/approval boundary stands).
+  const ownerKey = process.env.CONTROL_CENTER_OWNER_PUBLIC_KEY?.trim();
+  if (isPrivilegedTaskType(input.type) && ownerKey) {
+    const oa = payload.ownerAuthorization;
+    if (!oa) throw new Error("Owner authorization required for privileged task");
+    if (isTaskExpired(oa.expiresAt)) throw new Error("Owner authorization expired");
+    const ok = verifyOwnerAuthorization(ownerKey, { taskType: input.type, orgId: input.orgId.toHexString(), serverId: input.server._id.toHexString(), actionDigest: privilegedActionDigest(payload), expiresAt: oa.expiresAt, nonce: oa.nonce, keyVersion: oa.keyVersion }, oa.signature);
+    if (!ok) throw new Error("Owner authorization invalid");
+  }
   const now = new Date();
   const doc: AgentTaskDoc = {
     orgId: input.orgId,
@@ -128,7 +140,17 @@ export async function claimTasksForAgent(server: ServerDoc & { _id: ObjectId }, 
   return claimed;
 }
 
+// Control-plane Ed25519 private key (base64url PKCS8) used to sign v2 task envelopes. Agents verify
+// with the corresponding public key delivered in their bootstrap. Absent ⇒ v2 signing unavailable.
+export function controlPlaneTaskSigningKey(): string | undefined {
+  return process.env.CONTROL_CENTER_TASK_SIGNING_PRIVATE_KEY?.trim() || undefined;
+}
+
 export function buildEnvelope(task: AgentTaskDoc & { _id: ObjectId }, server: ServerDoc & { _id: ObjectId }): TaskEnvelope {
+  // Use v2 (control-plane-signed) envelopes only for v2-enrolled servers when the flag is on and a
+  // control-plane signing key is configured; otherwise keep the legacy agent-keyed HMAC. The
+  // signingKeyVersion is bound into the signature and tells the agent which verification path to use.
+  const useV2 = agentV2Enabled() && server.keyProtocolVersion === "agent-v2" && Boolean(controlPlaneTaskSigningKey());
   const unsigned: Omit<TaskEnvelope, "signature"> = {
     protocolVersion: taskProtocolVersion,
     taskId: task._id.toHexString(),
@@ -140,9 +162,9 @@ export function buildEnvelope(task: AgentTaskDoc & { _id: ObjectId }, server: Se
     expiresAt: task.expiresAt.toISOString(),
     nonce: task.nonce,
     payloadDigest: payloadDigest(task.payload),
-    signingKeyVersion: task.signingKeyVersion
+    signingKeyVersion: useV2 ? "cp-ed25519-v1" : task.signingKeyVersion
   };
-  return { ...unsigned, signature: signTaskEnvelope(server.agentSecretHash, unsigned) };
+  return { ...unsigned, signature: useV2 ? signTaskEnvelopeV2(controlPlaneTaskSigningKey()!, unsigned) : signTaskEnvelope(server.agentSecretHash, unsigned) };
 }
 
 export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, body: { taskId: string; event: "claimed" | "started" | "progress" | "succeeded" | "failed"; message?: string; progress?: number; result?: unknown }) {

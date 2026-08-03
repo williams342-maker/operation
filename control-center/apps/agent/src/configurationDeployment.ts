@@ -6,6 +6,7 @@ import { configurationDeploymentPayloadSchema, deploymentCapabilities, isCompati
 import { execFixed } from "./safeExec.js";
 import { linuxMountPoints } from "./discoverySafety.js";
 import { probeHttp, validateHttpCheckUrl } from "./urlSafety.js";
+import { openSealed } from "@control-center/shared";
 
 const MAX_VALUE = 16 * 1024;
 const usedNonces = new Map<string, number>();
@@ -69,10 +70,19 @@ export function applyEnvironmentMutations(source: string, mutations: Configurati
   return `${output.join("\n")}\n`;
 }
 
-export function decryptValues(payload: ConfigurationDeploymentPayload, signingKey: string) {
-  const bundle = payload.encryptedValues; const key = crypto.createHash("sha256").update(`configuration-deployment:${signingKey}`).digest();
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(bundle.nonce, "base64")); decipher.setAuthTag(Buffer.from(bundle.authTag, "base64"));
-  const decoded = Buffer.concat([decipher.update(Buffer.from(bundle.ciphertext, "base64")), decipher.final()]).toString("utf8");
+export function decryptValues(payload: ConfigurationDeploymentPayload, signingKey: string, encryptionPrivateKey?: string) {
+  let decoded: string;
+  if (payload.sealedValues) {
+    // v2: open the X25519-sealed bundle with the agent's own encryption private key (never leaves host).
+    if (!encryptionPrivateKey) throw new Error("Encryption private key required to open sealed deployment values");
+    decoded = openSealed(encryptionPrivateKey, payload.sealedValues);
+  } else if (payload.encryptedValues) {
+    const bundle = payload.encryptedValues; const key = crypto.createHash("sha256").update(`configuration-deployment:${signingKey}`).digest();
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(bundle.nonce, "base64")); decipher.setAuthTag(Buffer.from(bundle.authTag, "base64"));
+    decoded = Buffer.concat([decipher.update(Buffer.from(bundle.ciphertext, "base64")), decipher.final()]).toString("utf8");
+  } else {
+    throw new Error("Deployment payload has no encrypted or sealed values");
+  }
   const record = JSON.parse(decoded) as Record<string, unknown>;
   for (const [reference, value] of Object.entries(record)) if (!/^[A-Za-z0-9._:-]{1,160}$/.test(reference) || typeof value !== "string" || Buffer.byteLength(value) > MAX_VALUE || /[\0\r\n]/.test(value)) throw new Error("Decrypted configuration rejected");
   return record as Record<string, string>;
@@ -91,7 +101,7 @@ function writeAtomic(file: string, content: string, mode: number, uid: number, g
   if (process.platform !== "win32") { const directory = fs.openSync(path.dirname(file), "r"); try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); } }
 }
 
-export async function executeConfigurationDeployment(raw: unknown, signingKey: string, nonce: string, capabilities: string[], agentVersion: string | undefined, hooks: DeploymentHooks = {}): Promise<DeploymentProgress> {
+export async function executeConfigurationDeployment(raw: unknown, signingKey: string, nonce: string, capabilities: string[], agentVersion: string | undefined, hooks: DeploymentHooks = {}, encryptionPrivateKey?: string): Promise<DeploymentProgress> {
   const payload = configurationDeploymentPayloadSchema.parse(raw); assertNonProduction(payload);
   if (!isCompatibleAgentVersion(agentVersion)) throw new Error(`Agent version must be stable and at least ${minimumDeploymentAgentVersion}`);
   if (!deploymentCapabilities.every((item) => capabilities.includes(item))) throw new Error("Incomplete deployment capabilities");
@@ -105,7 +115,7 @@ export async function executeConfigurationDeployment(raw: unknown, signingKey: s
   if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) throw new Error("Environment file permissions are too broad");
   const original = fs.readFileSync(file, "utf8"); if (configurationDigest(original) !== payload.expectedConfigurationDigest) throw new Error("Expected configuration version mismatch");
   const backup = `${file}.backup-${now.toISOString().replace(/[:.]/g, "-")}`; fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL); fs.chmodSync(backup, stat.mode); if (process.platform !== "win32") fs.chownSync(backup, stat.uid, stat.gid);
-  const secrets = decryptValues(payload, signingKey); const proposed = applyEnvironmentMutations(original, payload.mutations, secrets);
+  const secrets = decryptValues(payload, signingKey, encryptionPrivateKey); const proposed = applyEnvironmentMutations(original, payload.mutations, secrets);
   writeAtomic(file, proposed, stat.mode, stat.uid, stat.gid);
   const compose = hooks.compose || ((args: string[], cwd: string) => execFixed("docker", args, cwd, 120_000));
   const args = ["compose", "-f", payload.composePath, "-p", payload.composeProject, "up", "-d", "--no-deps", "--force-recreate", ...payload.statelessServices];
