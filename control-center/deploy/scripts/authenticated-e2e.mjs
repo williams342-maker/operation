@@ -110,9 +110,16 @@ async function authenticatedApi(path, method = "GET", body) {
 }
 
 async function currentSessionId() {
+  // The session cookie is now an opaque random token (only its hash is stored), so the id can no
+  // longer be parsed from the cookie. Resolve the browser's current session as the most recent one
+  // for the owner in the disposable E2E database.
   const cookie = (await context.cookies()).find((item) => item.name === "cc_session");
   assert.ok(cookie?.value, "session cookie exists");
-  return new ObjectId(cookie.value);
+  const user = await db.collection("users").findOne({ email });
+  assert.ok(user?._id, "owner user exists");
+  const [session] = await db.collection("sessions").find({ userId: user._id }).sort({ createdAt: -1 }).limit(1).toArray();
+  assert.ok(session?._id, "session persisted for owner");
+  return session._id;
 }
 
 await login();
