@@ -1,13 +1,19 @@
 ﻿import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, ReactNode } from "react";
 import { isValidElement } from "react";
 export function Card({ children }: PropsWithChildren) { return <section className="rounded-lg border border-border bg-panel p-4 shadow-sm">{children}</section>; }
-export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50 ${props.className || ""}`} />; }
-export function GhostButton(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-text hover:bg-background disabled:opacity-50 ${props.className || ""}`} />; }
-export function Field(props: InputHTMLAttributes<HTMLInputElement>) { return <input {...props} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary ${props.className || ""}`} />; }
-export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) { return <select {...props} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary ${props.className || ""}`} />; }
+// Shared focus ring for keyboard users (WCAG 2.4.7 visible focus). focus-visible only, so pointer
+// interactions stay clean. Reused across interactive primitives for a consistent, obvious focus state.
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-primary/90 disabled:opacity-50 ${focusRing} ${props.className || ""}`} />; }
+export function GhostButton(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-background disabled:opacity-50 ${focusRing} ${props.className || ""}`} />; }
+export function Field(props: InputHTMLAttributes<HTMLInputElement>) { return <input {...props} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary ${focusRing} ${props.className || ""}`} />; }
+export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) { return <select {...props} className={`h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary ${focusRing} ${props.className || ""}`} />; }
 export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: "neutral" | "success" | "danger" | "warning" }>) { const color = tone === "success" ? "text-success border-success/40" : tone === "danger" ? "text-danger border-danger/40" : tone === "warning" ? "text-warning border-warning/40" : "text-muted border-border"; return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${color}`}>{children}</span>; }
+// Status shown with BOTH a colored dot and a text label — never color alone (WCAG 1.4.1). aria-hidden
+// on the dot; the label is the accessible/visible source of truth.
+export function StatusDot({ tone = "neutral", label }: { tone?: "neutral" | "success" | "danger" | "warning"; label: string }) { const dot = tone === "success" ? "bg-success" : tone === "danger" ? "bg-danger" : tone === "warning" ? "bg-warning" : "bg-muted"; return <span className="inline-flex items-center gap-1.5 text-sm"><span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />{label}</span>; }
 export function Empty({ title }: { title: string }) { return <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted">{title}</div>; }
-export function Skeleton() { return <div className="h-24 animate-pulse rounded-md bg-border/40" />; }
+export function Skeleton() { return <div className="h-24 animate-pulse rounded-md bg-border/40 motion-reduce:animate-none" role="status" aria-label="Loading" />; }
 export function Toolbar({ children }: PropsWithChildren) { return <div className="mb-3 flex flex-wrap items-center gap-2">{children}</div>; }
 export function Table({ columns, rows, empty = "No records" }: { columns: string[]; rows?: ReactNode[][]; empty?: string }) {
   if (!rows?.length) return <Empty title={empty} />;
