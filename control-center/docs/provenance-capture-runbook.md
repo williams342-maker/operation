@@ -45,9 +45,12 @@ Produces (default `~/opsworkbench-provenance-<UTC>/`):
 ## Step 3 — Confirm nothing sensitive was captured
 
 ```bash
-cat ~/opsworkbench-provenance-*/secret-scan-flags.txt   # must be empty or clearly benign
+cat ~/opsworkbench-provenance-*/secret-scan-flags.txt   # review — see below
 ```
-If non-empty, stop and hand-review before proceeding; do not return the archive.
+The **secret-file prune is the primary control** (it removes `.env`, keys, data, logs, etc. before anything
+is hashed). This scan is an advisory backstop. Expect occasional matches from test fixtures containing fake
+secrets; those are benign. Investigate only **real** key material or live credential values, and never return
+the archive itself — only the sanitized outputs below leave the host.
 
 ## Step 4 — Compare against `d354a615` (offline)
 
