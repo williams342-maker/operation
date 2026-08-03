@@ -1,6 +1,7 @@
-/* global console, fetch, localStorage, process */
+/* global console, fetch, localStorage, process, document, window */
 import assert from "node:assert/strict";
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 import { URL } from "node:url";
 import { chromium } from "playwright";
 import { MongoClient, ObjectId } from "mongodb";
@@ -213,8 +214,48 @@ await page.getByText("Success or rollback", { exact: false }).waitFor();
 assert.equal(await page.getByRole("button", { name: "Create immutable plan" }).isEnabled(), true, "non-production deployment workflow is available");
 assert.deepEqual(browserErrors.result(), { unmet: [], unexpectedResponses: [], unexpectedConsoleErrors: [] }, "browser responses and console errors match narrow expectations");
 
+// ---- Deterministic UI review screenshots (uploaded as CI artifacts). Non-blocking evidence: fixed
+// viewports, fonts + network settled, animations disabled. Horizontal overflow is measured and logged
+// per surface/viewport as evidence (blocking overflow assertions are added per surface as it is polished,
+// to avoid failing this infrastructure increment on any pre-existing overflow). Only dark mode exists
+// today; light-mode capture follows the theming increment. ----
+try {
+  const screenshotDir = process.env.UI_SCREENSHOT_DIR || path.join(process.env.RUNNER_TEMP || process.cwd(), "ui-screenshots");
+  await mkdir(screenshotDir, { recursive: true });
+  const viewports = { desktop: { width: 1280, height: 800 }, mobile: { width: 390, height: 844 } };
+  // Disable animations/carets so captures are stable (persists across client-side nav; no reload).
+  await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}*{caret-color:transparent!important}" });
+  const settle = async () => { await page.waitForLoadState("networkidle").catch(() => {}); await page.evaluate(async () => { await (document.fonts && document.fonts.ready); return true; }).catch(() => {}); await page.waitForTimeout(150); };
+  const overflowReport = [];
+  async function capture(name) {
+    for (const [label, size] of Object.entries(viewports)) {
+      await page.setViewportSize(size);
+      await settle();
+      const horizontalOverflowPx = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      overflowReport.push({ surface: name, viewport: label, horizontalOverflowPx });
+      await page.screenshot({ path: path.join(screenshotDir, `${name}-${label}-dark.png`), fullPage: true });
+    }
+    await page.setViewportSize(viewports.desktop);
+  }
+  async function captureSurface(name, navLabel) {
+    await page.setViewportSize(viewports.desktop);
+    if (navLabel) { await page.getByRole("button", { name: navLabel }).click(); await settle(); }
+    await capture(name);
+  }
+  await capture("configuration-env-editor"); // already on Configuration with a project/environment selected
+  await captureSurface("overview", "Overview");
+  await captureSurface("servers", "Servers");
+  await captureSurface("tasks", "Tasks");
+  await captureSurface("audit", "Audit");
+  await captureSurface("ai-builder", "AI Website Builder");
+  console.log(JSON.stringify({ uiScreenshots: overflowReport }));
+} catch (error) {
+  await reportBrowserFailure(error);
+  throw error;
+}
+
 await context.close();
 await browser.close();
 await db.dropDatabase();
 await client.close();
-console.log(JSON.stringify({ ok: true, checks: ["login", "recent authentication", "active logout", "session expiry", "configuration workflow"], credentialsLogged: false }));
+console.log(JSON.stringify({ ok: true, checks: ["login", "recent authentication", "active logout", "session expiry", "configuration workflow", "ui screenshots"], credentialsLogged: false }));
