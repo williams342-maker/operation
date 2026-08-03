@@ -9,6 +9,7 @@ import { assertFlagOffRollbackSafe } from "@control-center/shared";
 import { captureRawBody } from "./agentAuth.js";
 import { connectDb, collections } from "./db.js";
 import { agentV2Enabled } from "./agentProtocolFlag.js";
+import { resolveBuildIdentity } from "./buildIdentity.js";
 import { validateRuntimeSecrets } from "./crypto.js";
 import { assertValidEnvironment } from "./environmentValidation.js";
 import { initializeRuntimeReadiness, runtimeHealth } from "./runtimeReadiness.js";
@@ -51,7 +52,7 @@ app.use(compression());
 app.use(cors({ origin: process.env.CONTROL_CENTER_WEB_ORIGIN || "http://localhost:5173", credentials: true }));
 app.use(rateLimit({ windowMs: 60_000, limit: 180 }));
 app.use(express.json({ limit: "1mb", verify: captureRawBody }));
-app.get("/healthz", (_req, res) => res.json({ ok: true, status: "alive", version: process.env.BUILD_VERSION || "development", commit: process.env.GIT_COMMIT || "unknown" }));
+app.get("/healthz", (_req, res) => { const identity = resolveBuildIdentity(); res.json({ ok: true, status: "alive", version: identity.version, commit: identity.commit, source: identity.source }); });
 app.get("/readyz", async (_req, res) => { const health = await runtimeHealth(); res.status(health.status === "ready" ? 200 : 503).json(health); });
 // Coarse per-IP cap on the credential endpoints, on top of the global limiter and the per-account
 // progressive lockout (authThrottle). Disabled under test so the integration suite's many logins from
