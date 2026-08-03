@@ -6,11 +6,13 @@ import { collections } from "./db.js";
 import { aiAssistantConfig, organizationProvider } from "./aiAssistant.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
 import { defaultAiSettings, effectiveAiSettings, usageSummary } from "./aiOperations.js";
+import { probeWorkforceProvider, providerCredential, workforceStatus } from "./aiWorkforce.js";
 
 export const aiSettingsRouter = express.Router();
+const probeCooldowns = new Map<string, number>();
 const safe = async (req: express.Request) => {
   const config = aiAssistantConfig(); const org = await collections.organizations.findOne({ _id: req.orgId! }); if (!org) return null; const settings = effectiveAiSettings(org);
-  return { globalEnabled: config.enabled, settings: { ...settings, providerDataRetentionAcknowledgedBy: undefined }, allowlists: { providers: config.allowedProviders, models: config.allowedModels }, providerStatus: { configured: Boolean(organizationProvider(config, settings.provider, settings.model)), credentialPresent: Boolean(config.apiKey || settings.provider === "mock"), provider: settings.provider || null, model: settings.model || null }, usage: await usageSummary(req.orgId!), readOnly: true, noActionsCanBeExecuted: true };
+  return { globalEnabled: config.enabled, settings: { ...settings, providerDataRetentionAcknowledgedBy: undefined }, allowlists: { providers: config.allowedProviders, models: config.allowedModels }, providerStatus: { configured: Boolean(organizationProvider(config, settings.provider, settings.model)), credentialPresent: Boolean(providerCredential(settings.provider || "")), provider: settings.provider || null, model: settings.model || null }, workforce: workforceStatus(config.allowedProviders, config.allowedModels), usage: await usageSummary(req.orgId!), readOnly: true, noActionsCanBeExecuted: true };
 };
 
 aiSettingsRouter.get("/org/ai-assistant", noStore, requirePermission("ai:admin"), async (req, res, next) => { try { const value = await safe(req); if (!value) return res.status(404).json({ error: "Organization not found" }); await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "ai.settings.view", targetType: "organization", targetId: req.orgId, result: "success", requestId: req.requestId }); return res.json(value); } catch (error) { return next(error); } });
@@ -31,6 +33,17 @@ aiSettingsRouter.put("/org/ai-assistant", noStore, requirePermission("ai:admin")
     if (previous.enabled !== settings.enabled) await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: settings.enabled ? "ai.settings.enable" : "ai.settings.disable", targetType: "organization", targetId: req.orgId, result: "success", requestId: req.requestId });
     if (!previous.providerDataRetentionAcknowledgedAt && settings.providerDataRetentionAcknowledgedAt) await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "ai.settings.acknowledge", targetType: "organization", targetId: req.orgId, result: "success", requestId: req.requestId });
     return res.json(await safe(req));
+  } catch (error) { return next(error); }
+});
+
+aiSettingsRouter.post("/org/ai-workforce/provider-probe", noStore, requirePermission("ai:admin"), async (req, res, next) => {
+  try {
+    const config = aiAssistantConfig(); const org = await collections.organizations.findOne({ _id: req.orgId! }); if (!org) return res.status(404).json({ error: "Organization not found" });
+    const settings = effectiveAiSettings(org); const provider = settings.provider || config.provider; if (!provider || !config.allowedProviders.includes(provider)) return res.status(409).json({ error: "Selected provider is not configured", code: "provider_unconfigured" });
+    const cooldownKey = `${req.orgId}:${provider}`; const last = probeCooldowns.get(cooldownKey) || 0; if (Date.now() - last < 60_000) return res.status(429).json({ error: "Provider probe is cooling down", code: "provider_probe_cooldown", retryable: true }); probeCooldowns.set(cooldownKey, Date.now());
+    const result = await probeWorkforceProvider(provider); const checkedAt = new Date().toISOString();
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "ai.provider.probe", targetType: "ai_provider", targetId: provider, result: result.ok ? "success" : "failure", requestId: req.requestId, metadata: { provider, category: result.category, durationMs: result.durationMs } });
+    return res.status(result.ok ? 200 : 503).json({ provider, status: result.ok ? "ready" : "unavailable", category: result.category, durationMs: result.durationMs, checkedAt });
   } catch (error) { return next(error); }
 });
 

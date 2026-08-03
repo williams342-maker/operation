@@ -1,4 +1,5 @@
 ﻿import crypto from "node:crypto";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,12 @@ import { agentSigningKey, signRequest } from "@control-center/shared";
 import { isolatedTestMongoUrl } from "../src/testDbGuard.js";
 
 const enabled = process.env.CONTROL_CENTER_RUN_DB_TESTS === "true" && Boolean(process.env.MONGO_URL_TEST);
+const diagnosticsFile = process.env.CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE;
+
+function diagnostic(event: string, details: Record<string, string | number> = {}) {
+  if (!diagnosticsFile) return;
+  fsSync.appendFileSync(diagnosticsFile, `${JSON.stringify({ timestamp: new Date().toISOString(), event, ...details })}\n`, { mode: 0o600 });
+}
 
 type TestResponse<T = Record<string, unknown>> = {
   status: number;
@@ -83,9 +90,15 @@ async function assertIndex(collection: { indexes(): Promise<Array<{ key: Record<
   if (options.ttl !== undefined) assert.equal(found.expireAfterSeconds, options.ttl);
 }
 
-test("database-backed Phase 1B API and fake-agent verification", { skip: !enabled }, async () => {
+test("database-backed Phase 1B API and fake-agent verification", { skip: !enabled, timeout: 120_000 }, async () => {
+  const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
+  process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "manual";
+  diagnostic("test.start");
   process.env.NODE_ENV = "test";
   process.env.CONTROL_CENTER_ALLOW_INSECURE_COOKIES = "true";
+  process.env.CONTROL_CENTER_ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
+  process.env.CONTROL_CENTER_AGENT_REVISION = "a".repeat(40);
+  process.env.CONTROL_CENTER_AGENT_ARCHIVE_SHA256 = "b".repeat(64);
   const isolated = isolatedTestMongoUrl();
   process.env.MONGO_URL = isolated.url;
   process.env.CONTROL_CENTER_DB = isolated.dbName;
@@ -105,14 +118,18 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
   assert.ok(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
   const tempCredentialFile = path.join(os.tmpdir(), `control-center-fake-agent-${crypto.randomUUID()}.json`);
+  let requestCount = 0;
 
   async function request<T = Record<string, unknown>>(method: string, route: string, body?: unknown, headers?: Record<string, string>): Promise<TestResponse<T>> {
+    const startedAt = Date.now();
     const response = await fetch(`${baseUrl}${route}`, {
       method,
       headers: headers ?? (body ? { "content-type": "application/json" } : undefined),
       body: body === undefined ? undefined : JSON.stringify(body)
     });
     const text = await response.text();
+    requestCount += 1;
+    diagnostic("request.complete", { count: requestCount, status: response.status, durationMs: Date.now() - startedAt });
     return { status: response.status, headers: response.headers, body: text ? JSON.parse(text) as T : {} as T };
   }
 
@@ -120,6 +137,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const response = await request<{ csrfToken: string }>("POST", "/auth/login", { organizationSlug: slug, email, password }, { "content-type": "application/json" });
     assert.equal(response.status, 200);
     return { cookie: cookieFrom(response.headers), csrf: response.body.csrfToken };
+  }
+
+  async function sessionIdFor(session: Session) {
+    const token = session.cookie.slice("cc_session=".length);
+    const doc = await collections.sessions.findOne({ tokenHash: hashSecret(token) });
+    assert.ok(doc?._id, "expected persisted session for cookie");
+    return doc._id;
   }
 
   async function createEnrollment(session: Session, expiresInMinutes = 60) {
@@ -155,7 +179,11 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
   }
 
   try {
+    diagnostic("test.body.start");
     await assertIndex(collections.enrollments, { orgId: 1, tokenHash: 1 }, { unique: true });
+    await assertIndex(collections.sessions, { tokenHash: 1 }, { unique: true });
+    await assertIndex(collections.loginThrottle, { key: 1 }, { unique: true });
+    await assertIndex(collections.loginThrottle, { expiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.agentNonces, { orgId: 1, agentId: 1, nonce: 1 }, { unique: true });
     await assertIndex(collections.telemetry, { expiresAt: 1 }, { ttl: 0 });
     await assertIndex(collections.telemetry, { orgId: 1, serverId: 1, collectedAt: -1 });
@@ -174,7 +202,6 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const protectedOverview = await request("GET", "/overview");
     assert.equal(protectedOverview.status, 401);
 
-    const originalBootstrapMode = process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
     process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "disabled";
     const disabledBootstrap = await request("POST", "/auth/bootstrap", {
       organizationName: "Disabled Org",
@@ -201,6 +228,25 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(bootstrap.status, 201);
     assert.equal(await collections.organizations.countDocuments(), 1);
     assert.equal(await collections.users.countDocuments({ role: "Owner" }), 1);
+
+    const sluglessLogin = await request<{ csrfToken: string }>("POST", "/auth/login", {
+      email: "owner-a@example.test",
+      password: "owner-a-password"
+    }, { "content-type": "application/json" });
+    assert.equal(sluglessLogin.status, 200);
+
+    const secondOrg = await collections.organizations.insertOne({
+      name: "Second Org",
+      slug: "second-org",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    const ambiguousSluglessLogin = await request("POST", "/auth/login", {
+      email: "owner-a@example.test",
+      password: "owner-a-password"
+    }, { "content-type": "application/json" });
+    assert.equal(ambiguousSluglessLogin.status, 401);
+    await collections.organizations.deleteOne({ _id: secondOrg.insertedId });
 
     const duplicateBootstrap = await request("POST", "/auth/bootstrap", {
       organizationName: "Duplicate Org",
@@ -239,8 +285,22 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
+    // Progressive per-account login lockout: five wrong-password attempts lock the account, after which
+    // even the correct password is refused with 429 ACCOUNT_LOCKED until the backoff window elapses.
+    const lockUser = await request<{ oneTimePassword: string }>("POST", "/org/users", { email: "lock-a@example.test", name: "Lock A", role: "Viewer" }, jsonHeaders(ownerA));
+    assert.equal(lockUser.status, 201);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const wrong = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "lock-a@example.test", password: "definitely-wrong-password" }, { "content-type": "application/json" });
+      assert.equal(wrong.status, 401);
+    }
+    const lockedOut = await request<{ code: string; retryAfterSeconds: number }>("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "lock-a@example.test", password: lockUser.body.oneTimePassword }, { "content-type": "application/json" });
+    assert.equal(lockedOut.status, 429);
+    assert.equal(lockedOut.body.code, "ACCOUNT_LOCKED");
+    assert.ok(lockedOut.body.retryAfterSeconds > 0);
+    assert.ok(Number(lockedOut.headers.get("retry-after")) > 0);
+
     const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
-    const viewerSessionId = new ObjectId(viewerLogout.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const viewerSessionId = await sessionIdFor(viewerLogout);
     const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerLogout.cookie });
     assert.equal(logoutWithoutCsrf.status, 403);
     assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 1);
@@ -251,14 +311,14 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
     const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
-    const expiredViewerSessionId = new ObjectId(expiredViewer.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const expiredViewerSessionId = await sessionIdFor(expiredViewer);
     await collections.sessions.updateOne({ _id: expiredViewerSessionId }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
     const expiredLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(expiredViewer));
     assert.equal(expiredLogout.status, 200);
     assert.equal(await collections.sessions.countDocuments({ _id: expiredViewerSessionId }), 0);
     assert.match(expiredLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
-    const ownerSessionId = new ObjectId(ownerA.cookie.match(/cc_session=([a-f0-9]{24})/)![1]);
+    const ownerSessionId = await sessionIdFor(ownerA);
     await collections.sessions.updateOne(
       { _id: ownerSessionId },
       { $set: { authenticatedAt: new Date(Date.now() - 11 * 60_000) } }
@@ -281,9 +341,29 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(refreshedSession?.authenticatedAt);
     assert.ok(Date.now() - refreshedSession.authenticatedAt.getTime() < 10_000);
 
+    const accessClientId = "integration-client-id"; const accessClientSecret = "integration-client-secret";
+    const accessIntegration = await request<{ id: string }>("POST", "/admin/integrations/cloudflare-access", { name: "Staging Access", clientId: accessClientId, clientSecret: accessClientSecret }, jsonHeaders(ownerA));
+    assert.equal(accessIntegration.status, 201);
+    const storedAccess = await collections.cloudflareAccessIntegrations.findOne({ _id: new ObjectId(accessIntegration.body.id) });
+    assert.ok(storedAccess);
+    assert.doesNotMatch(JSON.stringify(storedAccess), new RegExp(`${accessClientId}|${accessClientSecret}`));
+    const accessList = await request<{ integrations: Array<Record<string, unknown>> }>("GET", "/admin/integrations/cloudflare-access", undefined, jsonHeaders(ownerA));
+    assert.equal(accessList.status, 200);
+    assert.equal(accessList.body.integrations[0]?.configured, true);
+    assert.equal(accessList.body.integrations[0]?.clientIdEnvelope, undefined);
+    assert.equal(accessList.body.integrations[0]?.clientSecretEnvelope, undefined);
+
     const generated = await request<{ id: string; token: string }>("POST", "/admin/enrollment/generate", { name: "CI enrollment", expiresInMinutes: 60, maxUses: 2, description: "integration" }, jsonHeaders(ownerA));
     assert.equal(generated.status, 201);
     assert.match(generated.body.token, /^owenr_/);
+    const bootstrapEnrollment = await request<{ id: string; token: string; bootstrapDownloadToken: string }>("POST", "/admin/enrollment/generate", { name: "Bootstrap enrollment", expiresInMinutes: 60, maxUses: 1, cloudflareAccessIntegrationId: accessIntegration.body.id }, jsonHeaders(ownerA));
+    assert.equal(bootstrapEnrollment.status, 201);
+    const bootstrapResponse = await fetch(`${baseUrl}/admin/enrollment/bootstrap/${bootstrapEnrollment.body.id}`, { method: "POST", headers: jsonHeaders(ownerA), body: JSON.stringify({ downloadToken: bootstrapEnrollment.body.bootstrapDownloadToken, enrollmentToken: bootstrapEnrollment.body.token }) });
+    assert.equal(bootstrapResponse.status, 200); assert.match(bootstrapResponse.headers.get("content-type") || "", /^text\/x-shellscript/);
+    const bootstrapScript = await bootstrapResponse.text();
+    assert.doesNotMatch(bootstrapScript, new RegExp(`${accessClientId}|${accessClientSecret}|${bootstrapEnrollment.body.token}`));
+    const replayResponse = await fetch(`${baseUrl}/admin/enrollment/bootstrap/${bootstrapEnrollment.body.id}`, { method: "POST", headers: jsonHeaders(ownerA), body: JSON.stringify({ downloadToken: bootstrapEnrollment.body.bootstrapDownloadToken, enrollmentToken: bootstrapEnrollment.body.token }) });
+    assert.equal(replayResponse.status, 410);
     const listed = await request<{ enrollments: Array<{ _id: string; tokenHash?: string; token?: string; usesRemaining: number }> }>("GET", "/admin/enrollment", undefined, jsonHeaders(ownerA));
     assert.equal(listed.status, 200);
     const listedGenerated = listed.body.enrollments.find((item) => String(item._id) === String(generated.body.id));
@@ -319,7 +399,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const mergeToken = await request<{ token: string; serverId: string; installCommand: string }>("POST", "/servers/onboard", { url: "https://opsworkbench.org", expiresInMinutes: 60 }, jsonHeaders(ownerA));
     assert.equal(mergeToken.status, 201);
     assert.equal(mergeToken.body.serverId, String(legacyId), "URL-first onboarding must bind to the existing compact slug match");
-    assert.match(mergeToken.body.installCommand, /CONTROL_CENTER_SERVER_SLUG="ops-workbench"/);
+    assert.match(mergeToken.body.installCommand, /printf '%s' 'ops-workbench' >"\$INSTALL_INPUT_DIR\/server-slug"/);
     const mergedCredentials = await enroll(mergeToken.body.token, "opsworkbench");
     assert.equal(mergedCredentials.serverId, String(legacyId), "enrollment must preserve the existing ops-workbench server id");
     assert.equal(await collections.servers.countDocuments({ orgId: orgA._id, slug: "ops-workbench" }), 1, "enrollment must not create a duplicate server");
@@ -469,13 +549,57 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(duplicateClaim.status, 200);
     assert.equal(((duplicateClaim.body as { tasks: unknown[] }).tasks).length, 0);
 
+    const taskId = queuedTask.body.task._id;
+    const claimedVersion = (await collections.agentTasks.findOne({ _id: new ObjectId(taskId), orgId: orgA._id }))?.version;
+    const claimAudit = await collections.auditEvents.find({ orgId: orgA._id, action: "task.claim", targetId: taskId }).toArray();
+    assert.equal(claimAudit.length, 1);
+    assert.equal(typeof claimAudit[0].targetId, "string");
+    assert.equal(claimAudit[0].actorType, "agent");
+    assert.equal(claimAudit[0].actorId, credentials.agentId);
+    assert.deepEqual(claimAudit[0].metadata, { type: "collect.system" });
+
+    const replayTimestamp = new Date().toISOString();
+    const replayNonce = crypto.randomUUID();
+    const claimedAck = await ack(credentials, { taskId, event: "claimed" }, { timestamp: replayTimestamp, nonce: replayNonce });
+    assert.equal(claimedAck.status, 200);
+    const replayedClaimedAck = await ack(credentials, { taskId, event: "claimed" }, { timestamp: replayTimestamp, nonce: replayNonce });
+    assert.equal(replayedClaimedAck.status, 401);
+    assert.equal((await collections.agentTasks.findOne({ _id: new ObjectId(taskId), orgId: orgA._id }))?.version, claimedVersion);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.claim", targetId: taskId }), 1);
+
+    const malformedAck = await ack(credentials, { taskId, event: "started", status: "failed" });
+    assert.equal(malformedAck.status, 400);
+
     const startedTask = await ack(credentials, { taskId: queuedTask.body.task._id, event: "started" });
     assert.equal(startedTask.status, 200);
+    const contradictoryClaim = await ack(credentials, { taskId, event: "claimed" });
+    assert.equal(contradictoryClaim.status, 409);
     const completedTask = await ack(credentials, { taskId: queuedTask.body.task._id, event: "succeeded", result: { metrics: { ok: true }, secret: "should-redact" } });
     assert.equal(completedTask.status, 200);
     const storedTask = await collections.agentTasks.findOne({ _id: new ObjectId(queuedTask.body.task._id), orgId: orgA._id });
     assert.equal(storedTask?.state, "succeeded");
+    assert.equal(storedTask?.resultSummary, "Task completed successfully");
     assert.equal(JSON.stringify(storedTask?.result).includes("should-redact"), false);
+    const storedResult = await collections.agentTaskResults.findOne({ taskId: new ObjectId(queuedTask.body.task._id), orgId: orgA._id });
+    assert.equal(storedResult?.state, "succeeded");
+    const completionAuditCount = await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.complete", targetId: queuedTask.body.task._id, result: "success" });
+    assert.equal(completionAuditCount, 1);
+    const duplicateCompletion = await ack(credentials, { taskId: queuedTask.body.task._id, event: "succeeded", result: { metrics: { ok: true } } });
+    assert.equal(duplicateCompletion.status, 200);
+    assert.equal(await collections.auditEvents.countDocuments({ orgId: orgA._id, action: "task.complete", targetId: queuedTask.body.task._id, result: "success" }), completionAuditCount);
+    const contradictoryCompletion = await ack(credentials, { taskId: queuedTask.body.task._id, event: "failed", result: { error: "late contradiction" } });
+    assert.equal(contradictoryCompletion.status, 409);
+
+    const lifecycle = await collections.auditEvents.find({ orgId: orgA._id, targetType: "agent_task", targetId: taskId }).sort({ createdAt: 1 }).toArray();
+    assert.equal(lifecycle.every((event) => typeof event.targetId === "string"), true);
+    assert.equal(lifecycle.filter((event) => event.action === "task.claim").length, 1);
+    assert.equal(lifecycle.filter((event) => event.action === "task.start").length, 1);
+    assert.equal(lifecycle.filter((event) => event.action === "task.complete").length, 1);
+    assert.deepEqual(lifecycle.map((event) => event.action), ["task.create", "task.claim", "task.start", "task.complete"]);
+    assert.equal(lifecycle.every((event) => event.orgId?.equals(orgA._id)), true);
+    assert.equal(lifecycle.filter((event) => event.action === "task.create").every((event) => event.actorType === "user" && event.actorId instanceof ObjectId && event.actorId.equals(ownerUserA._id!)), true);
+    assert.equal(lifecycle.filter((event) => event.action !== "task.create").every((event) => event.actorType === "agent" && event.actorId === credentials.agentId), true);
+    assert.doesNotMatch(JSON.stringify(lifecycle.map((event) => event.metadata)), /secret|token|password|credential|signature|cookie|authorization|mongodb:\/\//i);
 
     const cancelDone = await request("POST", `/tasks/${queuedTask.body.task._id}/cancel`, {}, jsonHeaders(ownerA));
     assert.equal(cancelDone.status, 404);
@@ -580,6 +704,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     await collections.servers.updateOne({ _id: new ObjectId(credentials.serverId), orgId: orgA._id }, { $set: { status: "online", lastHeartbeatAt: new Date(Date.now() - 10 * 60_000) } });
     const overview = await request("GET", "/overview", undefined, jsonHeaders(ownerA));
     assert.equal(overview.status, 200);
+    assert.match(overview.headers.get("content-type") || "", /^application\/json\b/i);
     const staleServer = await collections.servers.findOne({ _id: new ObjectId(credentials.serverId), orgId: orgA._id });
     assert.equal(staleServer?.status, "offline");
 
@@ -619,10 +744,19 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const auditFailure = await collections.auditEvents.findOne({ action: "authorization.failure", result: "denied" });
     assert.ok(auditFailure?.requestId);
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
+    diagnostic("test.body.complete", { requestCount });
   } finally {
-    await fs.rm(tempCredentialFile, { force: true });
-    await client.db(isolated.dbName).dropDatabase();
-    await client.close();
+    if (originalBootstrapMode === undefined) delete process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
+    else process.env.CONTROL_CENTER_BOOTSTRAP_MODE = originalBootstrapMode;
+    diagnostic("cleanup.http.start", { requestCount });
+    server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    diagnostic("cleanup.http.complete");
+    await fs.rm(tempCredentialFile, { force: true });
+    diagnostic("cleanup.file.complete");
+    await client.db(isolated.dbName).dropDatabase();
+    diagnostic("cleanup.database.complete");
+    await client.close();
+    diagnostic("cleanup.client.complete");
   }
 });

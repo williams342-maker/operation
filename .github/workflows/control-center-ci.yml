@@ -4,9 +4,54 @@ on:
   workflow_dispatch:
   pull_request:
   push:
-    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**" ]
+    branches: [ main, checkpoint/local-dashboard-prototype, control-center-phase-1, "validation/**", "fix/**" ]
 
 jobs:
+  archive-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Verify checkout shell bytes on Windows
+        run: node control-center/scripts/verify-shell-scripts.mjs
+      - name: Build exact-commit deployment archive on Windows
+        run: node control-center/scripts/build-deployment-archive.mjs --commit "${{ github.sha }}" --output archive-output
+      - uses: actions/upload-artifact@v6
+        with:
+          name: deployment-archive-windows-${{ github.sha }}
+          path: archive-output/
+          if-no-files-found: error
+          compression-level: 0
+
+  archive-linux-verify:
+    needs: archive-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v7
+        with:
+          name: deployment-archive-windows-${{ github.sha }}
+          path: archive-output
+      - name: Verify Windows archive against Git blobs on Linux
+        run: |
+          set -euo pipefail
+          archive="archive-output/opsworkbench-${GITHUB_SHA:0:12}.tar.gz"
+          manifest="archive-output/opsworkbench-${GITHUB_SHA:0:12}.integrity.json"
+          node control-center/scripts/verify-deployment-archive.mjs --archive "$archive" --manifest "$manifest"
+          mkdir extracted
+          tar -xzf "$archive" -C extracted
+          bash -n extracted/control-center/apps/web/public/install.sh
+          test "$(sha256sum extracted/control-center/apps/web/public/install.sh | cut -d' ' -f1)" = "$(git cat-file blob "$GITHUB_SHA:control-center/apps/web/public/install.sh" | sha256sum | cut -d' ' -f1)"
+
   verify:
     runs-on: ubuntu-latest
     services:
@@ -27,7 +72,11 @@ jobs:
       CONTROL_CENTER_RUN_PRIVILEGED_FS_TESTS: "true"
       CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      CI_EXPECTED_TESTS: "155"
+      CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
+      # Linux TAP inventory: agent 61 + API 108 + shared 53 + web 34 = 256.
+      # (+8 agent urlSafety, +6 API passwordHashing/authThrottle vs the prior 242 baseline.)
+      CI_EXPECTED_TEST_SUITES: "agent=61,api=108,shared=53,web=34"
+      CI_EXPECTED_TESTS: "256"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
@@ -59,10 +108,20 @@ jobs:
           cache: npm
           cache-dependency-path: control-center/package-lock.json
       - run: npm ci
+      - name: Verify shell bytes and Bash syntax
+        run: node scripts/verify-shell-scripts.mjs --require-bash
       - name: Audit production dependencies
         run: npm audit --audit-level=high
       - name: Test with disposable MongoDB
         run: npm test
+      - name: Retain value-safe database timeout diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: database-integration-diagnostics
+          path: /tmp/control-center-db-test-diagnostics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify Linux test summary has no skips
         run: |
           set -euo pipefail
@@ -71,7 +130,7 @@ jobs:
           (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap
           (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap
           (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap
-          node scripts/summarize-tap.mjs agent.tap api.tap shared.tap web.tap
+          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap shared=shared.tap web=web.tap
       - name: Linux agent upgrade and rollback dry run
         run: bash scripts/linux-agent-upgrade-dry-run.sh
       - name: Install Playwright Chromium
@@ -110,6 +169,14 @@ jobs:
             sleep 1
           done
           npm run test:e2e:authenticated
+      - name: Retain authenticated browser failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: authenticated-browser-e2e-failure
+          path: ${{ runner.temp }}/authenticated-e2e-failure.png
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present

@@ -1,0 +1,63 @@
+export type WorkforceProviderId = "openai" | "anthropic" | "gemini" | "openrouter" | "mock";
+export type WorkforceCapability = "operations_analysis" | "seo_analysis" | "website_planning" | "review";
+export type WorkforceRole = { id: string; name: string; capability: WorkforceCapability; description: string; readOnly: true };
+export type WorkforceModel = { id: string; provider: WorkforceProviderId; capabilities: WorkforceCapability[] };
+export type WorkforceResourceType = "server" | "project" | "seo_audit" | "website_workflow";
+
+export const providerRegistry: Record<WorkforceProviderId, { name: string; credentialVariable?: string; defaultBaseUrl?: string }> = {
+  openai: { name: "OpenAI", credentialVariable: "OPENAI_API_KEY", defaultBaseUrl: "https://api.openai.com/v1" },
+  anthropic: { name: "Anthropic", credentialVariable: "ANTHROPIC_API_KEY", defaultBaseUrl: "https://api.anthropic.com/v1" },
+  gemini: { name: "Google Gemini", credentialVariable: "GEMINI_API_KEY", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta" },
+  openrouter: { name: "OpenRouter", credentialVariable: "OPENROUTER_API_KEY", defaultBaseUrl: "https://openrouter.ai/api/v1" },
+  mock: { name: "Deterministic Mock" },
+};
+
+export const workforceRoles: WorkforceRole[] = [
+  { id: "operations-analyst", name: "Operations Analyst", capability: "operations_analysis", description: "Explains bounded operational evidence and recommends reversible next steps.", readOnly: true },
+  { id: "seo-analyst", name: "SEO Analyst", capability: "seo_analysis", description: "Reviews stored crawl findings and drafts prioritized remediation guidance.", readOnly: true },
+  { id: "website-planner", name: "Website Planner", capability: "website_planning", description: "Turns approved discovery answers into a structured draft brief.", readOnly: true },
+  { id: "reviewer", name: "AI Reviewer", capability: "review", description: "Checks drafts for evidence, safety, completeness, and policy compliance.", readOnly: true },
+];
+const roleResources: Record<string, WorkforceResourceType[]> = { "operations-analyst": ["server", "project"], "seo-analyst": ["seo_audit"], "website-planner": ["website_workflow"], reviewer: ["seo_audit", "website_workflow"] };
+export function roleAcceptsResource(roleId: string, resourceType: WorkforceResourceType) { return roleResources[roleId]?.includes(resourceType) || false; }
+
+const allCapabilities: WorkforceCapability[] = ["operations_analysis", "seo_analysis", "website_planning", "review"];
+export function modelRegistry(allowedProviders: string[], allowedModels: string[], mapping = process.env.AI_WORKFORCE_MODEL_MAP || ""): WorkforceModel[] {
+  const providers = allowedProviders.filter((provider): provider is WorkforceProviderId => provider in providerRegistry);
+  const pairs = mapping.split(",").map((item) => item.trim()).filter(Boolean).map((item) => { const split = item.indexOf("="); return split > 0 ? { provider: item.slice(0, split).trim(), id: item.slice(split + 1).trim() } : null; }).filter((item): item is { provider: string; id: string } => Boolean(item?.provider && item.id));
+  if (!pairs.length && providers.length === 1) return allowedModels.map((id) => ({ id, provider: providers[0], capabilities: allCapabilities }));
+  return pairs.filter((pair): pair is { provider: WorkforceProviderId; id: string } => providers.includes(pair.provider as WorkforceProviderId) && allowedModels.includes(pair.id)).map((pair) => ({ ...pair, capabilities: allCapabilities })).filter((model, index, rows) => rows.findIndex((row) => row.id === model.id && row.provider === model.provider) === index);
+}
+export function providerCredential(provider: string, env: NodeJS.ProcessEnv = process.env) {
+  if (provider === "mock") return "mock";
+  const variable = providerRegistry[provider as WorkforceProviderId]?.credentialVariable;
+  return variable ? env[variable] || env.AI_API_KEY : undefined;
+}
+export function providerBaseUrl(provider: string, env: NodeJS.ProcessEnv = process.env) {
+  const prefix = provider.toUpperCase();
+  return env.AI_BASE_URL || env[`${prefix}_BASE_URL`] || providerRegistry[provider as WorkforceProviderId]?.defaultBaseUrl;
+}
+export function workforceStatus(allowedProviders: string[], allowedModels: string[], env: NodeJS.ProcessEnv = process.env) {
+  const models = modelRegistry(allowedProviders, allowedModels, env.AI_WORKFORCE_MODEL_MAP); const providers = allowedProviders.filter((id): id is WorkforceProviderId => id in providerRegistry).map((id) => { const credentialPresent = id === "mock" || Boolean(providerCredential(id, env)); const modelsMapped = models.some((model) => model.provider === id); return { id, name: providerRegistry[id].name, configured: credentialPresent && modelsMapped, credentialPresent, modelsMapped, health: !credentialPresent ? "missing_credential" : !modelsMapped ? "models_not_mapped" : "ready" }; });
+  const assignments = workforceRoles.map((role) => ({ roleId: role.id, route: routeWorkforceRole(role.id, allowedProviders, allowedModels, env) }));
+  return { providers, models, roles: workforceRoles, assignments };
+}
+export function routeWorkforceRole(roleId: string, allowedProviders: string[], allowedModels: string[], env: NodeJS.ProcessEnv = process.env) {
+  const role = workforceRoles.find((item) => item.id === roleId); if (!role) return null;
+  const configured = allowedProviders.filter((provider): provider is WorkforceProviderId => provider in providerRegistry && (provider === "mock" || Boolean(providerCredential(provider, env))));
+  const model = modelRegistry(allowedProviders, allowedModels, env.AI_WORKFORCE_MODEL_MAP).find((item) => configured.includes(item.provider) && item.capabilities.includes(role.capability));
+  return model ? { role, provider: model.provider, model: model.id } : null;
+}
+
+export async function probeWorkforceProvider(provider: string, env: NodeJS.ProcessEnv = process.env, timeoutMs = 5000) {
+  const started = Date.now(); if (!(provider in providerRegistry)) return { ok: false, category: "unsupported", durationMs: 0 } as const;
+  if (provider === "mock") return { ok: true, category: "ready", durationMs: 0 } as const;
+  const credential = providerCredential(provider, env); const baseUrl = providerBaseUrl(provider, env); if (!credential || !baseUrl) return { ok: false, category: "unconfigured", durationMs: 0 } as const;
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), Math.min(10_000, Math.max(1000, timeoutMs)));
+  try {
+    const headers: Record<string, string> = provider === "anthropic" ? { "x-api-key": credential, "anthropic-version": "2023-06-01" } : provider === "gemini" ? { "x-goog-api-key": credential } : { authorization: `Bearer ${credential}` };
+    const suffix = provider === "gemini" ? "/models?pageSize=1" : "/models"; const response = await fetch(`${baseUrl.replace(/\/$/, "")}${suffix}`, { method: "GET", headers, signal: controller.signal }); await response.body?.cancel().catch(() => undefined);
+    if (!response.ok) return { ok: false, category: response.status === 401 || response.status === 403 ? "authentication" : response.status === 429 ? "rate_limited" : "provider", durationMs: Date.now() - started } as const;
+    return { ok: true, category: "ready", durationMs: Date.now() - started } as const;
+  } catch (error) { return { ok: false, category: error instanceof Error && error.name === "AbortError" ? "timeout" : "network", durationMs: Date.now() - started } as const; } finally { clearTimeout(timer); }
+}

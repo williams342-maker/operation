@@ -1,0 +1,25 @@
+[Unit]
+Description=OpsWorkbench Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opsworkbench-agent
+Group=opsworkbench-agent
+WorkingDirectory=/opt/opsworkbench-agent/current/control-center/apps/agent
+EnvironmentFile=/etc/opsworkbench-agent/enrollment.env
+EnvironmentFile=/etc/opsworkbench-agent/machine-auth.env
+ExecStart=/usr/bin/node /opt/opsworkbench-agent/current/control-center/apps/agent/dist/agent.js
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StateDirectory=opsworkbench-agent/agent opsworkbench-agent/updater-inbox opsworkbench-agent/updater-results
+StateDirectoryMode=0750
+ReadWritePaths=/etc/opsworkbench-agent /var/lib/opsworkbench-agent/agent /var/lib/opsworkbench-agent/updater-inbox /var/lib/opsworkbench-agent/updater-results
+
+[Install]
+WantedBy=multi-user.target

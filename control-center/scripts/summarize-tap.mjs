@@ -39,6 +39,45 @@ export function summarizeTapFiles(filePaths) {
   };
 }
 
+export function parseExpectedSuiteInventory(value) {
+  if (!value) throw new Error("CI_EXPECTED_TEST_SUITES is required");
+  const inventory = new Map();
+  for (const entry of value.split(",")) {
+    const match = /^([a-z][a-z0-9-]*)=(\d+)$/.exec(entry);
+    if (!match) throw new Error(`invalid expected suite entry: ${JSON.stringify(entry)}`);
+    if (inventory.has(match[1])) throw new Error(`duplicate expected suite: ${match[1]}`);
+    inventory.set(match[1], Number(match[2]));
+  }
+  return inventory;
+}
+
+export function summarizeTapSuites(suiteSpecs) {
+  const suites = new Map();
+  for (const spec of suiteSpecs) {
+    const match = /^([a-z][a-z0-9-]*)=(.+)$/.exec(spec);
+    if (!match) throw new Error(`invalid TAP suite specification: ${JSON.stringify(spec)}`);
+    if (suites.has(match[1])) throw new Error(`duplicate TAP suite: ${match[1]}`);
+    suites.set(match[1], match[2]);
+  }
+  const summary = summarizeTapFiles([...suites.values()]);
+  summary.files.forEach((file, index) => { file.suite = [...suites.keys()][index]; });
+  return summary;
+}
+
+export function validateTapSummary(summary, expectedSuites, expectedTotal) {
+  const actualSuites = new Map(summary.files.map((file) => [file.suite, file.tests]));
+  for (const [suite, expected] of expectedSuites) {
+    if (!actualSuites.has(suite)) throw new Error(`expected TAP suite is missing: ${suite}`);
+    const actual = actualSuites.get(suite);
+    if (actual !== expected) throw new Error(`unexpected test count for ${suite}: ${actual}; expected ${expected}`);
+  }
+  for (const suite of actualSuites.keys()) {
+    if (!expectedSuites.has(suite)) throw new Error(`unexpected TAP suite: ${suite}`);
+  }
+  if (summary.tests !== expectedTotal) throw new Error(`unexpected test count: ${summary.tests}; expected ${expectedTotal}`);
+  if (summary.skipped !== 0) throw new Error(`unexpected skipped tests: ${summary.skipped}`);
+}
+
 export function printTapSummary(summary, output = console.log) {
   for (const file of summary.files) {
     output(`TAP file: ${path.resolve(file.filePath)}`);
@@ -57,14 +96,13 @@ function main() {
     throw new Error(`CI_EXPECTED_TESTS must be a non-negative integer, received ${JSON.stringify(process.env.CI_EXPECTED_TESTS)}`);
   }
 
-  const filePaths = process.argv.slice(2);
-  if (filePaths.length === 0) throw new Error("at least one TAP file path is required");
-  if (new Set(filePaths).size !== filePaths.length) throw new Error("duplicate TAP file paths are not allowed");
+  const suiteSpecs = process.argv.slice(2);
+  if (suiteSpecs.length === 0) throw new Error("at least one TAP suite specification is required");
 
-  const summary = summarizeTapFiles(filePaths);
+  const expectedSuites = parseExpectedSuiteInventory(process.env.CI_EXPECTED_TEST_SUITES);
+  const summary = summarizeTapSuites(suiteSpecs);
   printTapSummary(summary);
-  if (summary.tests !== expected) throw new Error(`unexpected test count: ${summary.tests}; expected ${expected}`);
-  if (summary.skipped !== 0) throw new Error(`unexpected skipped tests: ${summary.skipped}`);
+  validateTapSummary(summary, expectedSuites, expected);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();

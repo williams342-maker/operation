@@ -36,6 +36,20 @@ export async function requireSignedAgent(req: Request, res: Response, next: Next
     await audit({ actorType: "agent", actorId: agentId, action: "authorization.failure", result: "denied", requestId: req.requestId, metadata: { reason: "unknown-agent" } });
     return res.status(401).json({ error: "Unknown agent" });
   }
+  // Verify the signature BEFORE consuming the nonce. Otherwise an attacker who knows a (non-secret)
+  // agentId could write unbounded nonce rows with garbage signatures — a side effect on a request
+  // that never authenticates. Replay is still blocked below by the unique {orgId,agentId,nonce} index.
+  const valid = verifyRequestSignature(server.agentSecretHash, {
+    method: req.method,
+    path: req.originalUrl.split("?")[0],
+    timestamp,
+    nonce,
+    body: req.rawBodyText || ""
+  }, signature);
+  if (!valid) {
+    await audit({ orgId: server.orgId, actorType: "agent", actorId: agentId, action: "authorization.failure", result: "denied", requestId: req.requestId, metadata: { reason: "bad-signature" } });
+    return res.status(401).json({ error: "Invalid signature" });
+  }
   try {
     await collections.agentNonces.insertOne({
       orgId: server.orgId,
@@ -48,17 +62,6 @@ export async function requireSignedAgent(req: Request, res: Response, next: Next
   } catch {
     await audit({ orgId: server.orgId, actorType: "agent", actorId: agentId, action: "authorization.failure", result: "denied", requestId: req.requestId, metadata: { reason: "duplicate-nonce" } });
     return res.status(401).json({ error: "Duplicate nonce" });
-  }
-  const valid = verifyRequestSignature(server.agentSecretHash, {
-    method: req.method,
-    path: req.originalUrl.split("?")[0],
-    timestamp,
-    nonce,
-    body: req.rawBodyText || ""
-  }, signature);
-  if (!valid) {
-    await audit({ orgId: server.orgId, actorType: "agent", actorId: agentId, action: "authorization.failure", result: "denied", requestId: req.requestId, metadata: { reason: "bad-signature" } });
-    return res.status(401).json({ error: "Invalid signature" });
   }
   req.agentServer = server as ServerDoc & { _id: ObjectId };
   next();

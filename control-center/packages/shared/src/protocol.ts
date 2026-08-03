@@ -21,7 +21,11 @@ export const agentEnrollmentRequestSchema = z.object({
   memoryBytes: z.number().int().nonnegative().optional(),
   diskBytes: z.number().int().nonnegative().optional(),
   agentVersion: z.string().min(1).max(64),
-  capabilities: z.array(z.enum(["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "systemdActivation", "configurationValidation", "configurationRollback"])).default([])
+  protocolVersion: z.string().max(64).optional(),
+  packageType: z.enum(["tar", "deb", "rpm"]).optional(),
+  releaseChannel: z.enum(["stable", "candidate", "preview"]).optional(),
+  binarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  capabilities: z.array(z.enum(["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "systemdActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"])).default([])
 });
 
 export const agentEnrollmentResponseSchema = z.object({
@@ -108,7 +112,12 @@ export const applicationDiscoverySchema = z.object({
 export const agentPollRequestSchema = z.object({
   heartbeat: z.object({
     collectedAt: z.string().datetime(),
-    agentVersion: z.string().min(1)
+    agentVersion: z.string().min(1),
+    protocolVersion: z.string().max(64).optional(),
+    packageType: z.enum(["tar", "deb", "rpm"]).optional(),
+    releaseChannel: z.enum(["stable", "candidate", "preview"]).optional(),
+    binarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    capabilities: z.array(z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/)).max(100).optional()
   }),
   metrics: serverMetricsSchema.optional(),
   docker: z.array(dockerServiceSchema).max(250).optional(),

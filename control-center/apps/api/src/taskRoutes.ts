@@ -4,13 +4,13 @@ import { taskTypes, type TaskType } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections, oid } from "./db.js";
-import { createTask, createTaskSchema, isConfigurationMutationTask, taskRegistry } from "./tasks.js";
+import { createTask, createTaskSchema, isConfigurationMutationTask, taskAuditTargetId, taskRegistry, taskSummaryForState } from "./tasks.js";
 
 export const taskRouter = express.Router();
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }
-function redactTask(task: Record<string, unknown>) { const copy = { ...task }; delete copy["payloadDigest"]; return copy; }
+function redactTask(task: Record<string, unknown>) { const copy = { ...task }; delete copy["payloadDigest"]; const state = copy["state"] as Parameters<typeof taskSummaryForState>[0]; const summary = taskSummaryForState(state, copy["resultSummary"]); if (summary) copy["resultSummary"] = summary; return copy; }
 
 const projection = { payload: 0 };
 
@@ -64,8 +64,9 @@ taskRouter.post("/tasks", noStore, requirePermission("tasks:run"), async (req, r
     }
     const expiresAt = new Date(Date.now() + body.expiresInSeconds * 1000);
     const task = await createTask({ orgId: org, server: server as typeof server & { _id: ObjectId }, projectId, type: body.type as TaskType, payload: body.payload ?? { projects: [], httpHealthChecks: [], mongoChecks: [] }, idempotencyKey: body.idempotencyKey || `${body.type}:${body.serverId}:${body.projectId || "none"}:${Date.now()}`, createdByUserId: actorId(req), expiresAt });
-    await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "task.create", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: body.type } });
-    res.status(201).json({ task: redactTask(task as unknown as Record<string, unknown>) });
+    if (task.auditCreation) await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "task.create", targetType: "agent_task", targetId: taskAuditTargetId(task._id), result: "success", requestId: req.requestId, metadata: { type: body.type } });
+    const { auditCreation: _auditCreation, ...publicTask } = task;
+    res.status(201).json({ task: redactTask(publicTask as unknown as Record<string, unknown>) });
   } catch (error) { next(error); }
 });
 
@@ -79,7 +80,7 @@ taskRouter.post("/tasks/:id/cancel", requirePermission("tasks:cancel"), async (r
       { returnDocument: "after" }
     );
     if (!result) return res.status(404).json({ error: "Cancelable task not found" });
-    await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "task.cancel", targetType: "agent_task", targetId: id, result: "success", requestId: req.requestId });
+    await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "task.cancel", targetType: "agent_task", targetId: taskAuditTargetId(id), result: "success", requestId: req.requestId });
     res.json({ task: redactTask(result as unknown as Record<string, unknown>) });
   } catch (error) { next(error); }
 });

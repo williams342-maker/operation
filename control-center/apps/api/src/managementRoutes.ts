@@ -122,7 +122,7 @@ managementRouter.post("/servers/discover", requirePermission("servers:manage"), 
 
 managementRouter.post("/servers/onboard", noStore, requirePermission("servers:manage"), async (req, res, next) => {
   try {
-    const body = z.object({ url: z.string().min(1).max(2048), displayName: z.string().trim().min(1).max(120).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), detectedPublicIps: z.array(z.string()).max(20).default([]), expiresInMinutes: z.number().int().min(5).max(43_200).default(60) }).parse(req.body);
+    const body = z.object({ url: z.string().min(1).max(2048), displayName: z.string().trim().min(1).max(120).optional(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(), detectedPublicIps: z.array(z.string()).max(20).default([]), expiresInMinutes: z.number().int().min(5).max(43_200).default(60), cloudflareAccessIntegrationId: z.string().refine(ObjectId.isValid).optional() }).parse(req.body);
     const derived = deriveWebsiteTarget(body.url); const org = orgId(req); const slugBase = body.slug || derived.slug;
     let target = await collections.servers.findOne({ orgId: org, archivedAt: { $exists: false }, slug: slugBase });
     if (!target) {
@@ -139,10 +139,12 @@ managementRouter.post("/servers/onboard", noStore, requirePermission("servers:ma
       target = await collections.servers.findOne({ _id: created.insertedId, orgId: org });
     }
     if (!target?._id) throw new Error("Pending server could not be created");
-    const token = `owenr_${randomToken(36)}`; const expiresAt = new Date(now.getTime() + body.expiresInMinutes * 60_000);
-    const enrollment = await collections.enrollments.insertOne({ orgId: org, serverId: target._id, tokenHash: hashSecret(token), name: `Setup ${target.name}`, description: `URL-first onboarding for ${derived.normalizedUrl}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now });
+    const integrationId = body.cloudflareAccessIntegrationId ? new ObjectId(body.cloudflareAccessIntegrationId) : undefined;
+    if (integrationId && !await collections.cloudflareAccessIntegrations.findOne({ _id: integrationId, orgId: org, disabledAt: { $exists: false } }, { projection: { _id: 1 } })) return res.status(404).json({ error: "Cloudflare Access integration not found" });
+    const token = `owenr_${randomToken(36)}`; const bootstrapDownloadToken = integrationId ? `owboot_${randomToken(36)}` : undefined; const expiresAt = new Date(now.getTime() + body.expiresInMinutes * 60_000);
+    const enrollment = await collections.enrollments.insertOne({ orgId: org, serverId: target._id, ...(integrationId ? { cloudflareAccessIntegrationId: integrationId, bootstrapDownloadTokenHash: hashSecret(bootstrapDownloadToken!) } : {}), tokenHash: hashSecret(token), name: `Setup ${target.name}`, description: `URL-first onboarding for ${derived.normalizedUrl}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "server.create", targetType: "server", targetId: target._id, result: "success", requestId: req.requestId, metadata: { slug: target.slug || slugBase, url: derived.normalizedUrl } });
-    res.status(201).json({ serverId: target._id, enrollmentId: enrollment.insertedId, token, expiresAt, server: { _id: target._id, name: target.name, slug: target.slug, primaryUrl: derived.normalizedUrl, enrollmentStatus: "pending" }, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", target.slug) });
+    res.status(201).json({ serverId: target._id, enrollmentId: enrollment.insertedId, token, bootstrapDownloadToken, expiresAt, server: { _id: target._id, name: target.name, slug: target.slug, primaryUrl: derived.normalizedUrl, enrollmentStatus: "pending" }, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", target.slug) });
   } catch (error) { next(error); }
 });
 
@@ -180,8 +182,17 @@ managementRouter.post("/servers/:id/check-status", requirePermission("servers:ma
   } catch (error) { next(error); }
 });
 
-managementRouter.post("/servers/:id/enrollment", noStore, requirePermission("servers:enroll"), async (req, res, next) => {
-  try { const serverId = oid(String(req.params.id)); const server = await collections.servers.findOne({ _id: serverId, orgId: orgId(req), archivedAt: { $exists: false } }); if (!server) return res.status(404).json({ error: "Server not found" }); const token = `owenr_${randomToken(36)}`; const now = new Date(); const expiresAt = new Date(now.getTime() + 60 * 60_000); const result = await collections.enrollments.insertOne({ orgId: orgId(req), serverId, tokenHash: hashSecret(token), name: `Setup ${server.name}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now }); await collections.servers.updateOne({ _id: serverId, orgId: orgId(req) }, { $set: { enrollmentStatus: "pending", updatedAt: now } }); res.status(201).json({ id: result.insertedId, token, expiresAt, serverId, slug: server.slug, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", server.slug) }); } catch (error) { next(error); }
+managementRouter.post("/servers/:id/enrollment", noStore, requirePermission("servers:enroll"), requireRecentAuth, async (req, res, next) => {
+  try {
+    const serverId = oid(String(req.params.id)); const org = orgId(req); const server = await collections.servers.findOne({ _id: serverId, orgId: org, archivedAt: { $exists: false } });
+    if (!server) return res.status(404).json({ error: "Server not found" });
+    const integrationId = new ObjectId(z.object({ cloudflareAccessIntegrationId: z.string().refine(ObjectId.isValid) }).parse(req.body).cloudflareAccessIntegrationId);
+    if (!await collections.cloudflareAccessIntegrations.findOne({ _id: integrationId, orgId: org, disabledAt: { $exists: false } })) return res.status(404).json({ error: "Cloudflare Access integration not found" });
+    const token = `owenr_${randomToken(36)}`; const bootstrapDownloadToken = `owboot_${randomToken(36)}`; const now = new Date(); const expiresAt = new Date(now.getTime() + 60 * 60_000);
+    const result = await collections.enrollments.insertOne({ orgId: org, serverId, cloudflareAccessIntegrationId: integrationId, bootstrapDownloadTokenHash: hashSecret(bootstrapDownloadToken), tokenHash: hashSecret(token), name: `Setup ${server.name}`, expiresAt, maxUses: 1, uses: 0, usage: [], createdByUserId: actorId(req), createdAt: now, updatedAt: now });
+    await collections.servers.updateOne({ _id: serverId, orgId: org }, { $set: { enrollmentStatus: "pending", updatedAt: now } });
+    res.status(201).json({ enrollmentId: result.insertedId, token, bootstrapDownloadToken, expiresAt, serverId, slug: server.slug, installCommand: enrollmentInstallCommand(token, process.env.CONTROL_CENTER_PUBLIC_URL || "https://opsworkbench.org", server.slug) });
+  } catch (error) { next(error); }
 });
 managementRouter.get("/servers/:id", requirePermission("status:view"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const org = orgId(req); const [server, projects, telemetry] = await Promise.all([collections.servers.findOne({ _id: id, orgId: org }, { projection: { agentSecretHash: 0 } }), collections.projects.find({ orgId: org, primaryServerId: id, ...notArchived }).toArray(), collections.telemetry.find({ orgId: org, serverId: id }).sort({ collectedAt: -1 }).limit(25).toArray()]); if (!server) return res.status(404).json({ error: "Server not found" }); res.json({ server, projects, telemetry }); } catch (error) { next(error); } });
 managementRouter.post("/servers/:id/discovery/import", requirePermission("projects:manage"), async (req, res, next) => {

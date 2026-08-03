@@ -6,7 +6,8 @@ import {
   taskAckSchema,
   DEFAULT_HEARTBEAT_STALE_SECONDS,
   isHeartbeatStale,
-  retentionCutoff
+  retentionCutoff,
+  timingSafeEqualHex
 } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { allowExpiredLogout, clearSessionCookie, createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
@@ -16,7 +17,8 @@ import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword 
 import { managementRouter } from "./managementRoutes.js";
 import { taskRouter } from "./taskRoutes.js";
 import { adminEnrollmentRouter } from "./adminEnrollmentRoutes.js";
-import { acknowledgeTask, claimTasksForAgent } from "./tasks.js";
+import { acknowledgeTask, claimTasksForAgent, taskAuditTargetId } from "./tasks.js";
+import { clearLoginThrottle, evaluateLoginThrottle, registerLoginFailure, throttleKey } from "./authThrottle.js";
 import { calculateAgentStatus } from "./serverStatus.js";
 import { aiAssistantRouter } from "./aiAssistantRoutes.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -24,6 +26,10 @@ import { aiSettingsRouter } from "./aiSettingsRoutes.js";
 import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
+import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
+import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
+import { seoAuditRouter } from "./seoAuditRoutes.js";
+import { aiWorkforceRouter } from "./aiWorkforceRoutes.js";
 
 export const router = express.Router();
 
@@ -47,13 +53,73 @@ const bootstrapSchema = z.object({
 });
 
 async function bootstrapAvailable() {
-  if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE === "disabled") return false;
+  if (!["manual", "invitation"].includes(process.env.CONTROL_CENTER_BOOTSTRAP_MODE || "")) return false;
   return await collections.organizations.countDocuments() === 0;
+}
+
+// The out-of-band recovery secret gates owner replacement. If it is unset, blank, too short, or a
+// placeholder, owner replacement is unavailable regardless of bootstrap mode — so leaving
+// CONTROL_CENTER_BOOTSTRAP_MODE=replacement on in production no longer permits an anonymous takeover.
+function ownerReplacementSecret(): string | null {
+  const raw = process.env.CONTROL_CENTER_OWNER_REPLACEMENT_TOKEN?.trim();
+  if (!raw || raw.length < 32 || /change-me|default|example/i.test(raw)) return null;
+  return raw;
+}
+
+async function ownerReplacementAvailable() {
+  if (process.env.CONTROL_CENTER_BOOTSTRAP_MODE !== "replacement") return false;
+  if (!ownerReplacementSecret()) return false;
+  const organizations = await collections.organizations.find({ ownerReplacementCompletedAt: { $exists: false } }, { projection: { _id: 1 } }).limit(2).toArray();
+  if (organizations.length !== 1) return false;
+  return await collections.users.countDocuments({ orgId: organizations[0]._id, role: "Owner", disabledAt: { $exists: false } }) === 1;
+}
+
+async function singleOrganization() {
+  const organizations = await collections.organizations.find({}).limit(2).toArray();
+  return organizations.length === 1 ? organizations[0] : null;
 }
 
 router.get("/auth/bootstrap", noStore, async (_req, res, next) => {
   try {
-    res.json({ available: await bootstrapAvailable() });
+    const [available, replacementAvailable] = await Promise.all([bootstrapAvailable(), ownerReplacementAvailable()]);
+    res.json({ available, replacementAvailable });
+  } catch (error) { next(error); }
+});
+
+router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
+  try {
+    if (!await ownerReplacementAvailable()) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "owner-replacement-unavailable" } });
+      return res.status(409).json({ error: "Owner replacement is unavailable" });
+    }
+    const parsed = z.object({ ownerEmail: z.string().email(), ownerName: z.string().min(1).max(200), password: z.string().min(12).max(256), recoveryToken: z.string().min(1).max(512) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid owner replacement request" });
+    const body = parsed.data;
+    // Verify the out-of-band recovery token (constant-time over fixed-length hashes) BEFORE consuming
+    // the one-time claim, so an attacker without the token cannot burn the single break-glass attempt.
+    const secret = ownerReplacementSecret();
+    if (!secret || !timingSafeEqualHex(hashSecret(body.recoveryToken), hashSecret(secret))) {
+      await audit({ actorType: "anonymous", action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "owner-replacement-invalid-token" } });
+      return res.status(401).json({ error: "Owner replacement is unavailable" });
+    }
+    const org = await singleOrganization();
+    if (org?.ownerReplacementCompletedAt) return res.status(409).json({ error: "Owner replacement is unavailable" });
+    if (!org?._id) return res.status(404).json({ error: "Organization not found" });
+    const owners = await collections.users.find({ orgId: org._id, role: "Owner", disabledAt: { $exists: false } }).limit(2).toArray();
+    if (owners.length !== 1 || !owners[0]._id) return res.status(409).json({ error: "Owner replacement is unavailable" });
+    const duplicateEmail = await collections.users.findOne({ orgId: org._id, email: body.ownerEmail.toLowerCase(), _id: { $ne: owners[0]._id } }, { projection: { _id: 1 } });
+    if (duplicateEmail) return res.status(409).json({ error: "Email is already assigned to another user" });
+    const now = new Date();
+    const claimed = await collections.organizations.updateOne({ _id: org._id, ownerReplacementCompletedAt: { $exists: false } }, { $set: { ownerReplacementCompletedAt: now, updatedAt: now } });
+    if (claimed.modifiedCount !== 1) return res.status(409).json({ error: "Owner replacement is unavailable" });
+    await collections.users.updateOne({ _id: owners[0]._id, orgId: org._id }, { $set: { email: body.ownerEmail.toLowerCase(), name: body.ownerName, passwordHash: hashPassword(body.password), updatedAt: now }, $unset: { disabledAt: "", inviteIssuedAt: "", mustChangePassword: "" } });
+    await collections.sessions.deleteMany({ orgId: org._id });
+    const user = await collections.users.findOne({ _id: owners[0]._id, orgId: org._id });
+    if (!user) throw new Error("Replaced owner is unavailable");
+    const session = await createSession(user);
+    setSessionCookie(res, session.sessionToken);
+    await audit({ orgId: org._id, actorType: "system", action: "user.password.change", targetType: "user", targetId: user._id, result: "success", requestId: req.requestId, metadata: { oneTimeOwnerReplacement: true } });
+    res.status(201).json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
 });
 
@@ -92,15 +158,26 @@ router.post("/auth/bootstrap", noStore, async (req, res, next) => {
 
 router.post("/auth/login", noStore, async (req, res, next) => {
   try {
-    const body = z.object({ organizationSlug: z.string(), email: z.string().email(), password: z.string() }).parse(req.body);
-    const org = await collections.organizations.findOne({ slug: body.organizationSlug });
+    const body = z.object({ organizationSlug: z.string().optional(), email: z.string().email(), password: z.string() }).parse(req.body);
+    const throttle = throttleKey(body.organizationSlug, body.email);
+    const status = await evaluateLoginThrottle(throttle);
+    if (status.locked) {
+      await audit({ actorType: "anonymous", action: "auth.login", result: "denied", requestId: req.requestId, metadata: { email: body.email.toLowerCase(), reason: "account-locked" } });
+      res.setHeader("Retry-After", String(status.retryAfterSeconds));
+      return res.status(429).json({ error: "Too many failed attempts. Try again later.", code: "ACCOUNT_LOCKED", retryAfterSeconds: status.retryAfterSeconds });
+    }
+    const org = body.organizationSlug
+      ? await collections.organizations.findOne({ slug: body.organizationSlug })
+      : await singleOrganization();
     const user = org?._id ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
     if (!org?._id || !user?._id || !verifyPassword(body.password, user.passwordHash)) {
-      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase() } });
+      const failure = await registerLoginFailure(throttle);
+      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase(), failures: failure.failures } });
       return res.status(401).json({ error: "Invalid credentials" });
     }
+    await clearLoginThrottle(throttle);
     const session = await createSession(user);
-    setSessionCookie(res, session.sessionId);
+    setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId });
     res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
@@ -212,7 +289,7 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
       const legacyCandidates = await collections.servers.find({ orgId: enrollment.orgId, archivedAt: { $exists: false } }).toArray();
       existing = legacyCandidates.find((server) => compactServerIdentity(server.slug || server.hostname) === compact) || null;
     }
-    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentCapabilities: body.capabilities, updatedAt: now };
+    const serverFields = { hostname: body.hostname, ...(body.machineId ? { machineId: body.machineId } : {}), ...(body.agentInstallationId ? { agentInstallationId: body.agentInstallationId } : {}), ...(body.primaryIp ? { primaryIp: body.primaryIp } : {}), ...(body.privateIp ? { privateIp: body.privateIp } : {}), ...(body.osName ? { osName: body.osName } : {}), ...(body.osVersion ? { osVersion: body.osVersion } : {}), ...(body.kernelVersion ? { kernelVersion: body.kernelVersion } : {}), ...(body.architecture ? { architecture: body.architecture } : {}), ...(body.cpuModel ? { cpuModel: body.cpuModel } : {}), ...(body.cpuCoreCount ? { cpuCoreCount: body.cpuCoreCount } : {}), ...(body.memoryBytes !== undefined ? { memoryBytes: body.memoryBytes } : {}), ...(body.diskBytes !== undefined ? { diskBytes: body.diskBytes } : {}), agentId, agentSecretHash: hashAgentSecret(agentSecret), credentialVersion: (existing?.credentialVersion || 0) + 1, enrollmentStatus: "connected" as const, agentStatus: "online" as const, status: "online" as const, lastHeartbeatAt: now, firstHeartbeatAt: existing?.firstHeartbeatAt || now, enrolledAt: now, agentVersion: body.agentVersion, agentProtocolVersion: body.protocolVersion, agentPackageType: body.packageType, agentReleaseChannel: body.releaseChannel, agentBinarySha256: body.binarySha256, agentCapabilities: body.capabilities, updatedAt: now };
     let serverId;
     if (existing?._id) {
       serverId = existing._id;
@@ -264,6 +341,11 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
         enrollmentStatus: "connected",
         lastHeartbeatAt: now,
         agentVersion: body.heartbeat.agentVersion,
+        agentProtocolVersion: body.heartbeat.protocolVersion,
+        agentPackageType: body.heartbeat.packageType,
+        agentReleaseChannel: body.heartbeat.releaseChannel,
+        agentBinarySha256: body.heartbeat.binarySha256,
+        ...(body.heartbeat.capabilities ? { agentCapabilities: body.heartbeat.capabilities } : {}),
         currentState: {
           metrics: body.metrics,
           docker: body.docker || [],
@@ -280,8 +362,8 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
     invalidateOperationalContext(server._id.toHexString());
     noStore(req, res, () => undefined);
     const claimed = await claimTasksForAgent(server);
-    await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: task._id, result: "success", requestId: req.requestId, metadata: { type: task.type } })));
-    res.json({ tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
+    await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: taskAuditTargetId(task._id), result: "success", requestId: req.requestId, metadata: { type: task.type } })));
+    res.json({ serverId: server._id.toHexString(), tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
   } catch (error) { next(error); }
 });
 
@@ -289,9 +371,9 @@ router.post("/agent/tasks/ack", requireSignedAgent, noStore, async (req, res, ne
   try {
     const body = taskAckSchema.parse(req.body);
     const result = await acknowledgeTask(req.agentServer!, body);
-    if (result.status === 200) {
+    if (result.status === 200 && result.shouldAudit !== false) {
       const action = body.event === "started" ? "task.start" : body.event === "progress" ? "task.progress" : body.event === "succeeded" || body.event === "failed" ? "task.complete" : "task.claim";
-      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: body.taskId, result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
+      await audit({ orgId: req.agentServer!.orgId, actorType: "agent", actorId: req.agentServer!.agentId, action, targetType: "agent_task", targetId: taskAuditTargetId(body.taskId), result: body.event === "failed" ? "failure" : "success", requestId: req.requestId, metadata: result.auditMetadata });
     }
     res.status(result.status).json(result.body);
   } catch (error) { next(error); }
@@ -304,6 +386,10 @@ router.use(adminEnrollmentRouter);
 router.use(aiAssistantRouter);
 router.use(aiSettingsRouter);
 router.use(configurationRouter);
+router.use(agentUpgradeRouter);
+router.use(websiteBuilderRouter);
+router.use(seoAuditRouter);
+router.use(aiWorkforceRouter);
 router.use(managementRouter);
 router.use(taskRouter);
 

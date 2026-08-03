@@ -57,6 +57,17 @@ export type AuditAction =
   | "ai.settings.disable"
   | "ai.settings.acknowledge"
   | "ai.assistant.rate_limited"
+  | "ai.provider.probe"
+  | "ai.workforce.run.create"
+  | "ai.workforce.run.cancel"
+  | "ai.workforce.run.start"
+  | "ai.workforce.run.complete"
+  | "website.workflow.create"
+  | "website.discovery.answer"
+  | "website.artifact.approve"
+  | "website.section.update"
+  | "website.preview.approve"
+  | "seo.audit.create"
   | "configuration.definition.create"
   | "configuration.version.create"
   | "configuration.discovery.received"
@@ -65,6 +76,14 @@ export type AuditAction =
   | "configuration.deployment.approve"
   | "configuration.deployment.start"
   | "configuration.deployment.complete"
-  | "configuration.deployment.rollback";
+  | "configuration.deployment.rollback"
+  | "agent.release.create"
+  | "agent.release.publish"
+  | "agent.release.revoke"
+  | "agent.upgrade.plan"
+  | "agent.upgrade.approve"
+  | "agent.upgrade.complete"
+  | "agent.upgrade.rollback"
+  | "agent.rollout.change";
 
 export type AuditResult = "success" | "failure" | "denied";

@@ -8,6 +8,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN npm ci
 COPY . .
+RUN npm run build --workspace @control-center/shared
 RUN npm run build --workspace @control-center/web
 
 FROM nginx:1.27-alpine AS runtime

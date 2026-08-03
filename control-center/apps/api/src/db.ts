@@ -17,8 +17,16 @@ import type {
   ProjectDoc,
   ServerDoc,
   SessionDoc,
+  LoginThrottleDoc,
   TelemetryDoc,
-  UserDoc
+  UserDoc,
+  AgentReleaseDoc,
+  AgentUpgradePlanDoc,
+  AgentRolloutDoc,
+  CloudflareAccessIntegrationDoc,
+  WebsiteBuildWorkflowDoc,
+  SeoAuditDoc,
+  AiWorkforceRunDoc
 } from "./models.js";
 
 const mongoUrl = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/control_center";
@@ -31,7 +39,9 @@ export const collections = {
   organizations: db.collection<OrganizationDoc>("organizations"),
   users: db.collection<UserDoc>("users"),
   sessions: db.collection<SessionDoc>("sessions"),
+  loginThrottle: db.collection<LoginThrottleDoc>("login_throttle"),
   enrollments: db.collection<EnrollmentDoc>("enrollments"),
+  cloudflareAccessIntegrations: db.collection<CloudflareAccessIntegrationDoc>("cloudflare_access_integrations"),
   servers: db.collection<ServerDoc>("servers"),
   projects: db.collection<ProjectDoc>("projects"),
   healthChecks: db.collection<HealthCheckDoc>("health_checks"),
@@ -42,11 +52,17 @@ export const collections = {
   agentTasks: db.collection<AgentTaskDoc>("agent_tasks"),
   agentTaskResults: db.collection<AgentTaskResultDoc>("agent_task_results"),
   aiUsage: db.collection<AiUsageDoc>("ai_usage"),
+  aiWorkforceRuns: db.collection<AiWorkforceRunDoc>("ai_workforce_runs"),
+  websiteBuildWorkflows: db.collection<WebsiteBuildWorkflowDoc>("website_build_workflows"),
+  seoAudits: db.collection<SeoAuditDoc>("seo_audits"),
   configurationEnvironments: db.collection<ConfigurationEnvironmentDoc>("configuration_environments"),
   configurationDefinitions: db.collection<ConfigurationDefinitionDoc>("configuration_definitions"),
   configurationVersions: db.collection<ConfigurationVersionDoc>("configuration_versions"),
   configurationTargetProfiles: db.collection<ConfigurationTargetProfileDoc>("configuration_target_profiles"),
-  configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans")
+  configurationDeploymentPlans: db.collection<ConfigurationDeploymentPlanDoc>("configuration_deployment_plans"),
+  agentReleases: db.collection<AgentReleaseDoc>("agent_releases"),
+  agentUpgradePlans: db.collection<AgentUpgradePlanDoc>("agent_upgrade_plans"),
+  agentRollouts: db.collection<AgentRolloutDoc>("agent_rollouts")
 };
 
 export async function connectDb() {
@@ -62,9 +78,13 @@ async function ensureIndexes() {
     collections.organizations.createIndex({ slug: 1 }, { unique: true }),
     collections.users.createIndex({ orgId: 1, email: 1 }, { unique: true }),
     collections.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.sessions.createIndex({ tokenHash: 1 }, { unique: true }),
     collections.sessions.createIndex({ orgId: 1, userId: 1 }),
+    collections.loginThrottle.createIndex({ key: 1 }, { unique: true }),
+    collections.loginThrottle.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     collections.enrollments.createIndex({ orgId: 1, tokenHash: 1 }, { unique: true }),
     collections.enrollments.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.cloudflareAccessIntegrations.createIndex({ orgId: 1 }, { unique: true }),
     collections.servers.createIndex({ orgId: 1, agentId: 1 }, { unique: true }),
     collections.servers.createIndex({ orgId: 1, machineId: 1 }, { unique: true, partialFilterExpression: { machineId: { $type: "string" } } }),
     collections.servers.createIndex({ orgId: 1, agentInstallationId: 1 }, { unique: true, partialFilterExpression: { agentInstallationId: { $type: "string" } } }),
@@ -98,13 +118,25 @@ async function ensureIndexes() {
     collections.aiUsage.createIndex({ orgId: 1, userId: 1, createdAt: -1 }),
     collections.aiUsage.createIndex({ orgId: 1, concurrencySlot: 1 }, { unique: true, partialFilterExpression: { concurrencySlot: { $type: "number" } } }),
     collections.aiUsage.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.aiWorkforceRuns.createIndex({ orgId: 1, state: 1, availableAt: 1 }),
+    collections.aiWorkforceRuns.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.aiWorkforceRuns.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    collections.websiteBuildWorkflows.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.websiteBuildWorkflows.createIndex({ orgId: 1, stage: 1, updatedAt: -1 }),
+    collections.seoAudits.createIndex({ orgId: 1, createdAt: -1 }),
+    collections.seoAudits.createIndex({ orgId: 1, projectId: 1, createdAt: -1 }),
     collections.configurationEnvironments.createIndex({ orgId: 1, projectId: 1, name: 1 }, { unique: true }),
     collections.configurationDefinitions.createIndex({ orgId: 1, projectId: 1, applicationPath: 1, name: 1 }, { unique: true }),
     collections.configurationVersions.createIndex({ orgId: 1, definitionId: 1, environmentId: 1, version: -1 }, { unique: true }),
     collections.configurationVersions.createIndex({ orgId: 1, projectId: 1, state: 1 }),
     collections.configurationTargetProfiles.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
     collections.configurationDeploymentPlans.createIndex({ orgId: 1, projectId: 1, environmentId: 1, revision: -1 }, { unique: true }),
-    collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 })
+    collections.configurationDeploymentPlans.createIndex({ orgId: 1, state: 1, createdAt: -1 }),
+    collections.agentReleases.createIndex({ orgId: 1, id: 1 }, { unique: true }),
+    collections.agentReleases.createIndex({ orgId: 1, channel: 1, publicationStatus: 1, revoked: 1, version: -1 }),
+    collections.agentUpgradePlans.createIndex({ orgId: 1, serverId: 1, createdAt: -1 }),
+    collections.agentUpgradePlans.createIndex({ orgId: 1, planDigest: 1 }, { unique: true }),
+    collections.agentRollouts.createIndex({ orgId: 1, state: 1, createdAt: -1 })
   ]);
 }
 

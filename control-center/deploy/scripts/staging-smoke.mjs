@@ -1,11 +1,12 @@
 /* global console, document, fetch, process, window */
 import { chromium } from "playwright";
+import { fetchEndpointJson, parseEndpointJson } from "./staging-smoke-response.mjs";
 
 const baseUrl = (process.argv[2] || process.env.STAGING_BASE_URL || "").replace(/\/$/, "");
 const organizationSlug = process.env.STAGING_ORG_SLUG || ""; const email = process.env.STAGING_ADMIN_EMAIL || ""; const password = process.env.STAGING_ADMIN_PASSWORD || "";
 if (!baseUrl || !organizationSlug || !email || !password) throw new Error("Usage: STAGING_ORG_SLUG, STAGING_ADMIN_EMAIL, STAGING_ADMIN_PASSWORD and a base URL are required. No credential values are logged.");
 const checks = []; const check = (name, passed, detail) => { checks.push({ name, passed, detail }); if (!passed) throw new Error(`${name} failed${detail ? `: ${detail}` : ""}`); };
-async function json(path) { const response = await fetch(`${baseUrl}${path}`, { redirect: "manual" }); check(`${path} responds`, response.ok, `HTTP ${response.status}`); return response.json(); }
+async function json(path) { return fetchEndpointJson((endpoint) => fetch(`${baseUrl}${endpoint}`, { redirect: "manual" }), path); }
 const homepage = await fetch(baseUrl); check("Homepage", homepage.ok, `HTTP ${homepage.status}`);
 const live = await json("/healthz"); check("API liveness", live.ok === true && live.status === "alive");
 const ready = await json("/readyz"); check("MongoDB readiness", ready.status === "ready" && ready.mongo?.connected === true); check("AI globally disabled", ready.ai?.status === "disabled" && ready.ai?.globalEnabled === false); check("Audit subsystem", ready.audit?.status === "ready"); check("Rate limiting", ready.rateLimiting?.status === "ready"); check("Cache", ready.cache?.status === "ready");
@@ -16,17 +17,54 @@ async function browserPass(label, viewport) {
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); }); page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.getByPlaceholder("Organization slug").fill(organizationSlug); await page.getByPlaceholder("Email").fill(email); await page.getByPlaceholder("Password").fill(password); await page.getByRole("button", { name: "Sign in" }).click();
-  await page.getByRole("button", { name: "Overview" }).waitFor({ state: "visible" });
-  const api = async (path) => page.evaluate(async (url) => { const response = await fetch(url, { credentials: "include" }); return { status: response.status, body: await response.json() }; }, `${baseUrl}${path}`);
-  const dashboard = await api("/api/dashboard"); check(`${label} authentication`, dashboard.status === 200); check(`${label} audit logging`, dashboard.body.recentAudit?.some((event) => event.action === "auth.login"));
+  await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor({ state: "visible" });
+  const mobile = viewport.width < 768;
+  const openNavigation = async () => {
+    if (!mobile) return;
+    const trigger = page.getByRole("button", { name: "Open navigation" });
+    await trigger.click();
+    check(`${label} navigation expanded`, await page.getByRole("button", { name: "Close navigation", exact: true }).getAttribute("aria-expanded") === "true");
+  };
+  const navigate = async (name) => { await openNavigation(); await page.getByRole("button", { name, exact: true }).click(); };
+  if (mobile) {
+    await openNavigation();
+    await page.keyboard.press("Escape");
+    const trigger = page.getByRole("button", { name: "Open navigation" });
+    check(`${label} Escape closes navigation`, await trigger.getAttribute("aria-expanded") === "false");
+    check(`${label} navigation trigger regains focus`, await trigger.evaluate((element) => document.activeElement === element));
+  }
+  const historyLength = await page.evaluate(() => window.history.length);
+  const api = async (path) => {
+    const response = await page.evaluate(async (url) => { const result = await fetch(url, { credentials: "include" }); return { status: result.status, contentType: result.headers.get("content-type") || "", text: await result.text() }; }, `${baseUrl}${path}`);
+    return { status: response.status, body: parseEndpointJson(path, response, { authenticated: true }) };
+  };
+  const overview = await api("/api/overview"); check(`${label} authentication`, overview.status === 200); check(`${label} audit logging`, overview.body.recentAudit?.some((event) => event.action === "auth.login"));
   const servers = await api("/api/servers"); check(`${label} agent connectivity payload`, servers.status === 200 && Array.isArray(servers.body.servers)); check(`${label} discovery payload`, servers.body.servers.every((server) => !server.currentState?.discovery || typeof server.currentState.discovery === "object"));
   const projects = await api("/api/projects"); check(`${label} application listing`, projects.status === 200 && Array.isArray(projects.body.projects));
   const ai = await api("/api/ai-assistant/status"); check(`${label} AI disabled state`, ai.status === 200 && ai.body.enabled === false && ai.body.globalEnabled === false);
   const diagnostics = await api("/api/system/diagnostics"); check(`${label} diagnostics`, diagnostics.status === 200 && diagnostics.body.environment?.valid === true);
-  await page.getByRole("button", { name: "Projects" }).click(); await page.getByRole("heading", { name: "Projects" }).waitFor({ state: "visible" });
-  await page.getByRole("button", { name: "Health" }).click(); await page.getByRole("heading", { name: "Health Checks" }).waitFor({ state: "visible" });
+  await navigate("Projects"); await page.getByRole("heading", { name: "Projects", level: 1 }).waitFor({ state: "visible" });
+  await navigate("Servers"); await page.getByRole("heading", { name: "Servers", level: 1 }).waitFor({ state: "visible" });
+  await navigate("Overview"); await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor({ state: "visible" });
+  await navigate("Health"); await page.getByRole("heading", { name: "Health Checks" }).waitFor({ state: "visible" });
+  check(`${label} browser history preserved`, await page.evaluate(() => window.history.length) >= historyLength);
+  const resized = mobile ? { width: 1024, height: 768 } : { width: 390, height: 844 };
+  await page.setViewportSize(resized);
+  await page.getByRole("heading", { name: "Health", level: 1 }).waitFor({ state: "visible" });
+  if (resized.width < 768) {
+    const trigger = page.getByRole("button", { name: "Open navigation" }); await trigger.click(); await page.getByRole("button", { name: "Close navigation", exact: true }).click();
+  } else await page.getByRole("button", { name: "Overview", exact: true }).waitFor({ state: "visible" });
+  await page.setViewportSize(viewport);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor({ state: "visible" });
+  check(`${label} session persistence`, (await api("/api/me")).status === 200);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1); check(`${label} horizontal overflow`, !overflow); check(`${label} console errors`, errors.length === 0, errors.slice(0, 3).join("; "));
+  await navigate("Sign out"); await page.getByRole("button", { name: "Sign in" }).waitFor({ state: "visible" });
   await context.close();
 }
-await browserPass("Desktop", { width: 1280, height: 900 }); await browserPass("Mobile 390px", { width: 390, height: 844 }); await browser.close();
+await browserPass("Desktop", { width: 1280, height: 900 });
+await browserPass("Tablet", { width: 768, height: 1024 });
+await browserPass("Mobile portrait", { width: 390, height: 844 });
+await browserPass("Mobile landscape", { width: 667, height: 375 });
+await browser.close();
 console.log(JSON.stringify({ ok: true, baseUrl, checks, credentialsLogged: false }, null, 2));

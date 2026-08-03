@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
   QueryClient,
@@ -9,7 +9,11 @@ import {
 } from "@tanstack/react-query";
 import {
   Activity,
+  AlertTriangle,
+  Bell,
   Boxes,
+  BriefcaseBusiness,
+  CalendarDays,
   CircleHelp,
   ClipboardList,
   Copy,
@@ -20,8 +24,10 @@ import {
   HeartPulse,
   KeyRound,
   LayoutDashboard,
+  LineChart,
   LogOut,
   ListChecks,
+  Menu,
   Pencil,
   QrCode,
   RefreshCw,
@@ -29,11 +35,15 @@ import {
   Server,
   Settings,
   Shield,
+  ShieldCheck,
+  Sparkles,
+  Store,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
+import { enrollmentInstallCommand } from "@control-center/shared";
 import {
   api,
   apiError,
@@ -44,6 +54,7 @@ import {
   login,
   logout,
   reauthenticate,
+  replaceOwner,
   SESSION_EXPIRED_EVENT,
 } from "./api";
 import { discoveryUiState } from "./discoveryState";
@@ -52,6 +63,9 @@ import { AiAssistantPanel } from "./AiAssistantPanel";
 import { AiSettingsCard } from "./AiSettingsCard";
 import { SystemHealthCard } from "./SystemHealthCard";
 import { ConfigurationPage } from "./ConfigurationPage";
+import { AgentUpgradesPage } from "./AgentUpgradesPage";
+import { AiWorkforcePage } from "./AiWorkforcePage";
+import { TaskResultSummary } from "./TaskResultSummary";
 import {
   Badge,
   Button,
@@ -68,9 +82,13 @@ import "./styles.css";
 const queryClient = new QueryClient();
 type Page =
   | "overview"
+  | "ai-builder"
+  | "seo"
+  | "ai-workforce"
   | "org"
   | "users"
   | "servers"
+  | "upgrades"
   | "projects"
   | "configuration"
   | "enrollments"
@@ -169,15 +187,14 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
   );
 }
 function Login({ onLogin }: { onLogin: () => void }) {
-  const f = useForm({ organizationSlug: "", email: "", password: "" });
+  const f = useForm({ email: "", password: "" });
   const mutation = useMutation({
     mutationFn: () =>
-      login(f.values.organizationSlug, f.values.email, f.values.password),
+      login(f.values.email, f.values.password),
     onSuccess: onLogin,
   });
   return (
     <Centered title="OpsWorkbench">
-      <Field placeholder="Organization slug" {...f.field("organizationSlug")} />
       <Field
         placeholder="Email"
         autoComplete="username"
@@ -215,86 +232,110 @@ function Centered({
   );
 }
 
-function AuditQuickActions() {
-  const qc = useQueryClient();
-  const me = useQuery({
-    queryKey: ["me"],
-    queryFn: () => api.get("/me").then((r) => r.data),
-  });
-  const canManage = ["Owner", "Administrator"].includes(me.data?.user?.role);
-  const clear = useMutation({
-    mutationFn: () =>
-      api.delete("/org/audit", { data: { confirmation: "CLEAR" } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["audit"] });
-      qc.invalidateQueries({ queryKey: ["overview"] });
-    },
-  });
-  const downloadCompressed = async () => {
-    const response = await api.get("/org/audit/export", {
-      params: { format: "gzip", limit: 1000 },
-      responseType: "blob",
-    });
-    const url = URL.createObjectURL(response.data);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `opsworkbench-audit-${new Date().toISOString().slice(0, 10)}.jsonl.gz`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  const clearLogs = () => {
-    if (
-      confirm(
-        "Clear all audit logs? This cannot be undone. A record of this cleanup will be retained.",
-      )
-    )
-      clear.mutate();
-  };
-  return (
-    <div className="flex flex-wrap gap-1">
-      <GhostButton onClick={downloadCompressed}>
-        <Download className="h-4 w-4" />
-        Compress
-      </GhostButton>
-      {canManage && (
-        <GhostButton onClick={clearLogs} disabled={clear.isPending}>
-          <Trash2 className="h-4 w-4" />
-          {clear.isPending ? "Clearing…" : "Delete audit"}
-        </GhostButton>
-      )}
-      <ErrorText error={clear.error} />
-    </div>
-  );
+const dashboardSeries = {
+  projects: "0,28 20,19 40,23 60,20 80,7 100,19 120,23 140,8 160,15 180,10 200,17",
+  servers: "0,27 20,19 40,16 60,23 80,25 100,17 120,9 140,18 160,22 180,8 200,13",
+  activity: "0,29 20,21 40,13 60,18 80,27 100,25 120,12 140,20 160,18 180,6 200,15",
+};
+
+function Sparkline({ points, color }: { points: string; color: string }) {
+  return <svg viewBox="0 0 200 36" role="img" aria-label="Recent trend" className="mt-3 h-9 w-full"><polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
-function Overview() {
+
+function DashboardMetric({ icon: Icon, label, value, note, color, points }: { icon: any; label: string; value: React.ReactNode; note: string; color: string; points?: string }) {
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="flex items-start gap-3"><span className="rounded-xl p-2.5 text-white" style={{ background: color }}><Icon className="h-5 w-5" /></span><div><div className="text-sm text-slate-600">{label}</div><div className="mt-1 text-3xl font-semibold text-slate-950">{value}</div><div className="mt-1 text-xs text-slate-500">{note}</div></div></div>
+    {points && <Sparkline points={points} color={color} />}
+  </section>;
+}
+
+function Overview({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const q = useQuery({
     queryKey: ["overview"],
     queryFn: () => api.get("/overview").then((r) => r.data),
     refetchInterval: 30000,
   });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get("/me").then((r) => r.data) });
   if (q.isLoading) return <Skeleton />;
   const d = q.data;
+  const firstName = me.data?.user?.name?.trim().split(/\s+/)[0] || "there";
+  const recent = d?.recentAudit?.slice(0, 5) || [];
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Stat label="Servers" value={d?.serverCount} />
-      <Stat label="Online" value={d?.onlineServers} />
-      <Stat label="Projects" value={d?.projectCount} />
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">Recent Audit</h2>
-          <AuditQuickActions />
-        </div>
-        <Table
-          columns={["Action", "Result", "When"]}
-          rows={d?.recentAudit?.map((e: any) => [
-            e.action,
-            <Badge tone={statusTone(e.result)}>{e.result}</Badge>,
-            fmt(e.createdAt),
-          ])}
-        />
-      </Card>
+    <div className="-m-5 min-h-[calc(100vh-5rem)] bg-slate-50 p-5 text-slate-950 lg:p-8">
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+        <div><h2 className="text-2xl font-bold tracking-tight">Good morning, {firstName}!</h2><p className="mt-1 text-sm text-slate-600">Here&apos;s what&apos;s happening with your projects today.</p></div>
+        <div className="flex items-center gap-2"><button aria-label="Notifications" className="rounded-full border border-slate-200 bg-white p-3 text-slate-600"><Bell className="h-5 w-5" /></button><Button onClick={() => onNavigate("projects")} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">+ New Project</Button></div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <DashboardMetric icon={Boxes} label="Projects" value={d?.projectCount ?? 0} note="Active projects" color="#0b84ff" points={dashboardSeries.projects} />
+        <DashboardMetric icon={Server} label="Servers" value={d?.serverCount ?? 0} note={`${d?.onlineServers ?? 0} online`} color="#16b85b" points={dashboardSeries.servers} />
+        <DashboardMetric icon={Activity} label="Recent activity" value={recent.length} note="Latest recorded events" color="#7546ed" points={dashboardSeries.activity} />
+        <DashboardMetric icon={ShieldCheck} label="System Health" value={(d?.serverCount ?? 0) === (d?.onlineServers ?? 0) ? "Healthy" : "Review"} note={`${d?.onlineServers ?? 0} of ${d?.serverCount ?? 0} servers online`} color="#73bf22" />
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">Activity overview</h3><span className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"><CalendarDays className="h-4 w-4" /> Last 30 days</span></div><svg viewBox="0 0 700 220" className="mt-5 w-full" role="img" aria-label="Activity trend"><g stroke="#e2e8f0" strokeWidth="1">{[25,70,115,160,205].map((y) => <line key={y} x1="35" y1={y} x2="680" y2={y} />)}</g><polyline points="35,175 90,160 145,185 200,145 255,165 310,125 365,95 420,115 475,165 530,125 585,80 630,105 680,38" fill="none" stroke="#0b84ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">Recent activity</h3><button onClick={() => onNavigate("audit")} className="text-sm font-medium text-blue-600">View all</button></div><div className="mt-4 divide-y divide-slate-100">{recent.length ? recent.map((event: any) => <div key={event._id || `${event.action}-${event.createdAt}`} className="flex items-center gap-3 py-3"><span className={`grid h-7 w-7 place-items-center rounded-full ${event.result === "success" ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>{event.result === "success" ? "✓" : "!"}</span><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{event.action}</div><div className="text-xs text-slate-500">{event.targetType || "OpsWorkbench"}</div></div><div className="text-xs text-slate-500">{fmt(event.createdAt)}</div></div>) : <p className="py-10 text-center text-sm text-slate-500">No recent activity</p>}</div></section>
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.5fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-lg font-semibold">System Health</h3>{[["CPU Usage","Live metrics",Activity],["Memory Usage","Live metrics",Database],["Network",d?.onlineServers === d?.serverCount ? "Healthy" : "Review",LineChart]].map(([label,value,Icon]: any) => <div key={label} className="mt-5 flex items-center gap-3 text-sm"><Icon className="h-4 w-4 text-slate-500" /><span className="w-28 text-slate-600">{label}</span><div className="h-2 flex-1 rounded-full bg-slate-100"><div className="h-2 w-3/5 rounded-full bg-blue-500" /></div><span className="text-slate-600">{value}</span></div>)}</section>
+        <section className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-sky-50 to-blue-100 p-6 shadow-sm"><div className="flex items-start justify-between gap-5"><div><div className="flex items-center gap-2"><h3 className="text-2xl font-semibold">AI Website Builder</h3><span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">NEW</span></div><p className="mt-3 max-w-lg text-sm leading-6 text-slate-600">Describe your idea and build through guided discovery, approval, implementation, and staging validation.</p><div className="mt-6 flex flex-wrap gap-3"><Button onClick={() => onNavigate("ai-builder")} className="bg-gradient-to-r from-blue-600 to-emerald-500 text-white">Build My Website</Button><GhostButton onClick={() => onNavigate("ai-builder")} className="border-blue-300 text-blue-700">Learn More</GhostButton></div></div><Sparkles className="h-20 w-20 text-blue-500/60" /></div></section>
+      </div>
     </div>
   );
+}
+
+const websiteStartingPoints = [
+  { title: "New business website", type: "business", description: "Plan a complete site from discovery through staging.", icon: BriefcaseBusiness },
+  { title: "Online store", type: "store", description: "Design a product-led storefront with approval gates.", icon: Store },
+  { title: "Landing page", type: "landing_page", description: "Create a focused campaign or lead-generation page.", icon: LayoutDashboard },
+  { title: "Redesign an existing website", type: "redesign", description: "Analyze an existing URL before proposing changes.", icon: RefreshCw },
+  { title: "Improve a connected project", type: "connected_project", description: "Plan scoped changes for a project already in OpsWorkbench.", icon: Boxes },
+  { title: "Other", type: "other", description: "Start with the Advisor and describe a different goal.", icon: Sparkles },
+];
+
+function AiWebsiteBuilderPage() {
+  const [selection, setSelection] = useState<(typeof websiteStartingPoints)[number]>();
+  const [workflow, setWorkflow] = useState<any>(); const [question, setQuestion] = useState<any>(); const [answer, setAnswer] = useState(""); const [editing, setEditing] = useState<any>(); const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
+  const history = useQuery({ queryKey: ["website-builder-workflows"], queryFn: () => api.get("/website-builder/workflows").then((r) => r.data?.workflows ?? []) });
+  const create = useMutation({ mutationFn: () => api.post("/website-builder/workflows", { websiteType: selection!.type }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); } });
+  const submit = useMutation({ mutationFn: () => api.post(`/website-builder/workflows/${workflow.id}/answers`, { questionId: question.id, value: answer }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setAnswer(""); } });
+  const action = useMutation({ mutationFn: ({ path, body }: { path: string; body?: any }) => api.post(`/website-builder/workflows/${workflow.id}/${path}`, body).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setEditing(undefined); } });
+  const saveSection = useMutation({ mutationFn: () => api.patch(`/website-builder/workflows/${workflow.id}/sections/${editing.id}`, { heading: editing.heading, body: editing.body, ...(editing.cta ? { cta: editing.cta } : {}) }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setEditing(undefined); } });
+  const regenerate = useMutation({ mutationFn: (sectionId: string) => api.post(`/website-builder/workflows/${workflow.id}/sections/${sectionId}/regenerate`).then((r) => r.data), onSuccess: (data) => setWorkflow(data.workflow) });
+  const approve = (path: string, body?: any) => action.mutate({ path, body });
+  if (workflow) {
+    const stages = ["Discovery", "Brief", "Sitemap", "Brand", "Content", "Plan", "Preview", "Staging"];
+    const stageIndex: Record<string, number> = { discovery: 0, brief_review: 1, architecture_review: 2, brand_review: 3, content_review: 4, implementation_approval: 5, preview_ready: 6, user_review: 6, staging_approval: 7 };
+    const active = stageIndex[workflow.stage] ?? 0;
+    return <div className="mx-auto max-w-7xl text-slate-950"><div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)_240px]">
+      <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="font-semibold">Website workflow</h2><ol className="mt-4 space-y-2">{stages.map((stage, index) => <li key={stage} className={`rounded-lg px-3 py-2 text-sm ${index === active ? "bg-blue-50 font-semibold text-blue-700" : index < active ? "text-emerald-700" : "text-slate-400"}`}>{index < active ? "✓ " : ""}{stage}</li>)}</ol><div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500"><div>Estimated credits: {workflow.estimatedCredits}</div><div className="mt-1">Used: {workflow.actualCredits}</div><div className="mt-1">Artifact version: {workflow.version}</div></div></aside>
+      <main className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        {workflow.stage === "discovery" && question && <><div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided discovery</div><span className="text-sm text-slate-500">Question {Math.min(workflow.currentQuestionIndex + 1, 8)} of 8</span></div><div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-emerald-500" style={{ width: `${(workflow.currentQuestionIndex / 8) * 100}%` }} /></div><h2 className="mt-8 text-2xl font-bold">{question.prompt}</h2><p className="mt-2 text-sm text-slate-500">{question.help}</p><textarea aria-label="Your answer" value={answer} onChange={(event) => setAnswer(event.target.value)} rows={6} maxLength={4000} className="mt-6 w-full rounded-2xl border border-slate-300 p-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><div className="mt-4 flex items-center justify-between gap-4"><span className="text-xs text-slate-500">No AI credits used during manual discovery.</span><Button disabled={!answer.trim() || submit.isPending} onClick={() => submit.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{submit.isPending ? "Saving..." : "Save and continue"}</Button></div><ErrorText error={submit.error} /></>}
+        {workflow.stage === "brief_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Project brief · version {workflow.brief.version}</p><h2 className="mt-2 text-2xl font-bold">{workflow.brief.business.name}</h2><p className="mt-3 leading-7 text-slate-600">{workflow.brief.business.description}</p><dl className="mt-6 grid gap-4 sm:grid-cols-2">{[["Audience",workflow.brief.audience.primary],["Primary goal",workflow.brief.goals.primaryGoal],["Visitor action",workflow.brief.goals.primaryAction],["Required pages",workflow.brief.website.requiredPages.join(", ")],["Brand personality",workflow.brief.brand.personality.join(", ") || "Not specified"],["Launch target",workflow.brief.constraints.launchDate || "Not specified"]].map(([label,value]) => <div key={label} className="rounded-xl bg-slate-50 p-4"><dt className="text-xs font-semibold uppercase text-slate-500">{label}</dt><dd className="mt-2 text-sm">{value}</dd></div>)}</dl><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-brief")}>Approve brief and generate sitemap</Button></>}
+        {workflow.stage === "architecture_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sitemap · version {workflow.architecture.version}</p><h2 className="mt-2 text-2xl font-bold">Review site architecture</h2><div className="mt-6 space-y-3">{workflow.architecture.pages.map((page: any) => <article key={page.id} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between gap-3"><div><h3 className="font-semibold">{page.title}</h3><p className="text-xs text-blue-600">{page.route}</p></div><span className="text-xs text-slate-500">{page.sections.length} sections</span></div><p className="mt-2 text-sm text-slate-600">{page.purpose}</p><p className="mt-2 text-xs text-slate-500">Primary action: {page.primaryAction}</p></article>)}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-architecture")}>Approve sitemap and create brand directions</Button></>}
+        {workflow.stage === "brand_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Brand directions</p><h2 className="mt-2 text-2xl font-bold">Choose and lock a visual direction</h2><div className="mt-6 grid gap-4 lg:grid-cols-3">{workflow.brandDirections.map((direction: any) => <article key={direction.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex gap-2">{direction.colors.map((color: string) => <span key={color} className="h-8 flex-1 rounded-lg border" style={{ backgroundColor: color }} />)}</div><h3 className="mt-4 font-semibold">{direction.name}</h3><p className="mt-2 text-sm text-slate-600">{direction.rationale}</p><p className="mt-3 text-xs text-slate-500">{direction.headingStyle} · {direction.density}</p><Button className="mt-4 w-full bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("select-brand", { directionId: direction.id })}>Select this direction</Button></article>)}</div></>}
+        {workflow.stage === "content_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Structured content</p><h2 className="mt-2 text-2xl font-bold">Review each page section</h2><div className="mt-6 space-y-3">{workflow.sections.map((section: any) => <article key={section.id} className="rounded-xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><span className="text-xs uppercase text-slate-400">{section.type} · v{section.version}</span><h3 className="mt-1 font-semibold">{section.heading}</h3><p className="mt-2 text-sm text-slate-600">{section.body}</p>{section.cta && <p className="mt-2 text-sm font-medium text-blue-600">CTA: {section.cta}</p>}</div><div className="flex gap-2"><GhostButton disabled={regenerate.isPending} onClick={() => regenerate.mutate(section.id)}>Regenerate</GhostButton><GhostButton onClick={() => setEditing({ ...section })}>Edit</GhostButton></div></div></article>)}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-content")}>Approve content and prepare implementation plan</Button></>}
+        {workflow.stage === "implementation_approval" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Implementation plan · version {workflow.implementationPlan.version}</p><h2 className="mt-2 text-2xl font-bold">Approve the isolated preview build</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><div className="text-sm font-semibold">Scope</div><p className="mt-2 text-sm text-slate-600">{workflow.implementationPlan.routeCount} routes, {workflow.implementationPlan.componentCount} reusable sections</p></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-sm font-semibold">Estimated cost</div><p className="mt-2 text-sm text-slate-600">{workflow.implementationPlan.estimatedCredits} credits</p></div></div><ul className="mt-5 space-y-2 text-sm text-slate-600">{workflow.implementationPlan.files.map((file: string) => <li key={file}>• {file}</li>)}</ul><div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Preview only. No repository or production deployment occurs at this gate. Rollback: {workflow.implementationPlan.rollback}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-implementation")}>Approve plan and build preview</Button></>}
+        {workflow.stage === "preview_ready" && <><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Validated static-site artifact</p><h2 className="mt-2 text-2xl font-bold">Desktop and mobile ready</h2></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{workflow.validation.checks} checks passed</span></div><div className="mt-5 flex gap-2" aria-label="Preview viewport"><GhostButton aria-pressed={previewViewport === "desktop"} onClick={() => setPreviewViewport("desktop")}>Desktop</GhostButton><GhostButton aria-pressed={previewViewport === "mobile"} onClick={() => setPreviewViewport("mobile")}>Mobile</GhostButton></div><div className={`mx-auto mt-4 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-xl transition-all ${previewViewport === "mobile" ? "max-w-sm" : "max-w-none"}`}><iframe title="Generated website preview" sandbox="" srcDoc={workflow.artifact.html} className={`w-full bg-white ${previewViewport === "mobile" ? "h-[680px]" : "h-[760px]"}`} /></div><div className="mt-3 text-xs text-slate-500">Artifact: {workflow.artifact.filename} · {workflow.artifact.bytes} bytes · SHA-256 {workflow.artifact.sha256.slice(0, 12)}…</div><div className="mt-5 flex flex-wrap gap-3"><Button className="bg-emerald-600 text-white" disabled={action.isPending} onClick={() => approve("approve-preview")}>Approve preview for staging</Button><a className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-sm" href={`/api/website-builder/workflows/${workflow.id}/artifact`} download={workflow.artifact.filename}>Download website</a><GhostButton onClick={() => setEditing({ ...workflow.sections[0] })}>Edit hero section</GhostButton><GhostButton disabled={regenerate.isPending} onClick={() => regenerate.mutate(workflow.sections[0].id)}>Regenerate hero</GhostButton></div></>}
+        {workflow.stage === "staging_approval" && <div className="py-12 text-center"><ShieldCheck className="mx-auto h-14 w-14 text-emerald-500" /><h2 className="mt-5 text-3xl font-bold">Website design is staging-ready</h2><p className="mx-auto mt-3 max-w-xl text-slate-600">The brief, sitemap, brand direction, content, implementation plan, and preview are approved and versioned. A separate administrator approval and configured non-production target are required before deployment.</p><div className="mx-auto mt-6 max-w-lg rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Production publishing remains disabled.</div></div>}
+        {editing && <div role="dialog" aria-label="Edit website section" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4"><div className="w-full max-w-xl rounded-2xl bg-white p-6"><h2 className="text-xl font-bold">Edit {editing.type} section</h2><label className="mt-4 block text-sm">Heading<input aria-label="Section heading" className="mt-1 h-11 w-full rounded-lg border px-3" value={editing.heading} onChange={(e) => setEditing({ ...editing, heading: e.target.value })} /></label><label className="mt-4 block text-sm">Body<textarea aria-label="Section body" className="mt-1 w-full rounded-lg border p-3" rows={5} value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} /></label>{editing.cta !== undefined && <label className="mt-4 block text-sm">Call to action<input aria-label="Section call to action" className="mt-1 h-11 w-full rounded-lg border px-3" value={editing.cta} onChange={(e) => setEditing({ ...editing, cta: e.target.value })} /></label>}<div className="mt-5 flex justify-end gap-3"><GhostButton onClick={() => setEditing(undefined)}>Cancel</GhostButton><Button className="bg-blue-600 text-white" disabled={!editing.heading.trim() || !editing.body.trim() || saveSection.isPending} onClick={() => saveSection.mutate()}>Save section</Button></div></div></div>}
+        <ErrorText error={action.error || saveSection.error || regenerate.error} />
+      </main>
+      <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="font-semibold">AI team</h2><p className="mt-2 text-xs text-slate-500">Provider-neutral roles. This safe preview uses deterministic generation and no external provider.</p><div className="mt-4 space-y-3">{[["Advisor",active > 0],["Architect",active > 2],["Brand designer",active > 3],["Content strategist",active > 4],["Builder",active > 5],["Reviewer",active > 6],["Publisher",false]].map(([name,done]) => <div key={String(name)} className="flex items-center justify-between text-sm"><span>{name}</span><span className={done ? "text-emerald-600" : "text-slate-400"}>{done ? "Complete" : name === "Publisher" && active === 7 ? "Approval required" : "Waiting"}</span></div>)}</div></aside>
+    </div></div>;
+  }
+  return <div className="mx-auto max-w-6xl text-slate-950">
+    <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-6 shadow-sm sm:p-10">
+      <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided website planning</div>
+      <h2 className="mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">What would you like to create?</h2>
+      <p className="mt-3 max-w-2xl text-slate-600">Choose a starting point. OpsWorkbench will begin a guided discovery session and ask one useful question at a time. Nothing is generated or deployed yet.</p>
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{websiteStartingPoints.map((option) => { const { title, description, icon: Icon } = option; return <button key={title} type="button" aria-pressed={selection?.type === option.type} onClick={() => setSelection(option)} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selection?.type === option.type ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}><Icon className="h-6 w-6 text-blue-600" /><h3 className="mt-4 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></button>; })}</div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><div className="font-medium">{selection?.title || "Select a starting point"}</div><div className="mt-1 text-sm text-slate-500">The next step is discovery. AI credit estimates appear before any paid work.</div></div><Button disabled={!selection || create.isPending} onClick={() => create.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{create.isPending ? "Starting..." : "Start guided discovery"}</Button></div>
+      <ErrorText error={create.error} />
+      {!!history.data?.length && <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4"><h3 className="font-semibold">Continue a saved website</h3><div className="mt-3 grid gap-2 sm:grid-cols-2">{history.data.map((item: any) => <button key={item.id} className="rounded-xl border p-3 text-left text-sm hover:border-blue-400" onClick={() => api.get(`/website-builder/workflows/${item.id}`).then((r) => { setWorkflow(r.data.workflow); setQuestion(r.data.question); })}><span className="font-medium capitalize">{item.websiteType.replace(/_/g, " ")}</span><span className="ml-2 text-xs text-slate-500">{item.stage.replace(/_/g, " ")}</span></button>)}</div></div>}
+      <div className="mt-5 flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Production publishing always requires explicit approval. Generated work is built in isolation and validated in staging first.</p></div>
+    </section>
+  </div>;
 }
 function Stat({ label, value }: { label: string; value?: number }) {
   return (
@@ -421,6 +462,25 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     </Card>
     </div>
   );
+}
+function OwnerReplacement({ onComplete }: { onComplete: () => void }) {
+  const f = useForm({ ownerName: "", ownerEmail: "", password: "", confirmPassword: "" });
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (f.values.password !== f.values.confirmPassword) throw new Error("Passwords do not match");
+      return replaceOwner({ ownerName: f.values.ownerName, ownerEmail: f.values.ownerEmail, password: f.values.password });
+    },
+    onSuccess: onComplete,
+  });
+  return <Centered title="One-time Owner Registration">
+    <p className="text-sm text-muted">This registration replaces the existing Owner and closes permanently after completion.</p>
+    <Field placeholder="New Owner name" autoComplete="name" {...f.field("ownerName")} />
+    <Field placeholder="New Owner email" autoComplete="username" {...f.field("ownerEmail")} />
+    <PasswordField placeholder="Create password" autoComplete="new-password" {...f.field("password")} />
+    <PasswordField placeholder="Confirm password" autoComplete="new-password" {...f.field("confirmPassword")} />
+    <Button className="w-full" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Replace Owner</Button>
+    <ErrorText error={mutation.error} />
+  </Centered>;
 }
 function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
   const f = useForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -842,13 +902,7 @@ type GeneratedEnrollment = {
   maxUses?: number | null;
 };
 const installCommand = (token: string, slug?: string) =>
-  [
-    `curl -fsSL https://opsworkbench.org/install.sh | sudo env \\`,
-    `  CONTROL_CENTER_URL="https://opsworkbench.org" \\`,
-    `  CONTROL_CENTER_ENROLLMENT_TOKEN="${token}" \\`,
-    ...(slug ? [`  CONTROL_CENTER_SERVER_SLUG="${slug}" \\`] : []),
-    "  bash",
-  ].join("\n");
+  enrollmentInstallCommand(token, "https://opsworkbench.org", slug);
 function deriveWebsiteInput(input: string) {
   const raw = input.trim();
   const url = new URL(
@@ -1595,6 +1649,10 @@ function TasksPage({ toast }: { toast: (m: string) => void }) {
                 <div>{fmt(detail.data?.task?.completedAt)}</div>
               </div>
               <div>
+                <span className="text-muted">Summary</span>
+                <TaskResultSummary state={detail.data?.task?.state} summary={detail.data?.task?.resultSummary} />
+              </div>
+              <div>
                 <span className="text-muted">Updated</span>
                 <div>{fmt(detail.data?.task?.updatedAt)}</div>
               </div>
@@ -1707,9 +1765,26 @@ function Header({
     </Toolbar>
   );
 }
+function SeoOptimizerPage({ toast }: { toast: (message: string) => void }) {
+  const [url, setUrl] = useState("");
+  const client = useQueryClient();
+  const audits = useQuery({ queryKey: ["seo-audits"], queryFn: () => api.get("/seo-audits").then((r) => r.data.audits) });
+  const run = useMutation({
+    mutationFn: () => api.post("/seo-audits", { url }).then((r) => r.data.audit),
+    onSuccess: (audit) => { setUrl(""); client.invalidateQueries({ queryKey: ["seo-audits"] }); toast(`SEO audit complete: ${audit.score}/100`); },
+  });
+  return <div className="space-y-5">
+    <Card><div className="flex flex-col gap-4 lg:flex-row lg:items-end"><div className="flex-1"><h2 className="text-lg font-semibold">Audit a public page</h2><p className="mt-1 text-sm text-muted">Check search metadata, headings, indexing, mobile setup, and image accessibility. Audits are read-only.</p><label className="mt-4 block text-sm font-medium" htmlFor="seo-url">Website URL</label><Field id="seo-url" type="url" placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} /></div><Button disabled={!url || run.isPending} onClick={() => run.mutate()}>{run.isPending ? "Auditing..." : "Run SEO audit"}</Button></div>{run.isError && <p role="alert" className="mt-3 text-sm text-danger">{apiError(run.error)}</p>}</Card>
+    {audits.isLoading ? <Skeleton /> : (audits.data || []).length === 0 ? <Card><p className="text-sm text-muted">No SEO audits yet. Enter a public URL to create the first report.</p></Card> : (audits.data || []).map((audit: any) => <Card key={audit._id}><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{audit.pageTitle || audit.finalUrl}</h3><p className="break-all text-xs text-muted">{audit.finalUrl}</p><p className="mt-1 text-xs text-muted">{fmt(audit.createdAt)} / HTTP {audit.httpStatus} / {audit.pagesCrawled || 1} of {audit.pagesDiscovered || 1} pages crawled</p></div><div className={`rounded-full px-4 py-2 text-xl font-bold ${audit.score >= 80 ? "bg-emerald-100 text-emerald-800" : audit.score >= 60 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{audit.score}/100</div></div><div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{audit.findings.map((item: any) => <div key={item.id} className="rounded-lg border border-border p-3"><div className="flex items-center gap-2"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${item.severity === "pass" ? "bg-emerald-500" : item.severity === "warning" ? "bg-amber-500" : "bg-red-500"}`} /><span className="text-sm font-medium">{item.title}</span></div><p className="mt-1 text-xs text-muted">{item.detail}</p></div>)}</div>{audit.pages?.length > 1 && <details className="mt-4"><summary className="cursor-pointer text-sm font-medium text-primary">View crawled pages</summary><div className="mt-2 space-y-2">{audit.pages.map((page: any) => <div key={page.url} className="flex flex-wrap justify-between gap-2 rounded border border-border p-2 text-xs"><span className="break-all">{page.url}</span><span>HTTP {page.httpStatus} / {page.score}</span></div>)}</div></details>}</Card>)}
+  </div>;
+}
+
 function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
   const toast = useToast();
   const [page, setPage] = useState<Page>("overview");
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const mobileNavigation = useRef<HTMLElement>(null);
+  const mobileNavigationTrigger = useRef<HTMLButtonElement>(null);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api.get("/me").then((response) => response.data),
@@ -1717,9 +1792,13 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
   const isAdmin = ["Owner", "Administrator"].includes(me.data?.user?.role);
   const nav: Array<[Page, string, any]> = [
     ["overview", "Overview", LayoutDashboard],
+    ["ai-builder", "AI Website Builder", Sparkles],
+    ["seo", "SEO Optimizer", LineChart],
+    ["ai-workforce", "AI Workforce", Users],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
+    ["upgrades", "Agent Upgrades", Download],
     ["projects", "Projects", Boxes],
     ["configuration", "Configuration", KeyRound],
     ["health", "Health", HeartPulse],
@@ -1731,17 +1810,76 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     page === "enrollments"
       ? "Administration / Enrollment"
       : nav.find(([key]) => key === page)?.[1] || "Not Found";
+  const closeMobileNavigation = (restoreFocus = true) => {
+    setMobileNavigationOpen(false);
+    if (restoreFocus) window.setTimeout(() => mobileNavigationTrigger.current?.focus(), 0);
+  };
+  const navigate = (destination: Page) => {
+    setPage(destination);
+    closeMobileNavigation(false);
+  };
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const navigation = mobileNavigation.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    navigation?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMobileNavigation();
+        return;
+      }
+      if (event.key !== "Tab" || !navigation) return;
+      const focusable = Array.from(navigation.querySelectorAll<HTMLElement>("button:not([disabled])"));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    const media = window.matchMedia?.("(min-width: 768px)");
+    const onDesktop = (event: MediaQueryListEvent) => { if (event.matches) closeMobileNavigation(false); };
+    document.addEventListener("keydown", onKeyDown);
+    media?.addEventListener("change", onDesktop);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      media?.removeEventListener("change", onDesktop);
+    };
+  }, [mobileNavigationOpen]);
   return (
     <div className="min-h-screen md:pl-64">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto border-r border-border bg-panel p-3 md:block">
+      <div className="flex items-center justify-between border-b border-border bg-panel p-3 md:hidden">
+        <div className="flex items-center gap-2 font-semibold"><Activity className="h-5 w-5 text-primary" /> OpsWorkbench</div>
+        <button
+          ref={mobileNavigationTrigger}
+          type="button"
+          aria-label={mobileNavigationOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileNavigationOpen}
+          aria-controls="primary-navigation"
+          className="relative z-[60] inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          onClick={() => mobileNavigationOpen ? closeMobileNavigation() : setMobileNavigationOpen(true)}
+        >
+          {mobileNavigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+      {mobileNavigationOpen && <button type="button" aria-label="Dismiss navigation" className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => closeMobileNavigation()} />}
+      <aside
+        ref={mobileNavigation}
+        id="primary-navigation"
+        aria-label="Primary navigation"
+        className={`${mobileNavigationOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-panel p-3 shadow-xl md:flex md:w-64 md:max-w-none md:shadow-none`}
+      >
         <div className="mb-4 flex items-center gap-2 px-2 font-semibold">
           <Activity className="h-5 w-5 text-primary" /> OpsWorkbench
         </div>
         {nav.map(([key, label, Icon]) => (
           <button
             key={key}
-            onClick={() => setPage(key)}
-            className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${page === key ? "bg-background text-text" : "text-muted hover:bg-background"}`}
+            onClick={() => navigate(key)}
+            aria-current={page === key ? "page" : undefined}
+            className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0 ${page === key ? "bg-background text-text" : "text-muted hover:bg-background"}`}
           >
             <Icon className="h-4 w-4" />
             {label}
@@ -1754,8 +1892,9 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
               Administration
             </div>
             <button
-              onClick={() => setPage("enrollments")}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${page === "enrollments" ? "bg-background text-text" : "text-muted hover:bg-background"}`}
+              onClick={() => navigate("enrollments")}
+              aria-current={page === "enrollments" ? "page" : undefined}
+              className={`mb-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0 ${page === "enrollments" ? "bg-background text-text" : "text-muted hover:bg-background"}`}
             >
               <KeyRound className="h-4 w-4" />
               Enrollment
@@ -1766,15 +1905,15 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           type="button"
           disabled={logoutPending}
           onClick={onLogout}
-          className="mt-4 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background"
+          className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
         >
           <LogOut className="h-4 w-4" />
           {logoutPending ? "Signing out..." : "Sign out"}
         </button>
         {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
-      <main className="p-5">
-        <div className="mb-5 flex items-center justify-between">
+      <main className={page === "overview" || page === "ai-builder" || page === "seo" ? "bg-slate-50 p-5" : "p-5"}>
+        <div className={`${page === "overview" ? "hidden" : "mb-5 flex"} items-center justify-between ${page === "ai-builder" ? "text-slate-950" : ""}`}>
           <div>
             <div className="text-xs text-muted">OpsWorkbench / {pageTitle}</div>
             <h1 className="text-xl font-semibold">{pageTitle}</h1>
@@ -1789,10 +1928,14 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           </div>
         )}
         <ErrorBoundary>
-          {page === "overview" && <Overview />}
+          {page === "overview" && <Overview onNavigate={navigate} />}
+          {page === "ai-builder" && <AiWebsiteBuilderPage />}
+          {page === "seo" && <SeoOptimizerPage toast={toast.show} />}
+          {page === "ai-workforce" && <AiWorkforcePage toast={toast.show} />}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
+          {page === "upgrades" && <AgentUpgradesPage toast={toast.show} />}
           {page === "projects" && <ProjectsPage toast={toast.show} />}
           {page === "configuration" && <ConfigurationPage toast={toast.show} />}
           {page === "enrollments" && isAdmin && (
@@ -1862,6 +2005,8 @@ export function Root() {
     );
   if (!authed && !bootstrapComplete && status.data?.available)
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
+  if (!authed && status.data?.replacementAvailable)
+    return <OwnerReplacement onComplete={() => setAuthed(true)} />;
   return authed ? (
     <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
   ) : (
@@ -1871,7 +2016,9 @@ export function Root() {
 
 type SetupResult = {
   serverId: string;
+  enrollmentId: string;
   token: string;
+  bootstrapDownloadToken: string;
   installCommand: string;
   expiresAt: string;
   server: { name: string; slug: string; primaryUrl: string };
@@ -2190,7 +2337,8 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
   const [deleting, setDeleting] = useState<any>(null);
   const [deleteMode, setDeleteMode] = useState("remove");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const f = useForm({ url: "", displayName: "", slug: "" });
+  const f = useForm({ url: "", displayName: "", slug: "", cloudflareAccessIntegrationId: "" });
+  const cloudflare = useForm({ name: "OpsWorkbench Access", clientId: "", clientSecret: "" });
   const edit = useForm({
     name: "",
     primaryUrl: "",
@@ -2203,10 +2351,24 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
     queryFn: () => api.get("/servers").then((r) => r.data.servers),
     refetchInterval: 5000,
   });
+  const integrations = useQuery({
+    queryKey: ["cloudflare-access-integrations"],
+    queryFn: () => api.get("/admin/integrations/cloudflare-access").then((r) => r.data?.integrations || []),
+  });
+  const saveCloudflare = useMutation({
+    mutationFn: () => api.post("/admin/integrations/cloudflare-access", cloudflare.values).then((r) => r.data),
+    onSuccess: async (value) => {
+      await integrations.refetch();
+      f.setValues({ ...f.values, cloudflareAccessIntegrationId: value.id });
+      cloudflare.setValues({ name: "OpsWorkbench Access", clientId: "", clientSecret: "" });
+      toast("Cloudflare Access service token stored securely");
+    },
+  });
   const derive = () => {
     try {
       const value = deriveWebsiteInput(f.values.url);
       f.setValues({
+        ...f.values,
         url: value.normalizedUrl,
         displayName: f.values.displayName || value.displayName,
         slug: f.values.slug || value.slug,
@@ -2223,6 +2385,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
     onSuccess: (value) => {
       setDiscovery(value);
       f.setValues({
+        ...f.values,
         url: value.normalizedUrl,
         displayName: f.values.displayName || value.displayName,
         slug: f.values.slug || value.slug,
@@ -2238,6 +2401,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
           slug: f.values.slug || undefined,
           detectedPublicIps: discovery?.addresses || [],
           expiresInMinutes: 60,
+          cloudflareAccessIntegrationId: f.values.cloudflareAccessIntegrationId,
         })
         .then((r) => r.data),
     onSuccess: (value) => {
@@ -2250,7 +2414,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
   const regenerate = useMutation({
     mutationFn: (server: any) =>
       api
-        .post(`/servers/${server._id}/enrollment`)
+        .post(`/servers/${server._id}/enrollment`, { cloudflareAccessIntegrationId: f.values.cloudflareAccessIntegrationId || integrations.data?.[0]?.id })
         .then((r) => ({
           ...r.data,
           server: {
@@ -2317,9 +2481,12 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
       toast("Server removed from OpsWorkbench");
     },
   });
-  const copy = async (value: string) => {
-    await navigator.clipboard.writeText(value);
-    toast("Install command copied");
+  const downloadBootstrap = async () => {
+    if (!setup) return;
+    const response = await api.post(`/admin/enrollment/bootstrap/${setup.enrollmentId}`, { downloadToken: setup.bootstrapDownloadToken, enrollmentToken: setup.token }, { responseType: "blob" });
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement("a"); link.href = url; link.download = `opsworkbench-bootstrap-${setup.server.slug}.sh`; link.click(); URL.revokeObjectURL(url);
+    toast("One-time protected bootstrap downloaded");
   };
   const beginEdit = (server: any) => {
     setEditing(server);
@@ -2358,15 +2525,12 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
         {!connected && (
           <>
             <p className="mt-4 text-sm text-warning">
-              This one-time command disappears when this screen closes.
+              Download once, transfer securely, and run from a root shell. The protected bootstrap deletes itself after use and cannot be downloaded again.
             </p>
-            <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-background p-3 text-xs">
-              {setup.installCommand}
-            </pre>
             <div className="mt-3 flex gap-2">
-              <Button onClick={() => copy(setup.installCommand)}>
-                <Copy className="h-4 w-4" />
-                Copy command
+              <Button onClick={downloadBootstrap}>
+                <Download className="h-4 w-4" />
+                Download protected bootstrap
               </Button>
               <GhostButton onClick={() => setSetup(null)}>
                 Close permanently
@@ -2442,7 +2606,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
         <GhostButton onClick={() => setViewing(s)}>View</GhostButton>
       )}
       {s.enrollmentStatus === "pending" && (
-        <Button onClick={() => regenerate.mutate(s)}>Install Agent</Button>
+        <Button disabled={!f.values.cloudflareAccessIntegrationId && !integrations.data?.length} onClick={() => regenerate.mutate(s)}>Install Agent</Button>
       )}
       <Button
         disabled={check.isPending && check.variables?._id === s._id}
@@ -2521,6 +2685,23 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
                 <Field className="mt-1" {...f.field("slug")} />
               </label>
             )}
+            <div className="rounded-md border border-border bg-background p-3">
+              <label className="block text-sm">
+                Cloudflare Access service token
+                <Select className="mt-1" {...f.field("cloudflareAccessIntegrationId")}>
+                  <option value="">Select a configured integration</option>
+                  {(integrations.data || []).map((integration: any) => <option key={integration.id} value={integration.id}>{integration.name}</option>)}
+                </Select>
+              </label>
+              {!integrations.data?.length && <div className="mt-3 grid gap-2 md:grid-cols-3">
+                <Field aria-label="Integration name" placeholder="Integration name" {...cloudflare.field("name")} />
+                <Field aria-label="Cloudflare Access client ID" placeholder="Access Client ID" autoComplete="off" {...cloudflare.field("clientId")} />
+                <Field aria-label="Cloudflare Access client secret" placeholder="Access Client Secret" type="password" autoComplete="new-password" {...cloudflare.field("clientSecret")} />
+                <Button disabled={!cloudflare.values.clientId || !cloudflare.values.clientSecret || saveCloudflare.isPending} onClick={() => saveCloudflare.mutate()}>Save encrypted integration</Button>
+              </div>}
+              <p className="mt-2 text-xs text-muted">The secret is encrypted at rest and included only in the one-time protected bootstrap. It is never placed in copied commands or URLs.</p>
+              <ErrorText error={saveCloudflare.error} />
+            </div>
             {discovery && (
               <div className="rounded-md border border-border bg-background p-3 text-sm">
                 <div>Domain: {discovery.domain}</div>
@@ -2550,12 +2731,12 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
                 {inspect.isPending ? "Inspecting..." : "Inspect public URL"}
               </GhostButton>
               <Button
-                disabled={!f.values.url || onboard.isPending}
+                disabled={!f.values.url || !f.values.cloudflareAccessIntegrationId || onboard.isPending}
                 onClick={() => onboard.mutate()}
               >
                 {onboard.isPending
                   ? "Creating..."
-                  : "Create and generate command"}
+                  : "Create and generate bootstrap"}
               </Button>
             </div>
             <ErrorText error={inspect.error || onboard.error} />

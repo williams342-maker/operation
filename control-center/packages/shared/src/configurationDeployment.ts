@@ -1,4 +1,5 @@
 import { z } from "zod";
+import crypto from "node:crypto";
 import { settingNameSchema } from "./configuration.js";
 
 export const deployableEnvironmentKinds = ["staging", "development", "testing", "preview", "ci"] as const;
@@ -7,7 +8,11 @@ export const minimumDeploymentAgentVersion = "0.1.0";
 export const deploymentPhases = ["queued", "preflight", "backup_created", "configuration_written", "services_activating", "health_checking", "rollback_started", "rollback_restored", "rollback_validating", "succeeded", "failed", "rolled_back", "rollback_failed"] as const;
 
 const safeId = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/);
-export const configurationMutationSchema = z.object({ name: settingNameSchema, versionId: z.string().min(12).max(64), secret: z.boolean(), operation: z.enum(["add", "update", "rotate"]), valueRef: safeId }).strict();
+const mutationBase = { name: settingNameSchema, versionId: z.string().min(12).max(64), secret: z.boolean() };
+export const configurationMutationSchema = z.discriminatedUnion("operation", [
+  z.object({ ...mutationBase, operation: z.enum(["add", "update", "rotate", "enable"]), valueRef: safeId }).strict(),
+  z.object({ ...mutationBase, operation: z.enum(["remove", "disable"]) }).strict()
+]);
 export const encryptedValueBundleSchema = z.object({ algorithm: z.literal("aes-256-gcm"), ciphertext: z.string().max(400_000), nonce: z.string().max(64), authTag: z.string().max(64), keyVersion: z.string().max(40) }).strict();
 
 export const configurationDeploymentPayloadSchema = z.object({
@@ -44,6 +49,15 @@ export const deploymentProgressSchema = z.object({ phase: z.enum(deploymentPhase
 
 export type ConfigurationDeploymentPayload = z.infer<typeof configurationDeploymentPayloadSchema>;
 export type DeploymentProgress = z.infer<typeof deploymentProgressSchema>;
+
+export function configurationChangeDigest(input: Array<{ name: string; operation: string; secret: boolean; versionId: string }>) {
+  const canonical = [...input].sort((a, b) => a.name.localeCompare(b.name)).map(({ name, operation, secret, versionId }) => ({ name, operation, secret, versionId }));
+  return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
+export function redactedConfigurationDiff(input: Array<{ name: string; operation: string; secret: boolean }>) {
+  return [...input].sort((a, b) => a.name.localeCompare(b.name)).map(({ name, operation, secret }) => ({ name, operation, classification: secret ? "secret" as const : "non-secret" as const, proposedValue: secret ? "[redacted]" : "[pending value]" }));
+}
 
 export function parseStableSemver(value: string) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value);
