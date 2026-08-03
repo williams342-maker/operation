@@ -70,6 +70,7 @@ import {
   Badge,
   Button,
   Card,
+  DangerButton,
   Field,
   GhostButton,
   Select,
@@ -545,7 +546,7 @@ function UserActions({ user, currentUser, onDone, toast }: { user: any; currentU
       </GhostButton>
       <GhostButton onClick={() => revoke.mutate()}>Revoke sessions</GhostButton>
       {canReset && <GhostButton onClick={() => confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`) && resetPassword.mutate()}>Reset password</GhostButton>}
-      {canDelete && <GhostButton onClick={() => confirm(`Permanently delete ${user.email}? This cannot be undone.`) && remove.mutate()}><Trash2 className="h-4 w-4" />Delete</GhostButton>}
+      {canDelete && <DangerButton onClick={() => confirm(`Permanently delete ${user.email}? This cannot be undone.`) && remove.mutate()}><Trash2 className="h-4 w-4" />Delete</DangerButton>}
       <ErrorText error={toggle.error || revoke.error || resetPassword.error || remove.error} />
     </div>
   );
@@ -651,10 +652,10 @@ function ServersPage({ toast }: { toast: (m: string) => void }) {
       ? [
           <div key={s._id} className="flex gap-1">
             <GhostButton onClick={() => setSlug(s)}>Set slug</GhostButton>
-            <GhostButton onClick={() => deleteServer(s)}>
+            <DangerButton onClick={() => deleteServer(s)}>
               <Trash2 className="h-4 w-4" />
               Delete
-            </GhostButton>
+            </DangerButton>
           </div>,
         ]
       : []),
@@ -1259,7 +1260,7 @@ function EnrollmentsPage({ toast }: { toast: (m: string) => void }) {
         </GhostButton>
       )}
       {e.status !== "active" && (
-        <GhostButton
+        <DangerButton
           onClick={() =>
             confirm("Permanently delete this token record?") &&
             remove.mutate(e._id)
@@ -1267,7 +1268,7 @@ function EnrollmentsPage({ toast }: { toast: (m: string) => void }) {
         >
           <Trash2 className="h-4 w-4" />
           Delete
-        </GhostButton>
+        </DangerButton>
       )}
     </div>
   );
@@ -1727,10 +1728,10 @@ function AuditPage() {
           Download compressed
         </GhostButton>
         {canManage && (
-          <GhostButton onClick={clearLogs} disabled={clear.isPending}>
+          <DangerButton onClick={clearLogs} disabled={clear.isPending}>
             <Trash2 className="h-4 w-4" />
             {clear.isPending ? "Clearing…" : "Clear logs"}
-          </GhostButton>
+          </DangerButton>
         )}
       </div>
       <ErrorText error={clear.error} />
@@ -2637,10 +2638,10 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
         <CircleHelp className="h-4 w-4" />
         Help
       </GhostButton>
-      <GhostButton onClick={() => beginDelete(s)}>
+      <DangerButton onClick={() => beginDelete(s)}>
         <Trash2 className="h-4 w-4" />
         Delete
-      </GhostButton>
+      </DangerButton>
     </div>,
   ]);
   return (
@@ -2835,7 +2836,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
           )}
           <div className="mt-3 flex justify-end gap-2">
             <GhostButton onClick={() => setDeleting(null)}>Cancel</GhostButton>
-            <Button
+            <DangerButton
               disabled={
                 remove.isPending ||
                 (!(
@@ -2848,7 +2849,7 @@ function UrlServersPage({ toast }: { toast: (m: string) => void }) {
               onClick={() => remove.mutate()}
             >
               {remove.isPending ? "Deleting..." : "Delete server"}
-            </Button>
+            </DangerButton>
           </div>
           <ErrorText error={remove.error} />
         </Card>
