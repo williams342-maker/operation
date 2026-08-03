@@ -195,24 +195,26 @@ function Login({ onLogin }: { onLogin: () => void }) {
   });
   return (
     <Centered title="OpsWorkbench">
-      <Field
-        placeholder="Email"
-        autoComplete="username"
-        {...f.field("email")}
-      />
-      <PasswordField
-        placeholder="Password"
-        autoComplete="current-password"
-        {...f.field("password")}
-      />
-      <Button
-        className="w-full"
-        disabled={mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        Sign in
-      </Button>
-      <ErrorText error={mutation.error} />
+      <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
+        <Field
+          placeholder="Email"
+          autoComplete="username"
+          {...f.field("email")}
+        />
+        <PasswordField
+          placeholder="Password"
+          autoComplete="current-password"
+          {...f.field("password")}
+        />
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={mutation.isPending}
+        >
+          Sign in
+        </Button>
+        <ErrorText error={mutation.error} />
+      </form>
     </Centered>
   );
 }
@@ -221,14 +223,14 @@ function Centered({
   children,
 }: React.PropsWithChildren<{ title: string }>) {
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <main className="flex min-h-screen items-center justify-center p-4">
       <Card>
         <div className="w-96 max-w-full space-y-3">
           <h1 className="text-lg font-semibold">{title}</h1>
           {children}
         </div>
       </Card>
-    </div>
+    </main>
   );
 }
 

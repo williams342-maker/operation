@@ -12,3 +12,21 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Keyboard focus is always visible, even on elements without a bespoke ring (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
+/* Honor the user's reduced-motion preference: no animations/transitions/smooth-scroll (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
