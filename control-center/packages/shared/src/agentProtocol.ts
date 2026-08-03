@@ -188,3 +188,18 @@ export function summarizeFleetMigration(servers: LifecycleServer[]): { total: nu
   for (const server of servers) summary[describeAgentCredential(server).migrationState] += 1;
   return summary;
 }
+
+// ---- Item 7: audit-safe observability. Produces a fleet + per-agent migration report built ENTIRELY
+// from describeAgentCredential, so it can only ever contain fingerprints/state/version — never raw
+// public keys, the legacy secret hash, or any private material, regardless of the input shape. ----
+export type AgentMigrationReport = {
+  fleet: { total: number; legacy: number; dual: number; v2: number };
+  agents: Array<{ id: string; hostname: string } & AgentCredentialStatus>;
+};
+
+export function buildMigrationReport(servers: Array<LifecycleServer & { id: string; hostname: string }>): AgentMigrationReport {
+  return {
+    fleet: summarizeFleetMigration(servers),
+    agents: servers.map((server) => ({ id: server.id, hostname: server.hostname, ...describeAgentCredential(server) }))
+  };
+}

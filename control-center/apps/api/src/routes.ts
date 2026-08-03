@@ -9,7 +9,8 @@ import {
   retentionCutoff,
   timingSafeEqualHex,
   verifyEnrollmentV2,
-  keyFingerprint
+  keyFingerprint,
+  buildMigrationReport
 } from "@control-center/shared";
 import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { audit } from "./audit.js";
@@ -439,6 +440,16 @@ router.get("/servers", requirePermission("status:view"), async (req, res, next) 
     const servers = await collections.servers.find({ orgId, archivedAt: { $exists: false } }, { projection: { agentSecretHash: 0 } }).sort({ createdAt: -1 }).toArray();
     const now = new Date();
     res.json({ servers: servers.map((server) => { const agentStatus = calculateAgentStatus(server.lastHeartbeatAt, server.revokedAt, now); return { ...server, agentStatus, status: agentStatus === "online" ? "online" : agentStatus === "revoked" ? "revoked" : "offline" }; }) });
+  } catch (error) { next(error); }
+});
+
+router.get("/servers/migration-status", noStore, requirePermission("status:view"), async (req, res, next) => {
+  try {
+    const orgId = requireOrg(req);
+    // Project OUT the legacy secret hash and raw public keys; the report is built from fingerprints/
+    // state/version only, so no key material or secret can appear in the observability output.
+    const servers = await collections.servers.find({ orgId, archivedAt: { $exists: false } }, { projection: { agentSecretHash: 0, signingPublicKey: 0, encryptionPublicKey: 0 } }).sort({ createdAt: -1 }).toArray();
+    res.json(buildMigrationReport(servers.map((server) => ({ ...server, id: server._id.toHexString() }))));
   } catch (error) { next(error); }
 });
 

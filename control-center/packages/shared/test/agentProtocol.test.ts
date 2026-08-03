@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration } from "../src/agentProtocol.js";
+import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration, buildMigrationReport } from "../src/agentProtocol.js";
 import { generateAgentKeyPairs, keyFingerprint, signEnrollmentProof } from "../src/agentKeys.js";
 
 const NOW = Date.parse("2026-08-03T00:00:00.000Z");
@@ -129,4 +129,20 @@ test("migration complete/rollback and fleet summary", () => {
   assert.equal(planMigrationRollback({ migrationState: "v2" }).migrationState, "dual");
   const fleet = summarizeFleetMigration([{ migrationState: "legacy" }, { migrationState: "dual" }, { migrationState: "v2" }, { migrationState: "v2" }, {}]);
   assert.deepEqual(fleet, { total: 5, legacy: 2, dual: 1, v2: 2 });
+});
+
+test("buildMigrationReport is audit-safe (fingerprints only) and reports fleet + per-agent status", () => {
+  const keys = generateAgentKeyPairs();
+  const report = buildMigrationReport([
+    { id: "s1", hostname: "legacy-host", agentSecretHash: "SECRET-HASH-NEVER-EXPOSED" } as never,
+    { id: "s2", hostname: "v2-host", keyProtocolVersion: "agent-v2", migrationState: "v2", signingKeyFingerprint: keyFingerprint(keys.signingPublicKey), encryptionKeyFingerprint: keyFingerprint(keys.encryptionPublicKey), signingPublicKey: keys.signingPublicKey } as never
+  ]);
+  assert.deepEqual(report.fleet, { total: 2, legacy: 1, dual: 0, v2: 1 });
+  assert.equal(report.agents[0].keyProtocolVersion, "agent-v1");
+  assert.equal(report.agents[1].migrationState, "v2");
+  // No secret hash and no raw public key may appear anywhere in the serialized report.
+  const serialized = JSON.stringify(report);
+  assert.equal(serialized.includes("SECRET-HASH-NEVER-EXPOSED"), false);
+  assert.equal(serialized.includes(keys.signingPublicKey), false);
+  assert.equal(serialized.includes(keys.signingPrivateKey), false);
 });
