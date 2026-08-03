@@ -218,3 +218,28 @@ export function buildMigrationReport(servers: Array<LifecycleServer & { id: stri
     agents: servers.map((server) => ({ id: server.id, hostname: server.hostname, ...describeAgentCredential(server) }))
   };
 }
+
+// ---- Item 2: fail-safe flag-off (v1-only) rollback preflight. Disabling v2 is safe ONLY while every
+// active agent can fall back to a usable v1 credential. An agent enrolled fresh as v2, or one whose
+// legacy credential was invalidated, would be stranded — so a v1-only state must be refused. ----
+export type FlagOffServer = { id: string; hostname: string; keyProtocolVersion?: string; migrationState?: string; legacyCredentialUsable?: boolean; revokedAt?: Date; archivedAt?: Date };
+export type FlagOffSafety = { safe: boolean; strandedAgents: Array<{ id: string; hostname: string; reason: string }> };
+
+export function evaluateFlagOffSafety(servers: FlagOffServer[]): FlagOffSafety {
+  const stranded: Array<{ id: string; hostname: string; reason: string }> = [];
+  for (const server of servers) {
+    if (server.revokedAt || server.archivedAt) continue; // inactive agents cannot be stranded
+    const state = describeAgentCredential(server).migrationState;
+    const usesV2 = state === "v2" || state === "dual" || server.keyProtocolVersion === "agent-v2";
+    if (usesV2 && server.legacyCredentialUsable === false) {
+      stranded.push({ id: server.id, hostname: server.hostname, reason: state === "dual" ? "dual agent without usable v1 credential" : "enrolled fresh as v2 / legacy credential invalidated" });
+    }
+  }
+  return { safe: stranded.length === 0, strandedAgents: stranded };
+}
+
+// Throws (fail closed) if disabling v2 would strand any agent. Call at startup when the flag is OFF.
+export function assertFlagOffRollbackSafe(servers: FlagOffServer[]): void {
+  const result = evaluateFlagOffSafety(servers);
+  if (!result.safe) throw new Error(`Refusing v1-only (agent-v2 disabled): ${result.strandedAgents.length} agent(s) have no usable v1 credential and would be stranded: ${result.strandedAgents.map((a) => a.hostname).join(", ")}. Re-enable agent-v2 or perform a state rollback to the last v2-capable release.`);
+}

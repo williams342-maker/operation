@@ -15,6 +15,9 @@ export const agentConfigSchema = z.object({
   signingPrivateKey: z.string().optional(),
   encryptionPrivateKey: z.string().optional(),
   controlPlanePublicKey: z.string().optional(),
+  // Owner PUBLIC verification key (offline owner key's public half, delivered via bootstrap). When set,
+  // privileged tasks must additionally carry a valid owner authorization. Independent of the transport key.
+  ownerPublicKey: z.string().optional(),
   serverId: z.string().default(""),
   agentVersion: z.string().default("0.1.0"),
   protocolVersion: z.string().default("task-v1"),

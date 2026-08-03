@@ -144,3 +144,47 @@ Registration, proof-of-possession (accept valid / reject forged), request sign+v
 pinning, key rotation, revocation, downgrade prevention, audit-event ordering, failure/fail-closed,
 rollback, enrollment, **restart persistence**, **mixed legacy/new fleet**, **interrupted migration**,
 and **rollback** — each with disposable enrollments/keys and no production target.
+
+## 8. Two independent trust layers (owner authorization vs transport)
+
+Privileged managed-server actions (`configuration.apply`, `configuration.rollback`, `agent.upgrade`)
+require **two independent signatures**; neither can substitute for the other:
+
+| Layer | Key | Signs | Verified by | Purpose |
+|-------|-----|-------|-------------|---------|
+| **1 — Transport / envelope** | control-plane Ed25519 (`CONTROL_CENTER_TASK_SIGNING_PRIVATE_KEY`) — v1: agent HMAC | task envelope (id, org, server, agent, expiry, nonce, full-payload digest) | agent, with the control-plane **public** key | integrity + anti-tamper of dispatch |
+| **2 — Owner authorization** | **offline owner** Ed25519 (private key never touches OpsWorkbench) | `owner-authorization-v1 · keyVersion · taskType · org · server · actionDigest · expiry · nonce` where `actionDigest` = payload digest **excluding** the signature | control plane at task creation **and** agent before execution, with the owner **public** key (`CONTROL_CENTER_OWNER_PUBLIC_KEY` / agent config `ownerPublicKey`) | authorization: *this specific action, this target, is approved by the owner* |
+
+**Why two layers:** a compromised control-plane transport key can forge/replay envelopes but **cannot**
+mint owner authorizations, so it cannot create or execute a privileged action. Conversely a stale owner
+authorization cannot ride an invalid envelope. `authorizePrivilegedTask()` enforces both and fails
+closed with a specific reason (`envelope-invalid` / `expired` / `owner-authorization-missing` /
+`owner-authorization-invalid`). Enforcement points: `createTask` (control plane) and `verifyTask`
+(agent). Both are **inert until the owner public key is configured** — until then the existing RBAC +
+`requireRecentAuth` + approver-separation + approval-workflow boundary stands (this cryptographic layer
+is additive, not a replacement of that boundary).
+
+### Rotation procedures (independent per layer)
+- **Transport key (Layer 1):** roll `CONTROL_CENTER_TASK_SIGNING_PRIVATE_KEY`, distribute the new public
+  key to agents via signed bootstrap (`signingKeyVersion` bumps, e.g. `cp-ed25519-v2`); agents accept the
+  new version once bootstrapped. Agent *credential* rotation is the separate `/agent/rotate-keys` flow.
+- **Owner key (Layer 2):** generate the new offline owner keypair **out of band**; publish the new public
+  key (`keyVersion` bump) to the control plane + agents; sign new authorizations with the new key. The
+  old key is retired after in-flight authorizations expire. Generating/activating a production owner key
+  is an **explicit owner gate** — never performed by OpsWorkbench.
+
+## 9. Fail-safe rollback semantics
+
+- **Before v1 invalidation (default during migration/soak):** the flag-off kill switch provides an
+  emergency v1 rollback — with the flag off the control plane accepts **v1 only**, and every agent that
+  retains a usable v1 credential (all migrated legacy agents; `legacyCredentialUsable=true`) falls back.
+- **After v1 invalidation:** flag-off is **no longer a safe rollback** — those agents have no v1 to fall
+  back to. Rollback must instead use the **last v2-capable release + a state rollback** (`v2 → dual`),
+  not disabling v2.
+- **Fresh-v2 production enrollment is prohibited during migration/soak** — a fresh-v2 agent has no v1
+  credential and would be stranded by a flag-off rollback. Migrate existing v1 agents (legacy→dual→v2)
+  instead.
+- **Startup preflight (`assertFlagOffRollbackSafe`):** if agent-v2 is disabled but any active agent has
+  no usable v1 credential, the API **refuses to boot** rather than silently stranding it.
+- **Deleting legacy credentials is a separate, irreversible owner gate** taken only after the final soak
+  — it converts the fleet to v2-only and permanently removes the flag-off rollback path.

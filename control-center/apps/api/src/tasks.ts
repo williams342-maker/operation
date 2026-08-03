@@ -1,7 +1,7 @@
 ﻿import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
-import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, signTaskEnvelopeV2, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, signTaskEnvelopeV2, taskPayloadSchema, taskProtocolVersion, taskTypes, isPrivilegedTaskType, isTaskExpired, verifyOwnerAuthorization, privilegedActionDigest, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ServerDoc } from "./models.js";
@@ -81,6 +81,17 @@ export async function createTask(input: { orgId: ObjectId; server: ServerDoc & {
   const registry = taskRegistry[input.type];
   if (!registry) throw new Error("Unsupported task type");
   const payload = registry.payload.parse(input.payload);
+  // Layer 2 boundary at the control plane: a privileged task cannot be created without a valid owner
+  // authorization once an owner public key is configured. The transport/envelope key cannot satisfy
+  // this. Inert until CONTROL_CENTER_OWNER_PUBLIC_KEY is set (today's RBAC/approval boundary stands).
+  const ownerKey = process.env.CONTROL_CENTER_OWNER_PUBLIC_KEY?.trim();
+  if (isPrivilegedTaskType(input.type) && ownerKey) {
+    const oa = payload.ownerAuthorization;
+    if (!oa) throw new Error("Owner authorization required for privileged task");
+    if (isTaskExpired(oa.expiresAt)) throw new Error("Owner authorization expired");
+    const ok = verifyOwnerAuthorization(ownerKey, { taskType: input.type, orgId: input.orgId.toHexString(), serverId: input.server._id.toHexString(), actionDigest: privilegedActionDigest(payload), expiresAt: oa.expiresAt, nonce: oa.nonce, keyVersion: oa.keyVersion }, oa.signature);
+    if (!ok) throw new Error("Owner authorization invalid");
+  }
   const now = new Date();
   const doc: AgentTaskDoc = {
     orgId: input.orgId,

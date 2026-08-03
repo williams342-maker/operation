@@ -17,6 +17,10 @@ export type ServerDoc = BaseDoc & { name: string; slug?: string; primaryUrl?: st
   // dual-accept). Public keys only — private keys never reach the control plane. Missing keyProtocolVersion
   // is treated as "agent-v1"; missing migrationState as "legacy".
   keyProtocolVersion?: "agent-v1" | "agent-v2"; migrationState?: "legacy" | "dual" | "v2"; signingPublicKey?: string; encryptionPublicKey?: string; signingKeyFingerprint?: string; encryptionKeyFingerprint?: string; keyRotatedAt?: Date; previousSigningKeyFingerprint?: string; previousEncryptionKeyFingerprint?: string; revokedKeyFingerprints?: string[];
+  // True when the agent still holds a usable v1 (legacy HMAC) credential and could fall back if v2 is
+  // disabled. false for agents enrolled FRESH as v2 (no real secret was ever issued) or after legacy
+  // credential invalidation. Drives the fail-safe flag-off rollback preflight.
+  legacyCredentialUsable?: boolean;
   revokedAt?: Date; archivedAt?: Date; lastHeartbeatAt?: Date; status: "online" | "offline" | "revoked"; agentVersion?: string; agentProtocolVersion?: string; agentCapabilities?: string[]; agentPackageType?: "tar" | "deb" | "rpm"; agentReleaseChannel?: "stable" | "candidate" | "preview"; agentBinarySha256?: string; upgradeState?: UpgradeState; protected?: boolean; environmentKind?: string; allowlistedRoots?: string[]; metadata?: Record<string, string>; currentState?: { metrics?: unknown; docker?: unknown[]; compose?: unknown[]; git?: unknown[]; discovery?: unknown; httpHealth?: unknown[]; mongo?: unknown[]; collectedAt?: Date } };
 export type ProjectDoc = BaseDoc & { name: string; slug: string; primaryServerId: ObjectId; detachedServerId?: ObjectId; repoPath?: string; composePath?: string; githubRepository?: string; branch?: string; adapter?: "docker-compose"; serviceNames?: string[]; archivedAt?: Date; healthCheckIds: ObjectId[]; mongoCheckIds: ObjectId[] };
 export type HealthCheckDoc = BaseDoc & { projectId: ObjectId; serverId: ObjectId; name: string; url: string; timeoutMs: number; expectedStatus?: number; intervalSeconds?: number; enabled: boolean; archivedAt?: Date; lastResult?: unknown };

@@ -25,9 +25,9 @@ jobs:
       CONTROL_CENTER_RUN_DB_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
       # agent+api+shared "# tests" on linux with only RUN_DB_TESTS enabled: agent 62 + api 108 +
-      # shared 75 = 245 (agent-v2 adds +15 shared: agentKeys 5 + agentProtocol 7 + v2-request 1 + taskEnvelopeV2 2, over reconciled
+      # shared 79 = 249 (agent-v2 adds +15 shared: agentKeys 5 + agentProtocol 7 + v2-request 1 + taskEnvelopeV2 2, over reconciled
       # main's 222). Exactly 3 skip here: docker-deployment + two privileged linuxDiscovery tests.
-      CI_EXPECTED_TESTS: "245"
+      CI_EXPECTED_TESTS: "249"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v4

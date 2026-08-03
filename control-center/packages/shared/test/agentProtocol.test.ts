@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration, buildMigrationReport, verifyRotationV2 } from "../src/agentProtocol.js";
+import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration, buildMigrationReport, verifyRotationV2, evaluateFlagOffSafety, assertFlagOffRollbackSafe } from "../src/agentProtocol.js";
 import { generateAgentKeyPairs, keyFingerprint, signEnrollmentProof, signRotationProof } from "../src/agentKeys.js";
 
 const NOW = Date.parse("2026-08-03T00:00:00.000Z");
@@ -163,3 +163,26 @@ test("verifyRotationV2 requires a valid PoP by the NEW key bound to the agent id
   assert.equal((verifyRotationV2({ ...base, encryptionPublicKey: keys.signingPublicKey, proof }, now) as { reason: string }).reason, "key-reuse");
   assert.equal((verifyRotationV2({ ...base, proof, issuedAt: new Date(now - 30 * 60 * 1000).toISOString() }, now) as { reason: string }).reason, "expired");
 });
+
+test("evaluateFlagOffSafety refuses a v1-only state that would strand v2-only agents", () => {
+  // All agents retain a usable v1 credential (legacy, or migrated-with-fallback) → safe to disable v2.
+  assert.equal(evaluateFlagOffSafety([
+    { id: "a", hostname: "legacy", migrationState: "legacy", legacyCredentialUsable: true },
+    { id: "b", hostname: "dual-with-v1", migrationState: "dual", legacyCredentialUsable: true }
+  ]).safe, true);
+  // A fresh-v2 agent (no usable v1) → unsafe; a dual agent whose v1 was invalidated → unsafe.
+  const unsafe = evaluateFlagOffSafety([
+    { id: "c", hostname: "fresh-v2", keyProtocolVersion: "agent-v2", migrationState: "v2", legacyCredentialUsable: false },
+    { id: "d", hostname: "dual-no-v1", migrationState: "dual", legacyCredentialUsable: false },
+    { id: "e", hostname: "revoked-v2", migrationState: "v2", legacyCredentialUsable: false, revokedAt: new Date(0) }
+  ]);
+  assert.equal(unsafe.safe, false);
+  assert.equal(unsafe.strandedAgents.length, 2); // the revoked one is not counted (inactive)
+  assert.ok(assertRollbackThrows(() => assertFlagOffRollbackSafe([{ id: "c", hostname: "fresh-v2", keyProtocolVersion: "agent-v2", migrationState: "v2", legacyCredentialUsable: false }])));
+  // A pure fresh-v2-free fleet with all v1 fallbacks does not throw.
+  assertFlagOffRollbackSafe([{ id: "a", hostname: "legacy", migrationState: "legacy", legacyCredentialUsable: true }]);
+});
+
+function assertRollbackThrows(fn: () => void): boolean {
+  try { fn(); return false; } catch { return true; }
+}
