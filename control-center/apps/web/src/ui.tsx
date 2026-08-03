@@ -22,7 +22,7 @@ export function Table({ columns, rows, empty = "No records" }: { columns: string
       const pending = isValidElement<{ children?: ReactNode }>(row[4]) && row[4].props.children === "pending";
       return <article key={index} className="rounded-lg border border-border bg-background/40 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h3 className="text-base font-semibold text-success">● {row[0]}</h3><div className="mt-1 text-sm">{row[1]}</div></div>
+          <div><h3 className="text-base font-semibold">{row[0]}</h3><div className="mt-1 flex flex-wrap items-center gap-2 text-sm">{row[4]}<span className="text-muted">{row[1]}</span></div></div>
           <div className="flex flex-wrap gap-2">{row[6]}</div>
         </div>
         {pending ? <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
