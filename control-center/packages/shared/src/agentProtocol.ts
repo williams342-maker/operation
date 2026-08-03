@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { verifyEnrollmentProof } from "./agentKeys.js";
 
 // Versioned agent credential protocol. "agent-v1" is the legacy symmetric HMAC scheme; "agent-v2" is
 // the asymmetric scheme (Ed25519 request/enrollment signing + X25519 deployment-secret sealing). A
@@ -66,6 +67,39 @@ export type AgentCredentialStatus = {
   revoked: boolean;
   revokedKeyCount: number;
 };
+
+export type EnrollmentV2Request = {
+  enrollmentToken: string;
+  signingPublicKey: string;
+  encryptionPublicKey: string;
+  issuedAt: string;
+  protocolVersion: string;
+  proof: string;
+};
+
+export type EnrollmentV2Result =
+  | { valid: true }
+  | { valid: false; reason: "downgrade" | "key-reuse" | "malformed" | "expired" | "forged" };
+
+// Pure verification of a v2 enrollment request. Fails closed with a specific reason. Replay of an
+// entire enrollment is additionally prevented at the data layer by the single-use enrollment token;
+// this function enforces version (anti-downgrade), key separation, freshness (anti-expiry/-replay of a
+// stale challenge), and proof-of-possession (anti-forgery). maxSkewMs bounds the issuedAt window.
+export function verifyEnrollmentV2(request: EnrollmentV2Request, now = Date.now(), maxSkewMs = 5 * 60 * 1000): EnrollmentV2Result {
+  if (request.protocolVersion !== "agent-v2") return { valid: false, reason: "downgrade" };
+  if (!request.signingPublicKey || !request.encryptionPublicKey) return { valid: false, reason: "malformed" };
+  if (request.signingPublicKey === request.encryptionPublicKey) return { valid: false, reason: "key-reuse" };
+  const issuedAt = Date.parse(request.issuedAt);
+  if (!Number.isFinite(issuedAt) || Math.abs(now - issuedAt) > maxSkewMs) return { valid: false, reason: "expired" };
+  const ok = verifyEnrollmentProof(request.signingPublicKey, {
+    enrollmentToken: request.enrollmentToken,
+    signingPublicKey: request.signingPublicKey,
+    encryptionPublicKey: request.encryptionPublicKey,
+    issuedAt: request.issuedAt,
+    protocolVersion: request.protocolVersion
+  }, request.proof);
+  return ok ? { valid: true } : { valid: false, reason: "forged" };
+}
 
 export function describeAgentCredential(server: AgentCredentialLike): AgentCredentialStatus {
   const version = agentProtocolVersions.includes(server.keyProtocolVersion as AgentProtocolVersion)

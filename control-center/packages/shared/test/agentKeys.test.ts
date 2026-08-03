@@ -27,7 +27,7 @@ test("agent signatures verify and reject tampering or the wrong key", () => {
 test("enrollment proof-of-possession accepts a valid proof and rejects a forged one", () => {
   const agent = generateAgentKeyPairs();
   const attacker = generateAgentKeyPairs();
-  const parts = { enrollmentToken: "owenr_token", signingPublicKey: agent.signingPublicKey, encryptionPublicKey: agent.encryptionPublicKey, issuedAt: "2026-08-02T00:00:00.000Z" };
+  const parts = { enrollmentToken: "owenr_token", signingPublicKey: agent.signingPublicKey, encryptionPublicKey: agent.encryptionPublicKey, issuedAt: "2026-08-02T00:00:00.000Z", protocolVersion: "agent-v2" };
   const proof = signEnrollmentProof(agent.signingPrivateKey, parts);
   assert.equal(verifyEnrollmentProof(agent.signingPublicKey, parts, proof), true);
   // An attacker presenting the agent's public key but signing with their own key fails PoP.

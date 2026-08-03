@@ -22,6 +22,13 @@ export const agentEnrollmentRequestSchema = z.object({
   diskBytes: z.number().int().nonnegative().optional(),
   agentVersion: z.string().min(1).max(64),
   protocolVersion: z.string().max(64).optional(),
+  // agent-v2 asymmetric enrollment (optional; only honored when CONTROL_CENTER_AGENT_PROTOCOL_V2 is on).
+  // Public keys (base64url DER) + a proof-of-possession over the enrollment binding. Private keys stay
+  // on the agent and are never transmitted.
+  signingPublicKey: z.string().min(32).max(512).optional(),
+  encryptionPublicKey: z.string().min(32).max(512).optional(),
+  enrollmentIssuedAt: z.string().datetime().optional(),
+  enrollmentProof: z.string().min(32).max(512).optional(),
   packageType: z.enum(["tar", "deb", "rpm"]).optional(),
   releaseChannel: z.enum(["stable", "candidate", "preview"]).optional(),
   binarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),

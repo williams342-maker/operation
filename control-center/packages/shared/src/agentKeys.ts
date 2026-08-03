@@ -63,8 +63,8 @@ export function verifyAgentSignature(signingPublicKeyB64: string, message: strin
 
 // Proof-of-possession binding for enrollment: the agent proves it holds the signing private key that
 // matches the public keys it is presenting, bound to the single-use enrollment token and a timestamp.
-export function enrollmentProofMessage(parts: { enrollmentToken: string; signingPublicKey: string; encryptionPublicKey: string; issuedAt: string }): string {
-  return ["agent-v2-enrollment", parts.enrollmentToken, parts.signingPublicKey, parts.encryptionPublicKey, parts.issuedAt].join("\n");
+export function enrollmentProofMessage(parts: { enrollmentToken: string; signingPublicKey: string; encryptionPublicKey: string; issuedAt: string; protocolVersion: string }): string {
+  return ["agent-v2-enrollment", parts.protocolVersion, parts.enrollmentToken, parts.signingPublicKey, parts.encryptionPublicKey, parts.issuedAt].join("\n");
 }
 
 export function signEnrollmentProof(signingPrivateKeyB64: string, parts: Parameters<typeof enrollmentProofMessage>[0]): string {
