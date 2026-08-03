@@ -66,6 +66,14 @@ import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import { AiWorkforcePage } from "./AiWorkforcePage";
 import { TaskResultSummary } from "./TaskResultSummary";
+import { ThemeToggle, useTheme } from "./ThemeToggle";
+import type { Theme } from "./theme";
+import { FoundryLandingPage } from "./FoundryLandingPage";
+import { FoundryStudio, FoundryProjectsPage } from "./FoundryStudio";
+import { parseFoundryPath, type FoundryRoute } from "./foundryRoutes";
+import { useLocationPath } from "./useLocationPath";
+import { saveDraftPrompt } from "./foundryDraft";
+import { trackFoundry } from "./foundryAnalytics";
 import {
   Badge,
   Button,
@@ -1843,7 +1851,7 @@ function SeoOptimizerPage({ toast }: { toast: (message: string) => void }) {
   </div>;
 }
 
-function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
+function AppShell({ onLogout, logoutPending, logoutError, theme, onChangeTheme, onOpenFoundry }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown; theme: Theme; onChangeTheme: (theme: Theme) => void; onOpenFoundry: () => void }) {
   const toast = useToast();
   const [page, setPage] = useState<Page>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
@@ -1916,6 +1924,8 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     <div className="min-h-screen md:pl-64">
       <div className="flex items-center justify-between border-b border-border bg-panel p-3 md:hidden">
         <div className="flex items-center gap-2 font-semibold"><Activity className="h-5 w-5 text-primary" /> OpsWorkbench</div>
+        <div className="flex items-center gap-2">
+        <ThemeToggle theme={theme} onChange={onChangeTheme} variant="icon" />
         <button
           ref={mobileNavigationTrigger}
           type="button"
@@ -1927,6 +1937,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         >
           {mobileNavigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
+        </div>
       </div>
       {mobileNavigationOpen && <button type="button" aria-label="Dismiss navigation" className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => closeMobileNavigation()} />}
       <aside
@@ -1938,6 +1949,13 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         <div className="mb-4 flex items-center gap-2 px-2 font-semibold">
           <Activity className="h-5 w-5 text-primary" /> OpsWorkbench
         </div>
+        <button
+          type="button"
+          onClick={onOpenFoundry}
+          className="mb-3 flex min-h-11 w-full items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
+        >
+          <Sparkles className="h-4 w-4" /> Open Foundry
+        </button>
         {nav.map(([key, label, Icon]) => (
           <button
             key={key}
@@ -1965,11 +1983,12 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
             </button>
           </>
         )}
+        <ThemeToggle theme={theme} onChange={onChangeTheme} className="mt-4" />
         <button
           type="button"
           disabled={logoutPending}
           onClick={onLogout}
-          className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
+          className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
         >
           <LogOut className="h-4 w-4" />
           {logoutPending ? "Signing out..." : "Sign out"}
@@ -2036,11 +2055,74 @@ class ErrorBoundary extends React.Component<
     );
   }
 }
+// Full-screen Foundry chrome for the authenticated workspace — deliberately
+// minimal (not the ops cockpit): brand, theme toggle, a way back to OpsWorkbench,
+// projects, and sign out.
+function FoundryWorkspaceChrome({ theme, onChangeTheme, navigate, onLogout, logoutPending, children }: {
+  theme: Theme; onChangeTheme: (theme: Theme) => void; navigate: (path: string) => void; onLogout: () => void; logoutPending: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className="min-h-screen bg-background text-text">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/85 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <button type="button" onClick={() => navigate("/foundry")} className="flex items-center gap-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" /> Foundry
+          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle theme={theme} onChange={onChangeTheme} variant="icon" />
+            <button type="button" onClick={() => navigate("/foundry/projects")} className="hidden min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-panel sm:inline-flex">My Projects</button>
+            <button type="button" onClick={() => navigate("/")} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-panel">OpsWorkbench</button>
+            <button type="button" disabled={logoutPending} onClick={onLogout} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm text-muted hover:bg-panel">{logoutPending ? "Signing out…" : "Sign out"}</button>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+    </div>
+  );
+}
+
+// The AI-first studio (single-prompt composer, activity timeline, live-preview
+// canvas, suggestions, approval controls) and the projects list, both inside the
+// minimal Foundry chrome. The guided builder remains available as the ops-shell
+// "AI Website Builder" page (advanced/manual path).
+function FoundryWorkspacePage({ route, theme, onChangeTheme, navigate, onLogout, logoutPending }: {
+  route: FoundryRoute; theme: Theme; onChangeTheme: (theme: Theme) => void; navigate: (path: string) => void; onLogout: () => void; logoutPending: boolean;
+}) {
+  return (
+    <FoundryWorkspaceChrome theme={theme} onChangeTheme={onChangeTheme} navigate={navigate} onLogout={onLogout} logoutPending={logoutPending}>
+      {route.kind === "projects"
+        ? <FoundryProjectsPage navigate={navigate} />
+        : <FoundryStudio route={route} navigate={navigate} />}
+    </FoundryWorkspaceChrome>
+  );
+}
+
+function FoundrySurface({ route, authed, theme, onChangeTheme, navigate, onLogout, logoutPending }: {
+  route: FoundryRoute; authed: boolean; theme: Theme; onChangeTheme: (theme: Theme) => void; navigate: (path: string) => void; onLogout: () => void; logoutPending: boolean;
+}) {
+  if (route.kind === "landing") {
+    return (
+      <FoundryLandingPage
+        authed={authed}
+        theme={theme}
+        onChangeTheme={onChangeTheme}
+        onStart={(prompt) => { if (prompt.trim()) saveDraftPrompt(prompt); if (!authed) trackFoundry("foundry_authentication_required"); navigate("/foundry/new"); }}
+        onSignIn={() => navigate("/foundry/new")}
+        onViewProjects={() => navigate(authed ? "/foundry/projects" : "/foundry/new")}
+      />
+    );
+  }
+  return <FoundryWorkspacePage route={route} theme={theme} onChangeTheme={onChangeTheme} navigate={navigate} onLogout={onLogout} logoutPending={logoutPending} />;
+}
+
 export function Root() {
   const [authed, setAuthed] = useState(
     Boolean(localStorage.getItem("cc.csrf")),
   );
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
+  const [pathname, navigate] = useLocationPath();
+  const [theme, setThemeValue] = useTheme();
+  const foundryRoute = parseFoundryPath(pathname);
   React.useEffect(() => {
     const expireSession = () => {
       queryClient.clear();
@@ -2067,12 +2149,29 @@ export function Root() {
         <p className="text-sm text-muted">Loading</p>
       </Centered>
     );
+  // Foundry is URL-routed and lives outside the ops shell. The public landing is
+  // viewable without auth; the workspace requires sign-in. An anonymous visitor
+  // heading into the workspace falls through to the auth flow below, then returns
+  // to the same URL with any preserved prompt draft.
+  if (foundryRoute && (authed || foundryRoute.kind === "landing")) {
+    return (
+      <FoundrySurface
+        route={foundryRoute}
+        authed={authed}
+        theme={theme}
+        onChangeTheme={setThemeValue}
+        navigate={navigate}
+        onLogout={() => logoutMutation.mutate()}
+        logoutPending={logoutMutation.isPending}
+      />
+    );
+  }
   if (!authed && !bootstrapComplete && status.data?.available)
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
   if (!authed && status.data?.replacementAvailable)
     return <OwnerReplacement onComplete={() => setAuthed(true)} />;
   return authed ? (
-    <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
+    <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} theme={theme} onChangeTheme={setThemeValue} onOpenFoundry={() => navigate("/foundry")} />
   ) : (
     <Login onLogin={() => setAuthed(true)} />
   );

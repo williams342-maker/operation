@@ -187,12 +187,14 @@ describe("Responsive navigation", () => {
     renderRoot();
     const trigger = await screen.findByRole("button", { name: "Open navigation" });
     await userEvent.click(trigger);
-    const overview = screen.getByRole("button", { name: /^Overview$/ });
-    await waitFor(() => expect(overview).toHaveFocus());
+    // "Open Foundry" is the first focusable item in the drawer, so it receives
+    // initial focus and is the wrap target of the Tab trap.
+    const firstItem = screen.getByRole("button", { name: /Open Foundry/i });
+    await waitFor(() => expect(firstItem).toHaveFocus());
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     expect(screen.getByRole("button", { name: /sign out/i })).toHaveFocus();
     await userEvent.tab();
-    expect(overview).toHaveFocus();
+    expect(firstItem).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(trigger).toHaveAttribute("aria-expanded", "false");

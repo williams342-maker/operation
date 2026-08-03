@@ -13,6 +13,43 @@ export function buildProjectBrief(answers: DiscoveryAnswer[], websiteType: strin
   return { version: 1, business: { name: value.business_name || "Untitled business", description: value.business_purpose || "", }, audience: { primary: value.primary_audience || "General audience" }, goals: { primaryGoal: value.primary_goal || "Explain the business", primaryAction: value.primary_action || "Get in touch" }, brand: { personality: list(value.brand_personality) }, website: { type: websiteType, requiredPages: list(value.required_pages).length ? list(value.required_pages) : ["Home", "About", "Contact"] }, constraints: { launchDate: value.launch_target || undefined }, approved: false };
 }
 
+// Deterministic "understanding" of a single natural-language request — the
+// AI-first entry point. Instead of an 8-question wizard, one sentence seeds the
+// discovery answers with honest, generic defaults: it records only what the user
+// actually said (their words become the purpose) plus safe placeholders that
+// buildProjectBrief already tolerates. A business name is lifted ONLY when the
+// user states one explicitly, so we never invent or misattribute a brand. A live
+// LLM can replace this behind the SiteGenerationProvider seam without changing
+// any caller.
+const WEBSITE_TYPE_HINTS: Array<[RegExp, string]> = [
+  [/\b(store|shop|sell(?:ing)?|e-?commerce|products?|checkout|cart|catalog)\b/i, "store"],
+  [/\b(landing|waitlist|coming soon|pre-?launch|sign[-\s]?up|early access)\b/i, "landing_page"],
+];
+export function inferWebsiteType(prompt: string): string {
+  for (const [pattern, type] of WEBSITE_TYPE_HINTS) if (pattern.test(prompt)) return type;
+  return "business";
+}
+const DEFAULT_PAGES: Record<string, string[]> = {
+  store: ["Home", "Shop", "About", "Contact"],
+  landing_page: ["Home"],
+  business: ["Home", "About", "Services", "Contact"],
+};
+function extractBusinessName(prompt: string): string {
+  const match = prompt.match(/\b(?:called|named)\s+"?([A-Z0-9][\w&'’.\- ]{1,48}?)"?(?=[.,;:!?]|\s+(?:that|which|to|for|where|a|an|the)\b|$)/);
+  return match ? match[1].trim() : "";
+}
+export function deriveDiscoveryAnswers(prompt: string, websiteType = inferWebsiteType(prompt)): DiscoveryAnswer[] {
+  const pages = DEFAULT_PAGES[websiteType] || DEFAULT_PAGES.business;
+  const answers: DiscoveryAnswer[] = [
+    { questionId: "business_purpose", value: prompt.trim().slice(0, 4000) },
+    { questionId: "required_pages", value: pages.join(", ") },
+    { questionId: "brand_personality", value: "clear, trustworthy" },
+  ];
+  const name = extractBusinessName(prompt);
+  if (name) answers.unshift({ questionId: "business_name", value: name });
+  return answers;
+}
+
 export function buildArchitecture(brief: any) {
   const pages = brief.website.requiredPages.map((title: string, index: number) => ({ id: `page-${index + 1}`, route: index === 0 ? "/" : `/${slug(title)}`, title, purpose: index === 0 ? brief.goals.primaryGoal : `Help visitors understand ${title.toLowerCase()}`, primaryAudience: brief.audience.primary, primaryAction: brief.goals.primaryAction, sections: index === 0 ? ["hero", "features", "about", "cta"] : ["hero", "about", "cta"] }));
   return { version: 1, pages, navigation: pages.map(({ title, route }: any) => ({ title, route })), accessibilityTarget: "WCAG 2.2 AA", approved: false };
