@@ -24,9 +24,10 @@ jobs:
     env:
       CONTROL_CENTER_RUN_DB_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # agent+api+shared inventory. +8 agent (urlSafety) +6 api (passwordHashing/authThrottle)
-      # vs the prior 153 baseline; the new tests never skip, so the skip count is unchanged.
-      CI_EXPECTED_TESTS: "167"
+      # agent+api+shared "# tests" on linux with only RUN_DB_TESTS enabled: agent 61 + api 108 +
+      # shared 53 = 222. (The old 153 was long stale; agent-v2's +5 shared tests are NOT in this
+      # reconciliation branch.) Exactly 3 skip here: docker-deployment + two privileged linuxDiscovery.
+      CI_EXPECTED_TESTS: "222"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v4
