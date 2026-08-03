@@ -855,7 +855,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const { createTask } = await import("../src/tasks.js");
     const v2ServerDoc = await collections.servers.findOne({ agentId: legacyCreds.agentId });
     assert.ok(v2ServerDoc?._id);
-    const privCore = { projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment: { planId: "plan-owner-auth" } };
+    const privCore = { projects: [], httpHealthChecks: [], mongoChecks: [] };
     await assert.rejects(createTask({ orgId: v2OrgId, server: v2ServerDoc as never, type: "configuration.apply", payload: privCore as never, idempotencyKey: `oa-missing-${crypto.randomUUID()}` }), /Owner authorization required/);
     const oaNonce = crypto.randomUUID();
     const oaExpiry = new Date(Date.now() + 3600_000).toISOString();
