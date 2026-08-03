@@ -99,7 +99,7 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     case "configuration.apply":
     case "configuration.rollback":
       if (!payload.configurationDeployment) throw new Error("Missing typed configuration deployment payload");
-      result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion);
+      result = await executeConfigurationDeployment(payload.configurationDeployment, agentSigningKey(config.agentSecret), envelope.nonce, [...deploymentCapabilities], config.agentVersion, {}, config.encryptionPrivateKey);
       break;
     case "agent.upgrade":
       if (!payload.agentUpgrade) throw new Error("Missing typed agent upgrade manifest");
