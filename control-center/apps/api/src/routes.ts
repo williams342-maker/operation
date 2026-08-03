@@ -10,7 +10,10 @@ import {
   timingSafeEqualHex,
   verifyEnrollmentV2,
   keyFingerprint,
-  buildMigrationReport
+  buildMigrationReport,
+  agentRotationRequestSchema,
+  verifyRotationV2,
+  planKeyRotation
 } from "@control-center/shared";
 import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { audit } from "./audit.js";
@@ -329,6 +332,30 @@ router.post("/agent/enroll", noStore, async (req, res, next) => {
     // v2 agents authenticate with their own private key, so no secret is returned. v1 keeps returning
     // the agent secret (issued once, never persisted in plaintext).
     res.status(201).json(wantsV2 ? { agentId, serverId, keyProtocolVersion: "agent-v2", pollIntervalSeconds: 30 } : { agentId, agentSecret, serverId, pollIntervalSeconds: 30 });
+  } catch (error) { next(error); }
+});
+
+// Self-service v2 key rotation. The agent is already authenticated with its CURRENT credential
+// (requireSignedAgent) and proves possession of the NEW signing key. The update is atomic and guarded
+// by credentialVersion so a concurrent/interrupted rotation fails closed (409, safe to retry).
+router.post("/agent/rotate-keys", requireSignedAgent, async (req, res, next) => {
+  try {
+    const server = req.agentServer!;
+    if (!agentV2Enabled()) return res.status(400).json({ error: "agent-v2 protocol is not enabled" });
+    const body = agentRotationRequestSchema.parse(req.body);
+    const check = verifyRotationV2({ agentId: server.agentId, signingPublicKey: body.signingPublicKey, encryptionPublicKey: body.encryptionPublicKey, issuedAt: body.issuedAt, protocolVersion: body.protocolVersion, proof: body.proof });
+    if (!check.valid) {
+      await audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "agent.credential.rotate", targetType: "server", targetId: server._id, result: "failure", requestId: req.requestId, metadata: { reason: `v2-${check.reason}` } });
+      return res.status(401).json({ error: "Invalid key rotation" });
+    }
+    const plan = planKeyRotation(server, { signingPublicKey: body.signingPublicKey, encryptionPublicKey: body.encryptionPublicKey, now: new Date() });
+    const updated = await collections.servers.updateOne({ _id: server._id, orgId: server.orgId, credentialVersion: server.credentialVersion }, { $set: plan });
+    if (updated.modifiedCount !== 1) {
+      await audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "agent.credential.rotate", targetType: "server", targetId: server._id, result: "failure", requestId: req.requestId, metadata: { reason: "superseded" } });
+      return res.status(409).json({ error: "Rotation superseded by a concurrent update; retry" });
+    }
+    await audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "agent.credential.rotate", targetType: "server", targetId: server._id, result: "success", requestId: req.requestId, metadata: { migrationState: plan.migrationState, credentialVersion: plan.credentialVersion, signingKeyFingerprint: plan.signingKeyFingerprint } });
+    res.json({ keyProtocolVersion: "agent-v2", migrationState: plan.migrationState, credentialVersion: plan.credentialVersion });
   } catch (error) { next(error); }
 });
 

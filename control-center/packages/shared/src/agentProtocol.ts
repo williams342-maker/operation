@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { verifyEnrollmentProof, keyFingerprint } from "./agentKeys.js";
+import { verifyEnrollmentProof, verifyRotationProof, keyFingerprint } from "./agentKeys.js";
 
 // Versioned agent credential protocol. "agent-v1" is the legacy symmetric HMAC scheme; "agent-v2" is
 // the asymmetric scheme (Ed25519 request/enrollment signing + X25519 deployment-secret sealing). A
@@ -98,6 +98,21 @@ export function verifyEnrollmentV2(request: EnrollmentV2Request, now = Date.now(
     issuedAt: request.issuedAt,
     protocolVersion: request.protocolVersion
   }, request.proof);
+  return ok ? { valid: true } : { valid: false, reason: "forged" };
+}
+
+export type RotationV2Request = { agentId: string; signingPublicKey: string; encryptionPublicKey: string; issuedAt: string; protocolVersion: string; proof: string };
+
+// Pure verification of a v2 key-rotation request (fail-closed, same reason taxonomy as enrollment). The
+// PoP must be signed by the NEW signing key, bound to the agent's id, so a caller cannot register keys
+// it does not hold even while authenticated with its current credential.
+export function verifyRotationV2(request: RotationV2Request, now = Date.now(), maxSkewMs = 5 * 60 * 1000): EnrollmentV2Result {
+  if (request.protocolVersion !== "agent-v2") return { valid: false, reason: "downgrade" };
+  if (!request.signingPublicKey || !request.encryptionPublicKey) return { valid: false, reason: "malformed" };
+  if (request.signingPublicKey === request.encryptionPublicKey) return { valid: false, reason: "key-reuse" };
+  const issuedAt = Date.parse(request.issuedAt);
+  if (!Number.isFinite(issuedAt) || Math.abs(now - issuedAt) > maxSkewMs) return { valid: false, reason: "expired" };
+  const ok = verifyRotationProof(request.signingPublicKey, { agentId: request.agentId, signingPublicKey: request.signingPublicKey, encryptionPublicKey: request.encryptionPublicKey, issuedAt: request.issuedAt, protocolVersion: request.protocolVersion }, request.proof);
   return ok ? { valid: true } : { valid: false, reason: "forged" };
 }
 

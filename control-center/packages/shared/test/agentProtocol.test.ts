@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration, buildMigrationReport } from "../src/agentProtocol.js";
-import { generateAgentKeyPairs, keyFingerprint, signEnrollmentProof } from "../src/agentKeys.js";
+import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration, buildMigrationReport, verifyRotationV2 } from "../src/agentProtocol.js";
+import { generateAgentKeyPairs, keyFingerprint, signEnrollmentProof, signRotationProof } from "../src/agentKeys.js";
 
 const NOW = Date.parse("2026-08-03T00:00:00.000Z");
 function validV2Request(overrides: Partial<Parameters<typeof verifyEnrollmentV2>[0]> = {}) {
@@ -145,4 +145,21 @@ test("buildMigrationReport is audit-safe (fingerprints only) and reports fleet +
   assert.equal(serialized.includes("SECRET-HASH-NEVER-EXPOSED"), false);
   assert.equal(serialized.includes(keys.signingPublicKey), false);
   assert.equal(serialized.includes(keys.signingPrivateKey), false);
+});
+
+test("verifyRotationV2 requires a valid PoP by the NEW key bound to the agent id", () => {
+  const now = NOW;
+  const keys = generateAgentKeyPairs();
+  const base = { agentId: "agent-xyz", signingPublicKey: keys.signingPublicKey, encryptionPublicKey: keys.encryptionPublicKey, issuedAt: new Date(now).toISOString(), protocolVersion: "agent-v2" };
+  const proof = signRotationProof(keys.signingPrivateKey, base);
+  assert.deepEqual(verifyRotationV2({ ...base, proof }, now), { valid: true });
+  // Proof by a different (attacker) key fails.
+  const attacker = generateAgentKeyPairs();
+  assert.equal((verifyRotationV2({ ...base, proof: signRotationProof(attacker.signingPrivateKey, base) }, now) as { reason: string }).reason, "forged");
+  // Binding to agentId: reusing a proof for another agent fails.
+  assert.equal((verifyRotationV2({ ...base, agentId: "other-agent", proof }, now) as { reason: string }).reason, "forged");
+  // Downgrade / key-reuse / expiry fail closed.
+  assert.equal((verifyRotationV2({ ...base, proof, protocolVersion: "agent-v1" }, now) as { reason: string }).reason, "downgrade");
+  assert.equal((verifyRotationV2({ ...base, encryptionPublicKey: keys.signingPublicKey, proof }, now) as { reason: string }).reason, "key-reuse");
+  assert.equal((verifyRotationV2({ ...base, proof, issuedAt: new Date(now - 30 * 60 * 1000).toISOString() }, now) as { reason: string }).reason, "expired");
 });

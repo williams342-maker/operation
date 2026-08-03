@@ -3,6 +3,16 @@ import { discoveredSettingSchema } from "./configuration.js";
 
 export const objectIdSchema = z.string().min(12).max(64);
 
+// agent-v2 self-service key rotation: an authenticated agent presents new public keys + a PoP by the
+// new signing key. Private keys never leave the agent.
+export const agentRotationRequestSchema = z.object({
+  signingPublicKey: z.string().min(32).max(512),
+  encryptionPublicKey: z.string().min(32).max(512),
+  issuedAt: z.string().datetime(),
+  protocolVersion: z.string().max(64),
+  proof: z.string().min(32).max(512)
+}).strict();
+
 export const agentEnrollmentRequestSchema = z.object({
   enrollmentToken: z.string().min(32),
   hostname: z.string().min(1).max(255),

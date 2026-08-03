@@ -76,6 +76,20 @@ export function verifyEnrollmentProof(signingPublicKeyB64: string, parts: Parame
   return verifyAgentSignature(signingPublicKeyB64, enrollmentProofMessage(parts), signatureB64);
 }
 
+// agent-v2 key rotation proof-of-possession: an already-enrolled agent proves it holds the NEW signing
+// private key, bound to its agentId + the new public keys + a timestamp + the protocol version.
+export function rotationProofMessage(parts: { agentId: string; signingPublicKey: string; encryptionPublicKey: string; issuedAt: string; protocolVersion: string }): string {
+  return ["agent-v2-rotation", parts.protocolVersion, parts.agentId, parts.signingPublicKey, parts.encryptionPublicKey, parts.issuedAt].join("\n");
+}
+
+export function signRotationProof(signingPrivateKeyB64: string, parts: Parameters<typeof rotationProofMessage>[0]): string {
+  return signWithAgentKey(signingPrivateKeyB64, rotationProofMessage(parts));
+}
+
+export function verifyRotationProof(signingPublicKeyB64: string, parts: Parameters<typeof rotationProofMessage>[0], signatureB64: string): boolean {
+  return verifyAgentSignature(signingPublicKeyB64, rotationProofMessage(parts), signatureB64);
+}
+
 // agent-v2 request authentication: Ed25519 signature over the canonical request (method, path/route,
 // timestamp, nonce, sha256(body)) with the agent protocol version appended so the version is bound into
 // the signature and cannot be stripped to force a downgrade.
