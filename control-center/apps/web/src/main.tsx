@@ -38,6 +38,7 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  WalletCards,
   Trash2,
   Users,
   X,
@@ -65,6 +66,7 @@ import { SystemHealthCard } from "./SystemHealthCard";
 import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import { AiWorkforcePage } from "./AiWorkforcePage";
+import { CreditsProvidersPage } from "./CreditsProvidersPage";
 import { TaskResultSummary } from "./TaskResultSummary";
 import { ThemeToggle, useTheme } from "./ThemeToggle";
 import type { Theme } from "./theme";
@@ -94,6 +96,7 @@ type Page =
   | "ai-builder"
   | "seo"
   | "ai-workforce"
+  | "credits"
   | "org"
   | "users"
   | "servers"
@@ -1867,6 +1870,7 @@ function AppShell({ onLogout, logoutPending, logoutError, theme, onChangeTheme, 
     ["ai-builder", "AI Website Builder", Sparkles],
     ["seo", "SEO Optimizer", LineChart],
     ["ai-workforce", "AI Workforce", Users],
+    ["credits", "Credits & Providers", WalletCards],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
@@ -2015,6 +2019,7 @@ function AppShell({ onLogout, logoutPending, logoutError, theme, onChangeTheme, 
           {page === "ai-builder" && <AiWebsiteBuilderPage />}
           {page === "seo" && <SeoOptimizerPage toast={toast.show} />}
           {page === "ai-workforce" && <AiWorkforcePage toast={toast.show} />}
+          {page === "credits" && <CreditsProvidersPage isAdmin={isAdmin} toast={toast.show} />}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}

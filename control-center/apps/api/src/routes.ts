@@ -35,6 +35,7 @@ import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
+import { creditRouter } from "./creditRoutes.js";
 import { seoAuditRouter } from "./seoAuditRoutes.js";
 import { aiWorkforceRouter } from "./aiWorkforceRoutes.js";
 
@@ -440,6 +441,7 @@ router.use(aiSettingsRouter);
 router.use(configurationRouter);
 router.use(agentUpgradeRouter);
 router.use(websiteBuilderRouter);
+router.use(creditRouter);
 router.use(seoAuditRouter);
 router.use(aiWorkforceRouter);
 router.use(managementRouter);

@@ -338,7 +338,7 @@ function SuggestionsPanel({ suggestions, onApply, onDismiss, error }: {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
               <span className="rounded-full border border-border px-2 py-0.5">{s.scope}</span>
               <span className="rounded-full border border-border px-2 py-0.5">{s.reversible ? "Reversible" : "Not reversible"}</span>
-              <span className="rounded-full border border-border px-2 py-0.5">Estimated credits: {s.credits}</span>
+              <span className="rounded-full border border-border px-2 py-0.5">Estimated credits: 0 · No paid AI provider will be used</span>
             </div>
             <div className="mt-3">
               {s.action.kind === "regenerate" ? (

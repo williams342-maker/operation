@@ -6,6 +6,7 @@ import { noStore, requirePermission } from "./auth.js";
 import { collections } from "./db.js";
 import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildSiteContent, buildStaticSiteArtifact, buildValidation, inferWebsiteType, UNTITLED_BUSINESS } from "./websiteBuilder.js";
 import { resolveSiteGenerationProvider } from "./siteGenerationProvider.js";
+import { recordDeterministicUsage } from "./creditLedger.js";
 
 export const websiteBuilderRouter = express.Router();
 
@@ -45,9 +46,10 @@ websiteBuilderRouter.get("/website-builder/workflows", noStore, requirePermissio
 websiteBuilderRouter.post("/website-builder/workflows", noStore, requirePermission("ai:use"), async (req, res, next) => {
   try {
     const body = z.object({ websiteType: websiteTypeSchema }).strict().parse(req.body); const now = new Date();
-    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType: body.websiteType, stage: "discovery", version: 1, currentQuestionIndex: 0, answers: [], estimatedCredits: 5, actualCredits: 0, createdAt: now, updatedAt: now });
+    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType: body.websiteType, stage: "discovery", version: 1, currentQuestionIndex: 0, answers: [], estimatedCredits: 0, actualCredits: 0, createdAt: now, updatedAt: now });
+    await recordDeterministicUsage({ orgId: req.orgId!, userId: req.user!._id, workflowId: result.insertedId, idempotencyKey: `foundry:${result.insertedId}:create`, operationType: "foundry_workflow_create" });
     const workflow = await collections.websiteBuildWorkflows.findOne({ _id: result.insertedId, orgId: req.orgId! });
-    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.workflow.create", targetType: "website_workflow", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { websiteType: body.websiteType, stage: "discovery", estimatedCredits: 5 } });
+    await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.workflow.create", targetType: "website_workflow", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { websiteType: body.websiteType, stage: "discovery", estimatedCredits: 0, provider: "deterministic" } });
     res.status(201).json(workflowResponse(workflow));
   } catch (error) { next(error); }
 });
@@ -63,7 +65,8 @@ websiteBuilderRouter.post("/website-builder/workflows/from-prompt", noStore, req
     const provider = resolveSiteGenerationProvider(); const now = new Date();
     const answers = (await provider.understand(body.prompt, websiteType)).map((answer) => ({ ...answer, answeredAt: now, answeredByUserId: req.user!._id }));
     const brief = await provider.brief(answers, websiteType);
-    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType, stage: "brief_review", version: 1, currentQuestionIndex: discoveryQuestions.length, prompt: body.prompt, answers, brief, estimatedCredits: 5, actualCredits: 0, createdAt: now, updatedAt: now });
+    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType, stage: "brief_review", version: 1, currentQuestionIndex: discoveryQuestions.length, prompt: body.prompt, answers, brief, estimatedCredits: 0, actualCredits: 0, createdAt: now, updatedAt: now });
+    await recordDeterministicUsage({ orgId: req.orgId!, userId: req.user!._id, workflowId: result.insertedId, idempotencyKey: `foundry:${result.insertedId}:from-prompt`, operationType: "foundry_prompt_brief" });
     const workflow = await collections.websiteBuildWorkflows.findOne({ _id: result.insertedId, orgId: req.orgId! });
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.workflow.create", targetType: "website_workflow", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { websiteType, stage: "brief_review", origin: "prompt", provider: provider.mode } });
     res.status(201).json(workflowResponse(workflow));
@@ -92,15 +95,15 @@ websiteBuilderRouter.post("/website-builder/workflows/:id/answers", noStore, req
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-brief", noStore, requirePermission("ai:use"), async (req, res, next) => {
-  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "brief_review" || !workflow.brief) return res.status(409).json({ error: "Brief is not awaiting approval" }); const architecture = await resolveSiteGenerationProvider().architecture(workflow.brief as any); const updated = await recordApproval(req, workflow, "brief", Number((workflow.brief as any).version) || 1, { stage: "architecture_review", architecture, estimatedCredits: 15 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "brief_review" || !workflow.brief) return res.status(409).json({ error: "Brief is not awaiting approval" }); const architecture = await resolveSiteGenerationProvider().architecture(workflow.brief as any); const updated = await recordApproval(req, workflow, "brief", Number((workflow.brief as any).version) || 1, { stage: "architecture_review", architecture, estimatedCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-architecture", noStore, requirePermission("ai:use"), async (req, res, next) => {
-  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "architecture_review" || !workflow.architecture || !workflow.brief) return res.status(409).json({ error: "Architecture is not awaiting approval" }); const brandDirections = await resolveSiteGenerationProvider().brandDirections(workflow.brief as any); const updated = await recordApproval(req, workflow, "architecture", Number((workflow.architecture as any).version) || 1, { stage: "brand_review", brandDirections, estimatedCredits: 35 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "architecture_review" || !workflow.architecture || !workflow.brief) return res.status(409).json({ error: "Architecture is not awaiting approval" }); const brandDirections = await resolveSiteGenerationProvider().brandDirections(workflow.brief as any); const updated = await recordApproval(req, workflow, "architecture", Number((workflow.architecture as any).version) || 1, { stage: "brand_review", brandDirections, estimatedCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/select-brand", noStore, requirePermission("ai:use"), async (req, res, next) => {
-  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "brand_review" || !workflow.brief || !workflow.architecture) return res.status(409).json({ error: "Brand direction is not awaiting selection" }); const allowed = (workflow.brandDirections || []).map((item: any) => item.id); const body = z.object({ directionId: z.enum(["clear-trust", "warm-human", "bold-modern"]) }).strict().parse(req.body); if (!allowed.includes(body.directionId)) return res.status(409).json({ error: "Brand direction is unavailable" }); const sections = await resolveSiteGenerationProvider().content(workflow.brief as any, workflow.architecture as any); const updated = await recordApproval(req, workflow, "brand", 1, { stage: "content_review", selectedBrandId: body.directionId, sections, estimatedCredits: 45 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "brand_review" || !workflow.brief || !workflow.architecture) return res.status(409).json({ error: "Brand direction is not awaiting selection" }); const allowed = (workflow.brandDirections || []).map((item: any) => item.id); const body = z.object({ directionId: z.enum(["clear-trust", "warm-human", "bold-modern"]) }).strict().parse(req.body); if (!allowed.includes(body.directionId)) return res.status(409).json({ error: "Brand direction is unavailable" }); const sections = await resolveSiteGenerationProvider().content(workflow.brief as any, workflow.architecture as any); const updated = await recordApproval(req, workflow, "brand", 1, { stage: "content_review", selectedBrandId: body.directionId, sections, estimatedCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.patch("/website-builder/workflows/:id/sections/:sectionId", noStore, requirePermission("ai:use"), async (req, res, next) => {
@@ -112,7 +115,7 @@ websiteBuilderRouter.post("/website-builder/workflows/:id/sections/:sectionId/re
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-content", noStore, requirePermission("ai:use"), async (req, res, next) => {
-  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "content_review" || !workflow.sections || !workflow.architecture) return res.status(409).json({ error: "Content is not awaiting approval" }); const plan = buildImplementationPlan(workflow.architecture, workflow.sections as any); const updated = await recordApproval(req, workflow, "content", Math.max(...workflow.sections.map((item) => item.version)), { stage: "implementation_approval", implementationPlan: plan, estimatedCredits: 55 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "content_review" || !workflow.sections || !workflow.architecture) return res.status(409).json({ error: "Content is not awaiting approval" }); const plan = buildImplementationPlan(workflow.architecture, workflow.sections as any); const updated = await recordApproval(req, workflow, "content", Math.max(...workflow.sections.map((item) => item.version)), { stage: "implementation_approval", implementationPlan: plan, estimatedCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-implementation", noStore, requirePermission("ai:use"), async (req, res, next) => {
