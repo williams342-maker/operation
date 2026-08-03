@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
-import { agentSigningKey, signRequest } from "@control-center/shared";
+import { agentSigningKey, signRequest, generateAgentKeyPairs, signEnrollmentProof, signRotationProof, signAgentRequestV2, keyFingerprint } from "@control-center/shared";
 import { isolatedTestMongoUrl } from "../src/testDbGuard.js";
 
 const enabled = process.env.CONTROL_CENTER_RUN_DB_TESTS === "true" && Boolean(process.env.MONGO_URL_TEST);
@@ -744,6 +744,115 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const auditFailure = await collections.auditEvents.findOne({ action: "authorization.failure", result: "denied" });
     assert.ok(auditFailure?.requestId);
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
+
+    // ===== agent-v2 disposable-agent matrix (flag toggled ON for this block) =====
+    process.env.CONTROL_CENTER_AGENT_PROTOCOL_V2 = "true";
+    const v2org = await collections.organizations.findOne({ slug: "phase-1b-a" });
+    assert.ok(v2org?._id, "v2 matrix: organization present");
+    const v2OrgId = v2org._id;
+    let v2TokenSeq = 0;
+    async function mintToken() {
+      const token = `owenr_${crypto.randomUUID().replace(/-/g, "")}${(v2TokenSeq++).toString().padStart(6, "0")}`;
+      await collections.enrollments.insertOne({ orgId: v2OrgId, tokenHash: hashSecret(token), name: "v2-matrix", uses: 0, maxUses: 1, usage: [], createdByUserId: new ObjectId(), createdAt: new Date(), updatedAt: new Date() } as never);
+      return token;
+    }
+    function v2Signed(agentId: string, signingPrivateKey: string, path: string, body: unknown) {
+      const timestamp = new Date().toISOString();
+      const nonce = crypto.randomUUID();
+      const bodyText = JSON.stringify(body);
+      return { "content-type": "application/json", "x-agent-id": agentId, "x-agent-timestamp": timestamp, "x-agent-nonce": nonce, "x-agent-key-version": "agent-v2", "x-agent-signature": signAgentRequestV2(signingPrivateKey, { method: "POST", path, timestamp, nonce, body: bodyText, protocolVersion: "agent-v2" }) };
+    }
+    async function enrollV2(hostname: string) {
+      const token = await mintToken();
+      const keys = generateAgentKeyPairs();
+      const issuedAt = new Date().toISOString();
+      const enrollmentProof = signEnrollmentProof(keys.signingPrivateKey, { enrollmentToken: token, signingPublicKey: keys.signingPublicKey, encryptionPublicKey: keys.encryptionPublicKey, issuedAt, protocolVersion: "agent-v2" });
+      const res = await request<{ agentId: string; serverId: string; agentSecret?: string; keyProtocolVersion?: string }>("POST", "/agent/enroll", { enrollmentToken: token, hostname, agentVersion: "fake-agent/1.0", protocolVersion: "agent-v2", capabilities: ["system"], signingPublicKey: keys.signingPublicKey, encryptionPublicKey: keys.encryptionPublicKey, enrollmentIssuedAt: issuedAt, enrollmentProof }, { "content-type": "application/json" });
+      return { res, keys };
+    }
+
+    // (1) fresh v2 enrollment: 201, NO agent secret returned, stored as v2 with only the public key.
+    const fresh = await enrollV2("v2-fresh-host");
+    assert.equal(fresh.res.status, 201);
+    assert.equal(fresh.res.body.agentSecret, undefined);
+    assert.equal(fresh.res.body.keyProtocolVersion, "agent-v2");
+    const freshServer = await collections.servers.findOne({ agentId: fresh.res.body.agentId });
+    assert.equal(freshServer?.keyProtocolVersion, "agent-v2");
+    assert.equal(freshServer?.migrationState, "v2");
+    assert.ok(freshServer?.signingPublicKey && freshServer?.signingKeyFingerprint === keyFingerprint(fresh.keys.signingPublicKey));
+
+    // (2) v2 request auth works; wrong key and a v1 downgrade both fail closed.
+    const okBody = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", okBody, v2Signed(fresh.res.body.agentId, fresh.keys.signingPrivateKey, "/api/agent/poll", okBody))).status, 200);
+    const wrongBody = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", wrongBody, v2Signed(fresh.res.body.agentId, generateAgentKeyPairs().signingPrivateKey, "/api/agent/poll", wrongBody))).status, 401);
+    const dgBody = metricPayload();
+    const dgTs = new Date().toISOString(); const dgNonce = crypto.randomUUID();
+    const dgHeaders = { "content-type": "application/json", "x-agent-id": fresh.res.body.agentId, "x-agent-timestamp": dgTs, "x-agent-nonce": dgNonce, "x-agent-signature": signRequest(agentSigningKey("bogus-secret"), { method: "POST", path: "/api/agent/poll", timestamp: dgTs, nonce: dgNonce, body: JSON.stringify(dgBody) }) };
+    assert.equal((await request("POST", "/agent/poll", dgBody, dgHeaders)).status, 401); // v1 not accepted for a v2 agent
+
+    // (3) rotation: new keys take over; the old key is rejected, the new key works.
+    const rotated = generateAgentKeyPairs();
+    const rIssued = new Date().toISOString();
+    const rBody = { signingPublicKey: rotated.signingPublicKey, encryptionPublicKey: rotated.encryptionPublicKey, issuedAt: rIssued, protocolVersion: "agent-v2", proof: signRotationProof(rotated.signingPrivateKey, { agentId: fresh.res.body.agentId, signingPublicKey: rotated.signingPublicKey, encryptionPublicKey: rotated.encryptionPublicKey, issuedAt: rIssued, protocolVersion: "agent-v2" }) };
+    assert.equal((await request("POST", "/agent/rotate-keys", rBody, v2Signed(fresh.res.body.agentId, fresh.keys.signingPrivateKey, "/api/agent/rotate-keys", rBody))).status, 200);
+    const oldBody = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", oldBody, v2Signed(fresh.res.body.agentId, fresh.keys.signingPrivateKey, "/api/agent/poll", oldBody))).status, 401);
+    const newBody = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", newBody, v2Signed(fresh.res.body.agentId, rotated.signingPrivateKey, "/api/agent/poll", newBody))).status, 200);
+
+    // (4) mixed fleet + dual-accept: a legacy agent rotates to v2 and BOTH schemes then authenticate.
+    const legacyToken = await mintToken();
+    const legacyRes = await request<{ agentId: string; agentSecret: string; serverId: string }>("POST", "/agent/enroll", { enrollmentToken: legacyToken, hostname: "v2-legacy-host", agentVersion: "fake-agent/1.0", capabilities: ["system"] }, { "content-type": "application/json" });
+    assert.equal(legacyRes.status, 201);
+    assert.ok(legacyRes.body.agentSecret);
+    const legacyCreds = { agentId: legacyRes.body.agentId, agentSecret: legacyRes.body.agentSecret, serverId: legacyRes.body.serverId };
+    const lBody = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", lBody, signHeaders(legacyCreds, "/api/agent/poll", lBody, { nonce: crypto.randomUUID() }))).status, 200);
+    const legKeys = generateAgentKeyPairs();
+    const legIssued = new Date().toISOString();
+    const legRotateBody = { signingPublicKey: legKeys.signingPublicKey, encryptionPublicKey: legKeys.encryptionPublicKey, issuedAt: legIssued, protocolVersion: "agent-v2", proof: signRotationProof(legKeys.signingPrivateKey, { agentId: legacyCreds.agentId, signingPublicKey: legKeys.signingPublicKey, encryptionPublicKey: legKeys.encryptionPublicKey, issuedAt: legIssued, protocolVersion: "agent-v2" }) };
+    assert.equal((await request("POST", "/agent/rotate-keys", legRotateBody, signHeaders(legacyCreds, "/api/agent/rotate-keys", legRotateBody, { nonce: crypto.randomUUID() }))).status, 200);
+    assert.equal((await collections.servers.findOne({ agentId: legacyCreds.agentId }))?.migrationState, "dual");
+    const dualV1 = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", dualV1, signHeaders(legacyCreds, "/api/agent/poll", dualV1, { nonce: crypto.randomUUID() }))).status, 200); // v1 still accepted in dual
+    const dualV2 = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", dualV2, v2Signed(legacyCreds.agentId, legKeys.signingPrivateKey, "/api/agent/poll", dualV2))).status, 200); // v2 accepted in dual
+
+    // (5) complete migration (dual→v2): v1 is now rejected, v2 still works.
+    await collections.servers.updateOne({ agentId: legacyCreds.agentId }, { $set: { migrationState: "v2" } });
+    const doneV1 = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", doneV1, signHeaders(legacyCreds, "/api/agent/poll", doneV1, { nonce: crypto.randomUUID() }))).status, 401);
+    const doneV2 = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", doneV2, v2Signed(legacyCreds.agentId, legKeys.signingPrivateKey, "/api/agent/poll", doneV2))).status, 200);
+
+    // (6) revocation fails closed.
+    await collections.servers.updateOne({ agentId: fresh.res.body.agentId }, { $set: { revokedAt: new Date() } });
+    const revokedBody = metricPayload();
+    assert.equal((await request("POST", "/agent/poll", revokedBody, v2Signed(fresh.res.body.agentId, rotated.signingPrivateKey, "/api/agent/poll", revokedBody))).status, 401);
+
+    // (7) negative: forged enrollment is rejected AND does not consume the one-time token.
+    const forgeToken = await mintToken();
+    const forgeKeys = generateAgentKeyPairs();
+    const forgeIssued = new Date().toISOString();
+    const forgedProof = signEnrollmentProof(generateAgentKeyPairs().signingPrivateKey, { enrollmentToken: forgeToken, signingPublicKey: forgeKeys.signingPublicKey, encryptionPublicKey: forgeKeys.encryptionPublicKey, issuedAt: forgeIssued, protocolVersion: "agent-v2" });
+    assert.equal((await request("POST", "/agent/enroll", { enrollmentToken: forgeToken, hostname: "forged", agentVersion: "x", protocolVersion: "agent-v2", capabilities: ["system"], signingPublicKey: forgeKeys.signingPublicKey, encryptionPublicKey: forgeKeys.encryptionPublicKey, enrollmentIssuedAt: forgeIssued, enrollmentProof: forgedProof }, { "content-type": "application/json" })).status, 401);
+    assert.equal((await collections.enrollments.findOne({ tokenHash: hashSecret(forgeToken) }))?.uses ?? 0, 0);
+
+    // (8) negative: with the flag OFF, a v2 enrollment is refused (no silent downgrade).
+    process.env.CONTROL_CENTER_AGENT_PROTOCOL_V2 = "false";
+    const offToken = await mintToken();
+    const offKeys = generateAgentKeyPairs();
+    const offIssued = new Date().toISOString();
+    const offProof = signEnrollmentProof(offKeys.signingPrivateKey, { enrollmentToken: offToken, signingPublicKey: offKeys.signingPublicKey, encryptionPublicKey: offKeys.encryptionPublicKey, issuedAt: offIssued, protocolVersion: "agent-v2" });
+    assert.equal((await request("POST", "/agent/enroll", { enrollmentToken: offToken, hostname: "flag-off", agentVersion: "x", protocolVersion: "agent-v2", capabilities: ["system"], signingPublicKey: offKeys.signingPublicKey, encryptionPublicKey: offKeys.encryptionPublicKey, enrollmentIssuedAt: offIssued, enrollmentProof: offProof }, { "content-type": "application/json" })).status, 400);
+
+    // No agent private key, raw signing key, or secret may appear in the audit log for v2 agents.
+    const v2Audit = JSON.stringify(await collections.auditEvents.find({ actorId: fresh.res.body.agentId }).toArray());
+    assert.equal(v2Audit.includes(fresh.keys.signingPrivateKey), false);
+    assert.equal(v2Audit.includes(rotated.signingPrivateKey), false);
+    delete process.env.CONTROL_CENTER_AGENT_PROTOCOL_V2;
+
     diagnostic("test.body.complete", { requestCount });
   } finally {
     if (originalBootstrapMode === undefined) delete process.env.CONTROL_CENTER_BOOTSTRAP_MODE;
