@@ -126,9 +126,12 @@ function useForm<T extends Record<string, string>>(initial: T) {
   });
   return { values, setValues, field };
 }
+// Standard inline error state. role="alert" so the message is announced when it appears (WCAG 4.1.3),
+// matching the app's ad-hoc error paragraphs. Renders nothing until an error exists, so the live region
+// only mounts on a real error. apiError() returns a sanitized, secret-free message.
 function ErrorText({ error }: { error: unknown }) {
   return error ? (
-    <p className="text-sm text-danger">{apiError(error)}</p>
+    <p role="alert" className="text-sm text-danger">{apiError(error)}</p>
   ) : null;
 }
 function PasswordField(props: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -509,7 +512,7 @@ function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
         <PasswordField placeholder="Confirm new password" autoComplete="new-password" {...f.field("confirmPassword")} />
         <Button disabled={!valid || mutation.isPending} onClick={() => mutation.mutate()}>Change password</Button>
       </div>
-      {f.values.confirmPassword && f.values.newPassword !== f.values.confirmPassword && <p className="mt-2 text-sm text-danger">New passwords do not match.</p>}
+      {f.values.confirmPassword && f.values.newPassword !== f.values.confirmPassword && <p role="alert" className="mt-2 text-sm text-danger">New passwords do not match.</p>}
       <ErrorText error={mutation.error} />
     </Card>
   );
@@ -1930,7 +1933,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           </div>
         </div>
         {toast.message && (
-          <div className="mb-4 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
+          <div role="status" className="mb-4 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
             {toast.message}
           </div>
         )}
