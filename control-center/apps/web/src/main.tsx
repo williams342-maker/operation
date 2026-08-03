@@ -117,6 +117,53 @@ function useToast() {
     },
   };
 }
+// Modal dialog accessibility: initial focus, focus trap (Tab/Shift+Tab cycle within), Escape to close,
+// and focus restoration to the trigger on unmount. Attach the returned ref to the dialog container and
+// give it tabIndex={-1} so it is focusable when it has no focusable children.
+function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () => void) {
+  const ref = useRef<T>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const selector =
+      'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    const focusable = () => Array.from(node.querySelectorAll<HTMLElement>(selector));
+    (focusable()[0] ?? node).focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !node.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !node.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    node.addEventListener("keydown", onKeyDown);
+    return () => {
+      node.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, []);
+  return ref;
+}
 function useForm<T extends Record<string, string>>(initial: T) {
   const [values, setValues] = useState(initial);
   const field = (key: keyof T) => ({
@@ -973,8 +1020,11 @@ function EnrollmentSuccess({
         errorCorrectionLevel: "M",
       }),
     );
+  const dialogRef = useDialog(onClose);
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
       role="dialog"
       aria-modal="true"
@@ -1086,16 +1136,20 @@ function EnrollmentGenerate({
     mutationFn: () => reauthenticate(password),
     onSuccess: () => mutation.mutate(),
   });
+  const dialogRef = useDialog(onClose);
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 p-4"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="generate-enrollment-title"
     >
       <Card>
         <div className="w-[34rem] max-w-full space-y-4">
           <div className="flex justify-between">
-            <h2 className="text-lg font-semibold">Generate Enrollment Token</h2>
+            <h2 id="generate-enrollment-title" className="text-lg font-semibold">Generate Enrollment Token</h2>
             <button aria-label="Close" onClick={onClose}>
               <X className="h-5 w-5" />
             </button>
@@ -1922,7 +1976,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         </button>
         {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
-      <main className={page === "overview" || page === "ai-builder" || page === "seo" ? "bg-slate-50 p-5" : "p-5"}>
+      <main className={page === "ai-builder" || page === "seo" ? "bg-slate-50 p-5" : "p-5"}>
         <div className={`${page === "overview" ? "hidden" : "mb-5 flex"} items-center justify-between ${page === "ai-builder" ? "text-slate-950" : ""}`}>
           <div>
             <div className="text-xs text-muted">OpsWorkbench / {pageTitle}</div>

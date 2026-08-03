@@ -44,5 +44,5 @@ export function Table({ columns, rows, empty = "No records" }: { columns: string
       </article>;
     })}</div>;
   }
-  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((column) => <th key={column} className="border-b border-border px-2 py-2 font-medium">{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border/60">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((column) => <th key={column} scope="col" className="border-b border-border px-2 py-2 font-medium">{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border/60">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>;
 }
