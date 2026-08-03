@@ -1,5 +1,5 @@
 ﻿import os from "node:os";
-import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, saveConfig, type AgentConfig } from "./config.js";
@@ -46,7 +46,13 @@ function verifyTask(config: AgentConfig, task: ClaimedTask) {
   const envelope = task.envelope;
   if (envelope.agentId !== config.agentId) throw new Error("Task assigned to a different agent");
   if (isTaskExpired(envelope.expiresAt)) throw new Error("Task expired");
-  const valid = verifyTaskEnvelope(agentSigningKey(config.agentSecret), envelope, task.payload);
+  // v2 envelopes are signed by the control plane's Ed25519 key and verified with its PUBLIC key; v1
+  // envelopes keep the legacy agent-keyed HMAC. The signed signingKeyVersion selects the path.
+  const useV2 = envelope.signingKeyVersion.startsWith("cp-ed25519");
+  if (useV2 && !config.controlPlanePublicKey) throw new Error("Control-plane public key unavailable for v2 task verification");
+  const valid = useV2
+    ? verifyTaskEnvelopeV2(config.controlPlanePublicKey!, envelope, task.payload)
+    : verifyTaskEnvelope(agentSigningKey(config.agentSecret), envelope, task.payload);
   if (!valid) throw new Error("Invalid task signature");
 }
 

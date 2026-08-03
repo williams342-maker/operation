@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { sha256, timingSafeEqualHex } from "./signing.js";
+import { signWithAgentKey, verifyAgentSignature } from "./agentKeys.js";
 import { configurationDeploymentPayloadSchema } from "./configurationDeployment.js";
 import { agentUpgradeManifestSchema } from "./agentUpgrades.js";
 
@@ -74,6 +75,26 @@ export function verifyTaskEnvelope(signingSecret: string, envelope: TaskEnvelope
   delete (unsigned as Partial<TaskEnvelope>).signature;
   const expected = signTaskEnvelope(signingSecret, unsigned);
   return timingSafeEqualHex(expected, envelope.signature);
+}
+
+// agent-v2 task envelope: signed by the CONTROL-PLANE Ed25519 key and verified by the agent with the
+// control-plane PUBLIC key (no agent-keyed HMAC). The "agent-v2" suffix binds the scheme so a v2
+// envelope can never be cross-verified against the v1 HMAC path (downgrade/confusion prevention). All
+// target bindings (task/org/server/agent/expiry/nonce/payloadDigest) come from taskSigningBase; the
+// separate owner-signed authorization for privileged tasks is preserved unchanged on top of this.
+function taskSigningBaseV2(envelope: Omit<TaskEnvelope, "signature">) {
+  return `${taskSigningBase(envelope)}\nagent-v2`;
+}
+
+export function signTaskEnvelopeV2(controlPlanePrivateKeyB64: string, envelope: Omit<TaskEnvelope, "signature">) {
+  return signWithAgentKey(controlPlanePrivateKeyB64, taskSigningBaseV2(envelope));
+}
+
+export function verifyTaskEnvelopeV2(controlPlanePublicKeyB64: string, envelope: TaskEnvelope, payload: unknown) {
+  if (payloadDigest(payload) !== envelope.payloadDigest) return false;
+  const unsigned = { ...envelope };
+  delete (unsigned as Partial<TaskEnvelope>).signature;
+  return verifyAgentSignature(controlPlanePublicKeyB64, taskSigningBaseV2(unsigned), envelope.signature);
 }
 
 export function isTaskExpired(expiresAt: string, now = Date.now()) {

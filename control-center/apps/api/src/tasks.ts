@@ -1,7 +1,8 @@
 ﻿import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
-import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentUpgradeResultSchema, deploymentProgressSchema, payloadDigest, signTaskEnvelope, signTaskEnvelopeV2, taskPayloadSchema, taskProtocolVersion, taskTypes, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { collections } from "./db.js";
 import type { AgentTaskDoc, ServerDoc } from "./models.js";
 import { invalidateOperationalContext } from "./aiContextBuilder.js";
@@ -128,7 +129,17 @@ export async function claimTasksForAgent(server: ServerDoc & { _id: ObjectId }, 
   return claimed;
 }
 
+// Control-plane Ed25519 private key (base64url PKCS8) used to sign v2 task envelopes. Agents verify
+// with the corresponding public key delivered in their bootstrap. Absent ⇒ v2 signing unavailable.
+export function controlPlaneTaskSigningKey(): string | undefined {
+  return process.env.CONTROL_CENTER_TASK_SIGNING_PRIVATE_KEY?.trim() || undefined;
+}
+
 export function buildEnvelope(task: AgentTaskDoc & { _id: ObjectId }, server: ServerDoc & { _id: ObjectId }): TaskEnvelope {
+  // Use v2 (control-plane-signed) envelopes only for v2-enrolled servers when the flag is on and a
+  // control-plane signing key is configured; otherwise keep the legacy agent-keyed HMAC. The
+  // signingKeyVersion is bound into the signature and tells the agent which verification path to use.
+  const useV2 = agentV2Enabled() && server.keyProtocolVersion === "agent-v2" && Boolean(controlPlaneTaskSigningKey());
   const unsigned: Omit<TaskEnvelope, "signature"> = {
     protocolVersion: taskProtocolVersion,
     taskId: task._id.toHexString(),
@@ -140,9 +151,9 @@ export function buildEnvelope(task: AgentTaskDoc & { _id: ObjectId }, server: Se
     expiresAt: task.expiresAt.toISOString(),
     nonce: task.nonce,
     payloadDigest: payloadDigest(task.payload),
-    signingKeyVersion: task.signingKeyVersion
+    signingKeyVersion: useV2 ? "cp-ed25519-v1" : task.signingKeyVersion
   };
-  return { ...unsigned, signature: signTaskEnvelope(server.agentSecretHash, unsigned) };
+  return { ...unsigned, signature: useV2 ? signTaskEnvelopeV2(controlPlaneTaskSigningKey()!, unsigned) : signTaskEnvelope(server.agentSecretHash, unsigned) };
 }
 
 export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, body: { taskId: string; event: "claimed" | "started" | "progress" | "succeeded" | "failed"; message?: string; progress?: number; result?: unknown }) {
