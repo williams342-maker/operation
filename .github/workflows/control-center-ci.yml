@@ -140,6 +140,7 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:5173
           E2E_API_URL: http://127.0.0.1:3000
           MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_e2e_ci
+          UI_SCREENSHOT_DIR: ${{ runner.temp }}/ui-screenshots
         run: |
           set -euo pipefail
           session_secret="$(openssl rand -hex 32)"
@@ -177,6 +178,14 @@ jobs:
           path: ${{ runner.temp }}/authenticated-e2e-failure.png
           if-no-files-found: ignore
           retention-days: 7
+      - name: Preserve UI-polish review screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-polish-screenshots
+          path: ${{ runner.temp }}/ui-screenshots
+          if-no-files-found: warn
+          retention-days: 30
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present
