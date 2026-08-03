@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ObjectId } from "mongodb";
-import { agentSigningKey, signRequest, generateAgentKeyPairs, signEnrollmentProof, signRotationProof, signAgentRequestV2, keyFingerprint } from "@control-center/shared";
+import { agentSigningKey, signRequest, generateAgentKeyPairs, signEnrollmentProof, signRotationProof, signAgentRequestV2, keyFingerprint, signOwnerAuthorization, privilegedActionDigest, evaluateFlagOffSafety } from "@control-center/shared";
 import { isolatedTestMongoUrl } from "../src/testDbGuard.js";
 
 const enabled = process.env.CONTROL_CENTER_RUN_DB_TESTS === "true" && Boolean(process.env.MONGO_URL_TEST);
@@ -846,6 +846,34 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const offIssued = new Date().toISOString();
     const offProof = signEnrollmentProof(offKeys.signingPrivateKey, { enrollmentToken: offToken, signingPublicKey: offKeys.signingPublicKey, encryptionPublicKey: offKeys.encryptionPublicKey, issuedAt: offIssued, protocolVersion: "agent-v2" });
     assert.equal((await request("POST", "/agent/enroll", { enrollmentToken: offToken, hostname: "flag-off", agentVersion: "x", protocolVersion: "agent-v2", capabilities: ["system"], signingPublicKey: offKeys.signingPublicKey, encryptionPublicKey: offKeys.encryptionPublicKey, enrollmentIssuedAt: offIssued, enrollmentProof: offProof }, { "content-type": "application/json" })).status, 400);
+
+    // (9) control-plane owner-authorization boundary (Layer 2): with an owner public key configured, a
+    // privileged task cannot be created without a valid owner authorization — the transport/CP key alone
+    // is insufficient. Uses a disposable offline owner keypair (private half never leaves this test).
+    const ownerKp = generateAgentKeyPairs();
+    process.env.CONTROL_CENTER_OWNER_PUBLIC_KEY = ownerKp.signingPublicKey;
+    const { createTask } = await import("../src/tasks.js");
+    const v2ServerDoc = await collections.servers.findOne({ agentId: legacyCreds.agentId });
+    assert.ok(v2ServerDoc?._id);
+    const privCore = { projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment: { planId: "plan-owner-auth" } };
+    await assert.rejects(createTask({ orgId: v2OrgId, server: v2ServerDoc as never, type: "configuration.apply", payload: privCore as never, idempotencyKey: `oa-missing-${crypto.randomUUID()}` }), /Owner authorization required/);
+    const oaNonce = crypto.randomUUID();
+    const oaExpiry = new Date(Date.now() + 3600_000).toISOString();
+    const oaSignature = signOwnerAuthorization(ownerKp.signingPrivateKey, { taskType: "configuration.apply", orgId: v2OrgId.toHexString(), serverId: v2ServerDoc._id.toHexString(), actionDigest: privilegedActionDigest(privCore), expiresAt: oaExpiry, nonce: oaNonce, keyVersion: "owner-v1" });
+    const authorizedTask = await createTask({ orgId: v2OrgId, server: v2ServerDoc as never, type: "configuration.apply", payload: { ...privCore, ownerAuthorization: { signature: oaSignature, issuedAt: new Date().toISOString(), expiresAt: oaExpiry, nonce: oaNonce, keyVersion: "owner-v1" } } as never, idempotencyKey: `oa-ok-${crypto.randomUUID()}` });
+    assert.ok(authorizedTask._id, "privileged task with valid owner authorization is created");
+    // A forged owner authorization (wrong key) is rejected.
+    const forgedSig = signOwnerAuthorization(generateAgentKeyPairs().signingPrivateKey, { taskType: "configuration.apply", orgId: v2OrgId.toHexString(), serverId: v2ServerDoc._id.toHexString(), actionDigest: privilegedActionDigest(privCore), expiresAt: oaExpiry, nonce: oaNonce, keyVersion: "owner-v1" });
+    await assert.rejects(createTask({ orgId: v2OrgId, server: v2ServerDoc as never, type: "configuration.apply", payload: { ...privCore, ownerAuthorization: { signature: forgedSig, issuedAt: new Date().toISOString(), expiresAt: oaExpiry, nonce: oaNonce, keyVersion: "owner-v1" } } as never, idempotencyKey: `oa-forged-${crypto.randomUUID()}` }), /Owner authorization invalid/);
+    delete process.env.CONTROL_CENTER_OWNER_PUBLIC_KEY;
+
+    // (10) fail-safe flag-off preflight: the fresh-v2 agent is stored with no usable v1 credential, so a
+    // v1-only (v2-disabled) state would strand it — the preflight must report it unsafe.
+    const freshStored = await collections.servers.findOne({ agentId: fresh.res.body.agentId });
+    assert.equal(freshStored?.legacyCredentialUsable, false);
+    assert.equal(evaluateFlagOffSafety([{ id: "x", hostname: freshStored!.hostname, keyProtocolVersion: "agent-v2", migrationState: "v2", legacyCredentialUsable: false }]).safe, false);
+    // The legacy-migrated agent retains a usable v1 credential, so it is NOT stranded.
+    assert.equal(evaluateFlagOffSafety([{ id: "y", hostname: "legacy-migrated", migrationState: "v2", legacyCredentialUsable: true }]).safe, true);
 
     // No agent private key, raw signing key, or secret may appear in the audit log for v2 agents.
     const v2Audit = JSON.stringify(await collections.auditEvents.find({ actorId: fresh.res.body.agentId }).toArray());
