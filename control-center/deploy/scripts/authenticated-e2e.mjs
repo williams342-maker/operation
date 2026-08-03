@@ -234,6 +234,8 @@ try {
       const horizontalOverflowPx = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       overflowReport.push({ surface: name, viewport: label, horizontalOverflowPx });
       await page.screenshot({ path: path.join(screenshotDir, `${name}-${label}-dark.png`), fullPage: true });
+      // Blocking: no horizontal page overflow on any captured surface (1px rounding tolerance).
+      assert.ok(horizontalOverflowPx <= 1, `${name} (${label}) has ${horizontalOverflowPx}px horizontal overflow`);
     }
     await page.setViewportSize(viewports.desktop);
   }
