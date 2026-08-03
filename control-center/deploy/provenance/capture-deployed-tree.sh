@@ -102,12 +102,14 @@ find . -type d \( \
   \) -prune -exec rm -rf {} + 2>/dev/null || true
 
 # Files: secrets, keys, env files, logs, dumps, sqlite, archives.
+# The trailing `! -name '*.example' ...` KEEPS non-secret template files (e.g. .env.staging.example) so
+# they are not misreported as drift; only real secret-bearing files are pruned.
 find . -type f \( \
   -name '.env' -o -name '.env.*' -o -name '*.env' -o \
   -name '*.pem' -o -name '*.key' -o -name '*.pfx' -o -name '*.p12' -o -name '*.crt' -o \
   -name 'id_rsa*' -o -name 'id_ed25519*' -o -name '*.secret' -o -name 'secrets*.json' -o \
   -name '*.log' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.dump' -o -name '*.pid' \
-  \) -delete 2>/dev/null || true
+  \) ! -name '*.example' ! -name '*.sample' ! -name '*.template' ! -name '*.dist' -delete 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # 4. Best-effort secret scan of the pruned copy (flag only; never blocks capture).
@@ -118,10 +120,14 @@ if command -v gitleaks >/dev/null 2>&1; then
   gitleaks dir "$WORK" --no-banner --redact --report-path "$OUT/gitleaks-report.json" >/dev/null 2>&1 || \
     echo "gitleaks reported potential findings — REVIEW $OUT/gitleaks-report.json before returning anything." >> "$FLAG"
 else
-  # Fallback heuristic — high-signal patterns only; requires manual review.
-  grep -rInE '(BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|xox[baprs]-|-----BEGIN|password[[:space:]]*[:=]|secret[[:space:]]*[:=]|token[[:space:]]*[:=])' \
+  # Fallback heuristic (only when gitleaks is unavailable): match ACTUAL secret material — private keys,
+  # provider key formats, and credential-in-URL — NOT source identifiers named token/secret/password.
+  # Advisory only: the secret-file prune above is the primary control, and the archive stays local.
+  grep -rInE '(-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|sk-(ant-)?[A-Za-z0-9_-]{24,}|://[^/:@[:space:]]+:[^/@[:space:]]+@[^[:space:]/])' \
     "$WORK" 2>/dev/null | head -50 >> "$FLAG" || true
-  [ -s "$FLAG" ] && echo "(heuristic matches above — manually review before returning the archive)" >> "$FLAG"
+  if [ -s "$FLAG" ]; then
+    echo "(advisory: review the lines above — test fixtures with fake secrets can match. The secret-file prune is the primary control and the archive stays local regardless.)" >> "$FLAG"
+  fi
 fi
 echo "==> Secret-scan flags: $FLAG (empty is good)"
 
