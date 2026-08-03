@@ -269,7 +269,7 @@ function Overview({ onNavigate }: { onNavigate: (page: Page) => void }) {
   return (
     <div className="-m-5 min-h-[calc(100vh-5rem)] p-5 text-text lg:p-8">
       <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-semibold tracking-tight">Welcome back, {firstName}</h2><p className="mt-1 text-sm text-muted">Current status across your servers, projects, and recent activity.</p></div>
+        <div><h2 className="text-2xl font-semibold tracking-tight text-text">Welcome back, {firstName}</h2><p className="mt-1 text-sm text-muted">Current status across your servers, projects, and recent activity.</p></div>
         <div className="flex items-center gap-2"><GhostButton aria-label="Notifications" className="min-w-[2.5rem] rounded-full px-0"><Bell className="h-5 w-5" /></GhostButton><Button onClick={() => onNavigate("projects")}>New project</Button></div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
