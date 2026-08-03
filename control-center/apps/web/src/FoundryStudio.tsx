@@ -420,9 +420,11 @@ function BriefPanel({ workflow }: { workflow: FoundryWorkflow }) {
   if (!brief) return null;
   const description = brief.business?.description || "";
   const fromUser = workflow.prompt ? description.trim() === workflow.prompt.trim() : false;
+  const rawName = brief.business?.name;
+  const hasName = Boolean(rawName) && rawName !== "Untitled business";
   const rows: Array<{ label: string; value: string; source: "user" | "derived" }> = [
     { label: "What it's about", value: description || "—", source: fromUser ? "user" : "derived" },
-    { label: "Business name", value: brief.business?.name || "—", source: brief.business?.name && brief.business.name !== "Untitled business" ? "user" : "derived" },
+    { label: "Business name", value: hasName ? rawName! : "Not set yet — add your business name", source: hasName ? "user" : "derived" },
     { label: "Audience", value: brief.audience?.primary || "—", source: "derived" },
     { label: "Primary goal", value: brief.goals?.primaryGoal || "—", source: "derived" },
     { label: "Pages", value: (brief.website?.requiredPages || []).join(", ") || "—", source: "derived" },

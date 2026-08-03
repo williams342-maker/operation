@@ -29,13 +29,12 @@ export function buildSuggestions(workflow: FoundryWorkflow | null): Suggestion[]
   if (!workflow?.artifact || !workflow.sections?.length) return [];
   const sections = workflow.sections;
   const out: Suggestion[] = [];
-  const business = workflow.brief?.business?.name || "your business";
 
   const hero = sections.find((s) => s.type === "hero");
   if (hero) {
     out.push({
       id: "regen-hero", title: "Strengthen the homepage headline and call to action",
-      what: `Rewrite the hero of ${business} with a sharper headline and a clearer primary action.`,
+      what: "Rewrite the homepage hero with a sharper headline and a clearer primary action.",
       why: "The hero is the first thing visitors read; a focused message and action lift engagement.",
       scope: "Homepage hero section", reversible: true, credits: 0,
       action: { kind: "regenerate", sectionId: hero.id },

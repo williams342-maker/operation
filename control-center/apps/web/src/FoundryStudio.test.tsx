@@ -95,8 +95,10 @@ describe("Foundry studio", () => {
 
     // The description equals the user's prompt → labelled "From you".
     expect(screen.getAllByText(/from you/i).length).toBeGreaterThan(0);
-    // The default placeholder name is shown as a suggestion, never as a fact from the user.
-    expect(screen.getByText("Untitled business")).toBeInTheDocument();
+    // No name was stated, so the studio prompts for one rather than inventing or
+    // surfacing the raw "Untitled business" placeholder.
+    expect(screen.getByText(/not set yet — add your business name/i)).toBeInTheDocument();
+    expect(screen.queryByText("Untitled business")).toBeNull();
 
     // Contextual, project-specific, zero-credit suggestion is offered.
     expect(screen.getByText(/strengthen the homepage headline/i)).toBeInTheDocument();
