@@ -17,9 +17,9 @@ checkout of `d354a615` (the preserved production-lineage tip). See
 
 ## Scripts
 
-- `deploy/provenance/capture-deployed-tree.sh` — run **on the production host**.
-- `deploy/provenance/compare-against-d354a615.sh` — run **offline** (operator workstation or any clean host
-  with internet), never on production.
+- `control-center/deploy/provenance/capture-deployed-tree.sh` — run **on the production host**.
+- `control-center/deploy/provenance/compare-against-d354a615.sh` — run **offline** (operator workstation or
+  any clean host with internet), never on production.
 
 ## Step 1 — Identify the deployed release (read-only)
 
