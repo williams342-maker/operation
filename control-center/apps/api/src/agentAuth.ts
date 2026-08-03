@@ -1,8 +1,9 @@
 ﻿import type { NextFunction, Request, Response } from "express";
 import { ObjectId } from "mongodb";
-import { isFreshTimestamp, verifyRequestSignature } from "@control-center/shared";
+import { isFreshTimestamp, verifyRequestSignature, verifyAgentRequestV2, acceptedSchemes, describeAgentCredential } from "@control-center/shared";
 import { audit } from "./audit.js";
 import { collections } from "./db.js";
+import { agentV2Enabled } from "./agentProtocolFlag.js";
 import type { ServerDoc } from "./models.js";
 
 declare global {
@@ -39,13 +40,19 @@ export async function requireSignedAgent(req: Request, res: Response, next: Next
   // Verify the signature BEFORE consuming the nonce. Otherwise an attacker who knows a (non-secret)
   // agentId could write unbounded nonce rows with garbage signatures — a side effect on a request
   // that never authenticates. Replay is still blocked below by the unique {orgId,agentId,nonce} index.
-  const valid = verifyRequestSignature(server.agentSecretHash, {
-    method: req.method,
-    path: req.originalUrl.split("?")[0],
-    timestamp,
-    nonce,
-    body: req.rawBodyText || ""
-  }, signature);
+  //
+  // Scheme selection (dual-accept): with the flag OFF, only agent-v1 (legacy HMAC) is accepted. With
+  // it ON, the per-agent migration state decides (legacy→v1, dual→v1|v2, v2→v2). The declared version
+  // must be in the accepted set (no silent downgrade), and for v2 it is also bound into the signature.
+  const parts = { method: req.method, path: req.originalUrl.split("?")[0], timestamp, nonce, body: req.rawBodyText || "" };
+  const declaredVersion = req.header("x-agent-key-version") || "agent-v1";
+  const schemes = agentV2Enabled() ? acceptedSchemes(describeAgentCredential(server).migrationState) : ["agent-v1"];
+  let valid = false;
+  if (schemes.includes(declaredVersion as "agent-v1" | "agent-v2")) {
+    valid = declaredVersion === "agent-v2"
+      ? Boolean(server.signingPublicKey) && verifyAgentRequestV2(server.signingPublicKey!, { ...parts, protocolVersion: "agent-v2" }, signature)
+      : verifyRequestSignature(server.agentSecretHash, parts, signature);
+  }
   if (!valid) {
     await audit({ orgId: server.orgId, actorType: "agent", actorId: agentId, action: "authorization.failure", result: "denied", requestId: req.requestId, metadata: { reason: "bad-signature" } });
     return res.status(401).json({ error: "Invalid signature" });

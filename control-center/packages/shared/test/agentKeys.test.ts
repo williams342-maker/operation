@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateAgentKeyPairs, signWithAgentKey, verifyAgentSignature, signEnrollmentProof, verifyEnrollmentProof, sealToAgent, openSealed, agentKeyProtocolVersion } from "../src/agentKeys.js";
+import { generateAgentKeyPairs, signWithAgentKey, verifyAgentSignature, signEnrollmentProof, verifyEnrollmentProof, sealToAgent, openSealed, agentKeyProtocolVersion, signAgentRequestV2, verifyAgentRequestV2 } from "../src/agentKeys.js";
 
 test("generateAgentKeyPairs yields distinct ed25519 signing and x25519 encryption keys", () => {
   const keys = generateAgentKeyPairs();
@@ -22,6 +22,19 @@ test("agent signatures verify and reject tampering or the wrong key", () => {
   assert.equal(verifyAgentSignature(a.signingPublicKey, message + "x", signature), false);
   assert.equal(verifyAgentSignature(b.signingPublicKey, message, signature), false);
   assert.equal(verifyAgentSignature(a.signingPublicKey, message, "not-a-signature"), false);
+});
+
+test("v2 request signing binds method, path, timestamp, nonce, body digest, and version", () => {
+  const agent = generateAgentKeyPairs();
+  const parts = { method: "POST", path: "/api/agent/poll", timestamp: "2026-08-03T00:00:00.000Z", nonce: "nonce-1", body: "{\"a\":1}", protocolVersion: "agent-v2" };
+  const signature = signAgentRequestV2(agent.signingPrivateKey, parts);
+  assert.equal(verifyAgentRequestV2(agent.signingPublicKey, parts, signature), true);
+  // Any change to a bound field invalidates the signature.
+  for (const mutation of [{ method: "GET" }, { path: "/api/agent/other" }, { timestamp: "2026-08-03T00:01:00.000Z" }, { nonce: "nonce-2" }, { body: "{\"a\":2}" }, { protocolVersion: "agent-v1" }]) {
+    assert.equal(verifyAgentRequestV2(agent.signingPublicKey, { ...parts, ...mutation }, signature), false, `mutation ${JSON.stringify(mutation)} should fail`);
+  }
+  // A different agent key cannot verify.
+  assert.equal(verifyAgentRequestV2(generateAgentKeyPairs().signingPublicKey, parts, signature), false);
 });
 
 test("enrollment proof-of-possession accepts a valid proof and rejects a forged one", () => {

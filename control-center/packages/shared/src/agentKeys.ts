@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { canonicalRequest, type SignatureParts } from "./signing.js";
 
 // agent-v2 asymmetric credential primitives. Ed25519 for request/enrollment signing, X25519+HKDF+AES-GCM
 // (ECIES sealed box) for deployment-secret delivery. Algorithms are pinned here and never negotiated by
@@ -73,6 +74,21 @@ export function signEnrollmentProof(signingPrivateKeyB64: string, parts: Paramet
 
 export function verifyEnrollmentProof(signingPublicKeyB64: string, parts: Parameters<typeof enrollmentProofMessage>[0], signatureB64: string): boolean {
   return verifyAgentSignature(signingPublicKeyB64, enrollmentProofMessage(parts), signatureB64);
+}
+
+// agent-v2 request authentication: Ed25519 signature over the canonical request (method, path/route,
+// timestamp, nonce, sha256(body)) with the agent protocol version appended so the version is bound into
+// the signature and cannot be stripped to force a downgrade.
+export function canonicalAgentRequestV2(parts: SignatureParts & { protocolVersion: string }): string {
+  return `${canonicalRequest(parts)}\n${parts.protocolVersion}`;
+}
+
+export function signAgentRequestV2(signingPrivateKeyB64: string, parts: SignatureParts & { protocolVersion: string }): string {
+  return signWithAgentKey(signingPrivateKeyB64, canonicalAgentRequestV2(parts));
+}
+
+export function verifyAgentRequestV2(signingPublicKeyB64: string, parts: SignatureParts & { protocolVersion: string }, signatureB64: string): boolean {
+  return verifyAgentSignature(signingPublicKeyB64, canonicalAgentRequestV2(parts), signatureB64);
 }
 
 // Seal a deployment-secret bundle to an agent's X25519 public key (ECIES). Only the agent's private key
