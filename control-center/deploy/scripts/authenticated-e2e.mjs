@@ -249,7 +249,8 @@ try {
   await captureSurface("servers", "Servers");
   await captureSurface("tasks", "Tasks");
   await captureSurface("audit", "Audit");
-  await captureSurface("ai-builder", "AI Website Builder");
+  // AI Website Builder is a future standalone product (see docs/website-builder-extraction-audit.md);
+  // it is intentionally OUT of the OpsWorkbench cockpit UI-polish scope and not captured here.
   console.log(JSON.stringify({ uiScreenshots: overflowReport }));
 } catch (error) {
   await reportBrowserFailure(error);
