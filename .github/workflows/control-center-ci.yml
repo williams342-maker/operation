@@ -176,6 +176,8 @@ jobs:
         with:
           name: authenticated-browser-e2e-failure
           path: ${{ runner.temp }}/authenticated-e2e-failure.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Preserve UI-polish review screenshots
         if: always()
         uses: actions/upload-artifact@v6
@@ -184,8 +186,6 @@ jobs:
           path: ${{ runner.temp }}/ui-screenshots
           if-no-files-found: warn
           retention-days: 30
-          if-no-files-found: ignore
-          retention-days: 7
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build --workspaces --if-present
