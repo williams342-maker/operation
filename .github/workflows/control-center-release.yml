@@ -29,6 +29,18 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
           fetch-depth: 0
+      - name: Assert release commit is in the audited main line
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          release_commit="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$release_commit" refs/remotes/origin/main; then
+            echo "Release commit $release_commit is NOT an ancestor of origin/main." >&2
+            echo "Refusing to build a release from an unreviewed commit outside the audited main line." >&2
+            exit 1
+          fi
+          echo "Verified: release commit $release_commit is in the audited main line."
       - name: Scan exact tagged tree with Gitleaks 8.30.1
         working-directory: .
         env:
