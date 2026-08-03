@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { verifyEnrollmentProof } from "./agentKeys.js";
+import { verifyEnrollmentProof, keyFingerprint } from "./agentKeys.js";
 
 // Versioned agent credential protocol. "agent-v1" is the legacy symmetric HMAC scheme; "agent-v2" is
 // the asymmetric scheme (Ed25519 request/enrollment signing + X25519 deployment-secret sealing). A
@@ -117,4 +117,74 @@ export function describeAgentCredential(server: AgentCredentialLike): AgentCrede
     revoked: Boolean(server.revokedAt),
     revokedKeyCount: server.revokedKeyFingerprints?.length ?? 0
   };
+}
+
+// ---- Item 6: credential lifecycle (pure planners; the caller applies them atomically, guarded by
+// credentialVersion for interrupted-rotation recovery / optimistic concurrency) ----
+
+export type LifecycleServer = AgentCredentialLike & { signingKeyFingerprint?: string; encryptionKeyFingerprint?: string; credentialVersion?: number };
+
+export type KeyRotationPlan = {
+  keyProtocolVersion: "agent-v2";
+  migrationState: AgentMigrationState;
+  signingPublicKey: string;
+  encryptionPublicKey: string;
+  signingKeyFingerprint: string;
+  encryptionKeyFingerprint: string;
+  previousSigningKeyFingerprint?: string;
+  previousEncryptionKeyFingerprint?: string;
+  keyRotatedAt: Date;
+  credentialVersion: number;
+  revokedKeyFingerprints: string[];
+};
+
+// Register a new v2 keypair on an existing agent. A first rotation from legacy opens the dual-accept
+// window; rotating a dual/v2 agent keeps its state. The superseded (stale) fingerprints are recorded in
+// previous* AND appended to the revoked set so a rolled-over key can never authenticate again.
+export function planKeyRotation(current: LifecycleServer, input: { signingPublicKey: string; encryptionPublicKey: string; now: Date }): KeyRotationPlan {
+  if (!input.signingPublicKey || !input.encryptionPublicKey) throw new Error("Both public keys are required to rotate");
+  if (input.signingPublicKey === input.encryptionPublicKey) throw new Error("Signing and encryption keys must differ");
+  const state = agentMigrationStates.includes(current.migrationState as AgentMigrationState) ? (current.migrationState as AgentMigrationState) : defaultAgentMigrationState;
+  const migrationState = state === "legacy" ? nextMigrationState("legacy", "begin") : state;
+  const superseded = [current.signingKeyFingerprint, current.encryptionKeyFingerprint].filter((value): value is string => Boolean(value));
+  return {
+    keyProtocolVersion: "agent-v2",
+    migrationState,
+    signingPublicKey: input.signingPublicKey,
+    encryptionPublicKey: input.encryptionPublicKey,
+    signingKeyFingerprint: keyFingerprint(input.signingPublicKey),
+    encryptionKeyFingerprint: keyFingerprint(input.encryptionPublicKey),
+    previousSigningKeyFingerprint: current.signingKeyFingerprint,
+    previousEncryptionKeyFingerprint: current.encryptionKeyFingerprint,
+    keyRotatedAt: input.now,
+    credentialVersion: (current.credentialVersion ?? 1) + 1,
+    revokedKeyFingerprints: [...new Set([...(current.revokedKeyFingerprints ?? []), ...superseded])]
+  };
+}
+
+export function planMigrationComplete(current: LifecycleServer): { migrationState: AgentMigrationState } {
+  return { migrationState: nextMigrationState((current.migrationState as AgentMigrationState) ?? "legacy", "complete") };
+}
+
+export function planMigrationRollback(current: LifecycleServer): { migrationState: AgentMigrationState } {
+  return { migrationState: nextMigrationState((current.migrationState as AgentMigrationState) ?? "legacy", "rollback") };
+}
+
+// Revoke the agent's current keys (lost agent / compromise). Both active fingerprints join the revoked
+// set and the record is marked revoked so all auth fails closed.
+export function planKeyRevocation(current: LifecycleServer, now: Date): { revokedAt: Date; revokedKeyFingerprints: string[] } {
+  const active = [current.signingKeyFingerprint, current.encryptionKeyFingerprint].filter((value): value is string => Boolean(value));
+  return { revokedAt: now, revokedKeyFingerprints: [...new Set([...(current.revokedKeyFingerprints ?? []), ...active])] };
+}
+
+// A key is unusable if the record is revoked or the presented fingerprint is in the revoked set (stale
+// key after rotation, or explicitly revoked).
+export function isFingerprintRevoked(current: LifecycleServer, fingerprint: string): boolean {
+  return Boolean(current.revokedAt) || (current.revokedKeyFingerprints ?? []).includes(fingerprint);
+}
+
+export function summarizeFleetMigration(servers: LifecycleServer[]): { total: number; legacy: number; dual: number; v2: number } {
+  const summary = { total: servers.length, legacy: 0, dual: 0, v2: 0 };
+  for (const server of servers) summary[describeAgentCredential(server).migrationState] += 1;
+  return summary;
 }

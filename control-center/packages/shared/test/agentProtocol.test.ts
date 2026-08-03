@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2 } from "../src/agentProtocol.js";
+import { agentProtocolVersions, agentProtocolVersionSchema, defaultAgentProtocolVersion, nextMigrationState, acceptedSchemes, describeAgentCredential, verifyEnrollmentV2, planKeyRotation, planKeyRevocation, isFingerprintRevoked, planMigrationComplete, planMigrationRollback, summarizeFleetMigration } from "../src/agentProtocol.js";
 import { generateAgentKeyPairs, keyFingerprint, signEnrollmentProof } from "../src/agentKeys.js";
 
 const NOW = Date.parse("2026-08-03T00:00:00.000Z");
@@ -92,4 +92,41 @@ test("describeAgentCredential is audit-safe and defaults a legacy server", () =>
   assert.equal(v2.migrationState, "dual");
   assert.match(v2.signingKeyFingerprint, /^[a-f0-9]{64}$/);
   assert.equal(v2.revokedKeyCount, 1);
+});
+
+test("planKeyRotation registers new keys, supersedes+revokes old fingerprints, and opens dual from legacy", () => {
+  const now = new Date(NOW);
+  const first = generateAgentKeyPairs();
+  const legacy = { keyProtocolVersion: "agent-v2", migrationState: "legacy", credentialVersion: 3, signingKeyFingerprint: keyFingerprint(first.signingPublicKey), encryptionKeyFingerprint: keyFingerprint(first.encryptionPublicKey) };
+  const next = generateAgentKeyPairs();
+  const plan = planKeyRotation(legacy, { signingPublicKey: next.signingPublicKey, encryptionPublicKey: next.encryptionPublicKey, now });
+  assert.equal(plan.migrationState, "dual");
+  assert.equal(plan.credentialVersion, 4);
+  assert.equal(plan.signingKeyFingerprint, keyFingerprint(next.signingPublicKey));
+  assert.equal(plan.previousSigningKeyFingerprint, keyFingerprint(first.signingPublicKey));
+  // Superseded keys are revoked so a rolled-over (stale) key cannot authenticate again.
+  assert.ok(plan.revokedKeyFingerprints.includes(keyFingerprint(first.signingPublicKey)));
+  assert.ok(plan.revokedKeyFingerprints.includes(keyFingerprint(first.encryptionPublicKey)));
+  // Rotating an already-v2 agent keeps v2; key reuse rejected.
+  assert.equal(planKeyRotation({ ...legacy, migrationState: "v2" }, { signingPublicKey: next.signingPublicKey, encryptionPublicKey: next.encryptionPublicKey, now }).migrationState, "v2");
+  assert.throws(() => planKeyRotation(legacy, { signingPublicKey: next.signingPublicKey, encryptionPublicKey: next.signingPublicKey, now }));
+});
+
+test("revocation and stale-key detection fail closed", () => {
+  const keys = generateAgentKeyPairs();
+  const server = { migrationState: "v2", signingKeyFingerprint: keyFingerprint(keys.signingPublicKey), encryptionKeyFingerprint: keyFingerprint(keys.encryptionPublicKey) };
+  const revocation = planKeyRevocation(server, new Date(NOW));
+  assert.ok(revocation.revokedAt instanceof Date);
+  assert.ok(revocation.revokedKeyFingerprints.includes(keyFingerprint(keys.signingPublicKey)));
+  // A revoked record rejects any fingerprint; an explicit revoked fingerprint is rejected even without revokedAt.
+  assert.equal(isFingerprintRevoked({ revokedAt: new Date(NOW) }, "anything"), true);
+  assert.equal(isFingerprintRevoked({ revokedKeyFingerprints: ["stale-fp"] }, "stale-fp"), true);
+  assert.equal(isFingerprintRevoked({ revokedKeyFingerprints: ["stale-fp"] }, "current-fp"), false);
+});
+
+test("migration complete/rollback and fleet summary", () => {
+  assert.equal(planMigrationComplete({ migrationState: "dual" }).migrationState, "v2");
+  assert.equal(planMigrationRollback({ migrationState: "v2" }).migrationState, "dual");
+  const fleet = summarizeFleetMigration([{ migrationState: "legacy" }, { migrationState: "dual" }, { migrationState: "v2" }, { migrationState: "v2" }, {}]);
+  assert.deepEqual(fleet, { total: 5, legacy: 2, dual: 1, v2: 2 });
 });
