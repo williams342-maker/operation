@@ -34,7 +34,7 @@ node -e '
     artifact: "opsworkbench-control-center-" + tag.slice(1) + ".tar.gz",
     source: "git archive of the tracked control-center path at the tagged commit",
     reproducible: true
-  }, null, 2) + "\\n");
+  }, null, 2) + "\n");
 ' "$manifest" "$tag" "$commit"
 
 (cd "$output_dir" && sha256sum "$(basename "$bundle")" "$(basename "$manifest")" > "$(basename "$checksums")")
