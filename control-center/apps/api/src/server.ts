@@ -65,7 +65,7 @@ const authLimiter = rateLimit({
   skip: () => process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "staging",
   message: { error: "Too many authentication attempts. Try again later.", code: "RATE_LIMITED" }
 });
-app.use(["/api/auth/login", "/api/auth/reauthenticate", "/api/auth/owner-replacement"], authLimiter);
+app.use(["/api/auth/login", "/api/auth/reauthenticate", "/api/auth/owner-replacement", "/api/auth/google"], authLimiter);
 app.use("/api", router);
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
