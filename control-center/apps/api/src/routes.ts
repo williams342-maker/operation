@@ -17,7 +17,8 @@ import {
 } from "@control-center/shared";
 import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { audit } from "./audit.js";
-import { allowExpiredLogout, clearSessionCookie, createSession, noStore, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
+import { allowExpiredLogout, clearSessionCookie, createSession, noStore, parseCookies, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
+import { verifyGoogleIdToken, googleAuthConfig } from "./googleAuth.js";
 import { requireSignedAgent } from "./agentAuth.js";
 import { collections, oid, scopedFilter } from "./db.js";
 import { hashAgentSecret, hashPassword, hashSecret, randomToken, verifyPassword } from "./crypto.js";
@@ -186,6 +187,61 @@ router.post("/auth/login", noStore, async (req, res, next) => {
     const session = await createSession(user);
     setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId });
+    res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
+  } catch (error) { next(error); }
+});
+
+// --- Google sign-in (primary). Verified Google identity → existing-user
+//     allowlist → same secure session as password login. No client secret in
+//     the browser; magic-link/password remain as fallbacks. ---
+router.get("/auth/google/start", noStore, async (_req, res, next) => {
+  try {
+    const cfg = googleAuthConfig();
+    if (!cfg.enabled) return res.json({ enabled: false });
+    const nonce = randomToken(24);
+    res.cookie("cc_google_nonce", nonce, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production" || process.env.CONTROL_CENTER_SECURE_COOKIES === "true",
+      sameSite: "lax",
+      maxAge: 5 * 60 * 1000,
+      path: "/"
+    });
+    res.json({ enabled: true, clientId: cfg.clientId, nonce });
+  } catch (error) { next(error); }
+});
+
+router.post("/auth/google", noStore, async (req, res, next) => {
+  try {
+    const cfg = googleAuthConfig();
+    if (!cfg.enabled) return res.status(404).json({ error: "Google sign-in is not configured" });
+    const body = z.object({ credential: z.string().min(10).max(8192) }).safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: "Invalid Google sign-in request" });
+    const nonce = parseCookies(req.headers.cookie).cc_google_nonce || null;
+    res.clearCookie("cc_google_nonce", { path: "/" });
+
+    let identity;
+    try {
+      identity = await verifyGoogleIdToken(body.data.credential, { clientId: cfg.clientId, nonce });
+    } catch {
+      await audit({ actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { method: "google", reason: "verify-failed" } });
+      return res.status(401).json({ error: "Google sign-in failed" });
+    }
+
+    // Authorization: the verified Google email MUST map to an existing, enabled
+    // user in the org. A Google account with no matching user is DENIED — the
+    // users collection is the allowlist. Identity (Google) ≠ authorization (us).
+    const org = await singleOrganization();
+    const user = org?._id
+      ? await collections.users.findOne({ orgId: org._id, email: identity.email, disabledAt: { $exists: false } })
+      : null;
+    if (!org?._id || !user?._id) {
+      await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "denied", requestId: req.requestId, metadata: { email: identity.email, method: "google", reason: "not-authorized" } });
+      return res.status(403).json({ error: "This Google account is not authorized for the Control Panel" });
+    }
+
+    const session = await createSession(user);
+    setSessionCookie(res, session.sessionToken);
+    await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId, metadata: { method: "google" } });
     res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
 });

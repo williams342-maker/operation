@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 import {
   QueryClient,
   QueryClientProvider,
@@ -239,6 +240,7 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
 }
 function Login({ onLogin }: { onLogin: () => void }) {
   const f = useForm({ email: "", password: "" });
+  const [googleError, setGoogleError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: () =>
       login(f.values.email, f.values.password),
@@ -246,6 +248,15 @@ function Login({ onLogin }: { onLogin: () => void }) {
   });
   return (
     <Centered title="OpsWorkbench">
+      {/* Google sign-in (primary). Renders only when the server reports it is
+          configured; otherwise the password form below is the sole path. */}
+      <div className="space-y-2">
+        <GoogleSignInButton onSuccess={() => onLogin()} onError={setGoogleError} />
+        {googleError && <p className="text-sm text-danger" role="alert">{googleError}</p>}
+        <div className="flex items-center gap-3 text-xs text-muted">
+          <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+        </div>
+      </div>
       <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (!mutation.isPending) mutation.mutate(); }}>
         <Field
           placeholder="Email"

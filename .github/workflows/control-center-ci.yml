@@ -75,8 +75,8 @@ jobs:
       CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
       # Linux TAP inventory: agent 64 + API 108 + shared 79 + web 34 = 285.
       # (agent-v2 asymmetric protocol + hardening + staging-exercise tests, all additive; 0 skips.)
-      CI_EXPECTED_TEST_SUITES: "agent=64,api=113,shared=79,web=34"
-      CI_EXPECTED_TESTS: "290"
+      CI_EXPECTED_TEST_SUITES: "agent=64,api=123,shared=79,web=34"
+      CI_EXPECTED_TESTS: "300"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
