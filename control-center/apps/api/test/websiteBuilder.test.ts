@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, regenerateSiteSection } from "../src/websiteBuilder.js";
+import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, deriveDiscoveryAnswers, regenerateSiteSection } from "../src/websiteBuilder.js";
 
 const brief = buildProjectBrief([
   { questionId: "business_name", value: "Acme Makers" },
@@ -74,4 +74,29 @@ test("static artifact rejects untrusted color tokens", () => {
   const architecture = buildArchitecture(brief); const artifact = buildStaticSiteArtifact(brief, architecture, { colors: ["red;position:fixed", "javascript:alert(1)", "url(evil)"] }, buildSiteContent(brief, architecture));
   assert.doesNotMatch(artifact.html, /javascript:|url\(evil\)|position:fixed/);
   assert.match(artifact.html, /--accent:#2563eb/);
+});
+
+test("explicit prompt name is preserved without invention", () => {
+  const answers = deriveDiscoveryAnswers("Build a store called Cedar & Sage for handmade goods.", "store");
+  assert.equal(answers.find((answer) => answer.questionId === "business_name")?.value, "Cedar & Sage");
+  assert.equal(deriveDiscoveryAnswers("Build a store for handmade goods.", "store").some((answer) => answer.questionId === "business_name"), false);
+});
+
+test("unnamed preview uses a contextual neutral name everywhere", () => {
+  const unnamed = buildProjectBrief([{ questionId: "business_purpose", value: "Handmade goods." }], "store");
+  const architecture = buildArchitecture(unnamed);
+  const artifact = buildStaticSiteArtifact(unnamed, architecture, buildBrandDirections(unnamed)[0], buildSiteContent(unnamed, architecture));
+  assert.doesNotMatch(artifact.html, /Untitled business/i);
+  assert.match(artifact.html, /<title>Your Store<\/title>/);
+  assert.match(artifact.html, /property="og:title" content="Your Store"/);
+  assert.match(artifact.html, /<header><strong>Your Store<\/strong>/);
+  assert.match(artifact.html, /<footer><strong>Your Store<\/strong>/);
+  assert.equal(artifact.filename, "your-store-website.html");
+});
+
+test("updated name propagates through title, hero, metadata, header, and footer", () => {
+  const named = { ...brief, business: { ...brief.business, name: "Cedar & Sage" } };
+  const architecture = buildArchitecture(named);
+  const artifact = buildStaticSiteArtifact(named, architecture, buildBrandDirections(named)[0], buildSiteContent(named, architecture));
+  for (const marker of ["<title>Cedar &amp; Sage</title>", "Cedar &amp; Sage, built around what matters", "og:title", "<header><strong>Cedar &amp; Sage", "<footer><strong>Cedar &amp; Sage"]) assert.match(artifact.html, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });

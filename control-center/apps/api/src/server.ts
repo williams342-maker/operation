@@ -5,6 +5,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { ZodError } from "zod";
+import { CreditBlockedError } from "./creditLedger.js";
 import { assertFlagOffRollbackSafe } from "@control-center/shared";
 import { captureRawBody } from "./agentAuth.js";
 import { connectDb, collections } from "./db.js";
@@ -75,6 +76,9 @@ app.use((error: unknown, req: express.Request, res: express.Response, _next: exp
     const issue = error.issues[0];
     const field = issue?.path.join(" ") || "request";
     return res.status(400).json({ error: `Invalid ${field}: ${issue?.message || "invalid value"}`, requestId: req.requestId });
+  }
+  if (error instanceof CreditBlockedError) {
+    return res.status(error.status).json({ error: error.message, code: error.code });
   }
   const message = process.env.NODE_ENV === "production" ? "Internal server error" : error instanceof Error ? error.message : "Unknown error";
   res.status(500).json({ error: message, requestId: req.requestId });
