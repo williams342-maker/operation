@@ -1,12 +1,17 @@
-# Forge manifest specification — `forge-deployment-v1`
+# Forge manifest specification — `forge-build-v1` + `forge-target-binding-v1`
 
 **Status: DRAFT SPECIFICATION. No implementation exists.** This document defines a format and a
 verification procedure. It authorizes nothing, deploys nothing, and adds no execution authority to any
 component. Work-order item W5 in [handoff work order 2026-09-01](handoff-work-order-20260901.md).
 
-**Owner decision, 2026-09-01: the verifier is a separate party, not an OpsWorkbench component.** §3 and
-§7 are written to that decision, and §7.4 records that it also resolves the question of where Forge may
-run and what key material it may hold. The short version: Forge holds **no signing key at all**.
+**Two owner decisions, both 2026-09-01, are written into this document:**
+
+1. **The verifier is a separate party, not an OpsWorkbench component.** §3 and §7. It also resolves
+   where Forge may run and what key material it may hold (§7.4). Short version: Forge holds **no
+   signing key at all**.
+2. **`targetServerId` is not knowable at build time, so the manifest is split** into
+   `forge-build-v1` and `forge-target-binding-v1` (§5). This fixed a design error, not only an
+   ergonomic one — see §5.0.
 
 ## 1. Why this document exists
 
@@ -135,53 +140,93 @@ control-center database, artifact storage, or a target server.
 
 ## 5. Manifest format
 
+### 5.0 Two documents, because a target is not knowable at build time
+
+The first draft of this specification used one `forge-deployment-v1` manifest carrying source,
+artifact, **and** target. The owner's decision that `targetServerId` is not knowable at build time
+retires that shape — and doing so fixed a design error rather than merely an inconvenience.
+
+**A single manifest forced Forge to assert a target.** That contradicts §3, which gives target identity
+to OpsWorkbench, not to Forge. The one-document design quietly required the party with the least
+authority over targets to name one.
+
+| | `forge-build-v1` | `forge-target-binding-v1` |
+|---|---|---|
+| Says | what was built, from what source | which build goes to which target, until when |
+| Produced by | **Forge**, at build time | **OpsWorkbench**, once a target exists |
+| Authorized by | nobody — it is a statement of fact | **the owner's offline key** |
+| Attested by | Sigstore/Rekor (party A) | — (it inherits the builds' provenance via digests) |
+| Carries a target | **no** | yes |
+| Expires | **no** | yes |
+| Has a nonce | **no** | yes |
+
+**A build carries no expiry and no nonce.** A build is a permanent fact: a six-month-old build is not
+invalid. What must expire is the *authorization to deploy it*, which lives in the binding. Putting
+expiry on the build would have conflated "this artifact exists" with "you may ship it now".
+
+**Composing is not authorizing.** OpsWorkbench composes the binding because it owns target identity,
+environment classification, and policy — but it cannot sign it. Only the owner's offline key can, which
+keeps §3's property 2 intact across the split.
+
 ### 5.1 Shape
 
-`forge-deployment-v1` mirrors `agent-upgrade-v1` (`packages/shared/src/agentUpgrades.ts`), which already
-solves the same problem for agent upgrades. **Every value is a string, a number, or an array of
-strings.** No nested objects. §6 explains why that is a correctness requirement rather than a style
-preference.
+Both documents mirror `agent-upgrade-v1` (`packages/shared/src/agentUpgrades.ts`). **Every value is a
+string, a number, or an array of strings.** No nested objects. §6 explains why that is a correctness
+requirement rather than a style preference.
 
-The owner authorization (§7.2) travels **alongside** the manifest as a detached statement, not as a
-nested field. This keeps the manifest flat and keeps the signature outside the thing it signs — the
+The owner authorization (§7.2) travels **alongside** the binding as a detached statement, not as a
+nested field. This keeps the binding flat and keeps the signature outside the thing it signs — the
 separation `privilegedActionDigest()` already makes by deleting `ownerAuthorization` before digesting.
 
-### 5.2 Fields
+### 5.2 `forge-build-v1`
 
 | Field | Type | Binds |
 |---|---|---|
-| `schemaVersion` | literal `"forge-deployment-v1"` | format identity |
-| `manifestId` | `^[A-Za-z0-9._:-]{1,160}$` | this manifest |
-| **Source** | | |
+| `schemaVersion` | literal `"forge-build-v1"` | format identity |
+| `buildId` | `^[A-Za-z0-9._:-]{1,160}$` | this build |
 | `sourceRepository` | HTTPS URL | which repository |
 | `sourceCommit` | `^[0-9a-f]{40}$` | exact commit |
 | `sourceTree` | `^[0-9a-f]{40}$` | exact tree — catches a rewritten commit (§5.3) |
 | `sourceTag` | `^v.+`, optional | the reviewed release tag, when one exists |
-| **Artifact** | | |
-| `backendImageDigest` | `^[a-z0-9.\-_/]+@sha256:[a-f0-9]{64}$` | immutable backend image |
+| `backendImageDigest` | `…@sha256:[a-f0-9]{64}` | immutable backend image |
 | `frontendImageDigest` | same | immutable frontend image |
 | `releaseBundleSha256` | `^[a-f0-9]{64}$`, optional | the attested release bundle (§2.1) |
 | `releaseManifestDigest` | `^[a-f0-9]{64}$`, optional | ties to `opsworkbench-release-v1` (§8.3) |
-| **Target** | | |
-| `targetEnvironment` | `^[a-z][a-z0-9-]{0,39}$` | exactly one environment |
-| `targetServerId` | 12–64 chars | exactly one server |
-| `targetOrgId` | 12–64 chars | exactly one organization |
-| `composeProjectName` | `^[a-z0-9][a-z0-9_-]{0,62}$` | exactly one Compose project |
-| `authorizedServices` | array of service names, max 20 | exactly which services may be recreated |
-| **Rollback** | | |
-| `rollbackBackendImageDigest` | digest form | the prior known-good backend |
-| `rollbackFrontendImageDigest` | digest form | the prior known-good frontend |
-| `rollbackSourceCommit` | `^[0-9a-f]{40}$` | what the rollback images were built from |
-| **Provenance (party A)** | | |
 | `builderIdentity` | HTTPS URL | the OIDC workflow identity that must appear as the attestation's `builder.id` and certificate SAN |
 | `builderRunnerEnvironment` | `^[a-z-]{1,40}$` | e.g. `github-hosted`; rejects a self-hosted runner substitution |
-| `requiredCapabilities` | array, max 100 | drawn from the closed protocol enum (§5.4) |
-| **Freshness** | | |
 | `issuedAt` | RFC 3339 | when Forge built it |
-| `expiresAt` | RFC 3339 | when it stops being usable |
+
+No `signature` and no `verifierKeyId`: Forge signs nothing (§7.1). No target, no expiry, no nonce.
+
+### 5.2.1 `forge-target-binding-v1`
+
+| Field | Type | Binds |
+|---|---|---|
+| `schemaVersion` | literal `"forge-target-binding-v1"` | format identity |
+| `bindingId` | safe id | this binding |
+| `buildDigest` | `^[a-f0-9]{64}$` | **the join** — exactly one candidate build, by canonical digest |
+| `rollbackBuildDigest` | `^[a-f0-9]{64}$` | exactly one prior build as the rollback |
+| `targetEnvironment` | `^[a-z][a-z0-9-]{0,39}$` | exactly one environment |
+| `targetOrgId` | 12–64 chars | exactly one organization |
+| `targetServerId` | 12–64 chars | exactly one server |
+| `composeProjectName` | `^[a-z0-9][a-z0-9_-]{0,62}$` | exactly one Compose project |
+| `authorizedServices` | array, max 20 | exactly which services may be recreated |
+| `requiredCapabilities` | array, max 100 | from the closed protocol enum (§5.4); target-dependent, so it lives here |
+| `issuedAt` / `expiresAt` | RFC 3339 | the authorization window |
 | `nonce` | 16–160 chars | replay marker |
 
-There is no `signature` field and no `verifierKeyId` field. Forge signs nothing (§7.1).
+### 5.2.2 Rollback is a build, not a string
+
+`rollbackBuildDigest` names another **attested build**, and verification holds it to exactly the same
+provenance standard as the candidate: same attestation check, same builder identity check, same runner
+check, same commit check.
+
+This is what finally makes *"is the rollback a real prior release?"* answerable. It also closes a case
+the first draft left open: an unattested rollback is a fine way to deliver whatever you like, because
+rollback is the path taken when something has already gone wrong and scrutiny is lowest.
+
+A binding whose candidate and rollback are the same build is rejected — that makes rollback a no-op
+that still reports success.
 
 ### 5.3 Why `sourceTree` as well as `sourceCommit`
 
@@ -209,10 +254,10 @@ A manifest naming a capability outside this set is rejected. A manifest naming a
 agent does not advertise is rejected. Extending the enum is a reviewed protocol change; neither Forge
 nor a manifest may do it.
 
-### 5.5 The manifest is value-free
+### 5.5 Both documents are value-free
 
 No field may carry an environment value, a connection URI, a token, a key, or a password. Verification
-rejects a manifest in which any field matches a credential-shaped pattern — a URI with embedded
+rejects a document in which any field matches a credential-shaped pattern — a URI with embedded
 userinfo, an `sk_live_` prefix, a PEM header, or a long high-entropy opaque string in a field not typed
 as a digest. This mirrors the existing rule for the preflight input JSON.
 
@@ -228,12 +273,18 @@ signature covers.
 | Plain `JSON.stringify` | `payloadDigest()` | **no** — insertion order | yes |
 | `JSON.stringify` + array replacer | `agentReleaseManifestDigest()`, `canonicalUpgradePlan()` | yes | **no** — see §6.1 |
 
-**`forge-deployment-v1` uses the first pattern.** The canonical statement is an explicit newline-joined
+**Both forge documents use the first pattern.** Each canonical statement is an explicit newline-joined
 list of fields in a fixed documented order, exactly as `ownerAuthorizationMessage()` already does:
 
 ```js
-["forge-deployment-v1", manifestId, sourceRepository, sourceCommit, sourceTree, ...].join("\n")
+["forge-build-v1", buildId, sourceRepository, sourceCommit, sourceTree, ...].join("
+")
+["forge-target-binding-v1", bindingId, buildDigest, rollbackBuildDigest, ...].join("
+")
 ```
+
+Each document has its **own** field order, and the order is part of the format: never reorder, never
+remove, only append.
 
 This sidesteps the §6.1 hazard entirely rather than avoiding it by convention, it is auditable by
 reading, it has no serialization ambiguity, and it is the pattern the repository already trusts for its
@@ -261,8 +312,10 @@ identically. A signature over the first validates the second. No error, no warni
 
 **This is not a live bug.** `agentUpgradeManifestSchema`, `agentReleaseManifestDigest`, and
 `canonicalUpgradePlan` are all entirely flat — strings and arrays of strings — so the idiom is correct
-everywhere it is used today. It is a trap for any nested successor, which is what a Forge manifest would
-naturally have become. Flatness (§5.1) plus the ordered-join digest removes the trap twice over.
+everywhere it is used today. It is a trap for any nested successor — and the split makes that risk concrete, because a binding
+referencing a build is exactly the shape that invites nesting the build inside it. It does not: the
+binding references the build by **digest**, so both documents stay flat. Flatness (§5.1) plus the
+ordered-join digest removes the trap twice over.
 
 ## 7. Verification — the separate-party model
 
@@ -277,17 +330,19 @@ rotate, or misuse, and no key that both signs and verifies.
 
 ### 7.2 The two checks
 
-**Party A — provenance.** Verify the attestation over the manifest against the repository, then require:
+**Party A — provenance.** Verify the attestation over **each build** — candidate and rollback alike —
+against the repository, then require, for both:
 
 - attestation `builder.id` and certificate SAN equal the manifest's `builderIdentity`;
 - `sourceRepositoryDigest` and `resolvedDependencies[].digest.gitCommit` equal `sourceCommit`;
 - `runnerEnvironment` equals `builderRunnerEnvironment`;
-- the attestation subject digest equals the digest of the manifest actually being read.
+- the attestation subject digest equals the digest of the build manifest actually being read.
 
-**Party B — authorization.** Require a detached `owner-authorization-v1` statement over the manifest's
-canonical digest, verified against an independently provisioned public key. It binds org, server,
-action digest, expiry, and nonce, and it is produced offline. This is the existing mechanism, reused
-rather than reinvented.
+**Party B — authorization.** Require a detached `owner-authorization-v1`-shaped statement over the
+**binding's** canonical digest, verified against an independently provisioned public key. Because the
+binding digest covers both `buildDigest` and `rollbackBuildDigest`, one statement authorizes exactly one
+build onto exactly one target with exactly one rollback, and cannot be transferred to another build or
+replayed onto another target. Produced offline; the existing mechanism reused rather than reinvented.
 
 Both must pass. Party A without Party B is a well-built artifact nobody authorized. Party B without
 Party A is an authorization for something whose origin is unknown.
@@ -323,23 +378,26 @@ block and cleanup failure still prevents approval.
 
 ### 8.2 What is added
 
-Two new optional inputs — `forgeManifestPath` and `ownerAuthorizationPath` — and one check group that
-runs **before** the existing checks:
+Three new optional inputs — `forgeBuildPath`, `forgeRollbackBuildPath`, and `forgeTargetBindingPath`
+(the owner authorization travels with the binding) — and one check group that runs **before** the
+existing checks:
 
 | Check | Rejects |
 |---|---|
-| `forge_manifest_schema` | malformed, wrong `schemaVersion`, unknown fields (strict), any nested object |
-| `forge_manifest_attestation` | attestation absent, unverifiable, or not covering this manifest's digest |
-| `forge_manifest_builder` | `builder.id` / SAN ≠ `builderIdentity`, or runner environment mismatch |
-| `forge_manifest_owner_authorization` | missing, expired, replayed nonce, or not verifiable against the provisioned owner public key |
-| `forge_manifest_target` | `targetEnvironment` ≠ resolved environment ≠ `APP_ENV`/`ENVIRONMENT`; or `composeProjectName`, `targetServerId`, `targetOrgId` mismatch |
-| `forge_manifest_images` | candidate images ≠ the manifest's pinned digests |
-| `forge_manifest_provenance` | `report.images[role].revision` (the OCI label the preflight already reads) ≠ `sourceCommit` |
-| `forge_manifest_rollback` | rollback images ≠ the manifest's pinned rollback digests |
-| `forge_manifest_capabilities` | a capability outside the enum, or not advertised by the target agent |
-| `forge_manifest_secrets` | any credential-shaped field value (§5.5) |
+| `forge_build_schema` | malformed, wrong `schemaVersion`, unknown fields (strict), any nested object |
+| `forge_build_attestation` | attestation absent, unverifiable, or not covering this build's digest — applied to **both** candidate and rollback |
+| `forge_build_builder` | `builder.id` / SAN ≠ `builderIdentity`, or runner environment mismatch |
+| `forge_binding_schema` | malformed binding, or candidate and rollback are the same build |
+| `forge_binding_join` | `buildDigest` ≠ the candidate presented, or `rollbackBuildDigest` ≠ the rollback presented |
+| `forge_binding_owner_authorization` | missing, expired, replayed nonce, or not verifiable against the provisioned owner public key |
+| `forge_binding_target` | `targetEnvironment` ≠ resolved environment ≠ `APP_ENV`/`ENVIRONMENT`; or `composeProjectName`, `targetServerId`, `targetOrgId` mismatch |
+| `forge_binding_images` | candidate images ≠ the candidate build's pinned digests |
+| `forge_build_provenance` | `report.images[role].revision` (the OCI label the preflight already reads) ≠ the build's `sourceCommit` |
+| `forge_binding_rollback_images` | rollback images ≠ the rollback build's pinned digests |
+| `forge_binding_capabilities` | a capability outside the enum, or not advertised by the target agent |
+| `forge_secrets` | any credential-shaped field value in either document (§5.5) |
 
-When `forgeManifestPath` is absent the preflight behaves exactly as it does today. The change is inert
+When `forgeBuildPath` is absent the preflight behaves exactly as it does today. The change is inert
 for current operators and gets adopted deliberately rather than by upgrade.
 
 ### 8.3 Relationship to `opsworkbench-release-v1`
@@ -349,11 +407,12 @@ Two manifests with different jobs; do not merge them.
 - `opsworkbench-release-v1` (`scripts/build-release-artifacts.sh`) describes **what was built** — schema,
   tag, commit, artifact name, reproducibility. It is covered by the attestation of §2.1 and is what
   `resolveBuildIdentity()` reads at runtime.
-- `forge-deployment-v1` describes **what may be deployed where, by whom, until when** — target,
-  rollback, capabilities, expiry, nonce, builder identity.
+- `forge-build-v1` describes **what Forge built** — source, tree, image digests, builder identity.
+- `forge-target-binding-v1` describes **what may be deployed where, until when** — target, rollback
+  build, capabilities, expiry, nonce.
 
-`releaseManifestDigest` and `releaseBundleSha256` link the second to the first, so a deployment manifest
-can point at the exact attested build it deploys.
+The build manifest's `releaseManifestDigest` and `releaseBundleSha256` link it to the release manifest,
+so a binding can be traced through its build to the exact attested release it deploys.
 
 ### 8.4 An unresolved consequence, stated rather than glossed
 
@@ -388,13 +447,13 @@ must produce `BLOCKED` — never `PASS`, never `ERROR`.
 
 | # | Attack | Method |
 |---|---|---|
-| 1 | Tamper | flip one byte in any manifest field; the attestation subject digest must fail |
+| 1 | Tamper | flip one byte in any build field; the attestation subject digest must fail |
 | 2 | Wrong target | valid manifest for server B presented for server A |
 | 3 | Wrong environment | manifest says `staging`, compose resolves `beta` |
 | 4 | MongoDB inclusion | `authorizedServices` contains a stateful service |
 | 5 | Production hostname | a production destination appears in the resolved model |
 | 6 | Stale candidate | `expiresAt` in the past, and separately a replayed `nonce` |
-| 7 | Secret leak | a credential-shaped value in any manifest field |
+| 7 | Secret leak | a credential-shaped value in either document |
 | 8 | **Unbound artifact** | image whose `org.opencontainers.image.revision` ≠ `sourceCommit` |
 
 Proof 8 is the one that exists in no form today, and it is the whole reason for Forge.
@@ -406,10 +465,15 @@ fail these:
   not accepted because it verifies.
 - **Self-hosted runner substitution** — a valid attestation whose `runnerEnvironment` differs from
   `builderRunnerEnvironment` must be rejected.
-- **Missing owner authorization** — a fully attested manifest with no owner statement must be rejected.
-  Provenance is not authorization.
-- **Nested manifest** — a manifest containing any nested object must be rejected at schema level, so the
-  §6.1 hazard cannot be reintroduced by a later schema edit.
+- **Missing owner authorization** — fully attested builds with a well-formed binding and no owner
+  statement must be rejected. Provenance is not authorization.
+- **Nested document** — either document containing a nested object must be rejected at schema level, so
+  the §6.1 hazard cannot be reintroduced by a later schema edit.
+- **Substituted build** — a binding presented with a build it does not name must be rejected, for the
+  candidate and for the rollback independently.
+- **Unattested rollback** — a rollback build without valid provenance must be rejected as firmly as an
+  unattested candidate. Rollback is the path taken when something has already gone wrong and scrutiny
+  is lowest.
 
 ## 10. What this specification does not authorize
 
@@ -423,33 +487,37 @@ are all untouched.
 
 ## 11. Open questions
 
-Two of the four original questions are now closed.
+Three of the four original questions are now closed.
 
 - ~~**Who is the verifier?**~~ **Closed by owner decision, 2026-09-01:** a separate party, not an
   OpsWorkbench component. Realized as §3.1 — Sigstore/Rekor for provenance, the owner's offline key for
   authorization.
 - ~~**Where does Forge run, given CI key custody?**~~ **Closed as a consequence** — see §7.4. Keyless
   attestation means no key enters CI, so the constraint is satisfied rather than negotiated.
+- ~~**Is `targetServerId` knowable at build time?**~~ **Closed by owner decision, 2026-09-01: no.**
+  The manifest is split into `forge-build-v1` and `forge-target-binding-v1` — see §5.0.
 
 Still open:
 
-1. **Rollback command shape** (§8.4) — option 1, 2, or 3. Recommendation: option 1.
-2. **Is `targetServerId` knowable at build time?** If Forge builds before a target is chosen, the
-   manifest splits into a build attestation and a target binding issued later. That is a larger design
-   than this document assumes and should be settled before implementation rather than during it.
-   Note that §3.1 makes this cheaper than it was: party A already binds source→artifact independently of
-   any target, so a split is a matter of *when* the target fields are added, not of building a second
-   trust mechanism.
+1. **Rollback command shape** (§8.4) — option 1, 2, or 3. Recommendation: option 1. The split makes
+   this cheaper: the rollback is now an attested build with its own pinned image digests, so a rollback
+   override can be generated from evidence rather than assembled by hand.
 
 ## 12. Milestones
 
-1. Owner resolves the two remaining questions in §11. **Blocking.**
-2. `forge-deployment-v1` schema and ordered-join canonical digest land in `packages/shared`, with
-   flatness enforced at schema level.
-3. Verification module implementing the ten checks of §8.2, inert when no manifest is supplied.
-4. The eight proofs of §9, plus the four separate-party tests.
+1. ~~Owner resolves the blocking questions in §11.~~ Two of three closed; only the rollback command
+   shape remains, and it does not block the schema.
+2. ~~`forge-build-v1` / `forge-target-binding-v1` schemas and ordered-join canonical digests land in
+   `packages/shared`, with flatness enforced at schema level.~~ **Done.**
+3. Verification module wired into the preflight as the check group of §8.2, inert when no build is
+   supplied. The pure verification function already exists; this milestone is the preflight
+   integration, and it needs the §8.4 decision first.
+4. ~~The proofs of §9, plus the separate-party tests.~~ **Done** at the schema layer. Re-prove them at
+   the preflight layer once milestone 3 lands — a proof against the pure function is not a proof
+   against the integrated gate.
 5. Extend image builds to carry `org.opencontainers.image.revision` and their own attestation, closing
-   limit 1 in §2.1.
+   limit 1 in §2.1. Until this lands, `forge_build_provenance` has nothing to check against, so this
+   is the real prerequisite for the whole mechanism to bite.
 6. Make `resolveBuildIdentity()` verify the attestation it currently ignores, closing limit 2 in §2.1
    (work-order item W2).
 7. Independent review of the complete Forge → OpsWorkbench → Agent authority and evidence chain
