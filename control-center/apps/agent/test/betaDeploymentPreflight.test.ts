@@ -11,12 +11,14 @@ function fixture() {
   const env = path.join(root, ".env.beta");
   const compose = path.join(root, "compose.yml");
   const override = path.join(root, "opsworkbench-images.json");
+  const rollbackOverride = path.join(root, "opsworkbench-rollback-images.json");
   fs.writeFileSync(env, `APP_ENV=beta\nENVIRONMENT=beta\n${BETA_STARTUP_SAFETY_FLAGS.map((name) => `${name}=false`).join("\n")}\n`);
   fs.writeFileSync(compose, "services:\n  backend:\n    image: candidate-backend\n    environment:\n      APP_ENV: ${APP_ENV:-production}\n      ENVIRONMENT: ${ENVIRONMENT:-production}\n  frontend:\n    image: candidate-frontend\n  mongo:\n    image: mongo:7\n");
   fs.writeFileSync(override, `${JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "candidate-frontend" } } }, null, 2)}\n`);
+  fs.writeFileSync(rollbackOverride, `${JSON.stringify({ services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" } } }, null, 2)}\n`);
   const input: BetaDeploymentPreflightInput = {
     targetEnvironment: "beta", composeWorkingDirectory: root, composeProjectName: "craftersmarket",
-    composeFilePath: compose, environmentFilePath: env, composeOverrideFilePath: override, authorizedBackendImage: "candidate-backend",
+    composeFilePath: compose, environmentFilePath: env, composeOverrideFilePath: override, rollbackComposeOverrideFilePath: rollbackOverride, authorizedBackendImage: "candidate-backend",
     authorizedFrontendImage: "candidate-frontend", rollbackBackendImage: "rollback-backend",
     rollbackFrontendImage: "rollback-frontend", authorizedServices: ["backend", "frontend"],
     allowedComposeServices: ["backend", "frontend", "mongo"], allowedHostnames: ["craftersmarketbeta.shop"],
@@ -39,7 +41,7 @@ function fixture() {
     composeConfig: async (received: string[]) => { calls += 1; args = received; return { code: 0, stdout: JSON.stringify(model), stderr: "" }; },
     inspectImage: async (image: string) => images[image] || null,
   };
-  return { root, env, compose, override, input, model, images, hooks, get calls() { return calls; }, get args() { return args; } };
+  return { root, env, compose, override, rollbackOverride, input, model, images, hooks, get calls() { return calls; }, get args() { return args; } };
 }
 
 test("passes with explicit beta env and stops at operator approval", async () => {
@@ -47,7 +49,14 @@ test("passes with explicit beta env and stops at operator approval", async () =>
   assert.equal(result.status, "PASS — awaiting operator approval");
   assert.equal(item.calls, 1); assert.deepEqual(item.args.slice(0, 9), ["compose", "--project-name", "craftersmarket", "--env-file", item.env, "-f", item.compose, "-f", item.override]);
   assert.match(result.report.deploymentCommand!, /--no-build --no-deps --force-recreate 'backend' 'frontend'$/);
-  assert.match(result.report.rollbackCommand!, /docker image tag 'rollback-backend' 'candidate-backend'/);
+  // Option 1: rollback selects the reviewed rollback override; it never retags. A retag would mutate a
+  // tag so an approved name resolves to different bytes — the exact hazard this gate exists to prevent.
+  assert.doesNotMatch(result.report.rollbackCommand!, /docker image tag/);
+  assert.ok(result.report.rollbackCommand!.includes(`-f '${item.compose}' -f '${item.rollbackOverride}'`), "rollback must select the reviewed rollback override");
+  assert.equal(result.report.rollbackCommand!.includes(item.override), false, "rollback must not reference the candidate override");
+  assert.match(result.report.rollbackCommand!, /--no-build --no-deps --force-recreate 'backend' 'frontend'$/);
+  assert.equal(typeof result.report.rollbackComposeOverrideFileSha256, "string");
+  assert.equal(result.report.forge?.state, "absent");
   assert.equal(result.report.mongoDbRecreation, "blocked"); assert.equal(result.report.mongoDbServiceIncluded, "no"); assert.equal(result.report.volumeRecreation, "no");
   assert.ok(Object.values(result.report.startupSafetyFlags).every((value) => value === "PASS"));
 });
@@ -108,6 +117,7 @@ test("image override must contain exactly the two authorized image bindings", as
 test("temporary image override and service env reference are always removed", async () => {
   const item = fixture();
   fs.rmSync(item.override);
+  fs.rmSync(item.rollbackOverride);
   const reference = path.join(item.root, "backend", ".env");
   fs.mkdirSync(path.dirname(reference));
   item.input.serviceEnvironmentReferencePath = reference;
@@ -118,10 +128,49 @@ test("temporary image override and service env reference are always removed", as
   await assert.rejects(withBetaPreflightTemporaryFiles(item.input, async () => {
     assert.equal(fs.readFileSync(reference, "utf8"), item.env);
     assert.equal(fs.existsSync(item.override), true);
+    assert.equal(fs.existsSync(item.rollbackOverride), true);
     throw new Error("synthetic failure");
   }, hooks), /synthetic failure/);
   assert.equal(fs.existsSync(reference), false);
   assert.equal(fs.existsSync(item.override), false);
+  // The rollback override is a deployment input too: it must not survive the run either.
+  assert.equal(fs.existsSync(item.rollbackOverride), false);
+});
+
+test("the rollback override obeys the same rules as the deployment override", async () => {
+  // Refuses to overwrite an existing path.
+  const existing = fixture();
+  fs.rmSync(existing.override);
+  await assert.rejects(withBetaPreflightTemporaryFiles(existing.input, async () => undefined), /Rollback image override path already exists/);
+
+  // Must be inside the Compose working directory.
+  const outside = fixture();
+  fs.rmSync(outside.override); fs.rmSync(outside.rollbackOverride);
+  outside.input.rollbackComposeOverrideFilePath = path.join(os.tmpdir(), "escaped-rollback-images.json");
+  await assert.rejects(withBetaPreflightTemporaryFiles(outside.input, async () => undefined), /Rollback image override must be inside the Compose working directory/);
+
+  // Must be a distinct path from the deployment override, or one would silently overwrite the other.
+  const same = fixture();
+  fs.rmSync(same.override); fs.rmSync(same.rollbackOverride);
+  same.input.rollbackComposeOverrideFilePath = same.input.composeOverrideFilePath;
+  await assert.rejects(withBetaPreflightTemporaryFiles(same.input, async () => undefined), /distinct path/);
+
+  // Written 0600, containing exactly the rollback pair.
+  const created = fixture();
+  fs.rmSync(created.override); fs.rmSync(created.rollbackOverride);
+  await withBetaPreflightTemporaryFiles(created.input, async () => {
+    const body = JSON.parse(fs.readFileSync(created.rollbackOverride, "utf8"));
+    assert.deepEqual(body, { services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" } } });
+    if (process.platform !== "win32") assert.equal(fs.statSync(created.rollbackOverride).mode & 0o777, 0o600);
+  });
+});
+
+test("a rollback override that is not the exact rollback pair blocks", async () => {
+  const item = fixture();
+  fs.writeFileSync(item.rollbackOverride, `${JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "rollback-frontend" } } }, null, 2)}\n`);
+  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
+  assert.equal(result.status, "BLOCKED");
+  assert.ok(result.checks.some((check) => check.name === "rollback_override" && !check.passed));
 });
 
 test("blocks MongoDB authorization and unexpected Compose services", async () => {
