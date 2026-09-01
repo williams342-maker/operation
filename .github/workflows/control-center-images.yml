@@ -167,6 +167,49 @@ jobs:
             echo "$image -> revision $revision, tree $tree"
           done
 
+      # THE PRODUCER — the half that was missing. Two independent-review rounds found the workflow
+      # attesting OCI image digests while the preflight verifier requires a bundle whose signed in-toto
+      # subject covers the exact bytes of a forge-build-v1 JSON document. Nothing created that document,
+      # so the legitimate path could not work and only a forged one could.
+      #
+      # Gated on publish for a substantive reason, not symmetry: a build-only run has no image manifest
+      # digests to pin, and a forge-build document without digest-pinned images is not a provenance
+      # record — it is a wish.
+      - name: Compose the forge-build-v1 document
+        if: inputs.publish
+        env:
+          FORGE_BUILD_ID: forge-build-${{ github.run_id }}-${{ github.run_attempt }}
+          FORGE_SOURCE_REPOSITORY: ${{ steps.source.outputs.repository }}
+          FORGE_SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          FORGE_SOURCE_TREE: ${{ steps.source.outputs.tree }}
+          FORGE_SOURCE_TAG: ${{ inputs.tag }}
+          FORGE_BACKEND_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api@${{ steps.api.outputs.digest }}
+          FORGE_FRONTEND_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web@${{ steps.web.outputs.digest }}
+          # The workflow's OWN OIDC identity. This is what the certificate SAN will be, so it is what the
+          # verifier can prove. A document naming any other workflow is unverifiable by construction.
+          FORGE_BUILDER_IDENTITY: ${{ github.server_url }}/${{ github.workflow_ref }}
+          FORGE_BUILDER_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          FORGE_ISSUED_AT: ${{ steps.source.outputs.created }}
+        run: node scripts/build-forge-document.mjs forge-build.json
+
+      # Attesting the DOCUMENT, not just the images: its sha256 becomes a signed in-toto subject, which
+      # is exactly what forgePreflightEvidence.ts compares its own computed hash against.
+      - name: Attest the forge build document
+        if: inputs.publish
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: control-center/forge-build.json
+
+      - name: Publish the forge build document and its bundle
+        if: inputs.publish
+        uses: actions/upload-artifact@v6
+        with:
+          name: forge-build-${{ inputs.tag }}
+          path: |
+            control-center/forge-build.json
+          if-no-files-found: error
+          compression-level: 0
+
       # Gated: an attestation is a permanent public transparency-log entry.
       - name: Attest the API image
         if: inputs.publish

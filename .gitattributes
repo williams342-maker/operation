@@ -1,2 +1,8 @@
 # Linux shell entry points must retain the exact LF bytes stored in Git on every platform.
 *.sh text eol=lf
+
+# Sigstore attestation fixtures are byte-exact SIGNED material: the attestation subject is the sha256 of
+# these precise bytes, so any line-ending translation silently invalidates them. Checked out on Windows
+# with core.autocrlf=true, the manifest fixture's digest changed and a genuine bundle stopped verifying —
+# which is the verifier working correctly, and the fixture being stored incorrectly.
+control-center/apps/agent/test/fixtures/sigstore/** -text

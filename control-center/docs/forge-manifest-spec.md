@@ -92,6 +92,14 @@ Two limits keep it from closing the gap on its own:
 2. **Nothing consults it.** `resolveBuildIdentity()` shape-checks the manifest JSON at runtime and never
    verifies the attestation that covers that very manifest.
 
+**Producer status (2026-09-01).** `control-center-images.yml` now also composes a `forge-build-v1`
+document from the real image digests and attests **the document itself**, so its sha256 becomes a signed
+in-toto subject — which is exactly what the preflight compares its own computed hash against. Generation
+is gated on `publish` for a substantive reason rather than symmetry: a build-only run has no image
+manifest digests to pin, and a build document without digest-pinned images is not a provenance record.
+The generator is `scripts/build-forge-document.mjs`, and its output is validated in test against the
+real `forgeBuildManifestSchema` rather than against a restatement of the rules.
+
 Forge extends this mechanism to images and deployment targets. It does not replace it, and it does not
 introduce a competing signing scheme.
 

@@ -75,8 +75,11 @@ jobs:
       CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
       # Linux TAP inventory: agent 64 + API 108 + shared 79 + web 34 = 285.
       # (agent-v2 asymmetric protocol + hardening + staging-exercise tests, all additive; 0 skips.)
-      CI_EXPECTED_TEST_SUITES: "agent=64,api=123,shared=79,web=34"
-      CI_EXPECTED_TESTS: "300"
+      # Forge chain: agent +31 (attestation, evidence, preflight proofs), shared +38 (schema,
+      # canonicalization, separate-party proofs). CI asserts these exactly, so a suite that silently
+      # stops running is a failure rather than a smaller green number.
+      CI_EXPECTED_TEST_SUITES: "agent=95,api=123,shared=117,web=34"
+      CI_EXPECTED_TESTS: "369"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
