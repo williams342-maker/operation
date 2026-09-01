@@ -13,6 +13,12 @@ export const agentRotationRequestSchema = z.object({
   proof: z.string().min(32).max(512)
 }).strict();
 
+// The closed set of capabilities an agent may advertise. Exported so that other modules bind to the
+// SAME list rather than restating it — a second copy is a second thing to forget to update, and a
+// capability list that drifts is a capability check that silently stops checking.
+export const agentCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "systemdActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
+export type AgentCapability = (typeof agentCapabilities)[number];
+
 export const agentEnrollmentRequestSchema = z.object({
   enrollmentToken: z.string().min(32),
   hostname: z.string().min(1).max(255),
@@ -42,7 +48,7 @@ export const agentEnrollmentRequestSchema = z.object({
   packageType: z.enum(["tar", "deb", "rpm"]).optional(),
   releaseChannel: z.enum(["stable", "candidate", "preview"]).optional(),
   binarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  capabilities: z.array(z.enum(["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "systemdActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"])).default([])
+  capabilities: z.array(z.enum(agentCapabilities)).default([])
 });
 
 export const agentEnrollmentResponseSchema = z.object({
