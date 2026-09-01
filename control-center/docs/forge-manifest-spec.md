@@ -444,8 +444,18 @@ command, and the change is not free. Candidate approaches:
 3. Pin digests directly in the generated override and accept that rollback needs its own generated
    override.
 
-**Option 1 is the recommendation** — one mechanism, reviewable rollback, no time-of-check/time-of-use
-window. It still needs an owner decision.
+**Option 1 was chosen by the owner on 2026-09-01 and is implemented.** The preflight now emits a second
+reviewed override pinning the rollback digests and selects it for rollback instead of retagging.
+Retagging mutated a tag so an approved name resolved to different bytes — the very hazard this gate
+exists to prevent — and left the host with a tag that no longer meant what it said.
+
+Both overrides are held to identical rules: inside the Compose working directory, exclusive creation,
+mode `0600`, never overwriting an existing path, distinct paths, and removed in the `finally` block. The
+rollback override is a deployment input too, and a weaker rule on it would be the weakest link.
+
+Rolling back is itself a deployment. The emitted rollback command is evidence for review, not an
+approval; the reviewed way to obtain one is a second preflight run with the candidate and rollback roles
+swapped.
 
 ## 9. Required proofs
 
@@ -504,11 +514,11 @@ Three of the four original questions are now closed.
 - ~~**Is `targetServerId` knowable at build time?**~~ **Closed by owner decision, 2026-09-01: no.**
   The manifest is split into `forge-build-v1` and `forge-target-binding-v1` — see §5.0.
 
-Still open:
+- ~~**Rollback command shape.**~~ **Closed by owner decision, 2026-09-01: option 1**, and implemented —
+  see §8.4.
 
-1. **Rollback command shape** (§8.4) — option 1, 2, or 3. Recommendation: option 1. The split makes
-   this cheaper: the rollback is now an attested build with its own pinned image digests, so a rollback
-   override can be generated from evidence rather than assembled by hand.
+**No open questions remain.** What is left is execution, review, and the owner's separate decision about
+whether anything is deployed at all.
 
 ## 12. Milestones
 
@@ -516,13 +526,14 @@ Still open:
    shape remains, and it does not block the schema.
 2. ~~`forge-build-v1` / `forge-target-binding-v1` schemas and ordered-join canonical digests land in
    `packages/shared`, with flatness enforced at schema level.~~ **Done.**
-3. Verification module wired into the preflight as the check group of §8.2, inert when no build is
-   supplied. The pure verification function already exists; this milestone is the preflight
-   integration, and it needs the §8.4 decision first. **Do milestone 5 before this one** — integrating
-   the gate before images carry the label yields a check that passes for the wrong reason.
-4. ~~The proofs of §9, plus the separate-party tests.~~ **Done** at the schema layer. Re-prove them at
-   the preflight layer once milestone 3 lands — a proof against the pure function is not a proof
-   against the integrated gate.
+3. ~~Verification module wired into the preflight as the check group of §8.2, inert when no build is
+   supplied.~~ **Done.** Inert by default, partial evidence never passes, and the preflight hashes the
+   evidence files itself rather than trusting a supplied digest. Note the ordering that still matters
+   operationally: milestone 5 must be in place before this gate means anything, or
+   `forge_build_provenance` has nothing to check against.
+4. ~~The proofs of §9, plus the separate-party tests.~~ **Done at both layers.** The schema layer
+   proves the documents; the preflight layer proves the documents against reality, including label
+   absence, image substitution, partial evidence, and that verified evidence relaxes no existing rule.
 5. ~~Extend image builds to carry `org.opencontainers.image.revision` and their own attestation.~~
    **Done for the label and the build path; the publish path is built but deliberately not enabled.**
    `forge_build_provenance` now has something real to check against. Note the label mechanism is
