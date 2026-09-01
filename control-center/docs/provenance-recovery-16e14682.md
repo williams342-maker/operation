@@ -1,5 +1,32 @@
 # Provenance recovery — production commit `16e14682`
 
+> ## Status update — 2026-09-01 (read-only reverification)
+>
+> Two claims below are **stale**. The 2026-08-03 investigation and its operator procedure remain
+> accurate as a record of what was found then; the live situation has since changed.
+>
+> **1. Production no longer reports `16e14682`.** `https://opsworkbench.org/healthz` returns
+> `{"ok":true,"status":"alive","version":"0.1.2-operate","commit":"4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b","source":"manifest"}`.
+> That commit is `origin/main` and tag `v0.1.2-operate`. The `phase2-staging` deployment this document
+> was written about is gone. Recovering `16e14682` is therefore **no longer a live-state blocker or a
+> release prerequisite** — it is historical reconstruction, wanted only if the 112-commit lineage is
+> ever promoted. The operator procedure in this document can no longer be run at all: the tree it
+> asks the host-operator to extract is not deployed anywhere.
+>
+> **2. The durability push was completed.** The recommendation at the end of this document is marked
+> "Left UNDONE pending approval". It was done. Both refs exist on `origin` and resolve to `d354a615`:
+>
+> ```
+> refs/heads/provenance/project-deployment-history-20260803
+> refs/tags/provenance/project-deployment-history-local-tip-20260803   (annotated 2d79d827 -> d354a615)
+> ```
+>
+> The 112 production-lineage commits are **no longer single-copy**. They are still unreviewed and
+> unattested — publishing them made them durable, not trusted.
+>
+> **What has not changed.** `16e14682` still exists in no object database; reverified 2026-09-01
+> against a full-history clone with all remote refs and tags fetched. Finding 1 below stands.
+
 **Status:** `16e14682` is UNRECOVERABLE from git. Recovery must be **artifact-diff based** and requires a
 host-operator to retrieve the deployed tree from production. Promotion stays BLOCKED until this completes
 **and** owner approval is granted.
@@ -70,10 +97,28 @@ Push the preserved lineage to origin under a NON-protected provenance ref so the
 are durable and auditable in GitHub (they are currently one disk failure from lost):
 `git push origin refs/heads/feat/project-deployment-history:refs/heads/provenance/project-deployment-history-20260803`
 This does not touch `main`, does not deploy, and does not enable any flag. It is an outward publish of
-previously-unpushed commits, so it must be owner-approved first. Left UNDONE pending approval.
+previously-unpushed commits, so it must be owner-approved first.
+
+**DONE.** Both the branch and the annotated tag are present on `origin` and resolve to `d354a615`
+(verified by `git ls-remote` on 2026-09-01). The lineage is durable. It remains unreviewed and
+unattested — see the status update at the top of this document.
 
 ## Gate
 
-Production promotion remains blocked on: (a) this recovery closed via the operator procedure with the drift
-reviewed, AND (b) explicit owner approval. Neither the prod-reported commit string nor this document constitutes
-either gate.
+**As written (2026-08-03):** production promotion remains blocked on (a) this recovery closed via the
+operator procedure with the drift reviewed, AND (b) explicit owner approval. Neither the prod-reported
+commit string nor this document constitutes either gate.
+
+**As it now stands (2026-09-01):** this gate no longer applies to the running system. Production runs
+`4c47c7b1` (`v0.1.2-operate`), which is `main` and is fully reviewed and auditable — it does not depend
+on the unrecovered `16e14682` line. The gate above now applies only to any future attempt to promote the
+`provenance/project-deployment-history-20260803` lineage, which stays blocked on review and owner
+approval and must not be merged toward `main` on the strength of this document.
+
+Note on what the live identity attests: `resolveBuildIdentity()` reports `source: "manifest"` when
+`CONTROL_CENTER_RELEASE_MANIFEST` names a JSON file whose `schemaVersion` is `opsworkbench-release-v1`,
+whose `tag` starts with `v`, and whose `commit` is 40 hex characters. That is a **shape check**. No
+signature is verified at runtime and nothing binds the *running code* to the reported commit. It is a
+material improvement over the free-form `GIT_COMMIT` environment variable that produced `16e14682` —
+the failure mode documented here — but the reported commit is still self-declared. Closing that gap is
+tracked in the work order (`handoff-work-order-20260901.md`).
