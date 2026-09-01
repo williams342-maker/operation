@@ -133,8 +133,27 @@ blind spot; much of what follows is guesswork until it closes.
 that produced `16e14682`, and it is still a self-declared string, now living in a file instead of an
 environment variable.
 
-Supporting evidence that the chain is incomplete: the repository has **zero** GitHub attestations
-(`repos/.../attestations/...` -> 404) and all five releases including `v0.1.2-operate` are **Drafts**.
+**Correction (2026-09-01, same day).** An earlier draft of this document stated the repository has zero
+GitHub attestations. That was wrong — it came from querying the attestations API with a placeholder
+digest, which returns 404 regardless. Verified properly:
+
+```
+gh attestation verify opsworkbench-control-center-0.1.2-operate.tar.gz --repo williams342-maker/operation
+-> verified, SLSA v1 provenance, Rekor log index 2385810293
+```
+
+A SLSA v1 build-provenance attestation **exists and verifies** for the `v0.1.2-operate` release bundle.
+`sourceRepositoryDigest` and `resolvedDependencies[].digest.gitCommit` both equal
+`4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b`; the builder identity is
+`.github/workflows/control-center-release.yml@refs/tags/v0.1.2-operate` on a `github-hosted` runner;
+subject digests match the published `SHA256SUMS` exactly. The provenance chain from source to release
+bundle is **strong and independently checkable**, backed by a public transparency log.
+
+The gap is narrower than first stated, and cheaper to close. **The attestation exists; nothing consults
+it.** `resolveBuildIdentity()` reads the manifest JSON and shape-checks it — it never verifies the
+attestation that covers that very manifest, and nothing binds the running process to it. Two further
+limits stand: all five releases are still **Drafts**, and the attestation covers the **release bundle**,
+not the backend/frontend **container images** the deployment preflight actually deals with.
 
 Work: verify the manifest against the SLSA build-provenance attestation at startup, and bind the manifest
 to the shipped tree with a content digest computed over the served artifact rather than a string copied
