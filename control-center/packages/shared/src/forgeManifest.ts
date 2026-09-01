@@ -247,8 +247,13 @@ export function findSecretShapedField(document: Record<string, unknown>): string
 // What party A (Sigstore/Rekor) reports, reduced to the fields we bind. Supplied by the caller after a
 // real attestation verification — this module deliberately performs no I/O, so it stays pure and
 // testable and cannot be tricked into fetching its own evidence.
+// REMEDIATION (2026-09-01, independent review): the `verified: boolean` field is GONE. It let an
+// operator assert Party A's verdict in a JSON file, which made the separation of parties nominal — the
+// central finding of the review. These are now FACTS DERIVED from a real Sigstore bundle verification
+// performed by the caller (apps/agent/src/forgeAttestation.ts) against a pinned trusted root. There is
+// deliberately no field here that can carry a claim of verification: the existence of this value is the
+// claim, and only real verification can produce one.
 export type ForgeAttestationEvidence = {
-  verified: boolean;
   builderId: string;
   runnerEnvironment: string;
   sourceCommit: string;
@@ -283,7 +288,6 @@ export type ForgeVerificationReason =
   | "binding-invalid"
   | "not-flat"
   | "secret-shaped-value"
-  | "attestation-unverified"
   | "attestation-subject-mismatch"
   | "builder-identity-mismatch"
   | "builder-runner-mismatch"
@@ -321,7 +325,6 @@ function checkBuild(entry: AttestedForgeBuild, invalidReason: ForgeVerificationR
   if (secretField) return { reason: "secret-shaped-value", detail: secretField };
   // A valid attestation is not enough. It must be an attestation OF THIS BUILD, produced by THE
   // EXPECTED WORKFLOW, on THE EXPECTED RUNNER, for THE CLAIMED COMMIT.
-  if (!entry.attestation.verified) return { reason: "attestation-unverified" };
   if (entry.attestation.subjectSha256 !== entry.manifestSha256) return { reason: "attestation-subject-mismatch" };
   if (entry.attestation.builderId !== build.builderIdentity) return { reason: "builder-identity-mismatch" };
   if (entry.attestation.runnerEnvironment !== build.builderRunnerEnvironment) return { reason: "builder-runner-mismatch" };

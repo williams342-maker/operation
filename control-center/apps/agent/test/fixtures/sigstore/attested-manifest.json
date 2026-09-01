@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "opsworkbench-release-v1",
+  "tag": "v0.1.2-operate",
+  "commit": "4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b",
+  "artifact": "opsworkbench-control-center-0.1.2-operate.tar.gz",
+  "source": "git archive of the tracked control-center path at the tagged commit",
+  "reproducible": true
+}

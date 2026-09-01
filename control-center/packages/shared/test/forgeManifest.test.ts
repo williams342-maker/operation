@@ -74,7 +74,9 @@ function binding(candidate: ForgeBuildManifest, rollback: ForgeBuildManifest, ov
 const bytesOf = (b: ForgeBuildManifest) => sha(JSON.stringify(b));
 
 function attestation(b: ForgeBuildManifest, overrides: Partial<ForgeAttestationEvidence> = {}): ForgeAttestationEvidence {
-  return { verified: true, builderId: b.builderIdentity, runnerEnvironment: b.builderRunnerEnvironment, sourceCommit: b.sourceCommit, subjectSha256: bytesOf(b), ...overrides };
+  // No `verified` field exists any more: the existence of this value IS the claim, and only real
+  // Sigstore verification (apps/agent/src/forgeAttestation.ts) can produce one.
+  return { builderId: b.builderIdentity, runnerEnvironment: b.builderRunnerEnvironment, sourceCommit: b.sourceCommit, subjectSha256: bytesOf(b), ...overrides };
 }
 
 const attested = (b: ForgeBuildManifest, overrides: Partial<AttestedForgeBuild> = {}): AttestedForgeBuild => ({ manifest: b, manifestSha256: bytesOf(b), attestation: attestation(b), ...overrides });
@@ -139,7 +141,6 @@ test("a substituted rollback is caught by the binding join", () => {
 test("PROOF: the rollback build is held to the SAME provenance standard as the candidate", () => {
   const rollback = priorBuild();
   // An unattested rollback is how a "safe" rollback becomes the delivery mechanism.
-  assert.equal(reason(verifyForgeDeployment(input({ rollback: attested(rollback, { attestation: attestation(rollback, { verified: false }) }) }))), "attestation-unverified");
   assert.equal(reason(verifyForgeDeployment(input({ rollback: attested(rollback, { attestation: attestation(rollback, { builderId: "https://github.com/attacker/repo/.github/workflows/x.yml@refs/heads/main" }) }) }))), "builder-identity-mismatch");
   assert.equal(reason(verifyForgeDeployment(input({ rollback: attested(rollback, { manifestSha256: sha("tampered") }) }))), "attestation-subject-mismatch");
 });
@@ -283,9 +284,17 @@ test("PROOF 8 (unbound artifact): attested commit must equal the build's sourceC
   assert.equal(reason(verifyForgeDeployment(input({ candidate: attested(c, { attestation: attestation(c, { sourceCommit: "0".repeat(40) }) }) }))), "source-commit-mismatch");
 });
 
-test("an unverified attestation is rejected before anything else is trusted", () => {
-  const c = build();
-  assert.equal(reason(verifyForgeDeployment(input({ candidate: attested(c, { attestation: attestation(c, { verified: false }) }) }))), "attestation-unverified");
+test("REMEDIATION: there is no operator-settable verification flag left to trust", () => {
+  // The previous design accepted `verified: true` from a JSON file, which let the same operator who
+  // supplied every other document also play Party A. An independent review called that the central
+  // design failure. The field is gone; evidence is now constructed only from a real Sigstore bundle
+  // verification, proven in apps/agent/test/forgeAttestation.test.ts against a genuine published bundle.
+  const m = build();
+  const evidence = attestation(m) as Record<string, unknown>;
+  assert.equal("verified" in evidence, false, "ForgeAttestationEvidence must carry no verification flag");
+  // A subject digest that does not match the document is still rejected — that check is what ties the
+  // attestation to the bytes actually read.
+  assert.equal(reason(verifyForgeDeployment(input({ candidate: attested(m, { manifestSha256: sha("elsewhere") }) }))), "attestation-subject-mismatch");
 });
 
 // --- Party B: authorization -------------------------------------------------------------------------

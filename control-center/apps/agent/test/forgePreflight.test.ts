@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { BETA_STARTUP_SAFETY_FLAGS, runBetaDeploymentPreflight, type BetaDeploymentPreflightInput, type ImageInspection } from "../src/betaDeploymentPreflight.js";
-import { forgeBuildDigest, forgeTargetBindingDigest, forgeOwnerAuthorizationMessage, generateAgentKeyPairs, signWithAgentKey, type ForgeBuildManifest, type ForgeTargetBinding } from "@control-center/shared";
+import { forgeBuildDigest, forgeTargetBindingDigest, generateAgentKeyPairs, type ForgeBuildManifest, type ForgeTargetBinding } from "@control-center/shared";
+import type { ForgeEvidenceOutcome } from "../src/forgePreflightEvidence.js";
 
 // Forge evidence at the preflight layer — docs/forge-manifest-spec.md §8.2 and §9.
 //
@@ -38,7 +38,7 @@ const rollbackManifest = (over: Partial<ForgeBuildManifest> = {}): ForgeBuildMan
   sourceTag: "v0.1.1-operate", backendImageDigest: ROLLBACK_BACKEND, frontendImageDigest: ROLLBACK_FRONTEND, ...over
 });
 
-function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuildManifest; binding?: Partial<ForgeTargetBinding>; attestation?: Record<string, unknown>; omit?: string[]; revisions?: Record<string, string | undefined> } = {}) {
+function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuildManifest; binding?: Partial<ForgeTargetBinding>; evidence?: ForgeEvidenceOutcome; omit?: string[]; revisions?: Record<string, string | undefined>; actualOrgId?: string; actualServerId?: string; consumedNonces?: string[] } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "opsworkbench-forge-preflight-"));
   const env = path.join(root, ".env.beta");
   const compose = path.join(root, "compose.yml");
@@ -61,32 +61,32 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     ...options.binding
   } as ForgeTargetBinding;
 
+  // Evidence is injected through the hook seam. Real Sigstore verification is proven separately in
+  // forgeAttestation.test.ts against a genuine published bundle; these tests prove everything
+  // DOWNSTREAM of that verification, which is where the integrated gate lives.
   const paths: Record<string, string> = {
     forgeCandidateBuildPath: path.join(root, "candidate-build.json"),
+    forgeCandidateAttestationPath: path.join(root, "candidate-bundle.json"),
     forgeRollbackBuildPath: path.join(root, "rollback-build.json"),
+    forgeRollbackAttestationPath: path.join(root, "rollback-bundle.json"),
     forgeTargetBindingPath: path.join(root, "binding.json"),
     forgeOwnerAuthorizationPath: path.join(root, "owner-authorization.json"),
     forgeOwnerPublicKeyPath: path.join(root, "owner.pub"),
-    forgeAttestationPath: path.join(root, "attestation.json"),
+    forgeTrustedRootPath: path.join(root, "trusted-root.json"),
   };
-  const sha = (file: string) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
-  fs.writeFileSync(paths.forgeCandidateBuildPath, JSON.stringify(candidate, null, 2));
-  fs.writeFileSync(paths.forgeRollbackBuildPath, JSON.stringify(rollback, null, 2));
-  fs.writeFileSync(paths.forgeTargetBindingPath, JSON.stringify(binding, null, 2));
-  fs.writeFileSync(paths.forgeOwnerPublicKeyPath, `${owner.signingPublicKey}\n`);
-
-  const expiresAt = new Date(NOW.getTime() + 3600_000).toISOString();
-  fs.writeFileSync(paths.forgeOwnerAuthorizationPath, JSON.stringify({
-    signature: signWithAgentKey(owner.signingPrivateKey, forgeOwnerAuthorizationMessage({ bindingDigest: forgeTargetBindingDigest(binding), targetOrgId: binding.targetOrgId, targetServerId: binding.targetServerId, expiresAt, nonce: "owner-nonce-000000001", keyVersion: "owner-v1" })),
-    issuedAt: NOW.toISOString(), expiresAt, nonce: "owner-nonce-000000001", keyVersion: "owner-v1"
-  }, null, 2));
-
-  const attestation = options.attestation ?? {
-    candidate: { verified: true, builderId: candidate.builderIdentity, runnerEnvironment: candidate.builderRunnerEnvironment, sourceCommit: candidate.sourceCommit, subjectSha256: sha(paths.forgeCandidateBuildPath) },
-    rollback: { verified: true, builderId: rollback.builderIdentity, runnerEnvironment: rollback.builderRunnerEnvironment, sourceCommit: rollback.sourceCommit, subjectSha256: sha(paths.forgeRollbackBuildPath) },
-  };
-  fs.writeFileSync(paths.forgeAttestationPath, JSON.stringify(attestation, null, 2));
   for (const key of options.omit || []) delete paths[key];
+  const evidence: ForgeEvidenceOutcome = options.evidence ?? {
+    state: "verified", candidate, rollback, binding, bindingDigest: forgeTargetBindingDigest(binding),
+    nonces: [binding.nonce, "owner-nonce-000000001"],
+  };
+  const verifyEvidence = (given: Record<string, unknown>, context: { consumedNonces?: ReadonlySet<string> }): ForgeEvidenceOutcome => {
+    const required = ["forgeCandidateBuildPath", "forgeCandidateAttestationPath", "forgeRollbackBuildPath", "forgeRollbackAttestationPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath", "forgeOwnerPublicKeyPath", "forgeTrustedRootPath"];
+    if (!required.some((key) => given[key])) return { state: "absent" };
+    const missing = required.filter((key) => !given[key]);
+    if (missing.length) return { state: "incomplete", missing };
+    if (evidence.state === "verified" && evidence.nonces.some((nonce) => context.consumedNonces?.has(nonce))) return { state: "rejected", reason: "replayed-nonce" };
+    return evidence;
+  };
 
   const input: BetaDeploymentPreflightInput = {
     targetEnvironment: "beta", composeWorkingDirectory: root, composeProjectName: "opsworkbench-beta",
@@ -97,6 +97,9 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     authorizedServices: ["backend", "frontend"], allowedComposeServices: ["backend", "frontend"],
     allowedHostnames: [], allowedDatabaseDestinations: [{ hostname: "mongo", databaseName: "beta" }],
     agentAdvertisedCapabilities: ["docker", "compose", "dockerComposeActivation"],
+    actualOrgId: options.actualOrgId ?? "org-000000000001",
+    actualServerId: options.actualServerId ?? "server-000000000001",
+    consumedNonces: options.consumedNonces,
     ...paths,
   };
 
@@ -113,6 +116,7 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
   };
   const hooks = {
     now: () => NOW,
+    verifyEvidence,
     composeConfig: async () => ({ code: 0, stdout: JSON.stringify(model), stderr: "" }),
     inspectImage: async (image: string) => images[image] || null,
   };
@@ -203,7 +207,7 @@ test("candidate or rollback images that are not the attested pinned digests bloc
 });
 
 test("PARTIAL EVIDENCE NEVER PASSES: omitting any single document blocks", async () => {
-  for (const key of ["forgeCandidateBuildPath", "forgeRollbackBuildPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath", "forgeOwnerPublicKeyPath", "forgeAttestationPath"]) {
+  for (const key of ["forgeCandidateBuildPath", "forgeCandidateAttestationPath", "forgeRollbackBuildPath", "forgeRollbackAttestationPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath", "forgeOwnerPublicKeyPath", "forgeTrustedRootPath"]) {
     const item = fixture({ omit: [key] });
     const result = await runBetaDeploymentPreflight(item.input, item.hooks);
     assert.equal(result.status, "BLOCKED", `omitting ${key} must block`);
@@ -215,47 +219,54 @@ test("PROOF (provenance is not authorization): attested builds without the owner
   const item = fixture({ omit: ["forgeOwnerAuthorizationPath"] });
   const result = await runBetaDeploymentPreflight(item.input, item.hooks);
   assert.equal(result.status, "BLOCKED");
-  assert.equal(result.report.forge?.state, "rejected");
+  assert.notEqual(result.report.forge?.state, "verified");
 });
 
-test("PROOF 1 (tamper): editing a build file after attestation blocks", async () => {
-  const item = fixture();
-  // The attestation subject was computed over the original bytes. The preflight hashes the file it
-  // actually reads, so a post-attestation edit cannot be papered over by a supplied digest.
-  const edited = { ...item.candidate, sourceTag: "v9.9.9-tampered" };
-  fs.writeFileSync(item.paths.forgeCandidateBuildPath, JSON.stringify(edited, null, 2));
-  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
-  assert.equal(result.status, "BLOCKED");
-  assert.ok(failed(result, "forge_evidence"));
-});
-
-test("PROOF (wrong builder / runner substitution): a valid attestation from elsewhere blocks", async () => {
-  const base = fixture();
-  for (const patch of [{ builderId: "https://github.com/attacker/repo/.github/workflows/x.yml@refs/heads/main" }, { runnerEnvironment: "self-hosted" }, { verified: false }]) {
-    const item = fixture();
-    const attestation = JSON.parse(fs.readFileSync(item.paths.forgeAttestationPath, "utf8"));
-    Object.assign(attestation.candidate, patch);
-    fs.writeFileSync(item.paths.forgeAttestationPath, JSON.stringify(attestation, null, 2));
+test("any evidence rejection surfaces as a block, whatever the cryptographic cause", async () => {
+  // Tamper, wrong builder, runner substitution, expiry, replay and capability all arrive here as a
+  // rejected outcome. The CRYPTOGRAPHIC proofs live in forgeAttestation.test.ts, against a genuine
+  // published Sigstore bundle — this asserts the gate refuses to proceed on any of them.
+  for (const reason of ["attestation-subject-mismatch", "attestation-invalid", "builder-identity-mismatch", "builder-runner-mismatch", "source-commit-mismatch", "expired", "replayed-nonce", "capability-not-advertised", "owner-authorization-invalid"]) {
+    const item = fixture({ evidence: { state: "rejected", reason } });
     const result = await runBetaDeploymentPreflight(item.input, item.hooks);
-    assert.equal(result.status, "BLOCKED");
-    assert.ok(failed(result, "forge_evidence"));
+    assert.equal(result.status, "BLOCKED", `${reason} must block`);
+    assert.ok(failed(result, "forge_evidence"), `${reason} must fail forge_evidence`);
+    assert.equal(result.report.forge?.state, "rejected");
   }
-  assert.ok(base);
 });
 
-test("PROOF 6 (stale candidate): an expired binding blocks", async () => {
-  const item = fixture({ binding: { expiresAt: new Date(NOW.getTime() - 1000).toISOString(), issuedAt: new Date(NOW.getTime() - 2000).toISOString() } });
-  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
-  assert.equal(result.status, "BLOCKED");
-  assert.ok(failed(result, "forge_evidence"));
+test("BLOCKER (2026-09-01 review): an authorization for another server does not pass on this host", async () => {
+  // Signing a target id creates no binding unless the verifier MEASURES the target and compares. The
+  // actual identity comes from the agent's own configuration, never from operator input.
+  const otherServer = fixture({ actualServerId: "server-00000000000B" });
+  const a = await runBetaDeploymentPreflight(otherServer.input, otherServer.hooks);
+  assert.equal(a.status, "BLOCKED");
+  assert.ok(failed(a, "forge_binding_identity"), "a binding for another server must be rejected");
+
+  const otherOrg = fixture({ actualOrgId: "org-00000000000B" });
+  const b = await runBetaDeploymentPreflight(otherOrg.input, otherOrg.hooks);
+  assert.equal(b.status, "BLOCKED");
+  assert.ok(failed(b, "forge_binding_identity"), "a binding for another organization must be rejected");
+
+  // And the host must know who it is at all — an unmeasured target cannot be compared.
+  const unknown = fixture();
+  delete (unknown.input as Record<string, unknown>).actualServerId;
+  const c = await runBetaDeploymentPreflight(unknown.input, unknown.hooks);
+  assert.equal(c.status, "BLOCKED");
+  assert.ok(failed(c, "forge_binding_identity"));
 });
 
-test("a capability the agent does not advertise blocks", async () => {
-  const item = fixture({ binding: { requiredCapabilities: ["docker", "systemdActivation"] } });
-  item.input.agentAdvertisedCapabilities = ["docker", "compose"];
-  const result = await runBetaDeploymentPreflight(item.input, item.hooks);
+test("BLOCKER (2026-09-01 review): a consumed nonce is refused on replay", async () => {
+  const first = fixture();
+  assert.equal((await runBetaDeploymentPreflight(first.input, first.hooks)).status, "PASS — awaiting operator approval");
+  // Second presentation of the same authorization, with the nonce recorded as consumed.
+  const replay = fixture({ consumedNonces: ["forge-nonce-000000001"] });
+  const result = await runBetaDeploymentPreflight(replay.input, replay.hooks);
   assert.equal(result.status, "BLOCKED");
   assert.ok(failed(result, "forge_evidence"));
+
+  const ownerReplay = fixture({ consumedNonces: ["owner-nonce-000000001"] });
+  assert.equal((await runBetaDeploymentPreflight(ownerReplay.input, ownerReplay.hooks)).status, "BLOCKED");
 });
 
 test("verified Forge evidence does not relax any existing preflight rule", async () => {

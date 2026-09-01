@@ -19,6 +19,11 @@ export const agentConfigSchema = z.object({
   // privileged tasks must additionally carry a valid owner authorization. Independent of the transport key.
   ownerPublicKey: z.string().optional(),
   serverId: z.string().default(""),
+  // Organization this agent is enrolled into. Recorded locally so the host can PROVE which target it is
+  // when verifying a Forge target binding — a signed target id binds nothing unless the verifier can
+  // measure the actual target. Empty until enrollment populates it, and the preflight fails closed on
+  // an empty value rather than skipping the comparison.
+  orgId: z.string().default(""),
   agentVersion: z.string().default("0.1.0"),
   protocolVersion: z.string().default("task-v1"),
   packageType: z.enum(["tar", "deb", "rpm"]).default("tar"),

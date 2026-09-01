@@ -31,7 +31,13 @@ export type BetaDeploymentPreflightInput = {
   // `docker image tag` retag. Retagging requires mutable tag references, and a mutable tag is the exact
   // hazard this preflight exists to prevent — it lets the bytes behind an approved name change between
   // approval and execution.
-  rollbackComposeOverrideFilePath: string;
+  //
+  // OPTIONAL, and that is a correction. Making it required changed behaviour for every existing caller
+  // even when no Forge evidence was supplied, so the change was not inert — an independent review
+  // (2026-09-01) caught the claim. When it is absent the legacy retag command is emitted unchanged.
+  // When Forge evidence IS supplied it becomes mandatory, because digest-pinned images cannot be
+  // retagged at all.
+  rollbackComposeOverrideFilePath?: string;
   serviceEnvironmentReferencePath?: string;
   authorizedBackendImage: string;
   authorizedFrontendImage: string;
@@ -43,6 +49,15 @@ export type BetaDeploymentPreflightInput = {
   allowedDatabaseDestinations: Array<{ hostname: string; databaseName: string }>;
   /** Capabilities the target agent advertises. Only consulted when Forge evidence is supplied. */
   agentAdvertisedCapabilities?: string[];
+  // The identity of the machine this preflight is ACTUALLY running against, read from the agent's own
+  // configuration rather than typed by the operator. Signing a target id into a binding creates no
+  // binding at all unless the verifier measures the target and compares — an independent review
+  // (2026-09-01) found an authorization for server A passed on server B. Required whenever Forge
+  // evidence is supplied.
+  actualOrgId?: string;
+  actualServerId?: string;
+  /** Nonces already consumed on this host. Supplied by the CLI from a persistent store. */
+  consumedNonces?: string[];
 } & ForgeEvidencePaths;
 
 export type ImageInspection = {
@@ -56,6 +71,12 @@ export type PreflightHooks = {
   composeConfig?: (args: string[], cwd: string) => Promise<ExecResult>;
   inspectImage?: (image: string, cwd: string) => Promise<ImageInspection | null>;
   now?: () => Date;
+  // Test seam, same pattern as composeConfig/inspectImage above: a FUNCTION parameter, never a field of
+  // the operator-supplied input JSON. Production callers (betaDeploymentPreflightCli.ts) pass no hooks,
+  // so there is no path by which input data can substitute evidence verification. Real Sigstore
+  // verification is proven separately in test/forgeAttestation.test.ts against a genuine published
+  // bundle; this seam exists so the checks DOWNSTREAM of it can be proven without a live Fulcio.
+  verifyEvidence?: (paths: ForgeEvidencePaths, context: { agentAdvertisedCapabilities: readonly string[]; consumedNonces?: ReadonlySet<string>; now?: number }) => ReturnType<typeof loadAndVerifyForgeEvidence>;
 };
 
 type Check = { name: string; passed: boolean; detail: string };
@@ -101,6 +122,8 @@ export type BetaDeploymentPreflightResult = {
       rollbackSourceCommit?: string;
       bindingDigest?: string;
       builderIdentity?: string;
+      bindingNonce?: string;
+      ownerNonce?: string;
     };
     preflightTimestamp: string;
     operatorApprovalStatus: "awaiting" | "not-available";
@@ -160,19 +183,19 @@ export type BetaPreflightTemporaryFileHooks = {
 export async function withBetaPreflightTemporaryFiles<T>(input: BetaDeploymentPreflightInput, action: () => Promise<T>, hooks: BetaPreflightTemporaryFileHooks = {}) {
   const reference = input.serviceEnvironmentReferencePath ? path.resolve(input.serviceEnvironmentReferencePath) : undefined;
   const override = path.resolve(input.composeOverrideFilePath);
-  const rollbackOverride = path.resolve(input.rollbackComposeOverrideFilePath);
+  const rollbackOverride = input.rollbackComposeOverrideFilePath ? path.resolve(input.rollbackComposeOverrideFilePath) : undefined;
   const workingDirectory = path.resolve(input.composeWorkingDirectory);
   const created: string[] = [];
   let result: T | undefined;
   let failure: unknown;
   try {
-    if (override === rollbackOverride) throw new Error("Rollback override must be a distinct path from the deployment override");
+    if (rollbackOverride && override === rollbackOverride) throw new Error("Rollback override must be a distinct path from the deployment override");
     // Both overrides get identical treatment: inside the working directory, exclusive creation, mode
     // 0600, never overwriting an existing path, and removed in the finally block below. The rollback
     // override is a deployment input too, and a weaker rule on it would be the weakest link.
     for (const [label, target, images] of [
       ["Image override", override, { backend: input.authorizedBackendImage, frontend: input.authorizedFrontendImage }],
-      ["Rollback image override", rollbackOverride, { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage }]
+      ...(rollbackOverride ? [["Rollback image override", rollbackOverride, { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage }] as const] : [])
     ] as const) {
       if (!target.startsWith(`${workingDirectory}${path.sep}`)) throw new Error(`${label} must be inside the Compose working directory`);
       if (fs.existsSync(target)) throw new Error(`${label} path already exists`);
@@ -236,10 +259,12 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
   // Forge evidence (docs/forge-manifest-spec.md §8.2). Runs first so that bad evidence blocks before
   // anything else is considered. INERT when no evidence is supplied: with no Forge paths the preflight
   // behaves exactly as it did before this existed.
-  const forge = loadAndVerifyForgeEvidence(input, { agentAdvertisedCapabilities: input.agentAdvertisedCapabilities || [], now: now.getTime() });
+  const forge = (hooks.verifyEvidence || loadAndVerifyForgeEvidence)(input, { agentAdvertisedCapabilities: input.agentAdvertisedCapabilities || [], consumedNonces: new Set(input.consumedNonces || []), now: now.getTime() });
   report.forge = { state: forge.state === "verified" ? "verified" : forge.state === "absent" ? "absent" : "rejected" };
   if (forge.state === "verified") {
-    report.forge = { state: "verified", sourceCommit: forge.candidate.sourceCommit, sourceTree: forge.candidate.sourceTree, buildDigest: forge.binding.buildDigest, rollbackSourceCommit: forge.rollback.sourceCommit, bindingDigest: forge.bindingDigest, builderIdentity: forge.candidate.builderIdentity };
+    // The nonces are surfaced so the CLI can consume them persistently after a PASS. They are opaque
+    // replay markers, not secrets.
+    report.forge = { state: "verified", sourceCommit: forge.candidate.sourceCommit, sourceTree: forge.candidate.sourceTree, buildDigest: forge.binding.buildDigest, rollbackSourceCommit: forge.rollback.sourceCommit, bindingDigest: forge.bindingDigest, builderIdentity: forge.candidate.builderIdentity, bindingNonce: forge.nonces[0], ownerNonce: forge.nonces[1] };
   }
 
   try {
@@ -264,25 +289,28 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
     const composeFile = path.resolve(input.composeFilePath);
     const environmentFile = path.resolve(input.environmentFilePath);
     const composeOverrideFile = path.resolve(input.composeOverrideFilePath);
-    const rollbackOverrideFile = path.resolve(input.rollbackComposeOverrideFilePath);
+    const rollbackOverrideFile = input.rollbackComposeOverrideFilePath ? path.resolve(input.rollbackComposeOverrideFilePath) : undefined;
     if (!fs.existsSync(workingDirectory) || !fs.statSync(workingDirectory).isDirectory()) block("working_directory", "Compose working directory does not exist");
     if (!fs.existsSync(composeFile) || !fs.statSync(composeFile).isFile()) block("compose_file", "Compose file does not exist");
     if (!fs.existsSync(environmentFile) || !fs.statSync(environmentFile).isFile()) block("environment_file", "Environment file does not exist");
     if (!fs.existsSync(composeOverrideFile) || !fs.statSync(composeOverrideFile).isFile()) block("compose_override_file", "Compose image override file does not exist");
-    if (!fs.existsSync(rollbackOverrideFile) || !fs.statSync(rollbackOverrideFile).isFile()) block("rollback_override_file", "Rollback image override file does not exist");
+    if (forge.state === "verified" && !rollbackOverrideFile) block("rollback_override_file", "Forge evidence pins image digests, which cannot be retagged; a rollback override path is required");
+    if (rollbackOverrideFile && (!fs.existsSync(rollbackOverrideFile) || !fs.statSync(rollbackOverrideFile).isFile())) block("rollback_override_file", "Rollback image override file does not exist");
     if (checks.some((check) => !check.passed)) return { status: "BLOCKED", checks, report };
 
     const envSource = fs.readFileSync(environmentFile);
     const overrideSource = fs.readFileSync(composeOverrideFile);
-    const rollbackOverrideSource = fs.readFileSync(rollbackOverrideFile);
+    const rollbackOverrideSource = rollbackOverrideFile ? fs.readFileSync(rollbackOverrideFile) : undefined;
     try { validateImageOverride(overrideSource.toString("utf8"), { backend: input.authorizedBackendImage, frontend: input.authorizedFrontendImage }); pass("compose_override", "Override contains only the authorized backend and frontend images"); }
     catch { block("compose_override", "Compose image override is not the exact authorized two-service plan"); }
-    try { validateImageOverride(rollbackOverrideSource.toString("utf8"), { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage }); pass("rollback_override", "Rollback override contains only the rollback backend and frontend images"); }
-    catch { block("rollback_override", "Rollback image override is not the exact rollback two-service plan"); }
+    if (rollbackOverrideSource) {
+      try { validateImageOverride(rollbackOverrideSource.toString("utf8"), { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage }); pass("rollback_override", "Rollback override contains only the rollback backend and frontend images"); }
+      catch { block("rollback_override", "Rollback image override is not the exact rollback two-service plan"); }
+    }
     const envValues = parseEnvironment(envSource.toString("utf8"));
     report.environmentFileSha256 = sha256(envSource);
     report.composeOverrideFileSha256 = sha256(overrideSource);
-    report.rollbackComposeOverrideFileSha256 = sha256(rollbackOverrideSource);
+    if (rollbackOverrideSource) report.rollbackComposeOverrideFileSha256 = sha256(rollbackOverrideSource);
     if (envValues.get("APP_ENV")?.trim().toLowerCase() !== "beta" || envValues.get("ENVIRONMENT")?.trim().toLowerCase() !== "beta") block("environment_file_identity", "Environment file must define APP_ENV=beta and ENVIRONMENT=beta exactly once");
     else pass("environment_file_identity", "APP_ENV and ENVIRONMENT originate from the supplied beta environment file");
     if (checks.some((check) => !check.passed)) return { status: "BLOCKED", checks, report };
@@ -306,6 +334,12 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
       else if (b.composeProjectName !== input.composeProjectName) block("forge_binding_target", "Binding Compose project differs from the resolved project");
       else if ([...b.authorizedServices].sort().join(",") !== [...input.authorizedServices].sort().join(",")) block("forge_binding_target", "Binding authorized services differ from the operator plan");
       else pass("forge_binding_target", `Binding target matches the resolved plan: ${b.targetEnvironment}/${b.composeProjectName}`);
+      // Blocker from the 2026-09-01 review: signing a target id creates no binding unless the verifier
+      // MEASURES the target and compares. These come from the agent's own configuration, not operator
+      // input, so a binding for server A cannot be presented on server B.
+      if (!input.actualOrgId || !input.actualServerId) block("forge_binding_identity", "Forge evidence requires the agent's own organization and server identity");
+      else if (b.targetOrgId !== input.actualOrgId || b.targetServerId !== input.actualServerId) block("forge_binding_identity", "Binding authorizes a different organization or server than this host");
+      else pass("forge_binding_identity", "Binding target identity matches this host");
       if (forge.candidate.backendImageDigest !== input.authorizedBackendImage || forge.candidate.frontendImageDigest !== input.authorizedFrontendImage) block("forge_binding_images", "Candidate images differ from the attested build's pinned digests");
       else pass("forge_binding_images", "Candidate images are the attested build's pinned digests");
       if (forge.rollback.backendImageDigest !== input.rollbackBackendImage || forge.rollback.frontendImageDigest !== input.rollbackFrontendImage) block("forge_binding_rollback_images", "Rollback images differ from the attested rollback build's pinned digests");
@@ -396,8 +430,13 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
     // host with a tag that no longer meant what it said. Rolling back is itself a deployment: it needs
     // its own operator approval, and the reviewed way to obtain one is a second preflight run with the
     // candidate and rollback roles swapped.
-    const rollbackBase = `docker compose --project-name ${quote(input.composeProjectName)} --env-file ${quote(environmentFile)} -f ${quote(composeFile)} -f ${quote(rollbackOverrideFile)}`;
-    report.rollbackCommand = `${rollbackBase} up -d --no-build --no-deps --force-recreate ${servicesArg}`;
+    if (rollbackOverrideFile) {
+      const rollbackBase = `docker compose --project-name ${quote(input.composeProjectName)} --env-file ${quote(environmentFile)} -f ${quote(composeFile)} -f ${quote(rollbackOverrideFile)}`;
+      report.rollbackCommand = `${rollbackBase} up -d --no-build --no-deps --force-recreate ${servicesArg}`;
+    } else {
+      // Legacy retag form, preserved so that callers who supply no rollback override are unaffected.
+      report.rollbackCommand = `docker image tag ${quote(input.rollbackBackendImage)} ${quote(input.authorizedBackendImage)} && docker image tag ${quote(input.rollbackFrontendImage)} ${quote(input.authorizedFrontendImage)} && ${base} up -d --no-build --no-deps --force-recreate ${servicesArg}`;
+    }
     report.operatorApprovalStatus = "awaiting";
     return { status: "PASS — awaiting operator approval", checks, report };
   } catch (error) {
