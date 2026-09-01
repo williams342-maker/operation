@@ -80,8 +80,15 @@ That is a genuinely independent, machine-checkable provenance chain from source 
 
 Two limits keep it from closing the gap on its own:
 
-1. **It covers the release bundle, not the container images.** The preflight deploys backend and
-   frontend images; nothing attests those.
+1. ~~**It covers the release bundle, not the container images.**~~ **Being closed.** Both Dockerfiles
+   now require a `SOURCE_COMMIT` build argument and stamp
+   `org.opencontainers.image.revision` — the label the preflight already reads — plus the source tree,
+   repository, tag, and creation time, on the **runtime** stage where the label survives. The argument
+   is required rather than optional, because an optional provenance label is absent exactly when it
+   matters. `.github/workflows/control-center-images.yml` builds and stamps the images and can publish
+   and attest them, but is `workflow_dispatch`-only with `publish` defaulting to **false**: pushing an
+   image and writing a transparency-log entry are outward, permanent acts and must not fire on a tag
+   push.
 2. **Nothing consults it.** `resolveBuildIdentity()` shape-checks the manifest JSON at runtime and never
    verifies the attestation that covers that very manifest.
 
@@ -511,13 +518,16 @@ Still open:
    `packages/shared`, with flatness enforced at schema level.~~ **Done.**
 3. Verification module wired into the preflight as the check group of §8.2, inert when no build is
    supplied. The pure verification function already exists; this milestone is the preflight
-   integration, and it needs the §8.4 decision first.
+   integration, and it needs the §8.4 decision first. **Do milestone 5 before this one** — integrating
+   the gate before images carry the label yields a check that passes for the wrong reason.
 4. ~~The proofs of §9, plus the separate-party tests.~~ **Done** at the schema layer. Re-prove them at
    the preflight layer once milestone 3 lands — a proof against the pure function is not a proof
    against the integrated gate.
-5. Extend image builds to carry `org.opencontainers.image.revision` and their own attestation, closing
-   limit 1 in §2.1. Until this lands, `forge_build_provenance` has nothing to check against, so this
-   is the real prerequisite for the whole mechanism to bite.
+5. ~~Extend image builds to carry `org.opencontainers.image.revision` and their own attestation.~~
+   **Done for the label and the build path; the publish path is built but deliberately not enabled.**
+   `forge_build_provenance` now has something real to check against. Note the label mechanism is
+   verified by static assertion and by shell-level testing of the guard, **not** by an actual image
+   build — that verification needs CI or a machine with a running Docker daemon.
 6. Make `resolveBuildIdentity()` verify the attestation it currently ignores, closing limit 2 in §2.1
    (work-order item W2).
 7. Independent review of the complete Forge → OpsWorkbench → Agent authority and evidence chain
