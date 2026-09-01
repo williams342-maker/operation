@@ -33,9 +33,25 @@ export type ForgeEvidencePaths = {
   forgeRollbackAttestationPath?: string;
   forgeTargetBindingPath?: string;
   forgeOwnerAuthorizationPath?: string;
-  forgeOwnerPublicKeyPath?: string;
-  /** Pinned Sigstore trusted root, provisioned out of band. Never fetched. */
-  forgeTrustedRootPath?: string;
+};
+
+// THE TRUST ANCHORS ARE NOT INPUT. They are supplied by the caller from root-owned agent configuration,
+// never from the operator-supplied evidence file.
+//
+// Round 2 of independent review (2026-09-01) found that both anchors were still selectable through the
+// same input that selects the evidence: an operator could ship their own trusted root and their own
+// "owner" public key, and the chain would perform genuine cryptographic verification against
+// authorities the attacker chose. Real signature verification against a root the attacker picked proves
+// nothing. Across two rounds the forgeable surface had been RELOCATED rather than removed — first a
+// `verified: true` boolean, then the roots of trust themselves.
+//
+// The rule, applied here without exception: every trust anchor comes from root-owned configuration,
+// exactly as /etc/opsworkbench-agent/updater-trust.json already works. Evidence is input; trust is not.
+export type ForgeTrustAnchors = {
+  /** Contents of the pinned Sigstore trusted root. Read by the CALLER from a fixed root-owned path. */
+  trustedRoot: unknown;
+  /** The owner's Ed25519 public key from the agent's own enrolled configuration. */
+  ownerPublicKey: string;
 };
 
 export type ForgeEvidenceOutcome =
@@ -51,30 +67,31 @@ const REQUIRED_PATHS = [
   "forgeRollbackBuildPath",
   "forgeRollbackAttestationPath",
   "forgeTargetBindingPath",
-  "forgeOwnerAuthorizationPath",
-  "forgeOwnerPublicKeyPath",
-  "forgeTrustedRootPath"
+  "forgeOwnerAuthorizationPath"
 ] as const;
 
 export const forgeEvidenceRequested = (paths: ForgeEvidencePaths) =>
   REQUIRED_PATHS.some((key) => Boolean(paths[key]?.trim()));
 
-// The owner public key is public material, but pointing this at a private key would still read private
-// bytes into the process. Accept ONLY something that parses as an Ed25519 public key, and never retain
-// the raw text beyond that check.
-function loadOwnerPublicKey(path: string): string {
-  const text = fs.readFileSync(path, "utf8").trim();
-  if (!text) throw new Error("owner public key file is empty");
-  if (/BEGIN [A-Z ]*PRIVATE KEY/.test(text)) throw new Error("owner public key path points at private key material");
+// The owner key arrives from enrolled agent configuration, not from a path. This still validates the
+// shape: configuration can be wrong, and a key that is not an Ed25519 public key must fail loudly here
+// rather than produce a confusing signature failure later.
+function assertEd25519PublicKey(value: string): string {
+  const text = value.trim();
+  if (!text) throw new Error("owner public key is not configured on this host");
+  if (/BEGIN [A-Z ]*PRIVATE KEY/.test(text)) throw new Error("configured owner key is private key material");
   const key = crypto.createPublicKey({ key: Buffer.from(text, "base64url"), format: "der", type: "spki" });
-  if (key.asymmetricKeyType !== "ed25519") throw new Error("owner key is not Ed25519");
+  if (key.asymmetricKeyType !== "ed25519") throw new Error("configured owner key is not Ed25519");
   return text;
 }
 
-export function loadAndVerifyForgeEvidence(paths: ForgeEvidencePaths, context: { agentAdvertisedCapabilities: readonly string[]; consumedNonces?: ReadonlySet<string>; now?: number }): ForgeEvidenceOutcome {
+export function loadAndVerifyForgeEvidence(paths: ForgeEvidencePaths, context: { anchors?: ForgeTrustAnchors; agentAdvertisedCapabilities: readonly string[]; consumedNonces?: ReadonlySet<string>; now?: number }): ForgeEvidenceOutcome {
   if (!forgeEvidenceRequested(paths)) return { state: "absent" };
   const missing = REQUIRED_PATHS.filter((key) => !paths[key]?.trim());
   if (missing.length) return { state: "incomplete", missing: [...missing] };
+  // No anchors means the host has no root-owned trust material. Fail closed: an unanchored verification
+  // is not a weaker verification, it is no verification at all.
+  if (!context.anchors) return { state: "rejected", reason: "trust-anchors-unavailable", detail: "no root-owned trusted root and owner key on this host" };
 
   let candidateBytes: Buffer;
   let rollbackBytes: Buffer;
@@ -91,8 +108,10 @@ export function loadAndVerifyForgeEvidence(paths: ForgeEvidencePaths, context: {
     rollbackDocument = JSON.parse(rollbackBytes.toString("utf8"));
     binding = JSON.parse(fs.readFileSync(paths.forgeTargetBindingPath!, "utf8"));
     ownerAuthorization = JSON.parse(fs.readFileSync(paths.forgeOwnerAuthorizationPath!, "utf8"));
-    ownerPublicKey = loadOwnerPublicKey(paths.forgeOwnerPublicKeyPath!);
-    trustMaterial = loadTrustedRoot(paths.forgeTrustedRootPath!);
+    // Both anchors come from the caller's root-owned material. Nothing here reads a path the operator
+    // chose.
+    ownerPublicKey = assertEd25519PublicKey(context.anchors.ownerPublicKey);
+    trustMaterial = loadTrustedRoot(context.anchors.trustedRoot);
   } catch (error) {
     return { state: "unreadable", detail: error instanceof Error ? error.message : "unreadable evidence" };
   }

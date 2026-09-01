@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { loadTrustedRoot, verifyForgeBuildAttestation } from "../src/forgeAttestation.js";
+import { loadTrustedRootFile, verifyForgeBuildAttestation } from "../src/forgeAttestation.js";
 
 // Real Sigstore material, not fixtures I invented.
 //
@@ -25,7 +25,7 @@ const REAL_BUILDER = "https://github.com/williams342-maker/operation/.github/wor
 const REAL_COMMIT = "4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b";
 const expectation = { builderIdentity: REAL_BUILDER, runnerEnvironment: "github-hosted", sourceCommit: REAL_COMMIT };
 
-const trustMaterial = () => loadTrustedRoot(trustedRootPath);
+const trustMaterial = () => loadTrustedRootFile(trustedRootPath);
 const document = () => fs.readFileSync(documentPath);
 const verify = (over: Partial<Parameters<typeof verifyForgeBuildAttestation>[0]> = {}) =>
   verifyForgeBuildAttestation({ bundlePath, trustMaterial: trustMaterial(), documentBytes: document(), expectation, ...over });
@@ -78,7 +78,7 @@ test("a runner-environment or source-commit claim the attestation contradicts is
 test("an empty trusted root rejects a genuine bundle — trust must come from the pinned root", () => {
   const empty = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "forge-trust-")), "empty-root.json");
   fs.writeFileSync(empty, JSON.stringify({ mediaType: "application/vnd.dev.sigstore.trustedroot+json;version=0.1", certificateAuthorities: [], tlogs: [], ctlogs: [], timestampAuthorities: [] }));
-  const outcome = verify({ trustMaterial: loadTrustedRoot(empty) });
+  const outcome = verify({ trustMaterial: loadTrustedRootFile(empty) });
   assert.equal(outcome.ok, false);
   if (outcome.ok) return;
   assert.equal(outcome.reason, "attestation-invalid");
@@ -107,4 +107,44 @@ test("a malformed or missing bundle is rejected rather than throwing", () => {
   const emptyObject = path.join(dir, "empty.json");
   fs.writeFileSync(emptyObject, "{}");
   assert.equal(verify({ bundlePath: emptyObject }).ok, false);
+});
+
+test("REGRESSION (round 2): a SAN that merely regex-matches the builder is rejected", () => {
+  // @sigstore/verify matches a STRING policy with `signerIdentity.match(policy)` — unanchored regex.
+  // A builder URL is full of metacharacters, so a plain string policy is weaker than it reads. The
+  // expectation is now anchored and escaped, AND the returned identity is re-compared exactly.
+  // A prefix of the real identity would match an unanchored pattern; it must not match ours.
+  const prefix = REAL_BUILDER.slice(0, REAL_BUILDER.indexOf("@"));
+  assert.equal(verify({ expectation: { ...expectation, builderIdentity: prefix } }).ok, false);
+  // `.` as a wildcard: replacing a literal dot must not still match.
+  const wildcarded = REAL_BUILDER.replace("control-center-release.yml", "control-center-releaseXyml");
+  assert.equal(verify({ expectation: { ...expectation, builderIdentity: wildcarded } }).ok, false);
+});
+
+test("REGRESSION (round 2): a non-hex digest is a rejection, not a crash", () => {
+  // Comparing JS string length is not comparing byte length. A multibyte digest of equal character
+  // count made timingSafeEqual throw ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH, turning a verification
+  // decision into an unhandled denial. Shape is validated before the comparison now.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-digest-"));
+  const raw = JSON.parse(fs.readFileSync(bundlePath, "utf8"));
+  const inner = raw.bundle ?? raw;
+  const statement = JSON.parse(Buffer.from(inner.dsseEnvelope.payload, "base64").toString("utf8"));
+  statement.subject = [{ name: "crafted", digest: { sha256: "é".repeat(64) } }];
+  inner.dsseEnvelope.payload = Buffer.from(JSON.stringify(statement)).toString("base64");
+  const crafted = path.join(dir, "crafted.json");
+  fs.writeFileSync(crafted, JSON.stringify(raw));
+  // Must return a decision. The signature no longer covers the edited payload, so it fails earlier —
+  // the point is that nothing throws out of the verifier.
+  const outcome = verify({ bundlePath: crafted });
+  assert.equal(outcome.ok, false);
+});
+
+test("REGRESSION (round 2): a pretty-printed trusted root is readable", () => {
+  // readJsonDocument previously parsed only the first line, so any pretty-printed JSON failed —
+  // including a hand-provisioned trusted root, the file most likely to be pretty-printed.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-pretty-"));
+  const pretty = path.join(dir, "pretty-root.json");
+  fs.writeFileSync(pretty, JSON.stringify(JSON.parse(fs.readFileSync(trustedRootPath, "utf8")), null, 2));
+  const outcome = verifyForgeBuildAttestation({ bundlePath, trustMaterial: loadTrustedRootFile(pretty), documentBytes: document(), expectation });
+  assert.equal(outcome.ok, true, "a pretty-printed trusted root must work");
 });

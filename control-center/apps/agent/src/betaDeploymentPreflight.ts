@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFixed, type ExecResult } from "./safeExec.js";
 import { parseEnvironment } from "./configurationDeployment.js";
-import { loadAndVerifyForgeEvidence, type ForgeEvidencePaths } from "./forgePreflightEvidence.js";
+import { loadAndVerifyForgeEvidence, type ForgeEvidencePaths, type ForgeTrustAnchors } from "./forgePreflightEvidence.js";
 
 export const BETA_STARTUP_SAFETY_FLAGS = [
   "DEPLOY_WATCH_ENABLED",
@@ -71,6 +71,14 @@ export type PreflightHooks = {
   composeConfig?: (args: string[], cwd: string) => Promise<ExecResult>;
   inspectImage?: (image: string, cwd: string) => Promise<ImageInspection | null>;
   now?: () => Date;
+  /** Root-owned trust material, supplied by the CLI from fixed paths. Never from the input file. */
+  anchors?: ForgeTrustAnchors;
+  /**
+   * ATOMIC check-and-consume for replay markers. Consumption IS the decision, not a record of it: two
+   * concurrent runs must not both observe a nonce as unused. Supplied by the CLI; when absent (tests,
+   * or a host with no store) verification still runs but no replay marker is burned.
+   */
+  claimNonces?: (nonces: string[]) => { claimed: string[]; alreadyUsed: boolean };
   // Test seam, same pattern as composeConfig/inspectImage above: a FUNCTION parameter, never a field of
   // the operator-supplied input JSON. Production callers (betaDeploymentPreflightCli.ts) pass no hooks,
   // so there is no path by which input data can substitute evidence verification. Real Sigstore
@@ -259,7 +267,10 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
   // Forge evidence (docs/forge-manifest-spec.md §8.2). Runs first so that bad evidence blocks before
   // anything else is considered. INERT when no evidence is supplied: with no Forge paths the preflight
   // behaves exactly as it did before this existed.
-  const forge = (hooks.verifyEvidence || loadAndVerifyForgeEvidence)(input, { agentAdvertisedCapabilities: input.agentAdvertisedCapabilities || [], consumedNonces: new Set(input.consumedNonces || []), now: now.getTime() });
+  const forge = (hooks.verifyEvidence || loadAndVerifyForgeEvidence)(input, { anchors: hooks.anchors, agentAdvertisedCapabilities: input.agentAdvertisedCapabilities || [], consumedNonces: new Set(input.consumedNonces || []), now: now.getTime() });
+  // Claim the replay markers as part of deciding, not afterwards. A run that cannot claim them is a
+  // replay and must block even though every signature verified.
+  const nonceClaim = forge.state === "verified" && hooks.claimNonces ? hooks.claimNonces(forge.nonces) : undefined;
   report.forge = { state: forge.state === "verified" ? "verified" : forge.state === "absent" ? "absent" : "rejected" };
   if (forge.state === "verified") {
     // The nonces are surfaced so the CLI can consume them persistently after a PASS. They are opaque
@@ -271,7 +282,8 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
     if (forge.state === "incomplete") block("forge_evidence", `Incomplete Forge evidence: ${forge.missing.length} required document(s) missing`);
     if (forge.state === "unreadable") block("forge_evidence", "Forge evidence could not be read");
     if (forge.state === "rejected") block("forge_evidence", `Forge evidence rejected: ${forge.reason}`);
-    if (forge.state === "verified") pass("forge_evidence", "Candidate and rollback builds attested; binding owner-authorized");
+    if (forge.state === "verified" && nonceClaim?.alreadyUsed) block("forge_evidence", "Forge evidence rejected: replayed-nonce");
+    else if (forge.state === "verified") pass("forge_evidence", "Candidate and rollback builds attested; binding owner-authorized");
     if (normalizedEnvironment !== "beta") block("target_environment", "Target must resolve exactly to beta");
     else pass("target_environment", "Resolved target: beta");
     for (const [name, value] of Object.entries({ composeWorkingDirectory: input.composeWorkingDirectory, composeProjectName: input.composeProjectName, composeFilePath: input.composeFilePath, environmentFilePath: input.environmentFilePath, composeOverrideFilePath: input.composeOverrideFilePath })) {

@@ -71,8 +71,6 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     forgeRollbackAttestationPath: path.join(root, "rollback-bundle.json"),
     forgeTargetBindingPath: path.join(root, "binding.json"),
     forgeOwnerAuthorizationPath: path.join(root, "owner-authorization.json"),
-    forgeOwnerPublicKeyPath: path.join(root, "owner.pub"),
-    forgeTrustedRootPath: path.join(root, "trusted-root.json"),
   };
   for (const key of options.omit || []) delete paths[key];
   const evidence: ForgeEvidenceOutcome = options.evidence ?? {
@@ -80,7 +78,7 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     nonces: [binding.nonce, "owner-nonce-000000001"],
   };
   const verifyEvidence = (given: Record<string, unknown>, context: { consumedNonces?: ReadonlySet<string> }): ForgeEvidenceOutcome => {
-    const required = ["forgeCandidateBuildPath", "forgeCandidateAttestationPath", "forgeRollbackBuildPath", "forgeRollbackAttestationPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath", "forgeOwnerPublicKeyPath", "forgeTrustedRootPath"];
+    const required = ["forgeCandidateBuildPath", "forgeCandidateAttestationPath", "forgeRollbackBuildPath", "forgeRollbackAttestationPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath"];
     if (!required.some((key) => given[key])) return { state: "absent" };
     const missing = required.filter((key) => !given[key]);
     if (missing.length) return { state: "incomplete", missing };
@@ -207,7 +205,7 @@ test("candidate or rollback images that are not the attested pinned digests bloc
 });
 
 test("PARTIAL EVIDENCE NEVER PASSES: omitting any single document blocks", async () => {
-  for (const key of ["forgeCandidateBuildPath", "forgeCandidateAttestationPath", "forgeRollbackBuildPath", "forgeRollbackAttestationPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath", "forgeOwnerPublicKeyPath", "forgeTrustedRootPath"]) {
+  for (const key of ["forgeCandidateBuildPath", "forgeCandidateAttestationPath", "forgeRollbackBuildPath", "forgeRollbackAttestationPath", "forgeTargetBindingPath", "forgeOwnerAuthorizationPath"]) {
     const item = fixture({ omit: [key] });
     const result = await runBetaDeploymentPreflight(item.input, item.hooks);
     assert.equal(result.status, "BLOCKED", `omitting ${key} must block`);
@@ -285,4 +283,43 @@ test("the report stays value-free and carries no key material", async () => {
   assert.equal(serialized.includes(owner.signingPrivateKey), false);
   assert.equal(serialized.includes(owner.signingPublicKey), false);
   assert.doesNotMatch(serialized, /BEGIN [A-Z ]*PRIVATE KEY/);
+});
+
+test("BLOCKER (round 2): the trust anchors are not reachable from operator input", () => {
+  // The input type must not carry a trusted root or an owner key. Round 2 found both were selectable
+  // through the same file that selects the evidence, so an operator could ship their own CA and their
+  // own "owner" key and the chain would verify genuinely against authorities the attacker chose. Real
+  // signature verification against a root the attacker picked proves nothing.
+  const item = fixture();
+  for (const forbidden of ["forgeTrustedRootPath", "forgeOwnerPublicKeyPath", "trustedRoot", "ownerPublicKey"]) {
+    assert.equal(forbidden in item.input, false, `${forbidden} must not be an input field`);
+  }
+});
+
+test("BLOCKER (round 2): with no root-owned anchors, evidence is rejected rather than trusted", async () => {
+  // An unanchored verification is not a weaker verification, it is no verification at all.
+  const item = fixture();
+  const unanchored = await runBetaDeploymentPreflight(item.input, {
+    ...item.hooks,
+    verifyEvidence: (paths, context) => (context.anchors ? item.hooks.verifyEvidence(paths, context) : { state: "rejected", reason: "trust-anchors-unavailable" }),
+  });
+  assert.equal(unanchored.status, "BLOCKED");
+  assert.ok(failed(unanchored, "forge_evidence"));
+});
+
+test("BLOCKER (round 2): nonce consumption is the decision, not a record of it", async () => {
+  // The claim hook is atomic (exclusive create). A run that cannot claim is a replay and must block
+  // even though every signature verified.
+  const item = fixture();
+  const used = new Set<string>();
+  const claimNonces = (nonces: string[]) => {
+    if (nonces.some((nonce) => used.has(nonce))) return { claimed: [], alreadyUsed: true };
+    for (const nonce of nonces) used.add(nonce);
+    return { claimed: nonces, alreadyUsed: false };
+  };
+  const first = await runBetaDeploymentPreflight(item.input, { ...item.hooks, claimNonces });
+  assert.equal(first.status, "PASS — awaiting operator approval");
+  const second = await runBetaDeploymentPreflight(fixture().input, { ...fixture().hooks, claimNonces });
+  assert.equal(second.status, "BLOCKED", "the second presentation must not pass");
+  assert.ok(failed(second, "forge_evidence"));
 });

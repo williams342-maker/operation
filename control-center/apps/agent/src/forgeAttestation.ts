@@ -58,19 +58,32 @@ export type ForgeAttestationOutcome =
 
 const sha256 = (value: Buffer) => crypto.createHash("sha256").update(value).digest("hex");
 
-/** Reads the first JSON object of a `.jsonl` file, or a plain `.json` file. */
+/** Reads a `.json` file, or the first record of a `.jsonl` file. */
+export function readJsonFile(path: string): unknown { return readJsonDocument(path); }
+
 function readJsonDocument(path: string): unknown {
   const text = fs.readFileSync(path, "utf8").trim();
-  const firstLine = text.split("\n")[0];
-  return JSON.parse(firstLine);
+  // Try the whole document first. The previous version parsed only the first line, which silently
+  // failed on any pretty-printed JSON — including a hand-provisioned trusted root, the file most likely
+  // to be pretty-printed. Fail-closed, but brittle in exactly the wrong place.
+  try {
+    return JSON.parse(text);
+  } catch {
+    return JSON.parse(text.split("\n")[0]);
+  }
 }
 
-export function loadTrustedRoot(path: string) {
+export function loadTrustedRootFile(path: string) {
+  return loadTrustedRoot(readJsonDocument(path));
+}
+
+/** Takes the already-read trusted-root document. Callers supply it from root-owned material. */
+export function loadTrustedRoot(document: unknown) {
   // Pinned and provisioned out of band, exactly as the updater treats
   // /etc/opsworkbench-agent/updater-trust.json: root-owned, public verification material only, never
   // fetched at verification time. A verifier that can fetch its own trust root can be pointed at
   // someone else's.
-  return toTrustMaterial(TrustedRoot.fromJSON(readJsonDocument(path)));
+  return toTrustMaterial(TrustedRoot.fromJSON(document));
 }
 
 type InTotoStatement = {
@@ -91,10 +104,13 @@ type InTotoStatement = {
 function subjectCoversDocument(statement: InTotoStatement, documentSha256: string): string | undefined {
   for (const subject of statement.subject || []) {
     const digest = subject.digest?.sha256;
-    if (typeof digest !== "string" || digest.length !== documentSha256.length) continue;
+    // Validate the SHAPE before comparing. JS string length is not byte length: a multibyte digest of
+    // equal character count made timingSafeEqual throw ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH, turning a
+    // verification decision into an unhandled crash.
+    if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) continue;
     // Constant-time compare: these are public values, but a timing-independent comparison costs
     // nothing and keeps the habit.
-    if (crypto.timingSafeEqual(Buffer.from(digest, "utf8"), Buffer.from(documentSha256, "utf8"))) {
+    if (crypto.timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(documentSha256, "hex"))) {
       return subject.name || "<unnamed>";
     }
   }
@@ -123,13 +139,25 @@ export function verifyForgeBuildAttestation(input: {
 
   // 1. Cryptographic verification: certificate chain to the pinned roots, transparency-log inclusion,
   //    signing-time validity, and the DSSE signature. Throws on any failure.
+  //    NOTE ON THE POLICY: @sigstore/verify matches a STRING SAN policy with
+  //    `signerIdentity.match(policyIdentity)` — an UNANCHORED REGULAR EXPRESSION. A builder URL is full
+  //    of regex metacharacters (`.`, `+`, `/`), so a plain string policy is a weaker check than it
+  //    reads: a different SAN that merely contains a matching substring would pass. Anchor and escape
+  //    the pattern, AND re-compare the returned identity with strict equality. Either alone would
+  //    probably do; both is cheap, and this is an authority boundary.
+  let signerIdentity: string | undefined;
   try {
-    new Verifier(input.trustMaterial).verify(toSignedEntity(bundle), {
-      subjectAlternativeName: input.expectation.builderIdentity,
+    const anchored = new RegExp(`^${input.expectation.builderIdentity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+    const outcome = new Verifier(input.trustMaterial).verify(toSignedEntity(bundle), {
+      subjectAlternativeName: anchored,
       extensions: { issuer: GITHUB_OIDC_ISSUER }
-    });
+    }) as { identity?: { subjectAlternativeName?: string } };
+    signerIdentity = outcome?.identity?.subjectAlternativeName;
   } catch (error) {
     return { ok: false, reason: "attestation-invalid", detail: error instanceof Error ? `${error.constructor.name}: ${error.message}` : undefined };
+  }
+  if (signerIdentity !== input.expectation.builderIdentity) {
+    return { ok: false, reason: "builder-identity-mismatch", detail: "certificate SAN is not exactly the expected builder identity" };
   }
 
   // 2. Extract the signed statement.

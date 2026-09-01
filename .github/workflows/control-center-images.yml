@@ -47,6 +47,14 @@ jobs:
     # with required reviewers — until that is done, a publish run waits for an approval that no one can
     # grant, which is the correct failure direction.
     environment: ${{ inputs.publish && 'image-publish' || '' }}
+    # Job-level, so EVERY step reads the untrusted tag from the environment. The previous fix moved only
+    # the one step an independent review happened to cite, leaving `${{ inputs.tag }}` interpolated into
+    # two other `run:` bodies — fixing the instance instead of the class, in a job holding id-token,
+    # attestations and packages write.
+    env:
+      INPUT_TAG: ${{ inputs.tag }}
+      INPUT_PUBLISH: ${{ inputs.publish }}
+      REPOSITORY: ${{ github.repository }}
     defaults:
       run:
         working-directory: control-center
@@ -58,12 +66,6 @@ jobs:
 
       - name: Resolve and validate the source identity
         id: source
-        # `inputs.tag` is passed through the ENVIRONMENT, never interpolated into the script body.
-        # Interpolating it made shell substitution happen BEFORE the validating `case` below — in a job
-        # holding id-token/packages write — so the validation was not a guard at all. Found by
-        # independent review, 2026-09-01.
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           tag="$INPUT_TAG"
@@ -84,18 +86,21 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Report what will be built
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          SOURCE_TREE: ${{ steps.source.outputs.tree }}
         run: |
           {
             echo "### Control Center images"
             echo ""
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| tag | \`${{ inputs.tag }}\` |"
-            echo "| commit | \`${{ steps.source.outputs.commit }}\` |"
-            echo "| tree | \`${{ steps.source.outputs.tree }}\` |"
-            echo "| publish | \`${{ inputs.publish }}\` |"
+            echo "| tag | \`$INPUT_TAG\` |"
+            echo "| commit | \`$SOURCE_COMMIT\` |"
+            echo "| tree | \`$SOURCE_TREE\` |"
+            echo "| publish | \`$INPUT_PUBLISH\` |"
             echo ""
-            if [ "${{ inputs.publish }}" != "true" ]; then
+            if [ "$INPUT_PUBLISH" != "true" ]; then
               echo "Build-only run. Nothing was pushed and nothing was attested."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -146,16 +151,19 @@ jobs:
       # must equal the commit the image was built from. Runs on every invocation, published or not, so a
       # build-only run still proves the provenance stamp works.
       - name: Verify the provenance labels
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          SOURCE_TREE: ${{ steps.source.outputs.tree }}
         run: |
           set -euo pipefail
-          expected="${{ steps.source.outputs.commit }}"
+          expected="$SOURCE_COMMIT"
           for image in \
-            "${{ env.REGISTRY }}/${{ github.repository }}/control-center-api:${{ inputs.tag }}" \
-            "${{ env.REGISTRY }}/${{ github.repository }}/control-center-web:${{ inputs.tag }}"; do
+            "${REGISTRY}/${REPOSITORY}/control-center-api:${INPUT_TAG}" \
+            "${REGISTRY}/${REPOSITORY}/control-center-web:${INPUT_TAG}"; do
             revision="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
             tree="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opsworkbench.source.tree" }}')"
             test "$revision" = "$expected" || { echo "$image revision label $revision != $expected" >&2; exit 1; }
-            test "$tree" = "${{ steps.source.outputs.tree }}" || { echo "$image tree label mismatch" >&2; exit 1; }
+            test "$tree" = "$SOURCE_TREE" || { echo "$image tree label mismatch" >&2; exit 1; }
             echo "$image -> revision $revision, tree $tree"
           done
 
