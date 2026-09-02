@@ -39,6 +39,11 @@ app.use(helmet({
       "script-src": ["'self'", "https://accounts.google.com/gsi/client"],
       "style-src": ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/style"],
       "img-src": ["'self'", "data:"],
+      // Tightened from helmet's default of "'self' https: data:". The edge previously sent a SECOND CSP
+      // that omitted font-src and so fell back to default-src 'self'; browsers enforce every CSP header
+      // they receive, making the effective font-src 'self'. That duplicate header has been removed, so
+      // this states the effective policy explicitly rather than letting its removal loosen anything.
+      "font-src": ["'self'"],
       "connect-src": ["'self'", "https://accounts.google.com/gsi/"],
       "frame-src": ["https://accounts.google.com/gsi/"],
       "frame-ancestors": ["'none'"]
