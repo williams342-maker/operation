@@ -278,6 +278,21 @@ jobs:
       # 92 tests waiting 120s each would add over an hour of wall-clock to find out.
       #
       # Resolve this before promoting backend-tests to a required gate.
+      # --timeout=45, NOT 30, and the 15 seconds of headroom are the whole point.
+      #
+      # core.py builds AsyncIOMotorClient(url) with no serverSelectionTimeoutMS, so pymongo uses its
+      # default of 30 SECONDS. The old --timeout=30 collided with that exactly: when a Mongo operation
+      # cannot select a server, pymongo raises ServerSelectionTimeoutError at 30.000s and pytest-timeout
+      # kills the test at 30.000s. pytest wins the race, so all ~92 call-phase hangs were reported as an
+      # opaque "Timeout (>30.0s)" over an idle event loop with NO application frames and no cause.
+      #
+      # That is an instrumentation defect in this file, not a property of the suite. The timeout chosen
+      # here was destroying the very error that explains the failure. With 45s, pymongo's exception
+      # surfaces first and each hang reports what it was actually waiting for.
+      #
+      # Cost: a genuine hang now burns 45s instead of 30s, roughly +23 minutes across ~92 tests, taking
+      # the job to about 80 minutes against the 120-minute cap. That is worth paying to turn 92
+      # undiagnosable hangs into 92 messages.
       - name: Run the test suite
         # --timeout guards against the import-time motor client hanging on a connection rather than
         # failing, which is how this suite behaves with no MongoDB reachable. 30s rather than 60s
@@ -293,7 +308,7 @@ jobs:
         # from the JUnit XML.
         run: |
           set -uo pipefail
-          pytest -q --timeout=30 --continue-on-collection-errors             --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
+          pytest -q --timeout=45 --continue-on-collection-errors             --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
 
       - name: Publish the numbers
         if: always()
