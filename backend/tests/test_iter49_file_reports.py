@@ -74,7 +74,7 @@ def seeded_file(maker_jwt):
 # ── POST /community/files/{id}/report ────────────────────────────────────
 def test_report_unauthenticated_401(seeded_file):
     r = requests.post(f"{API}/community/files/{seeded_file}/report",
-                      json={"reason": "stolen"})
+                      json={"reason": "stolen"}, timeout=15)
     assert r.status_code in (401, 403)
 
 
@@ -82,7 +82,7 @@ def test_report_invalid_reason_400(buyer_jwt, seeded_file):
     r = requests.post(
         f"{API}/community/files/{seeded_file}/report",
         headers={"Authorization": f"Bearer {buyer_jwt}"},
-        json={"reason": "bogus_reason"},
+        json={"reason": "bogus_reason"}, timeout=15,
     )
     assert r.status_code == 400
 
@@ -91,7 +91,7 @@ def test_report_missing_file_404(buyer_jwt):
     r = requests.post(
         f"{API}/community/files/nonexistent-id-999/report",
         headers={"Authorization": f"Bearer {buyer_jwt}"},
-        json={"reason": "stolen"},
+        json={"reason": "stolen"}, timeout=15,
     )
     assert r.status_code == 404
 
@@ -100,7 +100,7 @@ def test_report_success_and_dedup(buyer_jwt, seeded_file):
     r1 = requests.post(
         f"{API}/community/files/{seeded_file}/report",
         headers={"Authorization": f"Bearer {buyer_jwt}"},
-        json={"reason": "stolen", "details": "Ripped from my listing"},
+        json={"reason": "stolen", "details": "Ripped from my listing"}, timeout=15,
     )
     assert r1.status_code == 200, r1.text
     d1 = r1.json()
@@ -111,7 +111,7 @@ def test_report_success_and_dedup(buyer_jwt, seeded_file):
     r2 = requests.post(
         f"{API}/community/files/{seeded_file}/report",
         headers={"Authorization": f"Bearer {buyer_jwt}"},
-        json={"reason": "copyright"},
+        json={"reason": "copyright"}, timeout=15,
     )
     assert r2.status_code == 200
     d2 = r2.json()
@@ -123,7 +123,7 @@ def test_second_buyer_can_report_same_file(buyer2_jwt, seeded_file):
     r = requests.post(
         f"{API}/community/files/{seeded_file}/report",
         headers={"Authorization": f"Bearer {buyer2_jwt}"},
-        json={"reason": "duplicate"},
+        json={"reason": "duplicate"}, timeout=15,
     )
     assert r.status_code == 200
     assert r.json()["duplicate"] is False
@@ -140,13 +140,13 @@ def test_file_visible_in_public_list_before_quarantine(seeded_file):
 # ── Admin GET /admin/design-files/reports ───────────────────────────────
 def test_admin_list_reports_requires_admin(buyer_jwt):
     r = requests.get(f"{API}/admin/design-files/reports",
-                     headers={"Authorization": f"Bearer {buyer_jwt}"})
+                     headers={"Authorization": f"Bearer {buyer_jwt}"}, timeout=15)
     assert r.status_code in (401, 403)
 
 
 def test_admin_list_reports_open(admin_jwt, seeded_file):
     r = requests.get(f"{API}/admin/design-files/reports?status=open",
-                     headers={"Authorization": f"Bearer {admin_jwt}"})
+                     headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     assert r.status_code == 200
     rows = r.json()
     assert isinstance(rows, list)
@@ -165,12 +165,12 @@ def test_admin_list_reports_open(admin_jwt, seeded_file):
 def test_resolve_bad_action(admin_jwt, seeded_file):
     # grab an open report
     r = requests.get(f"{API}/admin/design-files/reports?status=open",
-                     headers={"Authorization": f"Bearer {admin_jwt}"})
+                     headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     report = next(x for x in r.json() if x["file_id"] == seeded_file)
     rr = requests.post(
         f"{API}/admin/design-files/reports/{report['id']}/resolve",
         headers={"Authorization": f"Bearer {admin_jwt}"},
-        json={"action": "bogus"},
+        json={"action": "bogus"}, timeout=15,
     )
     assert rr.status_code == 400
 
@@ -179,14 +179,14 @@ def test_resolve_missing_report_404(admin_jwt):
     r = requests.post(
         f"{API}/admin/design-files/reports/nonexistent-report-id/resolve",
         headers={"Authorization": f"Bearer {admin_jwt}"},
-        json={"action": "dismiss"},
+        json={"action": "dismiss"}, timeout=15,
     )
     assert r.status_code == 404
 
 
 def test_dismiss_one_report_decrements_counter(admin_jwt, seeded_file):
     r = requests.get(f"{API}/admin/design-files/reports?status=open",
-                     headers={"Authorization": f"Bearer {admin_jwt}"})
+                     headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     open_rows = [x for x in r.json() if x["file_id"] == seeded_file]
     before = open_rows[0]["file"]["open_reports"]
     report_id = open_rows[0]["id"]
@@ -194,7 +194,7 @@ def test_dismiss_one_report_decrements_counter(admin_jwt, seeded_file):
     rr = requests.post(
         f"{API}/admin/design-files/reports/{report_id}/resolve",
         headers={"Authorization": f"Bearer {admin_jwt}"},
-        json={"action": "dismiss", "note": "Looks fine"},
+        json={"action": "dismiss", "note": "Looks fine"}, timeout=15,
     )
     assert rr.status_code == 200
     assert rr.json()["action"] == "dismiss"
@@ -203,18 +203,18 @@ def test_dismiss_one_report_decrements_counter(admin_jwt, seeded_file):
     rr2 = requests.post(
         f"{API}/admin/design-files/reports/{report_id}/resolve",
         headers={"Authorization": f"Bearer {admin_jwt}"},
-        json={"action": "dismiss"},
+        json={"action": "dismiss"}, timeout=15,
     )
     assert rr2.status_code == 400
 
     # verify dismissed filter includes it
     r2 = requests.get(f"{API}/admin/design-files/reports?status=dismissed",
-                      headers={"Authorization": f"Bearer {admin_jwt}"})
+                      headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     assert any(x["id"] == report_id for x in r2.json())
 
     # counter decremented
     r3 = requests.get(f"{API}/admin/design-files/reports?status=open",
-                      headers={"Authorization": f"Bearer {admin_jwt}"})
+                      headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     still_open = [x for x in r3.json() if x["file_id"] == seeded_file]
     if still_open:
         assert still_open[0]["file"]["open_reports"] == before - 1
@@ -223,7 +223,7 @@ def test_dismiss_one_report_decrements_counter(admin_jwt, seeded_file):
 def test_quarantine_rolls_up_and_hides_file(admin_jwt, seeded_file):
     # remaining open report
     r = requests.get(f"{API}/admin/design-files/reports?status=open",
-                     headers={"Authorization": f"Bearer {admin_jwt}"})
+                     headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     open_rows = [x for x in r.json() if x["file_id"] == seeded_file]
     assert open_rows, "expected at least 1 open report for quarantine test"
     report_id = open_rows[0]["id"]
@@ -231,43 +231,43 @@ def test_quarantine_rolls_up_and_hides_file(admin_jwt, seeded_file):
     rr = requests.post(
         f"{API}/admin/design-files/reports/{report_id}/resolve",
         headers={"Authorization": f"Bearer {admin_jwt}"},
-        json={"action": "quarantine", "note": "stolen asset"},
+        json={"action": "quarantine", "note": "stolen asset"}, timeout=15,
     )
     assert rr.status_code == 200
     assert rr.json()["action"] == "quarantine"
 
     # file hidden from public list
-    pub = requests.get(f"{API}/community/files").json()
+    pub = requests.get(f"{API}/community/files", timeout=15).json()
     assert seeded_file not in [f["id"] for f in pub]
 
     # resolved filter has at least 1 row for this file with resolution_action=quarantine
     res = requests.get(f"{API}/admin/design-files/reports?status=resolved",
-                       headers={"Authorization": f"Bearer {admin_jwt}"})
+                       headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     q_rows = [x for x in res.json() if x["file_id"] == seeded_file]
     assert any(x.get("resolution_action") == "quarantine" for x in q_rows)
 
     # no more open rows for file
     r2 = requests.get(f"{API}/admin/design-files/reports?status=open",
-                      headers={"Authorization": f"Bearer {admin_jwt}"})
+                      headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15)
     assert not [x for x in r2.json() if x["file_id"] == seeded_file]
 
 
 def test_unquarantine_restores_file(admin_jwt, seeded_file):
     r = requests.post(
         f"{API}/admin/design-files/{seeded_file}/unquarantine",
-        headers={"Authorization": f"Bearer {admin_jwt}"},
+        headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15,
     )
     assert r.status_code == 200
     assert r.json()["ok"] is True
 
     # reappears in public list
-    pub = requests.get(f"{API}/community/files").json()
+    pub = requests.get(f"{API}/community/files", timeout=15).json()
     assert seeded_file in [f["id"] for f in pub]
 
 
 def test_unquarantine_missing_404(admin_jwt):
     r = requests.post(
         f"{API}/admin/design-files/nonexistent-file-id-zzz/unquarantine",
-        headers={"Authorization": f"Bearer {admin_jwt}"},
+        headers={"Authorization": f"Bearer {admin_jwt}"}, timeout=15,
     )
     assert r.status_code == 404

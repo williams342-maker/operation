@@ -141,7 +141,7 @@ class TestFollowMutations:
         assert r.status_code == 403
 
     def test_follow_increments_then_idempotent(self, buyer_a):
-        before = requests.get(f"{API}/makers/{MAKER_SLUG}/follow-status").json()["follower_count"]
+        before = requests.get(f"{API}/makers/{MAKER_SLUG}/follow-status", timeout=15).json()["follower_count"]
 
         r1 = requests.post(
             f"{API}/makers/{MAKER_SLUG}/follow",

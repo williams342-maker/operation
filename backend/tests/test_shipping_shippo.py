@@ -118,7 +118,7 @@ class TestShippingDefaults:
         assert r.status_code == 404
 
     def test_defaults_unauthorized(self):
-        r = requests.get(f"{BASE_URL}/api/maker/orders/{IRON_SESSION}/shipping-defaults")
+        r = requests.get(f"{BASE_URL}/api/maker/orders/{IRON_SESSION}/shipping-defaults", timeout=15)
         assert r.status_code in (401, 403)
 
 

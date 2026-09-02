@@ -247,12 +247,20 @@ jobs:
       #   - none involve the external preview host
       #   - each is blocked in socket.recv_into, waiting on a response from 127.0.0.1:8001
       #   - the heaviest modules (test_returns_cases, test_policy_versioning,
-      #     test_secrets_rotation, test_seo_policy_notify, test_social_momentum) call
-      #     requests.* with NO timeout argument at all, so they wait indefinitely and only
-      #     pytest-timeout ends them
-      #   - test_iter412_seo_agent is different: it passes timeout=180 deliberately, because
-      #     POST /admin/seo-agent/scan/run is expected to take minutes. --timeout=30 kills it
-      #     at 30s, so that one is a CI mismatch rather than a server fault
+      #     test_secrets_rotation, test_seo_policy_notify, test_social_momentum) do NOT use the
+      #     network at all. They drive the app in-process through
+      #     httpx.AsyncClient(transport=ASGITransport(app=app)), so their socket wait is motor
+      #     talking to MongoDB, not an HTTP call to 127.0.0.1:8001. An earlier version of this
+      #     comment blamed missing request timeouts in these files; that was wrong — they issue
+      #     no `requests` calls whatsoever.
+      #   - test_iter412_seo_agent is a different case again: it passes timeout=180 deliberately,
+      #     because POST /admin/seo-agent/scan/run is expected to take minutes. --timeout=30 kills
+      #     it at 30s, so that one is a CI mismatch rather than a server fault
+      #
+      # 151 genuinely unbounded requests./httpx. calls WERE found and fixed across 13 other test
+      # files, but none of those files appear above, so that fix is not expected to move this
+      # number. It was worth doing on its own terms: a test that can wait forever on the network
+      # is a defect whether or not it is currently hanging.
       #
       # NOT established: why the server does not answer the others. The scan handler is fully
       # await-based with no blocking call found, so "one slow handler stalls the single uvicorn
