@@ -1,3 +1,16 @@
+> ## SUPERSEDED, 2026-09-02 — do not review against this document
+>
+> This file was overwritten in place across rounds 1 to 4, which destroyed the text each reviewer
+> actually read. That is a breach of the handoff rule on evidence preservation, and it is fixed by
+> replacing this file with one document per candidate:
+>
+> - **`REVIEW_GATE_HANDOFF_INDEX.md`** — the candidate lineage, every verdict, and where each
+>   superseded handoff lives in git history.
+> - **`REVIEW_GATE_HANDOFF_05162ac1_20260902.md`** — the current candidate.
+>
+> The text below describes candidate `76203f01`, which received NO-GO. It is kept unedited as the record
+> of what round 4 reviewed. Nothing in it should be treated as current.
+
 # Codex reviewer handoff — mandatory review gate, frozen candidate
 
 **Date:** 2026-09-02
