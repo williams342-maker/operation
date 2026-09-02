@@ -74,7 +74,12 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 kiwisolver==1.5.0
 librt==0.8.1
-litellm==1.80.0
+# litellm was REMOVED on 2026-09-01. It carried 21 advisories including a CRITICAL, and nothing in
+# this repository imports it: `git grep -i litellm` matched only these pins, and the vendored
+# emergentintegrations/llm/chat.py is a stub with no LLM client. Bumping was not a viable fix - every
+# version that clears the advisories requires openai>=2.20.0, while openai is pinned at 1.99.9, has
+# zero advisories, and is itself unused. Removal clears all 21 without forcing an openai major.
+# If something outside this repository does need litellm, re-add it WITH the matching openai bump.
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 marshmallow==3.26.2
