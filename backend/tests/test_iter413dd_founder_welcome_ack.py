@@ -51,7 +51,21 @@ def founder():
             "founder_status": "inaugural", "founder_number": 99,
             "subscription_status": "free", "session_version": 0,
         })
+        # DIAGNOSTIC (2026-09-02). This fixture, and four sibling iter413 modules,
+        # fail with an opaque 404 from POST /api/maker/auth/verify — "Maker no
+        # longer exists." The token itself is fine: a bad signature answers 401,
+        # so it decodes and the email lookup is what misses. What could not be
+        # determined from outside is whether the insert above ever landed, and in
+        # which database. Reading the row back through the SAME client answers
+        # that, and makes the fixture fail with its own reason instead of handing
+        # the failure to an endpoint that only knows the row is absent.
+        back = await db.makers.find_one({"email": email}, {"_id": 0, "slug": 1})
+        wrote = await db.makers.count_documents({"email": email})
         c.close()
+        if not back:
+            raise AssertionError(
+                "seed insert did not land: db=%r mongo=%r email=%r matched=%d"
+                % (os.environ.get("DB_NAME"), os.environ.get("MONGO_URL"), email, wrote))
     asyncio.run(_seed())
 
     tok = issue_magic_token(email)
