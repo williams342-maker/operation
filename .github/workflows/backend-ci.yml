@@ -168,15 +168,16 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        # emergentintegrations==0.1.0 is NOT on PyPI — it is vendored at backend/emergentintegrations/,
-        # so `pip install -r requirements.txt` fails outright on a clean machine. Filtering the pin lets
-        # the install succeed while the vendored package stays importable from the working directory.
-        # That is a workaround for a real packaging defect, not a fix for it.
+        # requirements.txt is installed AS WRITTEN. This step used to filter it, because
+        # emergentintegrations==0.1.0 returns 404 from PyPI and broke the install outright. That
+        # workaround hid a real packaging defect, so the pin was removed at source instead and the
+        # vendoring documented there. If this step ever fails on an unresolvable pin again, fix
+        # requirements.txt — do not reintroduce a filter here, because a filtered install is no
+        # longer testing what a developer or a deploy would actually get.
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          grep -v '^emergentintegrations==' requirements.txt > /tmp/requirements-ci.txt
-          pip install -r /tmp/requirements-ci.txt
+          pip install -r requirements.txt
           pip install pytest-timeout
 
       - name: Recreate the container paths the tests hardcode

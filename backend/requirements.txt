@@ -31,7 +31,14 @@ dnspython==2.8.0
 # Reached only via python-jose; mitigation is to avoid ECDSA algorithms, not to upgrade.
 ecdsa==0.19.2
 email-validator==2.3.0
-emergentintegrations==0.1.0
+# emergentintegrations is VENDORED at ./emergentintegrations/, not installed.
+# The pin that stood here could never resolve: the name returns 404 from PyPI and this
+# repository configures no other index, so `pip install -r requirements.txt` failed outright
+# on any clean machine and nobody could stand the backend up from scratch. CI was filtering
+# the line out to get past it, which hid the defect rather than fixing it.
+# Dropping the pin changes nothing at import time: ./emergentintegrations/ is a plain package
+# directory that sits on sys.path ahead of site-packages when running from backend/, so it
+# already shadowed anything an index might have supplied.
 ezdxf==1.4.3
 fastapi==0.110.1
 fastuuid==0.14.0
