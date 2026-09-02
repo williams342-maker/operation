@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   TRANSITIONS,
+  candidateBindingSchema,
   candidateDigest,
+  contentDigest,
+  contentFields,
   independenceOf,
   isTransitionAllowed,
   reviewStates,
@@ -32,6 +35,10 @@ function binding(over: Partial<CandidateBinding> = {}): CandidateBinding {
     candidateCommit: oid("b"),
     candidateTree: oid("c"),
     patchDigest: dig("1"),
+    // artifactDigest and manifestDigest became REQUIRED in round 6: optional artifact binding meant a
+    // materially different artifact could carry the reviewed candidate identity.
+    artifactDigest: dig("3"),
+    manifestDigest: dig("4"),
     dependencyLockDigests: [],
     testPlanVersion: "tp-1",
     testResultDigest: dig("2"),
@@ -374,4 +381,70 @@ test("the only states without an exit are the declared terminal ones", () => {
   const noExit = reviewStates.filter((s) => TRANSITIONS[s].length === 0);
   assert.deepEqual([...noExit].sort(), [...terminalStates].sort(),
     "a state with no outgoing transitions must be declared terminal, or it strands the candidate");
+});
+
+// ── round-5: the content / paperwork split ───────────────────────────────────────────────────────────
+
+test("C5-3: paperwork fields change candidate identity but NOT content identity", () => {
+  // The whole of the round-5 remediation rests on this distinction, so assert it directly rather than
+  // only through the service. Each of these changes the submission; none of them changes the work.
+  const base = binding();
+  for (const [field, value] of [
+    ["createdAt", "2026-09-02T09:00:00.000Z"],
+    ["occurrenceId", "occ-different"],
+    ["authorityRef", "OWNER-SOMETHING-ELSE"],
+    ["requestedReviewerClass", "internal"],
+    ["testResultDigest", dig("8")],
+  ] as const) {
+    const changed = binding({ [field]: value } as Partial<CandidateBinding>);
+    assert.notEqual(candidateDigest(changed), candidateDigest(base),
+      `${field} should still change the candidate's identity`);
+    assert.equal(contentDigest(changed), contentDigest(base),
+      `${field} must NOT change the content digest; it is paperwork, not work`);
+  }
+});
+
+test("C5-3: content fields change content identity", () => {
+  // The counterpart. If contentDigest ignored everything it would satisfy the test above perfectly.
+  const base = contentDigest(binding());
+  for (const [field, value] of [
+    ["repository", "someone/else"],
+    ["baseCommit", oid("9")],
+    ["candidateCommit", oid("9")],
+    ["candidateTree", oid("9")],
+    ["patchDigest", dig("9")],
+    ["artifactDigest", dig("9")],
+    ["manifestDigest", dig("9")],
+    ["testPlanVersion", "tp-99"],
+  ] as const) {
+    assert.notEqual(contentDigest(binding({ [field]: value } as Partial<CandidateBinding>)), base,
+      `${field} is part of the work and must change the content digest`);
+  }
+  assert.notEqual(contentDigest(binding({ dependencyLockDigests: [dig("5")] })), base,
+    "the dependency lock set is part of the work");
+});
+
+test("C5-3: the content field list is exactly what the digest covers", () => {
+  // Derived from the exported list rather than restating it, so adding a field to one and not the other
+  // fails here instead of silently widening or narrowing what counts as a remediation.
+  assert.deepEqual([...contentFields].sort(), [
+    "artifactDigest", "baseCommit", "candidateCommit", "candidateTree", "dependencyLockDigests",
+    "manifestDigest", "patchDigest", "projectId", "repository", "testPlanVersion",
+  ]);
+  for (const field of ["createdAt", "occurrenceId", "authorityRef", "testResultDigest",
+    "requestedReviewerClass", "baseBranch", "expiresAt", "authorIdentity"]) {
+    assert.equal(contentFields.includes(field), false,
+      `${field} must stay out of the content digest, or re-submitting the same work would look new`);
+  }
+});
+
+test("M2: artifact and manifest binding are mandatory, so identity covers what was built", () => {
+  // Codex raised this twice as a production blocker while it stayed optional. A binding without them is
+  // now simply not a binding.
+  for (const missing of ["artifactDigest", "manifestDigest"] as const) {
+    const incomplete = { ...binding() } as Record<string, unknown>;
+    delete incomplete[missing];
+    assert.throws(() => candidateBindingSchema.parse(incomplete), undefined,
+      `${missing} must be required; an unbound artifact can carry a reviewed identity`);
+  }
 });

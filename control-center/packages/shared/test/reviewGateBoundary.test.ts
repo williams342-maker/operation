@@ -19,6 +19,15 @@ import path from "node:path";
 // "boundaries" were conventions I had described as enforcement. The enforcement is the `exports` map;
 // the internal module gives it a name; these tests fail if either half is removed.
 
+/**
+ * Workspace roots the evaluator scan covers.
+ *
+ * Round 5: the scan listed five roots while the non-vacuity test checked two, so `scripts`, `deploy` and
+ * `tools` could all be absent or unread without anything failing -- and `tools` does not exist in this
+ * checkout. A single list, asserted against reality below, is what stops that drifting again.
+ */
+const SCAN_ROOTS = ["apps", "packages", "scripts", "deploy", "tools"] as const;
+
 const here = import.meta.dirname;
 const sharedSrc = path.join(here, "..", "src");
 const packageRoot = path.join(here, "..");
@@ -171,7 +180,7 @@ test("no application code imports the evaluator directly", () => {
   const offenders: string[] = [];
   // Round 4: the scan looked only in apps/. Everything in the workspace that could import the module is
   // now covered, including deploy scripts and any future package.
-  for (const app of ["apps", "packages", "scripts", "deploy", "tools"]) {
+  for (const app of SCAN_ROOTS) {
     for (const file of sourceFiles(path.join(repoRoot, app))) {
       if (path.resolve(file).startsWith(path.resolve(sharedSrc))) continue;
       if (path.resolve(file).startsWith(path.resolve(here))) continue;
@@ -189,9 +198,30 @@ test("the scan actually reads files, so an empty result means clean rather than 
   // A scan that silently found nothing to look at would pass the test above forever. Round 4 called the
   // apps/ scan a repository regression check rather than an enforcement boundary; that is exactly what
   // it is, and a regression check that scans nothing is worthless.
-  const scanned = ["apps", "packages"].flatMap((d) => sourceFiles(path.join(repoRoot, d)));
+  const scanned = SCAN_ROOTS.flatMap((d) => sourceFiles(path.join(repoRoot, d)));
   assert.ok(scanned.length > 20, "expected a substantial number of workspace files, got " + scanned.length);
   assert.ok(scanned.some((f) => f.endsWith(".ts")), "the scan should be finding TypeScript");
+});
+
+test("every scanned root is accounted for: present and read, or knowingly absent", () => {
+  // ROUND 5 was right that the previous version of this test covered two of the five roots, so three
+  // could vanish silently. Each root must now be either present with files in it, or explicitly listed
+  // as not existing -- which makes a root disappearing a visible change rather than a quiet gap.
+  const absent: string[] = [];
+  const populated: string[] = [];
+  for (const root of SCAN_ROOTS) {
+    const full = path.join(repoRoot, root);
+    if (!fs.existsSync(full)) { absent.push(root); continue; }
+    assert.ok(sourceFiles(full).length > 0, root + " exists but the scan read nothing from it");
+    populated.push(root);
+  }
+  // Measured, not guessed. I first wrote this expecting scripts/ and deploy/ to be empty of scannable
+  // files and the test failed, which is the test doing its job: the scan in fact reads 23 files across
+  // those two roots, so the coverage claim is stronger than I assumed rather than weaker.
+  assert.deepEqual(populated, ["apps", "packages", "scripts", "deploy"],
+    "a root falling silent must be a deliberate edit here, not a quiet gap in the scan");
+  assert.deepEqual(absent, ["tools"],
+    "tools/ does not exist in this checkout; if it is added, it is already covered by SCAN_ROOTS");
 });
 
 test("only the service module imports the evaluator", () => {

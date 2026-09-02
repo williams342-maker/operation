@@ -22,7 +22,8 @@ export * from "./ownerAuthorization.js";
 // leaks again.
 export {
   reviewStates, TRANSITIONS, terminalStates, participantRoles, participantSchema,
-  candidateBindingSchema, candidateDigest, verdictSchema, isTransitionAllowed, independenceOf,
+  candidateBindingSchema, candidateDigest, contentDigest, contentFields,
+  verdictSchema, isTransitionAllowed, independenceOf,
   ReviewGateError, MAX_VERDICT_AGE_MS, MAX_CLOCK_SKEW_MS,
   type ReviewState, type ParticipantRole, type Participant, type CandidateBinding, type Verdict,
 } from "./reviewGate.js";

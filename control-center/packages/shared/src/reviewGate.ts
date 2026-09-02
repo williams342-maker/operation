@@ -102,8 +102,14 @@ export const candidateBindingSchema = z.object({
   candidateCommit: gitOid,
   candidateTree: gitOid,
   patchDigest: sha256,
-  artifactDigest: sha256.optional(),
-  manifestDigest: sha256.optional(),
+  /**
+   * REQUIRED as of round 6. These were optional, and an independent review said twice that optional
+   * artifact binding should block production use or any claim that candidate identity is complete --
+   * a materially different artifact could carry the reviewed candidate's identity. Agreeing with a
+   * finding twice and leaving it open is not agreeing with it.
+   */
+  artifactDigest: sha256,
+  manifestDigest: sha256,
   dependencyLockDigests: z.array(sha256).max(50).default([]),
   testPlanVersion: safeId,
   testResultDigest: sha256,
@@ -137,8 +143,8 @@ export function candidateDigest(binding: CandidateBinding): string {
     ["candidateCommit", parsed.candidateCommit],
     ["candidateTree", parsed.candidateTree],
     ["patchDigest", parsed.patchDigest],
-    ["artifactDigest", parsed.artifactDigest ?? ""],
-    ["manifestDigest", parsed.manifestDigest ?? ""],
+    ["artifactDigest", parsed.artifactDigest],
+    ["manifestDigest", parsed.manifestDigest],
     ["dependencyLockDigests", [...parsed.dependencyLockDigests].sort().join(",")],
     ["testPlanVersion", parsed.testPlanVersion],
     ["testResultDigest", parsed.testResultDigest],
@@ -164,6 +170,55 @@ export function candidateDigest(binding: CandidateBinding): string {
   }
   return hash.digest("hex");
 }
+
+/**
+ * The fields that are the WORK ITSELF, as opposed to the paperwork around it.
+ *
+ * WHY THIS IS A SEPARATE DIGEST. Round 5 of the independent review broke two of my claims with the same
+ * observation. I said a rejected digest could never be approved, and that a successor must differ from
+ * what it replaces -- and both were enforced against `candidateDigest`, which covers `createdAt`,
+ * `occurrenceId`, `authorityRef`, `requestedReviewerClass` and `testResultDigest`. So changing a
+ * timestamp, or simply re-running the tests on untouched code, produced a "different candidate" that had
+ * never been rejected. The rejection was attached to the paperwork rather than to the work.
+ *
+ * `contentDigest` covers only what would have to change for the defect to be gone: the repository, the
+ * commits and tree, the patch, the built artifact and its manifest, the dependency lock set, and the test
+ * plan. Re-running tests does not change it. Re-freezing at a later time does not change it. Editing the
+ * authority reference does not change it.
+ *
+ * NOTE WHAT THIS COSTS: two candidates identical in content but targeting different environments share a
+ * content digest, so a rejection in one environment blocks approval in the other. That is the direction I
+ * want the error to point.
+ */
+const CONTENT_FIELDS = Object.freeze([
+  "projectId", "repository", "baseCommit", "candidateCommit", "candidateTree",
+  "patchDigest", "artifactDigest", "manifestDigest", "dependencyLockDigests", "testPlanVersion",
+] as const);
+
+export function contentDigest(binding: CandidateBinding): string {
+  const parsed = candidateBindingSchema.parse(binding);
+  const value = (name: (typeof CONTENT_FIELDS)[number]): string =>
+    name === "dependencyLockDigests"
+      ? [...parsed.dependencyLockDigests].sort().join(",")
+      : String(parsed[name]);
+  const hash = crypto.createHash("sha256");
+  hash.update("content-v1|");
+  for (const name of CONTENT_FIELDS) {
+    const v = value(name);
+    hash.update(String(name.length));
+    hash.update("|");
+    hash.update(name);
+    hash.update("|");
+    hash.update(String(Buffer.byteLength(v, "utf8")));
+    hash.update("|");
+    hash.update(v, "utf8");
+    hash.update("|");
+  }
+  return hash.digest("hex");
+}
+
+/** The fields covered by contentDigest, exported so a test can prove the split is what it claims. */
+export const contentFields: readonly string[] = CONTENT_FIELDS;
 
 /** A verdict older than this is refused outright rather than silently honoured. */
 export const MAX_VERDICT_AGE_MS = 14 * 24 * 60 * 60 * 1000;

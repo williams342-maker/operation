@@ -42,6 +42,8 @@ function binding(over: Partial<CandidateBinding> = {}): CandidateBinding {
     candidateCommit: oid("b"),
     candidateTree: oid("c"),
     patchDigest: dig("1"),
+    artifactDigest: dig("3"),
+    manifestDigest: dig("4"),
     dependencyLockDigests: [],
     testPlanVersion: "tp-1",
     testResultDigest: dig("2"),
@@ -62,9 +64,10 @@ async function seeded(state?: string) {
   // TESTED is gated on a recorded test execution, so seeding has to record one. That this helper had to
   // change at all is the round-4 finding in miniature: before it, every test walked into TESTED by
   // asserting it.
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "c1", occurrenceId: "seed-ev", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-seed", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-seed",
   });
   if (state) {
     const path: Array<[string, string]> = [
@@ -238,9 +241,10 @@ test("MODERATE: an expired candidate cannot be advanced", async () => {
   const b = binding({ expiresAt: "2026-09-02T12:00:00.000Z" });
   await svc.createCandidate(who("claude"), { candidateId: "c2", binding: b });
   // Evidence is recorded, so this test proves expiry refuses the move -- not that evidence was missing.
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "c2", occurrenceId: "ev-exp", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-c2", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-c2",
   });
   const result = await svc.transition(who("claude"), {
     candidateId: "c2", occurrenceId: "e1", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
@@ -276,11 +280,17 @@ test("an author cannot register a candidate attributed to someone else", async (
 // This walks the entire loop and ends on the move the bypass existed to permit.
 test("C3 end-to-end: a reviewer who remediates cannot then approve their own remediation", async () => {
   const store = new InMemoryReviewGateStore();
-  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  // A MOVING CLOCK, because a fixed one hid a real defect. Round 5 found that "evidence recorded after
+  // the remediation" was implemented with >=, so a run recorded in the same millisecond as the
+  // REMEDIATING transition counted as following it -- which is exactly what a fixed test clock produces.
+  // The comparison is strict now, and this test advances time like the real thing would.
+  let now = "2026-09-02T02:00:00.000Z";
+  const svc = new ReviewGateService(store, auth, () => now);
   await svc.createCandidate(who("claude"), { candidateId: "c9", binding: binding() });
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "c9", occurrenceId: "ev0", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-c9-1", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-c9-1",
   });
 
   const step = async (to: string, id: string, actor = "claude") => {
@@ -309,10 +319,12 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
   await step("REMEDIATION_REQUIRED", "s6", "codex");
   await step("REMEDIATING", "s7", "codex");
   await step("RETEST_REQUIRED", "s8", "codex");
+  now = "2026-09-02T04:00:00.000Z";
   // The retest needs its own evidence: the run recorded before the remediation no longer counts.
-  await svc.recordTestExecution(who("codex"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "c9", occurrenceId: "ev1", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-c9-2", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-c9-2",
   });
   await step("TESTED", "s9", "codex");
   await step("FROZEN", "s10", "codex");
@@ -337,7 +349,7 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
   // even consulted. Both guards are real; this path now meets the stricter one first. Independence is
   // asserted on its own in "an author cannot submit a verdict naming an uninvolved reviewer" and in the
   // ledger test above, so nothing is left uncovered by the change.
-  assert.equal((selfApproval as { code: string }).code, "digest_already_rejected");
+  assert.equal((selfApproval as { code: string }).code, "content_already_rejected");
 });
 
 // CRITICAL-2 (round 3). Identity used to be a principal the caller constructed, and the package exported
@@ -435,9 +447,10 @@ test("C4: evidence for a DIFFERENT digest does not test this candidate", async (
   await svc.createCandidate(who("claude"), { candidateId: "e2", binding: binding() });
   // A real recorded run — of something else. The gate must not accept "a test happened" as "this
   // candidate was tested".
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "e2", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-other", resultDigest: dig("9"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-other",
   });
   const result = await svc.transition(who("claude"), {
     candidateId: "e2", occurrenceId: "x", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
@@ -451,9 +464,10 @@ test("C4: recorded evidence for the bound digest does let the candidate reach TE
   const store = new InMemoryReviewGateStore();
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
   await svc.createCandidate(who("claude"), { candidateId: "e3", binding: binding() });
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "e3", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-e3", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-e3",
   });
   const result = await svc.transition(who("claude"), {
     candidateId: "e3", occurrenceId: "x", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
@@ -466,24 +480,27 @@ test("C4: a replayed evidence id is refused rather than counted twice", async ()
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
   await svc.createCandidate(who("claude"), { candidateId: "e4", binding: binding() });
   const once = { candidateId: "e4", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST" as const,
-    evidenceId: "ev-dup", resultDigest: dig("2") };
-  assert.equal((await svc.recordTestExecution(who("claude"), once)).ok, true);
-  const replay = await svc.recordTestExecution(who("claude"), once);
+    evidenceId: "ev-dup", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/dup" };
+  assert.equal((await svc.recordTestExecution(who("ci"), once)).ok, true);
+  const replay = await svc.recordTestExecution(who("ci"), once);
   assert.equal(replay.ok, false);
   assert.equal((replay as { code: string }).code, "evidence_replayed");
 });
 
 // ── round-4 CRITICAL: a rejected candidate could be re-approved unchanged ─────────────────────────────
 
-test("C4: a digest that received NO_GO can never reach GO, even from a second reviewer", async () => {
+test("C4/C5: rejected CONTENT can never reach GO, even from a second reviewer", async () => {
   // The payoff step of the round-4 attack. The first reviewer rejects; the loop is walked without a line
   // of code changing; a DIFFERENT, genuinely independent reviewer approves the identical content.
   const store = new InMemoryReviewGateStore();
-  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  let now = "2026-09-02T02:00:00.000Z";
+  const svc = new ReviewGateService(store, auth, () => now);
   await svc.createCandidate(who("claude"), { candidateId: "r1", binding: binding() });
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "r1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-r1", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-r1",
   });
   for (const [to, id] of [["TESTED", "a"], ["FROZEN", "b"], ["REVIEW_REQUESTED", "c"],
     ["REVIEW_IN_PROGRESS", "d"]] as const) {
@@ -508,9 +525,11 @@ test("C4: a digest that received NO_GO can never reach GO, even from a second re
       candidateId: "r1", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
     assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
   }
-  await svc.recordTestExecution(who("claude"), {
+  now = "2026-09-02T04:00:00.000Z";
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "r1", occurrenceId: "ev2", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-r1-2", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-r1-2",
   });
   for (const [to, id] of [["TESTED", "h"], ["FROZEN", "i"], ["REVIEW_REQUESTED", "j"],
     ["REVIEW_IN_PROGRESS", "k"]] as const) {
@@ -527,7 +546,7 @@ test("C4: a digest that received NO_GO can never reach GO, even from a second re
     },
   });
   assert.equal(reApproval.ok, false, "identical content that was rejected must not be approvable");
-  assert.equal((reApproval as { code: string }).code, "digest_already_rejected");
+  assert.equal((reApproval as { code: string }).code, "content_already_rejected");
 });
 
 test("C4: a retest cannot lean on evidence recorded before the remediation", async () => {
@@ -535,9 +554,10 @@ test("C4: a retest cannot lean on evidence recorded before the remediation", asy
   let now = "2026-09-02T02:00:00.000Z";
   const svc = new ReviewGateService(store, auth, () => now);
   await svc.createCandidate(who("claude"), { candidateId: "r2", binding: binding() });
-  await svc.recordTestExecution(who("claude"), {
+  await svc.recordTestExecution(who("ci"), {
     candidateId: "r2", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
     evidenceId: "ev-r2", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/ev-r2",
   });
   const go = async (to: string, id: string) => {
     const r = await svc.transition(who("claude"), {
@@ -559,22 +579,105 @@ test("C4: a retest cannot lean on evidence recorded before the remediation", asy
 
 // ── successors: the legitimate way out of a NO_GO ─────────────────────────────────────────────────────
 
-test("C4: a successor must actually differ from what it replaces", async () => {
+/** Drive a candidate all the way to a genuine NO_GO, which is the only honest starting point for a successor. */
+async function rejected(id: string, over: Partial<CandidateBinding> = {}) {
   const store = new InMemoryReviewGateStore();
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
-  await svc.createCandidate(who("claude"), { candidateId: "s1", binding: binding() });
-  const identical = await svc.createSuccessor(who("claude"), {
-    candidateId: "s2", supersedes: "s1", binding: binding(),
+  const b = binding(over);
+  await svc.createCandidate(who("claude"), { candidateId: id, binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: id, occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: `ev-${id}`, resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: `run/${id}`,
   });
-  assert.equal(identical.ok, false, "re-registering the same content is not a remediation");
-  assert.equal((identical as { code: string }).code, "successor_identical");
+  for (const [to, occ] of [["TESTED", "p1"], ["FROZEN", "p2"], ["REVIEW_REQUESTED", "p3"],
+    ["REVIEW_IN_PROGRESS", "p4"]] as const) {
+    const r = await svc.transition(who("claude"), {
+      candidateId: id, occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  }
+  const verdict = await svc.submitVerdict(who("codex"), {
+    candidateId: id, occurrenceId: "p5", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(b), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }],
+      submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(verdict.ok, true, `NO_GO: ${JSON.stringify(verdict)}`);
+  return { store, svc, binding: b };
+}
+
+test("C5-3: a successor changing only paperwork is not a remediation", async () => {
+  const { svc } = await rejected("s1");
+  // The round-5 attack: identical work, a different createdAt and occurrenceId. candidateDigest differs,
+  // so the previous implementation accepted this as a new candidate with no rejection history.
+  const paperworkOnly = await svc.createSuccessor(who("claude"), {
+    candidateId: "s2", supersedes: "s1",
+    binding: binding({ createdAt: "2026-09-02T09:00:00.000Z", occurrenceId: "occ-different" }),
+  });
+  assert.equal(paperworkOnly.ok, false, "a new timestamp is not a fix");
+  assert.equal((paperworkOnly as { code: string }).code, "successor_identical");
+});
+
+test("C5-3: re-running the tests on untouched code is not a remediation either", async () => {
+  const { svc } = await rejected("s1b");
+  // testResultDigest is part of candidateDigest but NOT of contentDigest, precisely so that this fails.
+  const rerun = await svc.createSuccessor(who("claude"), {
+    candidateId: "s2b", supersedes: "s1b", binding: binding({ testResultDigest: dig("8") }),
+  });
+  assert.equal(rerun.ok, false, "a green re-run of the same code does not remediate anything");
+  assert.equal((rerun as { code: string }).code, "successor_identical");
+});
+
+test("C5-2: rejected content cannot be re-registered under a fresh candidate id", async () => {
+  // The round-5 CRITICAL in its simplest form: skip the successor API entirely and just register the
+  // same binding again under a new id. The old rejection lived in one record's occurrence history, so
+  // the new record had none.
+  const { svc } = await rejected("s1c");
+  const relabelled = await svc.createCandidate(who("claude"), {
+    candidateId: "totally-different-id", binding: binding(),
+  });
+  assert.equal(relabelled.ok, false, "a new candidate id must not launder rejected content");
+  assert.equal((relabelled as { code: string }).code, "content_already_rejected");
+});
+
+test("M5-1: a stranger cannot claim to supersede someone else's candidate", async () => {
+  const { svc } = await rejected("s1d");
+  const stranger = await svc.createSuccessor(who("mallory"), {
+    candidateId: "s2d", supersedes: "s1d",
+    binding: binding({ authorIdentity: "mallory", candidateCommit: oid("e") }),
+  });
+  assert.equal(stranger.ok, false, "only a participant may register a successor");
+  assert.equal((stranger as { code: string }).code, "successor_actor_uninvolved");
+});
+
+test("M5-1: a successor must stay within the same project and repository", async () => {
+  const { svc } = await rejected("s1e");
+  const elsewhere = await svc.createSuccessor(who("claude"), {
+    candidateId: "s2e", supersedes: "s1e",
+    binding: binding({ candidateCommit: oid("e"), repository: "someone-else/other-repo" }),
+  });
+  assert.equal(elsewhere.ok, false);
+  assert.equal((elsewhere as { code: string }).code, "successor_lineage_mismatch");
+});
+
+test("M5-1: a candidate still under review has nothing to supersede", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "live", binding: binding() });
+  const premature = await svc.createSuccessor(who("claude"), {
+    candidateId: "live2", supersedes: "live", binding: binding({ candidateCommit: oid("e") }),
+  });
+  assert.equal(premature.ok, false, "BUILT is not awaiting remediation");
+  assert.equal((premature as { code: string }).code, "prior_not_supersedable");
 });
 
 test("C4: a genuine successor is registered and records what it replaces", async () => {
-  const store = new InMemoryReviewGateStore();
-  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
-  await svc.createCandidate(who("claude"), { candidateId: "s3", binding: binding() });
-  const fixed = binding({ candidateCommit: oid("d"), testResultDigest: dig("7") });
+  // The counterpart to all six refusals above. Real remediation -- a different commit and tree -- must
+  // still work, or the gate has simply become a wall.
+  const { store, svc } = await rejected("s3");
+  const fixed = binding({ candidateCommit: oid("d"), candidateTree: oid("e"), testResultDigest: dig("7") });
   const successor = await svc.createSuccessor(who("claude"), {
     candidateId: "s4", supersedes: "s3", binding: fixed,
   });
@@ -583,4 +686,61 @@ test("C4: a genuine successor is registered and records what it replaces", async
   assert.equal(record!.supersedes, "s3", "lineage must be recorded, not left to a commit message");
   assert.notEqual(record!.digest, (await store.load("s3"))!.digest);
   assert.equal(record!.state, "BUILT", "a successor starts at the beginning; it inherits no progress");
+});
+
+
+// ── round-5: evidence is separated from authorship, though still not provenance ───────────────────────
+
+test("C5-1: the author of a candidate cannot record its test evidence", async () => {
+  // Round 5's CRITICAL: the author invents a testResultDigest, then records evidence for that same
+  // invented value. Persistence had been added; provenance had not. This does not add provenance either
+  // -- it forces a SECOND authenticated party to make the assertion, which is separation of duties.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "sd1", binding: binding() });
+  const selfAttested = await svc.recordTestExecution(who("claude"), {
+    candidateId: "sd1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-self", resultDigest: dig("2"),
+    runnerIdentity: "ci-runner", runReference: "run/1",
+  });
+  assert.equal(selfAttested.ok, false, "self-attested evidence must be refused");
+  assert.equal((selfAttested as { code: string }).code, "evidence_actor_is_author");
+});
+
+test("C5-1: evidence must name where the run happened", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "sd2", binding: binding() });
+  for (const missing of ["runnerIdentity", "runReference"] as const) {
+    const input: Record<string, unknown> = {
+      candidateId: "sd2", occurrenceId: "ev-" + missing, billingClass: "INTERNAL_QA_TEST",
+      evidenceId: "ev-" + missing, resultDigest: dig("2"),
+      runnerIdentity: "ci-runner", runReference: "run/1",
+    };
+    delete input[missing];
+    const result = await svc.recordTestExecution(who("ci"), input as never);
+    assert.equal(result.ok, false, missing + " must be required");
+    assert.equal((result as { code: string }).code, "malformed_input");
+  }
+});
+
+test("C5-1: a recorded run names the runner, the run and the content it applies to", async () => {
+  // The counterpart, and the honest limit of this fix: what is stored is an assertion by an
+  // authenticated second party, with a reference someone can go and check. It is not a signed result.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "sd3", binding: binding() });
+  const ok = await svc.recordTestExecution(who("ci"), {
+    candidateId: "sd3", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-sd3", resultDigest: dig("2"),
+    runnerIdentity: "github-actions", runReference: "actions/runs/12345",
+  });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  const [record] = await store.loadEvidence("sd3");
+  assert.equal(record.runnerIdentity, "github-actions");
+  assert.equal(record.runReference, "actions/runs/12345");
+  assert.equal(record.recordedBy, "ci");
+  assert.notEqual(record.recordedBy, binding().authorIdentity, "the recorder is not the author");
+  assert.equal(record.contentDigest, (await store.load("sd3"))!.contentDigest,
+    "evidence is pinned to the content it was recorded against");
 });

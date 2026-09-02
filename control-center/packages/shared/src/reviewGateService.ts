@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   candidateBindingSchema,
   candidateDigest,
+  contentDigest,
   verdictSchema,
   type CandidateBinding,
   type Participant,
@@ -61,6 +62,8 @@ export function isCustomerBillable(billingClass: BillingClass): boolean {
 export type CandidateRecord = {
   candidateId: string;
   digest: string;
+  /** Identity of the WORK, as opposed to identity of the submission. See contentDigest. */
+  contentDigest: string;
   binding: CandidateBinding;
   state: ReviewState;
   /** Set when this candidate exists to replace one that was rejected. See createSuccessor. */
@@ -87,6 +90,15 @@ export type EvidenceRecord = {
   candidateId: string;
   /** Must equal the candidate binding's testResultDigest, or it is evidence about something else. */
   resultDigest: string;
+  /**
+   * Where the run happened. Round 5 was right that persistence is not provenance: without a runner
+   * identity and a run reference, a stored digest is an authenticated caller assertion that has been
+   * written down. This does not make it cryptographic -- see the note on recordTestExecution -- but it
+   * does mean the record names something outside itself that can be checked by a human or a later job.
+   */
+  runnerIdentity: string;
+  runReference: string;
+  contentDigest: string;
   recordedBy: string;
   at: string;
 };
@@ -113,6 +125,16 @@ export interface ReviewGateStore {
   /** Append-only. Returns false if the evidence id was already used, so a replay cannot double-count. */
   recordEvidence(record: EvidenceRecord): Promise<boolean>;
   loadEvidence(candidateId: string): Promise<EvidenceRecord[]>;
+  /**
+   * Has THIS CONTENT ever been rejected, on any candidate record?
+   *
+   * Round 5's second CRITICAL: rejection was scoped to one record's occurrence history, so registering
+   * the identical binding under a new candidateId produced a record with no rejection history that could
+   * be approved. The rejection has to outlive the record it was issued against, which means the store
+   * has to answer this question across all of them.
+   */
+  isContentRejected(contentDigest: string): Promise<boolean>;
+  recordRejection(contentDigest: string, candidateId: string, at: string): Promise<void>;
   compareAndSetState(input: {
     candidateId: string;
     expectedState: ReviewState;
@@ -125,6 +147,15 @@ export interface ReviewGateStore {
 export class InMemoryReviewGateStore implements ReviewGateStore {
   private readonly records = new Map<string, CandidateRecord>();
   private readonly evidence = new Map<string, EvidenceRecord[]>();
+  private readonly rejected = new Map<string, { candidateId: string; at: string }>();
+
+  async isContentRejected(digest: string): Promise<boolean> {
+    return this.rejected.has(digest);
+  }
+
+  async recordRejection(digest: string, candidateId: string, at: string): Promise<void> {
+    if (!this.rejected.has(digest)) this.rejected.set(digest, { candidateId, at });
+  }
 
   async recordEvidence(record: EvidenceRecord): Promise<boolean> {
     const all = [...this.evidence.values()].flat();
@@ -241,6 +272,18 @@ const UNAUTHENTICATED = Object.freeze({
   message: "the supplied proof did not establish an identity",
 });
 
+/**
+ * States from which a candidate can legitimately be replaced.
+ *
+ * A candidate still moving through review has nothing to supersede yet, and one that already reached
+ * READY_FOR_OWNER_DECISION is the owner's to decide on -- quietly replacing it would take that decision
+ * away. TEST_FAILED is included because a build that never passed its tests is exactly the case where a
+ * successor is the right answer.
+ */
+const SUPERSEDABLE: readonly ReviewState[] = Object.freeze([
+  "NO_GO", "REMEDIATION_REQUIRED", "REMEDIATING", "TEST_FAILED", "CANCELLED", "EXPIRED",
+]);
+
 export type ServiceResult =
   | { ok: true; state: ReviewState }
   | { ok: false; code: string; message: string };
@@ -290,9 +333,20 @@ export class ReviewGateService {
       };
     }
     const now = this.clock();
+    // Round 5's attack was to re-register rejected content under a fresh candidateId. Refusing it at
+    // registration is better than refusing it at approval: the author finds out now, not after a reviewer
+    // has spent time on it.
+    if (await this.store.isContentRejected(contentDigest(binding))) {
+      return {
+        ok: false,
+        code: "content_already_rejected",
+        message: "this exact content was rejected; register a successor that changes it",
+      };
+    }
     const created = await this.store.create({
       candidateId: input.candidateId,
       digest: candidateDigest(binding),
+      contentDigest: contentDigest(binding),
       binding,
       state: "BUILT",
       participants: [{ identity: binding.authorIdentity, role: "author", at: now }],
@@ -309,6 +363,8 @@ export class ReviewGateService {
   async recordTestExecution(proof: unknown, input: z.input<typeof intentSchema> & {
     evidenceId: string;
     resultDigest: string;
+    runnerIdentity: string;
+    runReference: string;
   }): Promise<ServiceResult> {
     const principal = this.principal(proof);
     if (!principal) return UNAUTHENTICATED;
@@ -317,6 +373,8 @@ export class ReviewGateService {
       intent = intentSchema.parse(input);
       z.string().regex(/^[a-f0-9]{64}$/).parse(input.resultDigest);
       z.string().min(1).max(200).parse(input.evidenceId);
+      z.string().min(1).max(200).parse(input.runnerIdentity);
+      z.string().min(1).max(500).parse(input.runReference);
     } catch (error) {
       return { ok: false, code: "malformed_input", message: (error as Error).message.slice(0, 300) };
     }
@@ -326,10 +384,28 @@ export class ReviewGateService {
     const record = await this.store.load(intent.candidateId);
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
+    // SEPARATION OF DUTIES ON EVIDENCE. Round 5 showed the author could invent a testResultDigest and
+    // then record evidence for that same invented value -- self-attestation with an extra step. The
+    // author of a candidate may no longer be the party that records its test evidence.
+    //
+    // BE PRECISE ABOUT WHAT THIS BUYS. It is separation of duties, NOT provenance. A CI identity is still
+    // an authenticated caller making an assertion; nothing here verifies a test ran. Real provenance
+    // needs signed execution results, which needs key material I am not authorised to create. That is a
+    // genuine owner-authority boundary and it is recorded as one in the handoff rather than papered over.
+    if (principal.identity === record.binding.authorIdentity) {
+      return {
+        ok: false,
+        code: "evidence_actor_is_author",
+        message: "the author of a candidate cannot record its test evidence",
+      };
+    }
     const written = await this.store.recordEvidence({
       evidenceId: input.evidenceId,
       candidateId: intent.candidateId,
       resultDigest: input.resultDigest,
+      runnerIdentity: input.runnerIdentity,
+      runReference: input.runReference,
+      contentDigest: record.contentDigest,
       recordedBy: principal.identity,
       at: this.clock(),
     });
@@ -364,20 +440,56 @@ export class ReviewGateService {
     } catch (error) {
       return { ok: false, code: "malformed_input", message: (error as Error).message.slice(0, 300) };
     }
-    if (candidateDigest(binding) === prior.digest) {
+    // ROUND 5, C5-3. This compared candidateDigest, which covers createdAt, occurrenceId, authorityRef,
+    // requestedReviewerClass and testResultDigest. So bumping a timestamp -- or simply re-running the
+    // tests on untouched code -- produced a "different" candidate and laundered the rejection. The
+    // comparison has to be against the WORK, which is what contentDigest is for.
+    if (contentDigest(binding) === prior.contentDigest) {
       return {
         ok: false,
         code: "successor_identical",
-        message: "a successor must differ from what it replaces; identical content is not a remediation",
+        message: "a successor must change the work; new paperwork over identical content is not a remediation",
+      };
+    }
+    // ...and the new content must not itself be something already rejected elsewhere.
+    if (await this.store.isContentRejected(contentDigest(binding))) {
+      return {
+        ok: false,
+        code: "content_already_rejected",
+        message: "this content was rejected on another candidate; it cannot be reintroduced as a successor",
       };
     }
     if (binding.authorIdentity !== principal.identity) {
       return { ok: false, code: "author_actor_mismatch", message: "the binding names a different author" };
     }
+    // ROUND 5, M5-1. Anyone authenticated could claim to supersede anybody's unrelated candidate. Three
+    // things now have to hold, and none of them was checked before.
+    if (binding.projectId !== prior.binding.projectId || binding.repository !== prior.binding.repository) {
+      return {
+        ok: false,
+        code: "successor_lineage_mismatch",
+        message: "a successor must belong to the same project and repository as what it replaces",
+      };
+    }
+    if (!SUPERSEDABLE.includes(prior.state)) {
+      return {
+        ok: false,
+        code: "prior_not_supersedable",
+        message: `a candidate in ${prior.state} is not awaiting remediation; nothing to supersede`,
+      };
+    }
+    if (!prior.participants.some((participant) => participant.identity === principal.identity)) {
+      return {
+        ok: false,
+        code: "successor_actor_uninvolved",
+        message: "only a participant in the rejected candidate may register its successor",
+      };
+    }
     const now = this.clock();
     const created = await this.store.create({
       candidateId: input.candidateId,
       digest: candidateDigest(binding),
+      contentDigest: contentDigest(binding),
       binding,
       state: "BUILT",
       supersedes: input.supersedes,
@@ -464,7 +576,10 @@ export class ReviewGateService {
         .filter((o) => o.to === "REMEDIATING")
         .map((o) => Date.parse(o.at))
         .sort((a, b) => b - a)[0];
-      if (lastRemediation !== undefined && !matching.some((e) => Date.parse(e.at) >= lastRemediation)) {
+      // ROUND 5, MODERATE: this was `>=`, so evidence recorded in the same millisecond as the
+      // REMEDIATING transition counted as being after it -- trivially reproducible under the fixed clock
+      // the tests inject. "After" now means after.
+      if (lastRemediation !== undefined && !matching.some((e) => Date.parse(e.at) > lastRemediation)) {
         return {
           ok: false,
           code: "stale_test_evidence",
@@ -523,7 +638,7 @@ export class ReviewGateService {
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
     const to: ReviewState = verdict.verdict === "GO" ? "GO" : "NO_GO";
-    if (to === "GO" && record.occurrences.some((o) => o.to === "NO_GO")) {
+    if (to === "GO" && await this.store.isContentRejected(record.contentDigest)) {
       // ROUND 4, the payoff step of the attack: a candidate is rejected, walks the remediation loop
       // without changing, and a DIFFERENT independent reviewer approves the identical content. The
       // binding is immutable, so a NO_GO on this record is a NO_GO on this digest, and it stays one.
@@ -531,8 +646,8 @@ export class ReviewGateService {
       // createSuccessor.
       return {
         ok: false,
-        code: "digest_already_rejected",
-        message: "this exact candidate was rejected; remediation must produce a successor candidate",
+        code: "content_already_rejected",
+        message: "this exact content was rejected; remediation must change the work, not the paperwork",
       };
     }
     const now = this.clock();
@@ -568,6 +683,12 @@ export class ReviewGateService {
         code: "state_moved_or_replayed",
         message: "the candidate changed state since it was read, or this verdict was already applied",
       };
+    }
+    if (to === "NO_GO") {
+      // Written only after the transition has actually applied, so a rejected transition cannot poison
+      // the content ledger. This outlives the record: a fresh candidateId carrying the same work will be
+      // refused at registration.
+      await this.store.recordRejection(record.contentDigest, record.candidateId, now);
     }
     return { ok: true, state: to };
   }
