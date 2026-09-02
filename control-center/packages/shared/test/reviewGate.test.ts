@@ -59,15 +59,22 @@ function verdict(over: Partial<Verdict> = {}): Verdict {
   };
 }
 
-const go = (from: ReviewState, to: ReviewState, over: Record<string, unknown> = {}) =>
-  evaluateTransition({
+// A terminal verdict now requires an authenticated actor that MATCHES the reviewer named in the verdict.
+// That is the CRITICAL-2 remediation: a name in a payload is a claim, not an identity. These tests
+// default the actor to the verdict's reviewer so each stays about the property it names; the requirement
+// itself is asserted separately below.
+const go = (from: ReviewState, to: ReviewState, over: Record<string, unknown> = {}) => {
+  const v = (over as { verdict?: Verdict }).verdict;
+  return evaluateTransition({
     from,
     to,
     binding: binding(),
     boundDigest: candidateDigest(binding()),
     participants: authored,
+    ...(v ? { actorIdentity: v.reviewerIdentity } : {}),
     ...over,
   } as Parameters<typeof evaluateTransition>[0]);
+};
 
 // ── §H.1 / §H.2 — a passing test is not an approval ──────────────────────────────────────────────────
 
@@ -156,6 +163,7 @@ test("H7: a remediator cannot certify the candidate they remediated", () => {
     boundDigest: candidateDigest(binding()),
     participants,
     verdict: verdict({ reviewerIdentity: "codex" }),
+    actorIdentity: "codex",
   });
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, "reviewer_not_independent");
@@ -290,4 +298,49 @@ test("no transition table entry is self-looping", () => {
   for (const s of reviewStates) {
     assert.equal(TRANSITIONS[s].includes(s), false, `${s} loops to itself`);
   }
+});
+
+// ── CRITICAL-2 remediation, asserted directly ────────────────────────────────────────────────────────
+
+test("a terminal verdict without an authenticated actor is refused", () => {
+  const result = evaluateTransition({
+    from: "REVIEW_IN_PROGRESS",
+    to: "GO",
+    binding: binding(),
+    boundDigest: candidateDigest(binding()),
+    participants: authored,
+    verdict: verdict(),
+    // actorIdentity deliberately omitted
+  });
+  assert.equal(result.ok, false);
+  assert.equal((result as { code: string }).code, "actor_required");
+});
+
+test("a verdict naming a reviewer other than the authenticated actor is refused", () => {
+  // The exact attack the independent review found: authenticate as the author, name someone innocent.
+  const result = evaluateTransition({
+    from: "REVIEW_IN_PROGRESS",
+    to: "GO",
+    binding: binding(),
+    boundDigest: candidateDigest(binding()),
+    participants: authored,
+    verdict: verdict({ reviewerIdentity: "codex" }),
+    actorIdentity: "claude",
+  });
+  assert.equal(result.ok, false);
+  assert.equal((result as { code: string }).code, "verdict_actor_mismatch");
+});
+
+test("malformed runtime input becomes a closed decision rather than throwing", () => {
+  const result = evaluateTransition({
+    from: "REVIEW_IN_PROGRESS",
+    to: "GO",
+    binding: binding(),
+    boundDigest: candidateDigest(binding()),
+    participants: [{ identity: "x", role: "not-a-role", at: "nope" }],
+    verdict: verdict(),
+    actorIdentity: "codex",
+  } as unknown as Parameters<typeof evaluateTransition>[0]);
+  assert.equal(result.ok, false);
+  assert.equal((result as { code: string }).code, "malformed_input");
 });

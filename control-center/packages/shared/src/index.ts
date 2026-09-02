@@ -16,3 +16,4 @@ export * from "./agentKeys.js";
 export * from "./agentProtocol.js";
 export * from "./ownerAuthorization.js";
 export * from "./reviewGate.js";
+export * from "./reviewGateService.js";

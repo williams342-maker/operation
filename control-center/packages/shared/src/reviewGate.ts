@@ -113,6 +113,8 @@ export const candidateBindingSchema = z.object({
   authorityRef: safeId,
   rollbackTargetId: safeId.optional(),
   createdAt: z.string().datetime(),
+  /** After this instant the candidate cannot be frozen, reviewed, or approved. Part of identity. */
+  expiresAt: z.string().datetime().optional(),
   occurrenceId: safeId,
 });
 export type CandidateBinding = z.infer<typeof candidateBindingSchema>;
@@ -145,6 +147,8 @@ export function candidateDigest(binding: CandidateBinding): string {
     ["requestedReviewerClass", parsed.requestedReviewerClass],
     ["authorityRef", parsed.authorityRef],
     ["rollbackTargetId", parsed.rollbackTargetId ?? ""],
+    ["createdAt", parsed.createdAt],
+    ["expiresAt", parsed.expiresAt ?? ""],
     ["occurrenceId", parsed.occurrenceId],
   ];
   const hash = crypto.createHash("sha256");
@@ -160,6 +164,9 @@ export function candidateDigest(binding: CandidateBinding): string {
   }
   return hash.digest("hex");
 }
+
+/** A verdict older than this is refused outright rather than silently honoured. */
+export const MAX_VERDICT_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 export class ReviewGateError extends Error {
   readonly code: string;
@@ -231,8 +238,32 @@ export function evaluateTransition(input: {
   participants: readonly Participant[];
   verdict?: Verdict;
   actorIdentity?: string;
+  /** Trusted instant, supplied by the authoritative layer. Omit only in pure-policy unit tests. */
+  now?: string;
 }): { ok: true } | { ok: false; code: string; message: string } {
-  const { from, to, binding, boundDigest, participants, verdict, actorIdentity } = input;
+  const { from, to, boundDigest, actorIdentity } = input;
+
+  // Parse at the boundary. TypeScript disappears at runtime, and this function is reached from routes,
+  // queues and callbacks where the shapes are whatever arrived. A malformed input must become a closed
+  // decision, never an exception and never a silent pass — NO_GO previously dereferenced
+  // verdict.findings.length without ever having parsed the verdict.
+  let binding: CandidateBinding;
+  let participants: readonly Participant[];
+  let verdict: Verdict | undefined;
+  try {
+    binding = candidateBindingSchema.parse(input.binding);
+    participants = z.array(participantSchema).max(500).parse(input.participants ?? []);
+    verdict = input.verdict === undefined ? undefined : verdictSchema.parse(input.verdict);
+  } catch (error) {
+    return {
+      ok: false,
+      code: "malformed_input",
+      message: `input failed schema validation: ${(error as Error).message.slice(0, 300)}`,
+    };
+  }
+  if (!reviewStates.includes(from) || !reviewStates.includes(to)) {
+    return { ok: false, code: "unknown_state", message: `${from} -> ${to} names a state that does not exist` };
+  }
 
   if (candidateDigest(binding) !== boundDigest) {
     return {
@@ -243,6 +274,21 @@ export function evaluateTransition(input: {
   }
   if (!isTransitionAllowed(from, to)) {
     return { ok: false, code: "illegal_transition", message: `${from} -> ${to} is not a legal move` };
+  }
+
+  // Expiry is enforced against caller-independent time supplied by the trusted layer, not read from the
+  // clock here, so a test can drive it and a route cannot dodge it.
+  if (input.now !== undefined) {
+    const now = Date.parse(input.now);
+    if (Number.isNaN(now)) {
+      return { ok: false, code: "malformed_input", message: "`now` is not a valid instant" };
+    }
+    if (binding.expiresAt && now > Date.parse(binding.expiresAt) && to !== "EXPIRED" && to !== "CANCELLED") {
+      return { ok: false, code: "candidate_expired", message: "the candidate expired; only EXPIRED or CANCELLED remain" };
+    }
+    if (verdict && now - Date.parse(verdict.submittedAt) > MAX_VERDICT_AGE_MS) {
+      return { ok: false, code: "verdict_stale", message: "the verdict is older than the maximum accepted age" };
+    }
   }
 
   if (to === "GO" || to === "NO_GO") {
@@ -258,6 +304,19 @@ export function evaluateTransition(input: {
     }
     if (verdict.verdict !== to) {
       return { ok: false, code: "verdict_disagrees", message: `verdict says ${verdict.verdict}, transition says ${to}` };
+    }
+    // The verdict names its reviewer, but a name in a payload is a claim. Whoever calls this must say who
+    // they are, authenticated, and the two must agree — otherwise an author submits a verdict naming an
+    // uninvolved identity and the independence check happily evaluates the innocent party.
+    if (!actorIdentity) {
+      return { ok: false, code: "actor_required", message: "a terminal verdict requires an authenticated actor" };
+    }
+    if (actorIdentity !== verdict.reviewerIdentity) {
+      return {
+        ok: false,
+        code: "verdict_actor_mismatch",
+        message: "the authenticated actor is not the reviewer named in the verdict",
+      };
     }
     const independence = independenceOf(verdict.reviewerIdentity, participants, binding.authorIdentity);
     if (!independence.independent) {
