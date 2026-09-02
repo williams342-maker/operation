@@ -63,6 +63,18 @@ jobs:
     env:
       MONGO_URL: mongodb://127.0.0.1:27017
       DB_NAME: backend_ci_test
+      # Set explicitly rather than relying on config.py's non-production default of
+      # "dev-local-secret-change-me" — that default is 26 bytes, which is what triggers PyJWT 2.13.0's
+      # InsecureKeyLengthWarning throughout the suite. 32+ bytes keeps the logs readable. It is a
+      # throwaway CI value and authenticates nothing outside this job.
+      MAKER_AUTH_SECRET: ci-only-throwaway-secret-not-a-real-credential-0123456789
+      # Background work off: the suite asserts on request/response behaviour, and schedulers firing
+      # mid-run make failures non-deterministic.
+      SCHEDULER_ENABLED: "false"
+      GSC_ENABLED: "false"
+      OPS_DIGEST_ENABLED: "false"
+      PROD_WATCHDOG_ENABLED: "false"
+      SOCIAL_AUTO_PUBLISH_ENABLED: "false"
     steps:
       - uses: actions/checkout@v6
 
@@ -108,6 +120,32 @@ jobs:
           echo "REACT_APP_BACKEND_URL=http://localhost:8001" > /app/frontend/.env
           : > /app/backend/.env
 
+      - name: Start the API server the tests integrate against
+        # THE POINT OF THIS RUN. The first measurement scored 38.2%, but 1560 of 1758 failures (89%)
+        # were a single cause: requests/httpx ConnectionError to localhost:8001, plus pytest-timeout
+        # hangs waiting on it. This suite is integration-style against a live backend, so MongoDB alone
+        # was never going to exercise it.
+        #
+        # No configuration is needed beyond the job env: config.py treats an unset APP_ENV as
+        # non-production, which skips the Stripe/PayPal/email requirements and defaults storage_backend
+        # to "local" so no R2 credentials are wanted either.
+        run: |
+          set -euo pipefail
+          nohup python -m uvicorn server:app --host 127.0.0.1 --port 8001 --log-level warning             > /tmp/uvicorn.log 2>&1 &
+          # Probe for ANY HTTP response rather than a specific route: this app exposes no health
+          # endpoint, so a 404 still proves the server is listening and routing.
+          for i in $(seq 1 90); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/ || true)"
+            if [ "$code" != "000" ]; then
+              echo "API server ready after ${i}s (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::API server failed to start within 90s"
+          cat /tmp/uvicorn.log
+          exit 1
+
       - name: Run the test suite
         # --timeout guards against the import-time motor client hanging on a connection rather than
         # failing, which is how this suite behaves with no MongoDB reachable. 30s rather than 60s
@@ -148,6 +186,10 @@ jobs:
           print(f"| skipped | {skip} |")
           print("\nThis job does not gate merges yet. Promote it once these numbers are stable — see the workflow header.")
           PY
+
+      - name: Show the API server log
+        if: always()
+        run: tail -n 60 /tmp/uvicorn.log || true
 
       - name: Retain the JUnit report
         if: always()
