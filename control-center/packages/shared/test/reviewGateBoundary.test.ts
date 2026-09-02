@@ -44,14 +44,17 @@ function code(file: string): string {
     .replace(/(^|[^:])\/\/[^\n]*/gm, "$1 ");
 }
 
+/** Extensions a bypass could actually be written in. Round 4 noted the scan saw only `.ts`. */
+const SCANNED = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
 function sourceFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   const out: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === "node_modules" || entry.name === "dist") continue;
+    if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
-    else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) out.push(full);
+    else if (SCANNED.some((e) => entry.name.endsWith(e)) && !entry.name.endsWith(".d.ts")) out.push(full);
   }
   return out;
 }
@@ -123,20 +126,30 @@ test("the index publishes TrustedPrincipal as a type, never as a value", async (
   assert.equal(typeof surface.ReviewGateService, "function", "the service must still be exported");
 });
 
-test("the index still exports the surface consumers legitimately need", () => {
+test("the index still exports the surface consumers legitimately need", async () => {
   // The counterpart assertion: a boundary that exported NOTHING would also satisfy the tests above, so
   // this proves the restriction is narrow rather than total.
   //
-  // Round 3 found the previous version of this test vacuous. It read
+  // TWICE-CORRECTED. Round 3 found the first version vacuous — it read
   //     index.includes(name) || /reviewGateService\.js/.test(index)
-  // and the right-hand side is true whenever the index mentions that module at all — so every name in
-  // the list could have been deleted and the loop would still have passed. The disjunction made the
-  // assertion unfalsifiable, which is worse than no counterpart test, because it reads like coverage.
-  const index = code(path.join(sharedSrc, "index.ts"));
-  for (const name of ["candidateDigest", "ReviewGateService", "candidateBindingSchema", "TRANSITIONS",
-    "independenceOf", "InMemoryReviewGateStore", "SessionAuthenticator", "isTransitionAllowed"]) {
-    assert.ok(new RegExp("\\b" + name + "\\b").test(index),
-      name + " should remain reachable through the package index");
+  // whose right-hand side is true whenever the index mentions that module at all, so every name could
+  // have been deleted with the test still green. Round 4 found the replacement still weak: matching a
+  // name anywhere in the text passes on a string literal or a comment, and never proves the name is
+  // EXPORTED. So this now inspects the real module namespace. Text-matching a source file to learn what
+  // a module exports is guesswork; importing it is not.
+  const surface = await import("../src/index.js") as Record<string, unknown>;
+  const expected: Array<[string, string]> = [
+    ["candidateDigest", "function"],
+    ["ReviewGateService", "function"],
+    ["InMemoryReviewGateStore", "function"],
+    ["isTransitionAllowed", "function"],
+    ["independenceOf", "function"],
+    ["candidateBindingSchema", "object"],
+    ["TRANSITIONS", "object"],
+  ];
+  for (const [name, kind] of expected) {
+    assert.equal(typeof surface[name], kind,
+      name + " should remain reachable through the package index as a " + kind);
   }
 });
 
@@ -156,8 +169,12 @@ test("no application code imports the evaluator directly", () => {
   // honestly: this catches a *relative* import inside the monorepo, which the exports map cannot. The
   // exports map catches the package-subpath import, which this cannot. Both are needed.
   const offenders: string[] = [];
-  for (const app of ["apps"]) {
+  // Round 4: the scan looked only in apps/. Everything in the workspace that could import the module is
+  // now covered, including deploy scripts and any future package.
+  for (const app of ["apps", "packages", "scripts", "deploy", "tools"]) {
     for (const file of sourceFiles(path.join(repoRoot, app))) {
+      if (path.resolve(file).startsWith(path.resolve(sharedSrc))) continue;
+      if (path.resolve(file).startsWith(path.resolve(here))) continue;
       const text = code(file);
       if (/\bevaluateTransition\b/.test(text) || /reviewGateInternal/.test(text)) {
         offenders.push(path.relative(repoRoot, file));
@@ -166,6 +183,15 @@ test("no application code imports the evaluator directly", () => {
   }
   assert.deepEqual(offenders, [],
     "these files reach the policy evaluator directly; route them through ReviewGateService instead");
+});
+
+test("the scan actually reads files, so an empty result means clean rather than blind", () => {
+  // A scan that silently found nothing to look at would pass the test above forever. Round 4 called the
+  // apps/ scan a repository regression check rather than an enforcement boundary; that is exactly what
+  // it is, and a regression check that scans nothing is worthless.
+  const scanned = ["apps", "packages"].flatMap((d) => sourceFiles(path.join(repoRoot, d)));
+  assert.ok(scanned.length > 20, "expected a substantial number of workspace files, got " + scanned.length);
+  assert.ok(scanned.some((f) => f.endsWith(".ts")), "the scan should be finding TypeScript");
 });
 
 test("only the service module imports the evaluator", () => {
@@ -177,20 +203,88 @@ test("only the service module imports the evaluator", () => {
     "the evaluator should have exactly one caller: the authoritative service");
 });
 
-test("service operations take a proof, never an identity string or a principal", () => {
-  // Guards the C2 remediation shape across all three rounds at once. `actorIdentity: string` was round
-  // 1's hole; a caller-constructed principal was round 2's. The surface must expose neither.
+test("service operations reject a forged principal at runtime, whatever the source text says", async () => {
+  // ROUND 4 WAS RIGHT TO REJECT THE PREVIOUS VERSION OF THIS TEST. It searched for the exact string
+  // `principal:` and for the words "private constructor" and "WeakSet". Renaming a parameter, adding a
+  // space, or destructuring would all have evaded it, and the presence of the word "WeakSet" in a file
+  // proves nothing about whether operations are branded. It asserted vocabulary, not behaviour.
+  //
+  // The behaviour is what matters, so assert the behaviour: build a real service and hand each operation
+  // the forgery that used to work. If any of them authenticates it, the boundary is gone regardless of
+  // how the file reads.
+  const { ReviewGateService, InMemoryReviewGateStore } =
+    await import("../src/reviewGateService.js");
+  const svc = new ReviewGateService(new InMemoryReviewGateStore(), {
+    authenticate: (proof) => {
+      const id = (proof as { userId?: unknown } | null)?.userId;
+      return typeof id === "string" && id ? { identity: id } : null;
+    },
+  });
+  const forged = { identity: "codex" };
+  const attempts = [
+    svc.createCandidate(forged, { candidateId: "x", binding: {} as never }),
+    svc.transition(forged, {
+      candidateId: "x", occurrenceId: "1", billingClass: "INTERNAL_QA_TEST", to: "TESTED" as never }),
+    svc.submitVerdict(forged, {
+      candidateId: "x", occurrenceId: "2", billingClass: "INTERNAL_REVIEW", verdict: {} }),
+    svc.recordTestExecution(forged, {
+      candidateId: "x", occurrenceId: "3", billingClass: "INTERNAL_QA_TEST",
+      evidenceId: "e", resultDigest: "0".repeat(64) }),
+    svc.createSuccessor(forged, { candidateId: "y", supersedes: "x", binding: {} as never }),
+  ];
+  for (const result of await Promise.all(attempts)) {
+    assert.equal(result.ok, false, "a forged principal must not authenticate");
+    assert.equal((result as { code: string }).code, "unauthenticated",
+      "and it must be refused for being unauthenticated, not for some later validation failure");
+  }
+});
+
+test("the request intent carries no identity field", () => {
+  // The one assertion here that is legitimately textual: it is about what the SCHEMA declares, and the
+  // schema is a literal in the source. Round 1's hole was `actorIdentity: string` on the parsed intent.
   const service = code(path.join(sharedSrc, "reviewGateService.ts"));
   assert.equal(
-    /actorIdentity:\s*z\.string\(\)/.test(service),
+    /actorIdentity:\s*z\./.test(service),
     false,
     "identity must not be part of the parsed request intent",
   );
-  assert.equal(
-    /async (createCandidate|transition|submitVerdict)\(\s*principal:/.test(service),
-    false,
-    "an operation accepting a principal accepts a forgeable object; take an opaque proof instead",
-  );
-  assert.ok(/private constructor/.test(service), "TrustedPrincipal must keep its private constructor");
-  assert.ok(/WeakSet/.test(service), "a runtime brand is required; instanceof alone is forgeable");
+});
+
+// ── the attack itself, run rather than described ─────────────────────────────────────────────────────
+
+test("the round-3 subpath attack is refused by the module resolver", async () => {
+  // Every other assertion in this file reads configuration and infers that Node will honour it. This one
+  // performs the exact import Codex used to falsify round 3's claim, and requires the resolver to refuse
+  // it. Package self-reference works because the package declares both a name and an exports map, so
+  // this exercises the same resolution path a consumer in apps/ would take.
+  //
+  // The refusal is RESOLUTION-time: it does not depend on dist/ having been built, which was verified by
+  // moving dist/ aside and re-running. So this is not a test that quietly passes when the build is
+  // missing.
+  const blocked = [
+    "@control-center/shared/dist/reviewGateInternal.js",
+    "@control-center/shared/dist/reviewGate.js",
+    "@control-center/shared/dist/reviewGateService.js",
+    "@control-center/shared/dist/index.js",
+  ];
+  for (const specifier of blocked) {
+    let code: string | undefined;
+    try {
+      await import(specifier);
+    } catch (error) {
+      code = (error as NodeJS.ErrnoException).code;
+    }
+    assert.equal(code, "ERR_PACKAGE_PATH_NOT_EXPORTED",
+      specifier + " must not resolve; a reachable subpath rebuilds the evaluator bypass");
+  }
+});
+
+test("the root specifier still resolves, so the exports map restricts rather than severs", async () => {
+  // Counterpart to the test above: an exports map naming a path that does not exist would also refuse
+  // every subpath, while breaking every consumer. The restriction has to be survivable.
+  const surface = await import("@control-center/shared") as Record<string, unknown>;
+  assert.equal(typeof surface.ReviewGateService, "function",
+    "consumers must still reach the service through the package root");
+  assert.equal(surface.evaluateTransition, undefined,
+    "...and must still not reach the evaluator through it");
 });

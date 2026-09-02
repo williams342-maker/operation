@@ -59,6 +59,13 @@ async function seeded(state?: string) {
   const store = new InMemoryReviewGateStore();
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
   await svc.createCandidate(who("claude"), { candidateId: "c1", binding: binding() });
+  // TESTED is gated on a recorded test execution, so seeding has to record one. That this helper had to
+  // change at all is the round-4 finding in miniature: before it, every test walked into TESTED by
+  // asserting it.
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "c1", occurrenceId: "seed-ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-seed", resultDigest: dig("2"),
+  });
   if (state) {
     const path: Array<[string, string]> = [
       ["TESTED", "t1"], ["FROZEN", "t2"], ["REVIEW_REQUESTED", "t3"], ["REVIEW_IN_PROGRESS", "t4"],
@@ -230,6 +237,11 @@ test("MODERATE: an expired candidate cannot be advanced", async () => {
   const svc = new ReviewGateService(store, auth, () => "2026-09-03T00:00:00.000Z");
   const b = binding({ expiresAt: "2026-09-02T12:00:00.000Z" });
   await svc.createCandidate(who("claude"), { candidateId: "c2", binding: b });
+  // Evidence is recorded, so this test proves expiry refuses the move -- not that evidence was missing.
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "c2", occurrenceId: "ev-exp", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-c2", resultDigest: dig("2"),
+  });
   const result = await svc.transition(who("claude"), {
     candidateId: "c2", occurrenceId: "e1", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
   });
@@ -266,6 +278,10 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
   const store = new InMemoryReviewGateStore();
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
   await svc.createCandidate(who("claude"), { candidateId: "c9", binding: binding() });
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "c9", occurrenceId: "ev0", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-c9-1", resultDigest: dig("2"),
+  });
 
   const step = async (to: string, id: string, actor = "claude") => {
     const r = await svc.transition(who(actor), {
@@ -293,6 +309,11 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
   await step("REMEDIATION_REQUIRED", "s6", "codex");
   await step("REMEDIATING", "s7", "codex");
   await step("RETEST_REQUIRED", "s8", "codex");
+  // The retest needs its own evidence: the run recorded before the remediation no longer counts.
+  await svc.recordTestExecution(who("codex"), {
+    candidateId: "c9", occurrenceId: "ev1", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-c9-2", resultDigest: dig("2"),
+  });
   await step("TESTED", "s9", "codex");
   await step("FROZEN", "s10", "codex");
   await step("REVIEW_REQUESTED", "s11", "codex");
@@ -311,7 +332,12 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
     },
   });
   assert.equal(selfApproval.ok, false, "a remediator must not be able to approve their own remediation");
-  assert.equal((selfApproval as { code: string }).code, "reviewer_not_independent");
+  // ROUND 4 CHANGED WHICH GUARD FIRES FIRST, and the honest thing is to assert what actually stops it.
+  // A rejected digest can no longer reach GO at all, so this walk is refused before independence is
+  // even consulted. Both guards are real; this path now meets the stricter one first. Independence is
+  // asserted on its own in "an author cannot submit a verdict naming an uninvolved reviewer" and in the
+  // ledger test above, so nothing is left uncovered by the change.
+  assert.equal((selfApproval as { code: string }).code, "digest_already_rejected");
 });
 
 // CRITICAL-2 (round 3). Identity used to be a principal the caller constructed, and the package exported
@@ -386,4 +412,175 @@ test("MO1: a verdict inside the clock-skew allowance is still accepted", async (
     },
   });
   assert.equal(result.ok, true, `modest skew must still be accepted: ${JSON.stringify(result)}`);
+});
+
+// ── round-4 CRITICAL: TESTED was an assertion, not a recorded fact ────────────────────────────────────
+
+test("C4: BUILT -> TESTED is refused when no test execution was ever recorded", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  // A binding whose testResultDigest is a perfectly well-formed 64-character hex string that the author
+  // simply invented. Before round 4 this reached TESTED, because nothing compared it to anything.
+  await svc.createCandidate(who("claude"), { candidateId: "e1", binding: binding() });
+  const result = await svc.transition(who("claude"), {
+    candidateId: "e1", occurrenceId: "x", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
+  });
+  assert.equal(result.ok, false, "an invented digest must not carry a candidate into TESTED");
+  assert.equal((result as { code: string }).code, "no_test_evidence");
+});
+
+test("C4: evidence for a DIFFERENT digest does not test this candidate", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "e2", binding: binding() });
+  // A real recorded run — of something else. The gate must not accept "a test happened" as "this
+  // candidate was tested".
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "e2", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-other", resultDigest: dig("9"),
+  });
+  const result = await svc.transition(who("claude"), {
+    candidateId: "e2", occurrenceId: "x", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
+  });
+  assert.equal(result.ok, false);
+  assert.equal((result as { code: string }).code, "no_test_evidence");
+});
+
+test("C4: recorded evidence for the bound digest does let the candidate reach TESTED", async () => {
+  // The counterpart. A gate that refused everything would satisfy the two tests above.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "e3", binding: binding() });
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "e3", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-e3", resultDigest: dig("2"),
+  });
+  const result = await svc.transition(who("claude"), {
+    candidateId: "e3", occurrenceId: "x", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
+  });
+  assert.equal(result.ok, true, `matching evidence must permit TESTED: ${JSON.stringify(result)}`);
+});
+
+test("C4: a replayed evidence id is refused rather than counted twice", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "e4", binding: binding() });
+  const once = { candidateId: "e4", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST" as const,
+    evidenceId: "ev-dup", resultDigest: dig("2") };
+  assert.equal((await svc.recordTestExecution(who("claude"), once)).ok, true);
+  const replay = await svc.recordTestExecution(who("claude"), once);
+  assert.equal(replay.ok, false);
+  assert.equal((replay as { code: string }).code, "evidence_replayed");
+});
+
+// ── round-4 CRITICAL: a rejected candidate could be re-approved unchanged ─────────────────────────────
+
+test("C4: a digest that received NO_GO can never reach GO, even from a second reviewer", async () => {
+  // The payoff step of the round-4 attack. The first reviewer rejects; the loop is walked without a line
+  // of code changing; a DIFFERENT, genuinely independent reviewer approves the identical content.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "r1", binding: binding() });
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "r1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-r1", resultDigest: dig("2"),
+  });
+  for (const [to, id] of [["TESTED", "a"], ["FROZEN", "b"], ["REVIEW_REQUESTED", "c"],
+    ["REVIEW_IN_PROGRESS", "d"]] as const) {
+    const r = await svc.transition(who("claude"), {
+      candidateId: "r1", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  }
+  const rejected = await svc.submitVerdict(who("codex"), {
+    candidateId: "r1", occurrenceId: "v1", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(binding()), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }],
+      submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(rejected.ok, true);
+
+  // walk back round without changing anything
+  for (const [to, id] of [["REMEDIATION_REQUIRED", "e"], ["REMEDIATING", "f"],
+    ["RETEST_REQUIRED", "g"]] as const) {
+    const r = await svc.transition(who("claude"), {
+      candidateId: "r1", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  }
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "r1", occurrenceId: "ev2", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-r1-2", resultDigest: dig("2"),
+  });
+  for (const [to, id] of [["TESTED", "h"], ["FROZEN", "i"], ["REVIEW_REQUESTED", "j"],
+    ["REVIEW_IN_PROGRESS", "k"]] as const) {
+    const r = await svc.transition(who("claude"), {
+      candidateId: "r1", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  }
+  // "dana" has no prior participation at all, so independence alone cannot stop this one.
+  const reApproval = await svc.submitVerdict(who("dana"), {
+    candidateId: "r1", occurrenceId: "v2", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(binding()), reviewerIdentity: "dana", verdict: "GO",
+      findings: [], submittedAt: "2026-09-02T01:50:00.000Z",
+    },
+  });
+  assert.equal(reApproval.ok, false, "identical content that was rejected must not be approvable");
+  assert.equal((reApproval as { code: string }).code, "digest_already_rejected");
+});
+
+test("C4: a retest cannot lean on evidence recorded before the remediation", async () => {
+  const store = new InMemoryReviewGateStore();
+  let now = "2026-09-02T02:00:00.000Z";
+  const svc = new ReviewGateService(store, auth, () => now);
+  await svc.createCandidate(who("claude"), { candidateId: "r2", binding: binding() });
+  await svc.recordTestExecution(who("claude"), {
+    candidateId: "r2", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-r2", resultDigest: dig("2"),
+  });
+  const go = async (to: string, id: string) => {
+    const r = await svc.transition(who("claude"), {
+      candidateId: "r2", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  };
+  await go("TEST_FAILED", "a");
+  now = "2026-09-02T03:00:00.000Z";
+  await go("REMEDIATION_REQUIRED", "b");
+  await go("REMEDIATING", "c");
+  await go("RETEST_REQUIRED", "d");
+  // The only evidence on file predates the remediation, so it cannot evidence the retest.
+  const stale = await svc.transition(who("claude"), {
+    candidateId: "r2", occurrenceId: "e", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
+  });
+  assert.equal(stale.ok, false);
+  assert.equal((stale as { code: string }).code, "stale_test_evidence");
+});
+
+// ── successors: the legitimate way out of a NO_GO ─────────────────────────────────────────────────────
+
+test("C4: a successor must actually differ from what it replaces", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "s1", binding: binding() });
+  const identical = await svc.createSuccessor(who("claude"), {
+    candidateId: "s2", supersedes: "s1", binding: binding(),
+  });
+  assert.equal(identical.ok, false, "re-registering the same content is not a remediation");
+  assert.equal((identical as { code: string }).code, "successor_identical");
+});
+
+test("C4: a genuine successor is registered and records what it replaces", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "s3", binding: binding() });
+  const fixed = binding({ candidateCommit: oid("d"), testResultDigest: dig("7") });
+  const successor = await svc.createSuccessor(who("claude"), {
+    candidateId: "s4", supersedes: "s3", binding: fixed,
+  });
+  assert.equal(successor.ok, true, `a changed candidate must register: ${JSON.stringify(successor)}`);
+  const record = await store.load("s4");
+  assert.equal(record!.supersedes, "s3", "lineage must be recorded, not left to a commit message");
+  assert.notEqual(record!.digest, (await store.load("s3"))!.digest);
+  assert.equal(record!.state, "BUILT", "a successor starts at the beginning; it inherits no progress");
 });

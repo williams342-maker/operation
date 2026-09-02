@@ -63,9 +63,32 @@ export type CandidateRecord = {
   digest: string;
   binding: CandidateBinding;
   state: ReviewState;
+  /** Set when this candidate exists to replace one that was rejected. See createSuccessor. */
+  supersedes?: string;
   participants: Participant[];
   /** Append-only. One row per accepted transition. */
   occurrences: TransitionOccurrence[];
+};
+
+/**
+ * A recorded test execution.
+ *
+ * WHY THIS TYPE EXISTS. Round 4 of the independent review found that the evaluator's own documentation
+ * claimed a caller "must supply the digest of a recorded result", while no recorded result existed
+ * anywhere in the system. `testResultDigest` was a syntactically valid 64-character string in the
+ * binding and nothing else: an author could invent one, move BUILT -> TESTED, and the gate treated it as
+ * a tested candidate. The claim was documentation of a mechanism I had not built.
+ *
+ * An evidence record is that mechanism. It is written by its own operation, carries who recorded it and
+ * when, and the digest in it must match what the candidate is bound to before TESTED is reachable.
+ */
+export type EvidenceRecord = {
+  evidenceId: string;
+  candidateId: string;
+  /** Must equal the candidate binding's testResultDigest, or it is evidence about something else. */
+  resultDigest: string;
+  recordedBy: string;
+  at: string;
 };
 
 export type TransitionOccurrence = {
@@ -87,6 +110,9 @@ export type TransitionOccurrence = {
 export interface ReviewGateStore {
   load(candidateId: string): Promise<CandidateRecord | null>;
   create(record: CandidateRecord): Promise<boolean>;
+  /** Append-only. Returns false if the evidence id was already used, so a replay cannot double-count. */
+  recordEvidence(record: EvidenceRecord): Promise<boolean>;
+  loadEvidence(candidateId: string): Promise<EvidenceRecord[]>;
   compareAndSetState(input: {
     candidateId: string;
     expectedState: ReviewState;
@@ -98,6 +124,20 @@ export interface ReviewGateStore {
 
 export class InMemoryReviewGateStore implements ReviewGateStore {
   private readonly records = new Map<string, CandidateRecord>();
+  private readonly evidence = new Map<string, EvidenceRecord[]>();
+
+  async recordEvidence(record: EvidenceRecord): Promise<boolean> {
+    const all = [...this.evidence.values()].flat();
+    if (all.some((e) => e.evidenceId === record.evidenceId)) return false;
+    const forCandidate = this.evidence.get(record.candidateId) ?? [];
+    forCandidate.push(structuredClone(record));
+    this.evidence.set(record.candidateId, forCandidate);
+    return true;
+  }
+
+  async loadEvidence(candidateId: string): Promise<EvidenceRecord[]> {
+    return structuredClone(this.evidence.get(candidateId) ?? []);
+  }
 
   async load(candidateId: string): Promise<CandidateRecord | null> {
     const found = this.records.get(candidateId);
@@ -263,6 +303,92 @@ export class ReviewGateService {
   }
 
   /**
+   * Record that a test run happened. Its own operation, because evidence is a fact to be written down
+   * before it can be relied on -- not an adjective a transition request applies to itself.
+   */
+  async recordTestExecution(proof: unknown, input: z.input<typeof intentSchema> & {
+    evidenceId: string;
+    resultDigest: string;
+  }): Promise<ServiceResult> {
+    const principal = this.principal(proof);
+    if (!principal) return UNAUTHENTICATED;
+    let intent: z.infer<typeof intentSchema>;
+    try {
+      intent = intentSchema.parse(input);
+      z.string().regex(/^[a-f0-9]{64}$/).parse(input.resultDigest);
+      z.string().min(1).max(200).parse(input.evidenceId);
+    } catch (error) {
+      return { ok: false, code: "malformed_input", message: (error as Error).message.slice(0, 300) };
+    }
+    if (isCustomerBillable(intent.billingClass)) {
+      return { ok: false, code: "billing_class_not_internal", message: "recording a test run is internal cost" };
+    }
+    const record = await this.store.load(intent.candidateId);
+    if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
+
+    const written = await this.store.recordEvidence({
+      evidenceId: input.evidenceId,
+      candidateId: intent.candidateId,
+      resultDigest: input.resultDigest,
+      recordedBy: principal.identity,
+      at: this.clock(),
+    });
+    if (!written) {
+      return { ok: false, code: "evidence_replayed", message: "that evidence id was already recorded" };
+    }
+    return { ok: true, state: record.state };
+  }
+
+  /**
+   * Register a candidate that replaces a rejected one.
+   *
+   * Round 4 showed why this has to exist. The state table cycles REMEDIATING -> RETEST_REQUIRED ->
+   * TESTED on the SAME record, which changes neither the binding nor the digest -- so a candidate could
+   * be rejected, walk the loop without a line of code changing, and be approved by a second reviewer for
+   * the exact content the first one rejected. Remediation that changes nothing is not remediation.
+   *
+   * A successor is therefore a NEW candidate with a DIFFERENT digest, linked to what it replaces.
+   */
+  async createSuccessor(proof: unknown, input: {
+    candidateId: string;
+    supersedes: string;
+    binding: CandidateBinding;
+  }): Promise<ServiceResult> {
+    const principal = this.principal(proof);
+    if (!principal) return UNAUTHENTICATED;
+    const prior = await this.store.load(input.supersedes);
+    if (!prior) return { ok: false, code: "unknown_candidate", message: "no such prior candidate" };
+    let binding: CandidateBinding;
+    try {
+      binding = candidateBindingSchema.parse(input.binding);
+    } catch (error) {
+      return { ok: false, code: "malformed_input", message: (error as Error).message.slice(0, 300) };
+    }
+    if (candidateDigest(binding) === prior.digest) {
+      return {
+        ok: false,
+        code: "successor_identical",
+        message: "a successor must differ from what it replaces; identical content is not a remediation",
+      };
+    }
+    if (binding.authorIdentity !== principal.identity) {
+      return { ok: false, code: "author_actor_mismatch", message: "the binding names a different author" };
+    }
+    const now = this.clock();
+    const created = await this.store.create({
+      candidateId: input.candidateId,
+      digest: candidateDigest(binding),
+      binding,
+      state: "BUILT",
+      supersedes: input.supersedes,
+      participants: [{ identity: binding.authorIdentity, role: "author", at: now }],
+      occurrences: [],
+    });
+    if (!created) return { ok: false, code: "candidate_exists", message: "candidate id already registered" };
+    return { ok: true, state: "BUILT" };
+  }
+
+  /**
    * Every non-verdict move. The caller says where it wants to go and who it is; it does not get to say
    * where it currently is.
    */
@@ -315,6 +441,38 @@ export class ReviewGateService {
     });
     if (!decision.ok) return decision;
 
+    if (input.to === "TESTED") {
+      // ROUND 4's CRITICAL. Before this check, TESTED was reachable by asserting it: the binding carried
+      // a testResultDigest that nothing had ever compared to a recorded run. The digest must now belong
+      // to evidence somebody wrote down, and -- for a retest after remediation -- to evidence written
+      // AFTER the remediation, so a stale record cannot be re-presented as a fresh result.
+      //
+      // THE ORDER MATTERS AND I GOT IT WRONG FIRST. Running this before the policy evaluation made
+      // "no evidence" shadow "expired" and "illegal move", so a candidate that was refused for a more
+      // fundamental reason reported the evidence gap instead. A caller should be told the first thing
+      // that is wrong with the request, not the last thing I happened to add.
+      const evidence = await this.store.loadEvidence(intent.candidateId);
+      const matching = evidence.filter((e) => e.resultDigest === record.binding.testResultDigest);
+      if (matching.length === 0) {
+        return {
+          ok: false,
+          code: "no_test_evidence",
+          message: "no recorded test execution matches the digest this candidate is bound to",
+        };
+      }
+      const lastRemediation = [...record.occurrences]
+        .filter((o) => o.to === "REMEDIATING")
+        .map((o) => Date.parse(o.at))
+        .sort((a, b) => b - a)[0];
+      if (lastRemediation !== undefined && !matching.some((e) => Date.parse(e.at) >= lastRemediation)) {
+        return {
+          ok: false,
+          code: "stale_test_evidence",
+          message: "a retest must be evidenced by a run recorded after the remediation it follows",
+        };
+      }
+    }
+
     const applied = await this.store.compareAndSetState({
       candidateId: intent.candidateId,
       expectedState: record.state,
@@ -365,6 +523,18 @@ export class ReviewGateService {
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
     const to: ReviewState = verdict.verdict === "GO" ? "GO" : "NO_GO";
+    if (to === "GO" && record.occurrences.some((o) => o.to === "NO_GO")) {
+      // ROUND 4, the payoff step of the attack: a candidate is rejected, walks the remediation loop
+      // without changing, and a DIFFERENT independent reviewer approves the identical content. The
+      // binding is immutable, so a NO_GO on this record is a NO_GO on this digest, and it stays one.
+      // Legitimate remediation produces a successor candidate with a different digest; see
+      // createSuccessor.
+      return {
+        ok: false,
+        code: "digest_already_rejected",
+        message: "this exact candidate was rejected; remediation must produce a successor candidate",
+      };
+    }
     const now = this.clock();
     const decision = evaluateTransition({
       from: record.state,

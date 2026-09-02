@@ -39,9 +39,16 @@ import {
 /**
  * The single guarded transition. Every state change goes through here.
  *
- * `evidence` is required for the moves that assert something happened. It is deliberately NOT a set of
- * booleans: a caller cannot pass `testsPassed: true`, it must supply the digest of a recorded result,
- * and that digest must match what the candidate is bound to.
+ * WHAT THIS FUNCTION DOES NOT DO, stated because the previous version of this comment claimed otherwise
+ * and an independent review caught it. It said evidence "is required for the moves that assert something
+ * happened" and that a caller "must supply the digest of a recorded result". THERE IS NO EVIDENCE
+ * PARAMETER HERE AND THERE NEVER WAS. The comment described a mechanism I had not built, which is the
+ * most expensive kind of comment: it reads as an assurance and reviewers may believe it.
+ *
+ * This function decides POLICY over facts it is given. Whether those facts are real is the authoritative
+ * layer's job: ReviewGateService loads the state, binding, ledger and digest from the store, and gates
+ * TESTED on a recorded test execution whose digest matches the candidate's binding. If you are reading
+ * this to find out whether a candidate was really tested, the answer is not in this file.
  */
 export function evaluateTransition(input: {
   from: ReviewState;
