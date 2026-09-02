@@ -1,5 +1,44 @@
 # Review gate — Workstream A current-state map
 
+> ## RETRACTED IN PART, 2026-09-02, after independent review
+>
+> **B1 and B4 below are FALSE.** Codex reviewed the candidate this document justifies and falsified its
+> headline finding. Verified against base `07244a83`: **every approval route already enforces
+> approver/author separation**, and a test for it already exists.
+>
+> | route | check present at base |
+> | --- | --- |
+> | `configurationRoutes.ts:123` | `assertApproverSeparation(plan.createdByUserId.toHexString(), ...)` |
+> | `agentUpgradeRoutes.ts:28` | `createdByUserId.equals(approver)` -> "cannot approve the same plan" |
+> | `agentUpgradeRoutes.ts:68` | `createdByUserId.equals(actorId(req))` -> "cannot approve the same plan" |
+> | `agentUpgradeRoutes.ts:83` | `createdByUserId.equals(actorId(req))` -> "cannot approve the same rollout" |
+>
+> ```ts
+> // apps/api/src/configurationDeployment.ts:23
+> export function assertApproverSeparation(createdBy: string, approvedBy: string) {
+>   if (createdBy === approvedBy) throw new Error("Deployment creator cannot approve the same plan");
+> }
+> // apps/api/test/configurationDeployment.test.ts:13
+> test("approver separation is mandatory", ...)
+> ```
+>
+> **How the error was made.** I searched for `createdByUserId.*approvedByUserId`, `!== createdByUserId`
+> and `selfApprov`. The real checks use different parameter names (`createdBy`, `approvedBy`) and
+> `.equals()`. I searched for the shape I expected the check to have, found nothing, and reported the
+> absence of a pattern as the absence of a behaviour. Three times today the same mistake produced a wrong
+> conclusion; this is the one that reached a document.
+>
+> **What survives.** B2 and B3 are still accurate as *role* observations — no role is restricted to
+> approving without also being able to author — but they are NOT evidence of self-approval, because the
+> per-route identity checks catch it regardless of role. B5 stands: there is still no reviewer concept,
+> no verdict, no findings, no remediation lineage.
+>
+> **What this changes about the work.** The gate is not closing an open self-approval hole, because there
+> isn't one. Its justification is narrower and should be stated as such: it adds candidate identity,
+> review lifecycle, and findings/remediation, which genuinely do not exist. Sections 3 and 4 below are
+> left unedited as the original record; read them through this retraction.
+
+
 **Date:** 2026-09-02
 **Scope:** OpsWorkbench control-center (`control-center/`) at `main` `07244a83`
 **Method:** read-only inspection of tracked source. No behaviour changed.
@@ -8,17 +47,22 @@
 
 ---
 
-## 1. Headline
+## 1. Headline  *(CORRECTED — see the retraction above)*
 
-**There is no review workflow to extend. There are two approval workflows, and neither enforces
-independence.**
+**There is no review workflow to extend. There are two approval workflows, and BOTH enforce
+approver/author separation already.**
+
+The original text of this line claimed neither enforced independence. That was wrong: every approval
+route calls a separation check, and one of them is already unit-tested. What is genuinely absent is a
+*reviewer* concept — verdicts, findings, remediation lineage — not a self-approval guard.
 
 The handoff asks whether smoke-test success can substitute for independent review. In this codebase the
 question does not arise in that form: **there is no smoke-test concept in the API at all** — no `smoke`,
 no `testsPassed`, no test-result gate anywhere in `apps/api/src`. Nothing advances on a test result
 because nothing reads one.
 
-What exists instead is *human* approval, on two subsystems, with no independence check on either.
+What exists instead is *human* approval on two subsystems, each already refusing an approver who is
+the author. See the retraction for the four routes and the existing test.
 
 ---
 
