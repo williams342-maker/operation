@@ -70,7 +70,18 @@ def founder():
 
     tok = issue_magic_token(email)
     r = requests.post(f"{BASE_URL}/api/maker/auth/verify", json={"token": tok}, timeout=15)
-    r.raise_for_status()
+    if r.status_code != 200:
+        # The read-back above already proved the row IS present from this
+        # process's view of the database. If the server then cannot find it,
+        # the two processes are not looking at the same place — so report
+        # which place THIS one used. The server's own DB_NAME comes from the
+        # job environment and is not visible from here, which is exactly the
+        # comparison this message is meant to enable.
+        raise AssertionError(
+            "verify %d after a CONFIRMED seed. this process: db=%r mongo=%r "
+            "email=%r base=%r; server said: %s"
+            % (r.status_code, os.environ.get("DB_NAME"), os.environ.get("MONGO_URL"),
+               email, BASE_URL, r.text[:160]))
     jwt = r.json()["token"]
 
     yield {"slug": slug, "email": email, "jwt": jwt}
