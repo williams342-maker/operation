@@ -58,13 +58,39 @@ test("REGRESSION: no status-check name is emitted by two different workflows", (
 });
 
 test("the comprehensive gate keeps the name branch protection requires", () => {
-  // Protection requires the context "verify". It must resolve to the workflow that actually runs the
-  // full gate — Gitleaks, the dependency audit, end-to-end tests and the integrity check — not to the
-  // lighter subset. If this ever flips, the required check silently becomes weaker than it looks.
-  assert.ok(checkNames("control-center-ci.yml").includes("verify"), "control-center-ci.yml must emit `verify`");
-  assert.equal(checkNames("ci.yml").includes("verify"), false, "the lighter workflow must not also emit `verify`");
+  // Protection requires the context "verify". It must resolve to the job that runs the full gate —
+  // Gitleaks, the dependency audit, end-to-end tests and the integrity check. If this ever flips, the
+  // required check silently becomes weaker than it looks while keeping the same name.
   const comprehensive = fs.readFileSync(path.join(workflows, "control-center-ci.yml"), "utf8");
+  assert.ok(checkNames("control-center-ci.yml").includes("verify"), "control-center-ci.yml must emit `verify`");
   for (const marker of ["Gitleaks", "npm audit", "playwright", "Verify tracked repository integrity"]) {
     assert.ok(comprehensive.toLowerCase().includes(marker.toLowerCase()), `the workflow owning \`verify\` must still run ${marker}`);
   }
+});
+
+test("REGRESSION: the degraded-capability run survives, and stays degraded", () => {
+  // ci.yml was deleted as "redundant". It was not: it ran the suites with the privileged-FS and
+  // Docker-deployment capabilities ABSENT and required exactly three skips, while `verify` runs them
+  // present and requires zero. Only the degraded run proves a capability-gated test SKIPS rather than
+  // FAILS when the capability is missing — a test that failed without Docker would sail through
+  // `verify`, because Docker is present there. Its coverage was folded in as `quick-verify`.
+  const text = fs.readFileSync(path.join(workflows, "control-center-ci.yml"), "utf8");
+  assert.ok(checkNames("control-center-ci.yml").includes("quick-verify"), "the degraded-capability run must still exist");
+
+  const block = text.slice(text.indexOf("  quick-verify:"), text.indexOf("\n  verify:"));
+  assert.ok(block.length > 0, "quick-verify block not found");
+  assert.match(block, /CI_EXPECTED_SKIPS:\s*"3"/, "it must still assert the expected skip count");
+  // The whole point is the ABSENCE of these. Setting either turns it into a duplicate of `verify` and
+  // silently deletes the only coverage this job exists for.
+  assert.doesNotMatch(block, /CONTROL_CENTER_RUN_PRIVILEGED_FS_TESTS/, "privileged-FS must stay absent");
+  assert.doesNotMatch(block, /CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS/, "docker-deployment must stay absent");
+});
+
+test("REGRESSION: review/** branches still get CI on push", () => {
+  // Also absorbed from the deleted ci.yml, which was the only workflow triggering on `review/**`. The
+  // parked Forge chain lives on review/forge-chain-20260901; dropping the trigger would have left direct
+  // pushes there with no CI at all.
+  const text = fs.readFileSync(path.join(workflows, "control-center-ci.yml"), "utf8");
+  const push = text.slice(text.indexOf("  push:"), text.indexOf("jobs:"));
+  assert.match(push, /"review\/\*\*"/, "review/** must remain in the push branch filter");
 });
