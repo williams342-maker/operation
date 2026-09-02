@@ -72,8 +72,11 @@ def _oauth_configured() -> bool:
 async def ga4_oauth_start(_: dict = Depends(current_admin)):
     """Return the Google authorization URL for the admin to visit."""
     if not _oauth_configured():
+        # 503, not 500: an unconfigured capability is not a server fault. Matches
+        # gsc_admin.py, credits.py and subscriptions.py. This site was missed by the
+        # grep-based sweep in PR #50 because the call spans lines; an AST pass found it.
         raise HTTPException(
-            500,
+            503,
             "OAuth client not configured. GSC_OAUTH_CLIENT_ID + "
             "GSC_OAUTH_CLIENT_SECRET env vars must be set (we reuse the GSC client).",
         )
