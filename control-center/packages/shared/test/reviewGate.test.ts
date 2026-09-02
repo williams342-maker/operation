@@ -3,15 +3,16 @@ import assert from "node:assert/strict";
 import {
   TRANSITIONS,
   candidateDigest,
-  evaluateTransition,
   independenceOf,
   isTransitionAllowed,
   reviewStates,
+  terminalStates,
   type CandidateBinding,
   type Participant,
   type ReviewState,
   type Verdict,
 } from "../src/reviewGate.js";
+import { evaluateTransition } from "../src/reviewGateInternal.js";
 
 // Adversarial tests for the mandatory review gate. Numbered against the handoff's §H list so a reader can
 // see which requirements are covered here and which need a durable store (noted at the bottom).
@@ -118,9 +119,13 @@ test("H4: changing the source changes the identity, so prior evidence cannot fol
   assert.notEqual(candidateDigest(binding({ testPlanVersion: "tp-2" })), before);
 });
 
-test("H5: moving the branch does NOT move candidate identity", () => {
-  // The same commit reachable from a different branch name is the same candidate. Identity follows
-  // content, so a review cannot be transplanted by renaming or repointing a branch.
+test("H5: repointing the base branch produces a DIFFERENT candidate", () => {
+  // NAME CORRECTED IN ROUND 3. This test was called "moving the branch does NOT move candidate identity"
+  // while its first assertion proved the opposite -- an independent review caught the contradiction. The
+  // ASSERTIONS were right and the name was wrong: baseBranch IS part of the binding, so repointing a
+  // candidate at a different base makes it a different candidate that must be reviewed again. That is
+  // the safe direction: a GO earned against `main` cannot be carried across to `release/2026-09` by
+  // editing a branch field.
   const a = candidateDigest(binding({ baseBranch: "main" }));
   const b = candidateDigest(binding({ baseBranch: "release/2026-09" }));
   assert.notEqual(a, b, "baseBranch is part of the binding, so it must change the digest");
@@ -283,7 +288,7 @@ test("H18: development and test are exempt, deliberately", () => {
 
 // ── the table itself ─────────────────────────────────────────────────────────────────────────────────
 
-test("every state is reachable in the table and every target is a real state", () => {
+test("every state entry exists and every target names a real state", () => {
   // Independent completeness check: derived from the state LIST, not from the transition table it
   // polices, so deleting a state cannot delete its own coverage.
   for (const s of reviewStates) {
@@ -343,4 +348,30 @@ test("malformed runtime input becomes a closed decision rather than throwing", (
   } as unknown as Parameters<typeof evaluateTransition>[0]);
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, "malformed_input");
+});
+
+// MINOR (round 3): the completeness test above was named "every state is reachable" but only checked
+// table membership and target validity -- it performed no reachability analysis at all. A test whose name
+// claims more than its body checks is worse than a missing test, because it stops anyone writing the real
+// one. This is the real one.
+test("every state is genuinely reachable from BUILT by walking the table", () => {
+  const seen = new Set<ReviewState>(["BUILT"]);
+  const queue: ReviewState[] = ["BUILT"];
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const next of TRANSITIONS[current]) {
+      if (!seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+  }
+  const unreachable = reviewStates.filter((s) => !seen.has(s));
+  assert.deepEqual(unreachable, [],
+    "a state no path can reach is dead policy: it can never be entered, so its rules never apply");
+});
+
+test("the only states without an exit are the declared terminal ones", () => {
+  // The counterpart to reachability. An accidental dead end would strand a candidate forever, and would
+  // look identical to a deliberate terminal state unless the two lists are compared.
+  const noExit = reviewStates.filter((s) => TRANSITIONS[s].length === 0);
+  assert.deepEqual([...noExit].sort(), [...terminalStates].sort(),
+    "a state with no outgoing transitions must be declared terminal, or it strands the candidate");
 });

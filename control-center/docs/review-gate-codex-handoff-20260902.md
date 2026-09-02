@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-02
 **Author:** Claude (implementer)
-**Round:** 3. Supersedes the round-1 text of this file entirely.
+**Round:** 4. Supersedes the round-1 text of this file entirely.
 **Requested reviewer:** Codex, or any reviewer with no prior participation on this candidate
 **Disposition:** `READY_FOR INDEPENDENT REVIEW`
 
@@ -37,19 +37,21 @@ own work, and that applies to this candidate more than to anything it will later
 | base branch | `main` |
 | base commit | `07244a83aae47d600a9c9f062999e10e8707840f` |
 | candidate commit | the tip of `feat/review-gate-20260902` (see note below) |
-| code content | identical to `5dd28eb0605b1c0b6183cc5d4be2624b2710493e` |
-| tree at `5dd28eb0` | `fecea7dbbab26a01a5bf2ab3c00d4ef2d5b7c2f6` |
+| code content | see the note below; round-3 remediation changed it |
+
 | parent | `77a84dcc25147dba50799bcf4c8aa0cab4a23170` |
-| stable patch id | `ef8b2c9c115fa54f4eda72e874b7c50b5a828f48` |
+| stable patch id | resolve with the command below; it changes every round |
 | branch | `feat/review-gate-20260902` (pushed; **no pull request opened**) |
 | working tree | clean |
-| scope | 8 files, +1787 / −0 |
+| scope | 10 files, +2227 / −0 |
 
 ```
 A  control-center/docs/review-gate-codex-handoff-20260902.md
 A  control-center/docs/review-gate-current-state-20260902.md
+M  control-center/packages/shared/package.json
 M  control-center/packages/shared/src/index.ts
 A  control-center/packages/shared/src/reviewGate.ts
+A  control-center/packages/shared/src/reviewGateInternal.ts
 A  control-center/packages/shared/src/reviewGateService.ts
 A  control-center/packages/shared/test/reviewGate.test.ts
 A  control-center/packages/shared/test/reviewGateBoundary.test.ts
@@ -57,91 +59,131 @@ A  control-center/packages/shared/test/reviewGateService.test.ts
 ```
 
 **Why the candidate commit is not a literal hash.** This document is *in* the candidate, so the tip
-commit is the one that adds this file, and no revision of it can name its own hash. Resolve the candidate
-with `git rev-parse origin/feat/review-gate-20260902`. All executable content — every file under
-`packages/shared` — is byte-identical to `5dd28eb0`; the tip adds documentation only. Confirm both with:
+commit is the one that adds it, and no revision of it can name its own hash. Resolve the candidate and
+its patch id with:
 
 ```
-git diff 5dd28eb0..origin/feat/review-gate-20260902 -- control-center/packages/shared   # must be empty
-git diff origin/main...5dd28eb0 | git patch-id --stable                                 # ef8b2c9c...
+git rev-parse origin/feat/review-gate-20260902
+git diff origin/main...origin/feat/review-gate-20260902 | git patch-id --stable
 ```
 
-A reviewer who distrusts that framing should review `5dd28eb0` for code and read this file separately.
+Round 3 reported the scope as `+1787 / -0` where git said `+1859`. The number above is `git diff
+--numstat origin/main...HEAD` at the time of writing and will drift again; trust the command, not the
+table. Round-3 remediation changed executable code, so unlike the previous round this candidate is NOT
+code-identical to its predecessor.
 
 **Review lineage.** `311506ce` (round 1) → NO-GO, 2 CRITICALs. `77a84dcc` (round 2) → NO-GO, 3 CRITICALs,
-**one of which I introduced while fixing the first two**. `5dd28eb0` is round 3.
+**one of which I introduced while fixing the first two**. `5dd28eb0` (round 3) → NO-GO, 2 CRITICALs, both
+falsifying claims this document made. This is round 4.
 
 ---
 
-## 2. What changed since round 2, and what I got wrong doing it
+## 2. What changed since round 3, and what you falsified
 
-### C3 — mine, and the worst of the three
+Round 3 returned NO-GO with two CRITICALs. **Both were correct, and both falsified a claim this document
+made.** That is now three rounds in a row in which my description of a boundary was stronger than the
+boundary. The pattern is specific enough to name: *I keep mistaking a convention for an enforcement.*
 
-Fixing C1 and C2, I made the participation role a caller-supplied `addRole` parameter. That is a complete
-independence bypass: a reviewer issues NO_GO, walks the candidate through `REMEDIATING` while simply
-omitting the role, and then approves their own remediation, because the ledger still shows them as
-reviewer only. **I built a bypass into the fix for a bypass.**
+### C1 — the evaluator was still reachable, and my "boundary" was a naming convention
 
-Roles are now derived from the transition, and there is no parameter to omit:
+You wrote: removing the symbol from `index.ts` does not make the module inaccessible, because
+`package.json` has no `exports` map, so a consumer can write
 
 ```ts
-private static roleFor(to: ReviewState): Participant["role"] | undefined {
-  if (to === "REMEDIATING") return "remediator";
-  if (to === "REVIEW_REQUESTED") return "requester";
-  return undefined;
-}
+import { evaluateTransition } from "@control-center/shared/dist/reviewGate.js";
 ```
 
-This is the single change in the candidate I most want attacked, because the same mistake in the same
-place twice is a pattern, not an accident.
+and rebuild the original bypass. **Confirmed — that resolved.** My round-3 claim that the evaluator was
+"genuinely unreachable" was false, and the import-boundary test was the weaker substitute you called it:
+it scanned `apps/` for an identifier, which catches a relative import inside the monorepo and nothing else.
 
-### C1 — the evaluator is now genuinely unreachable
+Two changes, only one of which is enforcement:
 
-Calling `evaluateTransition` "internal" in a comment enforced nothing: `index.ts` did
-`export * from "./reviewGate.js"`, so any consumer could bypass `ReviewGateService`, supply its own state,
-ledger, binding and verdict, and rebuild the exact hole the service closes. The index now exports by name,
-and the evaluator is not on the public surface. `reviewGateBoundary.test.ts` asserts three things: the
-index cannot re-export it, nothing under `apps/` may import it, and it has exactly one caller.
+- **`package.json` now declares `exports` with a single `"."` entry** (`package.json:8`). Node refuses
+  every other subpath. This is the part that actually closes the attack.
+- **The evaluator moved to `src/reviewGateInternal.ts`**, a module whose name states its status, so the
+  boundary has somewhere to live. This is still only a convention, and the file says so.
 
-### C2 — identity is a principal, not a string
+`reviewGateBoundary.test.ts` now asserts the enforcement rather than the convention: the exports map must
+exist, must list exactly `["."]`, must contain no wildcard, and must not name a review-gate module. Those
+four assertions are what would have caught this finding.
 
-`actorIdentity` was a caller-supplied string, so a caller could set the actor and the verdict's reviewer to
-the same uninvolved name and have string equality authenticate an assertion against itself. Identity is now
-a `TrustedPrincipal`: a class with a **private constructor**, obtainable only through `fromSession()`.
-Application code cannot write `new TrustedPrincipal("codex")`, and `intentSchema` has no identity field at
-all, so identity cannot arrive as request data.
+**Honest scope.** The exports map governs package-specifier imports. A *relative* import from elsewhere in
+the monorepo (`../../packages/shared/src/reviewGateInternal.js`) still resolves; that is what the `apps/`
+scan covers. Neither mechanism covers both, and the test file says so where it is asserted.
 
-**Be clear about what C2 is not.** This is a compile-time boundary, not a cryptographic one. Anything able
-to call `fromSession` can still mint a principal. Real assurance needs the API layer to be the only caller,
-which is why the import-boundary test exists and why wiring routes through auth middleware is a
-prerequisite for any production claim. Codex asked whether I had moved the hole one layer out; **partly
-yes**, and the honest answer is that it cannot be fully closed inside `packages/shared`.
+### C2 — the principal was forgeable by every consumer
 
-### MO1 — future-dated verdicts
+You wrote: `principalFromSession` was publicly exported, so an author could mint the uninvolved reviewer
+named in the verdict; and a plain `{ identity: "codex" }` satisfies the type structurally. **Confirmed on
+both counts.** The private constructor stopped `new` and nothing else, which is a smaller claim than the
+one I made for it.
 
-A verdict dated in the future produced a *negative* age and sailed past the staleness limit. Future-dating
-is now rejected outside a five-minute skew allowance, before the age check.
+The design is now different in kind rather than degree:
 
-### Three of my own tests were wrong
+- **No operation accepts a principal.** `createCandidate`, `transition` and `submitVerdict` take an opaque
+  `proof: unknown`. There is no principal argument left to forge.
+- **The service mints internally**, through a `SessionAuthenticator` injected at construction. The
+  application's authentication system is the root of trust, explicitly and by injection.
+- **A runtime brand.** Instances are recorded in a module-private `WeakSet`; a structural look-alike, and
+  an `Object.create(TrustedPrincipal.prototype)` that genuinely passes `instanceof`, both fail
+  `isTrusted`. There is a test for exactly that.
+- **The index exports `TrustedPrincipal` as a TYPE ONLY**, so external code has no value binding on which
+  to call a static. There is no public minting function at all.
+- **An authenticator that throws denies.** It never authenticates by accident.
 
-Fixed rather than deleted, and listed because a reviewer should know which assertions were unreliable:
+**What this still is not.** Whoever supplies the authenticator defines identity. That is the correct trust
+root, but it means the gate is exactly as sound as the application's authentication, and this package
+cannot make that claim on the application's behalf. The difference from round 3 is that the package no
+longer *makes* the claim.
 
-- the boundary test grepped raw text and failed on `index.ts`'s own comment explaining why the evaluator is
-  not exported. **A boundary test that cannot tell code from prose reports the documentation as the
-  violation.**
-- its comment stripper lacked the `m` flag, so `^` anchored to the start of the whole string and a `//`
-  comment beginning a line was never stripped.
-- one filter still called `read()` instead of `code()`, so it saw comments.
-- the ledger assertion expected only an author row; it now expects author **and** requester, which is the
-  C3 fix working — the operation wrote the role the caller used to be able to omit.
+### MODERATE-1 — the C3 fix had no attack test
 
----
+You were right that `reviewGateService.test.ts:99` proved bookkeeping, not the bypass, and that the
+handoff's claim of "a test written as the attack for every CRITICAL" was therefore false. There is now an
+end-to-end test that walks `NO_GO → REMEDIATION_REQUIRED → REMEDIATING → RETEST_REQUIRED → TESTED →
+FROZEN → REVIEW_REQUESTED → REVIEW_IN_PROGRESS` as the reviewer and then attempts `GO`. It fails with
+`reviewer_not_independent`, and it fails for the right reason: the ledger shows the remediator row that
+the round-2 design let the caller omit.
+
+### MODERATE-2 — the counterpart test was vacuous
+
+Confirmed. `index.includes(name) || /reviewGateService\.js/.test(index)` is true whenever the index
+mentions that module at all, so all four names could have been deleted with the test still green. The
+disjunction is gone and the list is longer.
+
+### MINORs
+
+- The reachability test **was** misnamed; it checked table membership only. There is now a real BFS from
+  `BUILT` asserting all 15 states are reachable, plus a counterpart proving the only states without an
+  exit are the three declared terminal ones.
+- The branch-identity test's name contradicted its assertion. **The assertions were right and the name was
+  wrong**: `baseBranch` is part of the binding, so repointing a candidate makes it a different candidate.
+  Renamed to say that, with the reasoning written in — a GO earned against `main` must not carry to
+  `release/2026-09` by editing a field.
+- The future-verdict correction now has two regression tests: one rejecting a future date, one proving
+  modest skew is still accepted, so the fix did not become a blanket refusal.
+- Scope figures: see §1. I have replaced the hardcoded count with the command that produces it.
+
+### A defect I found in my own remediation, before you did
+
+While writing the C2 boundary test I asserted the type-only export with a regex, then mutation-checked it
+by flipping `type TrustedPrincipal` to `TrustedPrincipal`. **The test did not catch it** — the negative
+lookahead excluded exactly the shape a value export takes. That would have been a fourth vacuous test of
+mine in three rounds.
+
+It is now a **runtime** assertion: the test imports `../src/index.js` and checks the actual module
+namespace has no `TrustedPrincipal`, no `principalFromSession` and no `evaluateTransition` binding, with a
+counterpart proving `ReviewGateService` *is* bound. It cannot be fooled by my regex, and my regexes are
+demonstrably the weak link. **Please check whether any remaining text-matching assertion has the same
+problem.**
 
 ## 3. What to attack, ordered by where I think this is weakest
 
-1. **`TrustedPrincipal` is a compile-time barrier only.** See §2 C2. Is a private constructor plus an
-   import-boundary test an acceptable interim, or does the missing cryptographic binding mean the
-   independence claim should not be made at all yet?
+1. **The authenticator seam is now the whole of identity.** See §2 C2. The forgeable principal is gone,
+   but `SessionAuthenticator` is supplied by the application, so a wrong or permissive implementation
+   reopens everything at a single call site. Is injection the right seam, or should the package refuse an
+   authenticator it cannot itself constrain?
 2. **Role derivation is hard-coded to two states.** `roleFor` returns a role for `REMEDIATING` and
    `REVIEW_REQUESTED`, and `undefined` otherwise. Is there a state that *should* write participation and
    silently does not? That failure mode is invisible — it looks like a clean ledger.
@@ -166,12 +208,20 @@ Fixed rather than deleted, and listed because a reviewer should know which asser
 
 | | tests | pass | fail | skip |
 | --- | ---: | ---: | ---: | ---: |
-| full shared package | 124 | 123 | 0 | 1 |
+| full shared package | 137 | 136 | 0 | 1 |
 
-The single skip pre-exists this candidate. `tsc --noEmit -p tsconfig.json` is clean.
+The single skip pre-exists this candidate. `tsc --noEmit -p tsconfig.json` is clean for `packages/shared`
+AND for `apps/api`, `apps/agent` and `apps/updater` — checked because the new `exports` map could have
+broken a consumer. No workspace imports a subpath of the shared package, so none did.
 
-Every round-2 CRITICAL has a test written **as the attack**, not as the happy path — see
-`reviewGateService.test.ts`, where each test name states the attack it defeats.
+**You could not run the suite in round 3** (`spawn EPERM` under the read-only sandbox), so these numbers
+remain unverified by anyone but me. Given three rounds of my tests being wrong, treat the count as a
+claim rather than as evidence, and read the assertions instead.
+
+Round 3 correctly rejected the earlier form of this paragraph. Every CRITICAL from rounds 2 AND 3 now has
+a test written **as the attack** — including the C3 end-to-end walk that was missing, the structural
+principal forgery, an `Object.create` look-alike that genuinely passes `instanceof`, a throwing
+authenticator, and seven unrecognised proof shapes.
 
 **Two tests exist to stop the suite being vacuous:** one proves an uninvolved reviewer *is* accepted, so
 the independence check is not merely rejecting everyone; one derives the completeness check from the state
@@ -207,11 +257,14 @@ Claiming 15 or 16 from unit tests would be precisely the unearned assurance this
 
 | id | item |
 | --- | --- |
-| **M2** | Artifact/execution-context binding is optional. Codex: this should block production use, or any claim that candidate identity is complete. Agreed; not attempted. |
-| §H.16 | No durable store. In-memory only. |
+| **M2** | Artifact/execution-context binding is optional (`reviewGate.ts:105-106`). You said this should block production use, or any claim that candidate identity is complete. Agreed, still not attempted, and I would rather you re-raise it than see it fade into a table. |
+| §H.16 | No durable store. `InMemoryReviewGateStore` only, so restart durability and cross-process compare-and-set are unimplemented. No production assurance attaches to this. |
 | r1 | Rollback-target *semantic* validation — the field is required, its content is not checked. |
-| r1 | Graph-reachability completeness test. |
-| r1 | Branch-identity test naming. |
+| — | **The authenticator itself.** `SessionAuthenticator` is injected, so identity is only as sound as the implementation the application supplies. Nothing here wires one to real auth middleware. |
+
+Closed since round 3, listed so you can check I have not quietly promoted anything: graph-reachability
+completeness test (now a real BFS), branch-identity test naming, the future-verdict regression tests, the
+vacuous counterpart test, and the missing C3 attack-path test.
 
 ---
 
@@ -233,10 +286,14 @@ protection changed, no merge — consistent with the handoff's non-goals.
 
 ## 9. Completion
 
-**This workstream: ~45%.** §A complete, §B complete, §C core plus an in-memory store complete, §H mostly.
-**Remaining ~55%:** the durable store and its restart guarantees (§C persistence, §H.16), artifact binding
+**This workstream: ~50%.** §A complete, §B complete, §C core plus an in-memory store complete, §H mostly,
+and as of this round the package boundary is enforced rather than described.
+**Remaining ~50%:** the durable store and its restart guarantees (§C persistence, §H.16), artifact binding
 (M2), review-dispatch adapters (§D), the reviewer packet and risk classification (§E), the evidence packet
 emitter (§G), redaction (§H.15), operator documentation, and wiring the service into the live approval
-routes.
+routes behind a real SessionAuthenticator.
+
+The percentage moved five points while two CRITICALs were closed, which is the honest ratio: the work this
+round was making two existing claims true, not adding capability.
 
 **Disposition: `READY_FOR INDEPENDENT REVIEW`.** Not certified, not deployable, not wired in.

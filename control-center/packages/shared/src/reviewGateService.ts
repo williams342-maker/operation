@@ -2,13 +2,13 @@ import { z } from "zod";
 import {
   candidateBindingSchema,
   candidateDigest,
-  evaluateTransition,
   verdictSchema,
   type CandidateBinding,
   type Participant,
   type ReviewState,
   type Verdict,
 } from "./reviewGate.js";
+import { evaluateTransition } from "./reviewGateInternal.js";
 
 // The authoritative boundary for the review gate.
 //
@@ -132,43 +132,74 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
 }
 
 /**
+ * Where the application authentication system becomes the root of trust.
+ *
+ * The shared package cannot verify a session; it has no session store, no key, and no request context.
+ * Pretending otherwise is what produced the last two findings. So the seam is explicit: the application
+ * supplies an authenticator at construction, and everything the gate believes about identity comes back
+ * through it.
+ */
+export interface SessionAuthenticator {
+  /** Verify a caller-supplied proof and return the identity it establishes, or null if it establishes none. */
+  authenticate(proof: unknown): { identity: string } | null;
+}
+
+const MINTED = new WeakSet<object>();
+
+/**
  * An identity the SERVER established, not a string a request supplied.
  *
- * The independent review's point stands and is worth stating without varnish: the previous version took
- * `actorIdentity: string` on every operation, so a caller could set both the actor and the verdict's
- * reviewer to the same uninvolved name and have string equality "authenticate" an assertion against
- * itself. The hole had moved one layer out, not closed.
+ * THE HISTORY MATTERS, because this is the third design. Round 1 took `actorIdentity: string` on every
+ * operation, so a caller set both the actor and the verdict’s reviewer to the same uninvolved name and
+ * string equality “authenticated” an assertion against itself. Round 2 replaced it with a private
+ * constructor -- and an independent review falsified that too: `principalFromSession` was exported from
+ * the package index, so any consumer could mint `codex` at will, and a plain `{ identity: "codex" }`
+ * satisfied the type structurally. The private constructor stopped `new`, and nothing else.
  *
- * The brand makes a plain string unusable as a principal, so application code cannot fabricate one by
- * accident or by type assertion alone. BE CLEAR ABOUT WHAT THIS IS NOT: it is a compile-time boundary,
- * not a cryptographic one. Anything that can call `principalFromSession` can still mint a principal.
- * Real assurance needs the API layer to be the only caller — which is why the import-boundary test
- * exists, and why wiring routes through auth middleware is a prerequisite for any production claim
- * about this gate.
+ * TWO CHANGES CLOSE IT, and neither is a comment:
+ *
+ *   1. NO OPERATION ACCEPTS A PRINCIPAL. The service takes an opaque `proof` and mints the principal
+ *      itself through its injected authenticator, so there is no principal argument left to forge.
+ *   2. A RUNTIME BRAND. Instances are recorded in a module-private WeakSet, so a structurally identical
+ *      object -- from JavaScript, or from a TypeScript `as` assertion -- fails `isTrusted`.
+ *
+ * WHAT THIS STILL IS NOT. Whoever supplies the authenticator defines identity. That is the correct trust
+ * root, but it means the gate is exactly as sound as the application’s authentication, and this package
+ * cannot make that claim on its behalf. It is no longer a claim the package makes falsely.
  */
 export class TrustedPrincipal {
-  /**
-   * PRIVATE constructor. Application code cannot write `new TrustedPrincipal("codex")` — the compiler
-   * refuses it — so an identity cannot be conjured from a request string at the call site.
-   */
   private constructor(readonly identity: string) {}
 
   /**
-   * The only way to obtain a principal. Intended for authentication middleware holding a session it has
-   * already verified — never a request body, query string, or header value.
+   * INTERNAL. Deliberately not reachable from the package index, which exports this class as a TYPE
+   * ONLY -- so external code has no value binding to call a static on. Minting is the service’s job.
    */
-  static fromSession(session: { userId: string; authenticatedAt: string }): TrustedPrincipal {
-    const identity = String(session?.userId ?? "").trim();
-    if (!identity) throw new Error("cannot mint a principal from an unauthenticated session");
-    if (!session?.authenticatedAt) throw new Error("a principal requires an authenticated session");
-    return new TrustedPrincipal(identity);
+  static mint(authenticator: SessionAuthenticator, proof: unknown): TrustedPrincipal | null {
+    let established: { identity: string } | null = null;
+    try {
+      established = authenticator.authenticate(proof);
+    } catch {
+      return null; // an authenticator that throws denies; it never authenticates by accident
+    }
+    const identity = String(established?.identity ?? "").trim();
+    if (!identity) return null;
+    const principal = new TrustedPrincipal(identity);
+    MINTED.add(principal);
+    return principal;
+  }
+
+  /** True only for an instance this module minted. Defeats a structural look-alike. */
+  static isTrusted(value: unknown): value is TrustedPrincipal {
+    return value instanceof TrustedPrincipal && MINTED.has(value as object);
   }
 }
 
-/** Convenience wrapper; see TrustedPrincipal.fromSession. */
-export function principalFromSession(session: { userId: string; authenticatedAt: string }): TrustedPrincipal {
-  return TrustedPrincipal.fromSession(session);
-}
+/** A denied proof is a closed decision like any other, never an exception across the boundary. */
+const UNAUTHENTICATED = Object.freeze({
+  ok: false as const,
+  code: "unauthenticated",
+  message: "the supplied proof did not establish an identity",
+});
 
 export type ServiceResult =
   | { ok: true; state: ReviewState }
@@ -185,14 +216,26 @@ const intentSchema = z.object({
 export class ReviewGateService {
   constructor(
     private readonly store: ReviewGateStore,
+    private readonly authenticator: SessionAuthenticator,
     private readonly clock: () => string = () => new Date().toISOString(),
   ) {}
 
+  /**
+   * Every operation starts here. The caller hands over a proof, never an identity and never a principal:
+   * there is no argument on this surface that a request body could become.
+   */
+  private principal(proof: unknown): TrustedPrincipal | null {
+    const minted = TrustedPrincipal.mint(this.authenticator, proof);
+    return minted && TrustedPrincipal.isTrusted(minted) ? minted : null;
+  }
+
   /** Registering a candidate writes the author participation row. Nothing else may write it. */
-  async createCandidate(principal: TrustedPrincipal, input: {
+  async createCandidate(proof: unknown, input: {
     candidateId: string;
     binding: CandidateBinding;
   }): Promise<ServiceResult> {
+    const principal = this.principal(proof);
+    if (!principal) return UNAUTHENTICATED;
     let binding: CandidateBinding;
     try {
       binding = candidateBindingSchema.parse(input.binding);
@@ -237,9 +280,11 @@ export class ReviewGateService {
     return undefined;
   }
 
-  async transition(principal: TrustedPrincipal, input: z.input<typeof intentSchema> & {
+  async transition(proof: unknown, input: z.input<typeof intentSchema> & {
     to: ReviewState;
   }): Promise<ServiceResult> {
+    const principal = this.principal(proof);
+    if (!principal) return UNAUTHENTICATED;
     let intent: z.infer<typeof intentSchema>;
     try {
       intent = intentSchema.parse(input);
@@ -302,7 +347,9 @@ export class ReviewGateService {
    * else is refused by the policy layer. Independence is decided against the stored ledger, which the
    * caller cannot supply, truncate, or empty.
    */
-  async submitVerdict(principal: TrustedPrincipal, input: z.input<typeof intentSchema> & { verdict: unknown }): Promise<ServiceResult> {
+  async submitVerdict(proof: unknown, input: z.input<typeof intentSchema> & { verdict: unknown }): Promise<ServiceResult> {
+    const principal = this.principal(proof);
+    if (!principal) return UNAUTHENTICATED;
     let intent: z.infer<typeof intentSchema>;
     let verdict: Verdict;
     try {

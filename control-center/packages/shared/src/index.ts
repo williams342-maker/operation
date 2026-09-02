@@ -26,4 +26,18 @@ export {
   ReviewGateError, MAX_VERDICT_AGE_MS, MAX_CLOCK_SKEW_MS,
   type ReviewState, type ParticipantRole, type Participant, type CandidateBinding, type Verdict,
 } from "./reviewGate.js";
-export * from "./reviewGateService.js";
+// reviewGateService is likewise exported BY NAME. Two things are deliberately absent:
+//
+//   - TrustedPrincipal is exported as a TYPE ONLY. Round 3 of the independent review pointed out that
+//     `export *` published `principalFromSession` and the class value, so any consumer could mint the
+//     identity of an uninvolved reviewer and have the gate believe it. A type-only export gives external
+//     code no value binding, so there is no `TrustedPrincipal.mint` to reach.
+//   - the minting path is not here at all. Identity is established by the SessionAuthenticator the
+//     application injects into ReviewGateService, and operations take an opaque proof.
+export {
+  billingClasses, nonBillableClasses, isCustomerBillable,
+  InMemoryReviewGateStore, ReviewGateService,
+  type BillingClass, type CandidateRecord, type TransitionOccurrence,
+  type ReviewGateStore, type ServiceResult, type SessionAuthenticator,
+  type TrustedPrincipal,
+} from "./reviewGateService.js";
