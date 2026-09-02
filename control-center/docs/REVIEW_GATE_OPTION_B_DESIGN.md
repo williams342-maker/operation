@@ -1,8 +1,8 @@
-# Review gate as a separate service — design v3
+# Review gate as a separate service — design v4
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Status:** **DESIGN — NOT IMPLEMENTED.** Revision 3, after two design reviews.
+**Status:** **DESIGN — NOT IMPLEMENTED.** Revision 4, after three design reviews.
 **Decision it implements:** Owner chose **Option B** from `REVIEW_GATE_TRUST_BOUNDARY_DECISION.md`.
 
 ---
@@ -11,26 +11,25 @@
 
 | rev | verdict | what it found |
 | --- | --- | --- |
-| v1 | NO-GO | I designed an authority over *records* and never named what stops anyone ignoring it. Also: two collections cannot enforce a cross-collection invariant. |
-| v2 | NO-GO | The grant bound content and environment but not the *action*, the *target*, or the *audience* — weaker than the owner-authorization contract this repo already has. A later rejection did not invalidate an outstanding grant. The verdict action was missing from the authorization matrix entirely. |
+| v1 | NO-GO | An authority over *records*, with nothing named that stops anyone ignoring it. Two collections cannot enforce a cross-collection invariant. |
+| v2 | NO-GO | The grant bound content and environment but not the action, target, or audience — and would have *replaced* the repo's existing offline owner signature with a bearer endpoint. A later rejection did not invalidate an outstanding grant. Verdicts were missing from the authorization matrix. |
+| v3 | NO-GO | The successor claim was modelled against the **wrong digest**. An expiring lease **cannot fence a host mutation**. `contentDigest` and `actionDigest` sitting side by side does not establish that the action applies the reviewed content. |
 
-**The v2 finding that most changed this revision:** the repository already has a two-layer cryptographic
-authorization for privileged actions (`docs/agent-key-redesign.md` §8), including an **offline owner
-Ed25519 signature** over `taskType · org · server · actionDigest · expiry · nonce`. My v2 grant would have
-sat in its place, replacing an offline signature with a bearer-authenticated HTTP endpoint. That is a
-**security regression**, and I did not notice I was proposing it.
-
-§2 now composes with that contract as a **third, independent layer** instead of competing with it.
+**The v3 finding I most want to flag**, because it is the one I would have shipped: a successor by
+definition has a *different* content digest, so `LIVE (held by P) → LIVE (held by S)` on **one** claim
+document cannot be right. I wrote a transition between two candidates on a document keyed by the thing
+that distinguishes them. §8 now handles the predecessor's digest and the successor's digest as two
+documents in one transaction.
 
 ---
 
 ## 1. The one-sentence honest status
 
-**Until the enforcement point in §2 is wired, this gate is ADVISORY.** It records and enforces the review
-lifecycle for callers that use it. It prevents nothing for a caller that does not.
+**Until the enforcement point in §2 is wired and activated, this gate is ADVISORY.** It records and
+enforces the review lifecycle for callers that use it. It prevents nothing for a caller that does not.
 
-That sentence stays in this document, in the service README, and in `/healthz` until §2 ships and is
-reviewed.
+That sentence stays in this document, in the service README, and in `/healthz` until §2.7 activation ships
+and is reviewed.
 
 ---
 
@@ -38,103 +37,151 @@ reviewed.
 
 ### 2.1 What already exists, and stays
 
-`docs/agent-key-redesign.md` §8 defines two layers that both must hold for `configuration.apply`,
-`configuration.rollback` and `agent.upgrade`:
+`docs/agent-key-redesign.md` §8 defines two layers, both of which must hold:
 
 | layer | signs | answers |
 | --- | --- | --- |
 | 1 — transport envelope | id, org, server, agent, expiry, nonce, payload digest | *was this dispatch tampered with?* |
-| 2 — **offline owner** Ed25519 | `taskType · org · server · actionDigest · expiry · nonce` | *did the owner approve this specific action on this target?* |
+| 2 — **offline owner** Ed25519 | `taskType · org · server · actionDigest · expiry · nonce` | *did the owner approve this action on this target?* |
 
-**Neither is replaced.** The owner's private key stays offline and never touches OpsWorkbench, exactly as
-today. The gate does not sign on the owner's behalf and does not mint anything that substitutes for that
-signature.
+**Neither is replaced.** The owner's private key stays offline. The gate signs nothing on the owner's
+behalf.
 
 ### 2.2 What the gate adds
 
 | layer | issued by | answers |
 | --- | --- | --- |
-| 3 — **review attestation** | the gate | *did this content pass independent review, and is that review still valid?* |
+| 3 — **review attestation** | the gate | *did this content pass independent review, and is that review still valid for this exact action?* |
 
-`authorizePrivilegedTask()` gains a third check. All three must hold; **any one failing refuses**. Like
-layer 2, layer 3 is **inert until configured**, so adding it cannot break the existing path — the same
-additive discipline the agent-key redesign used.
+`authorizePrivilegedTask()` gains a third check. **Any one of the three failing refuses.**
 
-This also clarifies something v2 got wrong. The gate's `owner-decision` action does **not** authorize
-execution. It records that the owner accepted the *review outcome*. Execution authority remains the
-offline signature.
+The gate's `owner-decision` does **not** authorize execution — it records that the owner accepted the
+*review outcome*. Execution authority remains the offline signature.
 
-### 2.3 What a review attestation binds
+### 2.3 Scope: three kinds, not four
 
-Deliberately using the existing contract's vocabulary rather than inventing a parallel one:
+**`release.publish` is removed from this design.** v3 listed it as an attestation kind with no enforcement
+point, since `authorizePrivilegedTask()` covers only configuration apply, rollback and agent upgrade. An
+attestation kind nothing is obliged to consume is decoration. Release publication needs its own
+enforcement point and its own design.
+
+In scope: `configuration.apply`, `configuration.rollback`, `agent.upgrade`.
+
+### 2.4 The gate computes `actionDigest`; it never accepts one
+
+v3 let an attestation carry `contentDigest` and `actionDigest` as adjacent fields, which — as the review
+put it — *"can truthfully identify reviewed content A while authorizing an action payload B that does not
+deploy A."* Adjacency is not a relationship.
+
+**Minting an attestation requires the full action payload.** The gate:
+
+1. computes `actionDigest = privilegedActionDigest(payload)` **itself**, with the same function layer 2
+   uses (`packages/shared/src/ownerAuthorization.ts`), excluding the signature field exactly as that
+   function does — so the digest cannot recurse;
+2. validates the payload against the **released candidate's binding**, by a rule stated per kind:
+
+| kind | the gate requires |
+| --- | --- |
+| `configuration.apply` | the payload's configuration digest equals the candidate binding's `artifactDigest`, and its manifest digest equals `manifestDigest` |
+| `configuration.rollback` | the payload's rollback target resolves to a digest that is itself `RELEASED` in `contentClaims` — a rollback may only target previously released content |
+| `agent.upgrade` | the payload's agent artifact digest equals the candidate binding's `artifactDigest` |
+
+3. refuses to mint if the rule does not hold.
+
+**If a kind cannot be validated this way it does not get an attestation.** The attestation asserts *"this
+payload deploys this reviewed content"*, and it is only allowed to assert that because the gate checked
+it. The executor hashing honestly (§3.1) is still trusted, but it is now trusted about *bytes*, not about
+*which content those bytes are*.
+
+### 2.5 What an attestation binds
 
 ```
 reviewAttestations {
   _id: attestationId,              // gate-generated, unguessable
-  kind,                            // "configuration.apply" | "configuration.rollback" | "agent.upgrade"
-                                   //   | "release.publish"  — the protected action, explicitly
+  kind,                            // configuration.apply | configuration.rollback | agent.upgrade
   contentDigest,                   // the reviewed work
-  actionDigest,                    // the exact payload, as layer 2 computes it
-  orgId, serverId,                 // exact target; a target-SET digest for a rollout
+  actionDigest,                    // computed by the gate from the payload (§2.4)
+  orgId, serverId,                 // exact target; targetSetDigest for a rollout
   targetEnvironmentClass,
-  audiencePrincipalId,             // WHICH executor may consume it
-  candidateId,                     // provenance, not authority
+  audiencePrincipalId,             // which executor may consume it
+  candidateId,                     // provenance
   nonce,
   grantedByPrincipalId, grantedAt, expiresAt,
-  state,                           // "OPEN" | "RESERVED" | "CONSUMED" | "REVOKED" | "EXPIRED"
+  state,                           // OPEN | RESERVED | CONSUMED | REVOKED | EXPIRED | INDETERMINATE
   lease?: { leaseId, holderPrincipalId, expiresAt },
-  consumedAt?, revokedAt?, revokedReason?
+  consumedAt?, revokedAt?, revokedReason?, indeterminateAt?, indeterminateReason?
 }
 ```
 
-Every field answers a v2 gap: `kind` (which action), `actionDigest` (which payload), `orgId`/`serverId`
-(which target), `audiencePrincipalId` (which executor), `nonce` (replay).
+### 2.6 Reserve → apply → redeem, and what happens when it goes wrong
 
-An attestation for approved content in production therefore **cannot** be presented by a different
-executor, for a different action, or against a different payload or host.
+v3 returned an expired lease to `OPEN`. The review showed why that is unsafe: reservation gives the
+executor everything it needs to act, and expiry *"does not revoke that knowledge or stop an executor that
+is delayed, partitioned, or already applying."* A second reservation could then be issued while the first
+execution was still live. My claim of "at most one open authorization window" was true of the database and
+false of the world.
 
-### 2.4 Consumption contends on the content claim
+**A lease that expires does not reopen. It becomes `INDETERMINATE` — a terminal state.**
 
-v2's consumption checked only the attestation document, so this ordering worked: mint a grant, let the
-digest become `REJECTED` by another route, consume the never-revoked grant. That is the
-ordering-independent rejection defect, one stage later.
+| step | who | effect |
+| --- | --- | --- |
+| reserve | the `audiencePrincipalId`, authenticated to the gate | CAS `OPEN → RESERVED`, lease with expiry; requires the claim predicate (§8.2) |
+| apply | the executor | journals `STARTED` keyed by `actionDigest`, acts, journals the outcome |
+| redeem | the lease holder | CAS `RESERVED → CONSUMED` on matching `leaseId`; records outcome |
+| lease expires | the gate's sweep | CAS `RESERVED → INDETERMINATE`. **No automatic retry.** |
 
-**Consumption reads and conditions on the same `contentClaims` document (§8) inside its transaction.** A
-digest in `REJECTED` makes every unconsumed attestation for it unusable *by construction*, with no
-dependence on a bulk-revocation sweep succeeding.
+**Recovery from `INDETERMINATE` is an explicit, owner-authorized operation**, not a timeout. The operator
+reconciles the host against the executor's journal and then either marks the attestation `CONSUMED`
+(the action did happen) or requests a fresh owner-decision (it did not). A `STARTED` journal entry with no
+outcome is exactly the case a human must resolve, and the design refuses to guess.
 
-### 2.5 Reserve → apply → redeem
+**The honest division of responsibility, corrected:** the gate guarantees *at most one reservation exists
+in its database at a time*, and that an ambiguous outcome halts the pipeline rather than retrying. It does
+**not** guarantee at-most-once application on a host — no database transaction can. Fencing the effect
+point is the executor's problem, and if the executor cannot fence it, the honest answer is that
+`INDETERMINATE` requires a human.
 
-A database transaction cannot cover an action on a host. v2's single-shot consumption therefore had an
-ambiguous window: mark consumed before applying and a crash loses the right to act; mark after and a lost
-response permits double application.
+### 2.7 Fail closed, and activation that cannot be downgraded
 
-Three steps, with the honest division of responsibility:
+Refuse on: gate unreachable; attestation unknown, expired, revoked, consumed, `INDETERMINATE`, or not in
+the state the step requires; digest, target, kind, or audience mismatch; claim predicate unmet; principal
+disabled or credential rotated since reservation; any unexpected response.
 
-1. **Reserve.** CAS `OPEN → RESERVED` with a short lease naming the holder. Returns `leaseId`.
-2. **Apply.** The executor writes its own durable journal entry keyed by `actionDigest` *before* acting,
-   then acts. **Not-applying-twice is the executor's guarantee, not the gate's** — only the executor knows
-   whether the host changed.
-3. **Redeem.** CAS `RESERVED → CONSUMED`, requiring the matching `leaseId`, with the outcome recorded.
+**"Inert until configured" needed downgrade protection**, or losing a config file silently disables
+enforcement. So enforcement is **per-executor durable state**, not the presence of a setting:
 
-Recovery: an expired lease returns to `OPEN` and may be re-reserved **only by the same
-`audiencePrincipalId` for the same `actionDigest`**. The executor consults its journal to distinguish
-"authorized but not applied" from "already applied". If its journal is inconclusive it must refuse and
-escalate rather than guess.
+- an executor is `DISABLED` or `ENFORCING`; the value is persisted, and activation is an audited
+  operation;
+- an `ENFORCING` executor that starts **without** working gate configuration **fails to start**. It does
+  not run unprotected;
+- rollout may begin `DISABLED`; activation is one-way without an audited owner action.
 
-**Stated plainly:** the gate guarantees *at most one open authorization window at a time*. It cannot
-guarantee at-most-once application. That is the executor's job and this design says so rather than
-implying otherwise.
+**No break-glass.** Advised against, and not added.
 
-### 2.6 Fail closed
+### 2.8 The execution predicate, stated exactly
 
-Gate unreachable, attestation unknown / expired / consumed / revoked / not `OPEN`, digest or target or
-audience mismatch, content claim not authorizable, or any unexpected response → **refuse**. No cache, no
-grace period, no last-known-good.
+```
+allow(apply) ⇔
+     verifyEnvelope(envelope)                                  // layer 1
+  ∧  verifyOwnerAuthorization(ownerPublicKey, parts, sig)      // layer 2, unchanged
+  ∧  gate.redeemable(attestationId, leaseId) where the gate checks, in one transaction:
+        attestation.state == RESERVED
+      ∧ lease.leaseId == leaseId ∧ lease.expiresAt > now
+      ∧ attestation.kind == envelope.taskType
+      ∧ attestation.actionDigest == parts.actionDigest        // the same digest layer 2 signed
+      ∧ attestation.orgId == parts.orgId ∧ serverId == parts.serverId
+      ∧ authenticated principal == attestation.audiencePrincipalId, still enabled
+      ∧ contentClaims[attestation.contentDigest] satisfies §8.2
+```
 
-**No break-glass.** The review advised against adding one for completeness, and I have not. If operations
-later need it, it should be a separately authorized, narrowly scoped, time-limited incident mechanism with
-its own audit path — never a boolean bypass evaluated when the gate is unavailable.
+`attestationId` and `leaseId` travel **in the task envelope's payload**, so they are covered by the layer-1
+digest and cannot be swapped in transit. The executor authenticates to the gate as `audiencePrincipalId`
+with its own credential — **not** the control-center's, and not by presenting anything the control-center
+gave it. Reservation happens **before** dispatch, so the payload the owner signs already names the
+attestation and lease.
+
+**Agent gate credentials** are provisioned by the same operator CLI as any other principal (§5) and are
+distinct from agent transport keys, so layer 3 cannot weaken layer 1.
 
 ---
 
@@ -145,33 +192,31 @@ attestations. Everything else is a client with no privilege beyond its credentia
 
 ### 3.1 Residual trust — the complete list
 
-- The gate's **process, database, and host**; its **exclusive** database credentials (no shared user with
-  the control-center).
-- **Backups, restores, and database administrators.** A point-in-time restore silently un-rejects content.
-- The **principal-provisioning plane** — whoever runs the operator CLI defines who may review.
+- The gate's **process, database, host**, and its **exclusive** database credentials.
+- **Backups, restores, database administrators.** A restore silently un-rejects content.
+- The **principal-provisioning plane**.
 - **Bearer credential lifecycle**: generation, storage, rotation, revocation, log redaction.
 - **Transport termination** and the private network path.
-- **The executors**, once wired: each is trusted to consult the gate, and to hash *the exact bytes and
-  payload it will apply*. The attestation binds `actionDigest`; it cannot verify the executor computed it
-  honestly.
+- **The executors**: that each consults the gate, and hashes *the exact bytes it will apply*. §2.4 means
+  the gate now verifies which *content* a payload deploys; it still cannot verify the executor computed
+  the digest of the bytes it actually wrote.
 - **Canonical digest calculation** and the artifact store's digest→bytes mapping.
 - **Executor target identity** — that an executor claiming `serverId` is that server.
-- **Trusted time and entropy**, for expiry and identifier generation.
-- **The owner's authentication and signing workstation**, for layer 2.
+- **Trusted time and entropy** for expiry, leases and identifiers.
+- **The owner's authentication and signing workstation** (layer 2).
 - **Release registry / artifact distribution integrity.**
-- **Availability**: fail-closed makes the gate a release-blocking dependency.
-- **Test provenance** — still an authenticated assertion by a CI identity. Standing owner-authority item.
+- **Availability**: fail-closed makes the gate release-blocking.
+- **Test provenance** — an authenticated assertion by a CI identity. Standing owner-authority item.
 
-**Correction carried from v2:** I wrote that Option C "would remove" database trust. It would not.
-Signatures make forged or altered decisions *detectable*; they do not prevent deletion, rollback,
-withholding, or denial of service.
+**Correction carried forward:** Option C would *narrow* this list, not empty it. Signatures make forged
+decisions detectable; they do not prevent deletion, rollback, withholding, or denial of service.
 
 ---
 
 ## 4. Process and repository shape
 
-New workspace `control-center/apps/review-gate/`, following `apps/api` conventions: Express, MongoDB, ESM,
-`tsx --test`, own `Dockerfile` and `tsconfig.json`.
+New workspace `control-center/apps/review-gate/` — Express, MongoDB, ESM, `tsx --test`, own `Dockerfile`
+and `tsconfig.json`.
 
 ```
 apps/review-gate/src/
@@ -183,9 +228,8 @@ apps/review-gate/src/
   service.ts   the operations (moved from packages/shared)
 ```
 
-Policy leaves `packages/shared`; a thin client remains. **This is hygiene, not the security argument** —
-the review was explicit that the real boundary is process isolation, exclusive credentials, server-side
-authentication, and downstream enforcement.
+Policy leaves `packages/shared`; a thin client remains. **Hygiene, not the security argument** — the real
+boundary is process isolation, exclusive credentials, server-side authentication, and §2.
 
 ---
 
@@ -193,18 +237,16 @@ authentication, and downstream enforcement.
 
 ```
 principals {
-  _id, displayName,
-  credentialHash,              // Argon2id; never the credential
-  reviewerClasses: [...],      // e.g. ["independent"]
-  roles: [...],                // author | ci | reviewer | owner | executor
-  audienceFor?: [...],         // for executors: which targets they may act on
+  _id, displayName, credentialHash,        // Argon2id; never the credential
+  reviewerClasses: [...],                  // e.g. ["independent"]
+  roles: [...],                            // author | ci | reviewer | owner | executor
+  audienceFor?: { orgId, serverId }[],     // executors: which targets they may act on
   createdAt, disabledAt?, credentialRotatedAt?
 }
 ```
 
-A caller cannot name itself, name a reviewer, or claim a class. Provisioning is an **operator CLI** run by
-the owner; every provisioning action appends to an audit collection. **I will create no credentials.**
-Hashing protects the database, not against a stolen token — hence rotation and revocation in the CLI.
+Provisioning is an **operator CLI** run by the owner; every action appends to an audit collection.
+**I will create no credentials.** Disablement and rotation invalidate outstanding reservations (§2.7).
 
 ---
 
@@ -217,54 +259,52 @@ Hashing protects the database, not against a stolen token — hence rotation and
 | `POST` | `/candidates/:id/evidence` | record a test execution |
 | `POST` | `/candidates/:id/actions/:action` | one named lifecycle action (§7) |
 | `POST` | `/candidates/:id/verdicts` | GO / NO_GO with findings |
-| `POST` | `/candidates/:id/owner-decision` | accept the review outcome; mint attestations |
+| `POST` | `/candidates/:id/owner-decision` | accept the outcome; mint attestations from payloads (§2.4) |
+| `POST` | `/candidates/:id/attestations` | mint a further attestation from RELEASED content |
 | `POST` | `/attestations/:id/reserve` | executor takes a lease |
 | `POST` | `/attestations/:id/redeem` | executor completes |
 | `POST` | `/attestations/:id/revoke` | owner |
+| `POST` | `/attestations/:id/resolve-indeterminate` | owner, after reconciliation (§2.6) |
 | `GET` | `/candidates/:id` | read-only projection |
 | `GET` | `/healthz` | liveness; no data |
-
-Named actions, not a generic transition endpoint: the client names an *intent*, the gate derives the
-transition. A client naming a target state was how callers stayed involved in deciding their own position.
 
 ---
 
 ## 7. Authorization matrix — complete
 
-`from state × action × role × relationship → allow/deny`. Nothing is authorized by absence of a rule.
-
 | action | legal from | who may | notes |
 | --- | --- | --- | --- |
-| `register` | — | author | claim must be absent (§8) |
-| `submit-tests` | BUILT, RETEST_REQUIRED | ci | evidence must match and post-date any remediation |
-| `record-test-failure` | BUILT, RETEST_REQUIRED | ci | |
+| `register` | — | author | claim absent (§8) |
+| `successor` | predecessor supersedable | predecessor's author or recorded remediator | cross-digest (§8.1) |
+| `submit-tests` | BUILT, RETEST_REQUIRED | ci, **and not the candidate's author** | evidence must match and post-date any remediation |
+| `record-test-failure` | BUILT, RETEST_REQUIRED | ci, **not the author** | |
 | `freeze` | TESTED | author or participant | |
 | `request-review` | FROZEN, REVIEW_BLOCKED | author or participant | **grants no role** |
-| `claim-review` | REVIEW_REQUESTED | reviewer holding the requested class **and not a participant** | the only stranger entry point; **grants no role**; records `claimedByPrincipalId` |
-| **`submit-go`** | REVIEW_IN_PROGRESS | **the recorded claiming reviewer**, still holding the class, **independence rechecked in the transaction** | refused while findings stand undischarged |
-| **`submit-no-go`** | REVIEW_IN_PROGRESS | as above | must carry ≥1 finding |
-| `block-review` | **REVIEW_IN_PROGRESS only** | the claiming reviewer | v2 allowed this from REVIEW_REQUESTED, where no claimant exists — that branch was unreachable. Corrected. |
+| `claim-review` | REVIEW_REQUESTED | reviewer holding the class **and not a participant** | only stranger entry; **grants no role**; records `claimedByPrincipalId` |
+| `submit-go` | REVIEW_IN_PROGRESS | **the recorded claimant**, still holding the class, independence rechecked in-transaction | refused while findings stand |
+| `submit-no-go` | REVIEW_IN_PROGRESS | as above | ≥1 finding |
+| `block-review` | **REVIEW_IN_PROGRESS only** | the claiming reviewer | v2's REVIEW_REQUESTED branch was unreachable |
 | `begin-remediation` | REMEDIATION_REQUIRED | author or participant | records remediator |
 | `submit-retest-request` | REMEDIATING | remediator | |
-| `owner-decision` | GO | owner | mints attestations (§2.3) |
-| `reserve` | attestation OPEN | the attestation's `audiencePrincipalId` | + content claim authorizable |
+| `owner-decision` | GO | owner | mints attestations (§2.4) |
+| `mint-further-attestation` | claim RELEASED | owner | same payload validation; no history overwrite |
+| `reserve` | attestation OPEN | its `audiencePrincipalId`, enabled | + claim predicate §8.2 |
 | `redeem` | attestation RESERVED | the lease holder | matching `leaseId` |
-| `revoke` | attestation OPEN or RESERVED | owner | CAS against consumption |
-| `cancel` | any non-terminal | author or owner | releases the claim |
-| `expire` | any non-terminal | the gate, on a timer | releases the claim |
+| `revoke` | attestation OPEN or RESERVED | owner | linearizable against redeem |
+| `lease-expiry` | attestation RESERVED | the gate's sweep | → `INDETERMINATE`, terminal |
+| `attestation-expiry` | attestation OPEN | the gate's sweep | → `EXPIRED` |
+| `resolve-indeterminate` | attestation INDETERMINATE | owner, after reconciliation | → CONSUMED, or a fresh decision |
+| `provision` / `rotate` / `disable` principal | — | owner, via operator CLI | audited; invalidates reservations |
+| `cancel` | any non-terminal | author or owner | claim per §8.1 |
+| `expire` | any non-terminal | the gate's sweep | claim per §8.1 |
 
-**v2's CRITICAL was that verdicts were absent from this table** and the API asked only for "a reviewer
-holding the class" — so a participant who also held the reviewer role could have submitted one, and a
-reviewer who never claimed the review could too. Both are now closed: the submitter must be **the recorded
-claimant**, and independence is rechecked **at verdict time inside the transaction**, not only at claim
-time.
-
-**How participation is acquired**, since self-enrolment was a real defect: only by authoring the binding,
-by `begin-remediation`, or by submitting a verdict. `request-review` and `claim-review` grant nothing.
+**The author-exclusion on evidence was silently dropped in v3.** The review caught it; the current
+implementation enforces it and so does this table. Losing an existing control while redesigning is exactly
+the regression this whole workstream is about.
 
 ---
 
-## 8. `contentClaims` — one document per digest, with an exhaustive transition table
+## 8. `contentClaims` — one document per digest
 
 ```
 contentClaims {
@@ -275,58 +315,76 @@ contentClaims {
 }
 ```
 
-v2 said only "must not be REJECTED; claim LIVE", which permitted overwriting another candidate's claim,
-moving `RELEASED → LIVE`, and multiple candidates for one digest while `liveCandidateId` names one.
+### 8.1 Transitions — exhaustive
 
 | from | action | to | condition |
 | --- | --- | --- | --- |
-| *(absent)* | register | LIVE | document must not exist; insert wins by `_id` uniqueness |
-| LIVE (held by P) | successor transfer | LIVE (held by S) | `liveCandidateId === P` — atomic replace, never a blind overwrite |
-| LIVE | cancel / expire | *(deleted)* | `liveCandidateId` must match the candidate releasing it |
+| *(absent)* | register | LIVE | insert; wins by `_id` uniqueness |
+| LIVE | cancel / expire | *(deleted)* | `liveCandidateId` matches the candidate releasing it |
 | LIVE | NO_GO | REJECTED | terminal |
-| LIVE | owner-decision | RELEASED | `liveCandidateId` must match |
-| RELEASED | *any registration* | — | **denied.** Reviewed-and-released work is not re-registrable; a change produces a different digest |
-| RELEASED | further attestations | RELEASED | additional `kind`/target attestations may be minted from the same released candidate without overwriting history |
-| REJECTED | *anything* | REJECTED | **monotonic.** No transition out, enforced by conditional update |
+| LIVE | owner-decision | RELEASED | `liveCandidateId` matches |
+| REJECTED | cancel / expire of the rejected candidate | REJECTED | **unchanged.** Monotonic — the claim is not deleted |
+| RELEASED | cancel / expire | — | **unreachable**; the candidate is terminal |
+| RELEASED | ordinary registration | — | **denied.** A change produces a different digest |
+| RELEASED | further attestation | RELEASED | no history overwrite |
+| REJECTED | *anything* | REJECTED | **monotonic**, by conditional update |
 
-`RELEASED` stays distinct from `LIVE`: it means no review candidate is active *and* the owner accepted the
-outcome. It is a durable disposition, not a reusable "not rejected" state.
+**Successor is a cross-digest operation on two documents** — v3 modelled it as a transfer on one, which
+cannot be right when the successor's digest is what distinguishes it:
 
-### 8.1 Transaction boundaries and postconditions
+| document | condition | effect |
+| --- | --- | --- |
+| predecessor's digest | disposition is LIVE and `liveCandidateId` is the predecessor → delete. Disposition is REJECTED → **leave untouched** | the predecessor stops holding its content; a rejection stays permanent |
+| successor's digest | **must be absent**; must not be REJECTED | insert LIVE held by the successor |
 
-MongoDB **as a replica set** is required — confirmed as the right call rather than contorting the model to
-suit standalone Mongo.
+Both in one transaction with the predecessor being marked superseded, its verdict surface closed, and the
+inherited finding occurrences snapshotted.
+
+### 8.2 The claim predicate for reserve and redeem — stated exactly
+
+v3 said "authorizable", which is vague. The review also noted `RELEASED → REJECTED` does not exist, so the
+check is a guard against an unexpected state rather than an expected race. Both steps require:
+
+```
+claim.disposition == "RELEASED"  ∧  claim.releasedByCandidateId == attestation.candidateId
+```
+
+Anything else — absent, LIVE, REJECTED, or released by a different candidate — refuses.
+
+### 8.3 Transaction boundaries and postconditions
+
+MongoDB **as a replica set** is required.
 
 | endpoint | one transaction over | postcondition |
 | --- | --- | --- |
-| register | idempotency, `contentClaims` insert, candidate | a candidate exists holding a LIVE claim, or nothing |
-| successor | idempotency, predecessor superseded + verdict surface closed, inherited finding occurrences snapshotted, successor created, claim transferred | the whole chain, or nothing |
+| register | idempotency, claim insert, candidate | a candidate holds a LIVE claim, or nothing |
+| successor | idempotency, predecessor superseded + verdict-closed, findings snapshotted, successor created, **both claim documents per §8.1** | the whole chain, or nothing |
 | evidence | idempotency, evidence uniqueness, candidate association | recorded once, or not at all |
-| action | idempotency, state CAS, occurrence, participation row, claim read where approaching GO | the move with its ledger rows, or nothing |
+| action | idempotency, state CAS, occurrence, participation row | the move with its rows, or nothing |
 | verdict | idempotency, state CAS, verdict + finding occurrences, claim disposition | the verdict and its consequences, or nothing |
-| owner-decision | idempotency, state CAS, claim → RELEASED, attestations minted | attestations exist for released content, or nothing |
-| reserve | attestation CAS `OPEN → RESERVED`, lease write, **claim read**, audience check | leased once, or refused |
-| redeem | attestation CAS `RESERVED → CONSUMED` on matching `leaseId`, outcome, **claim read** | consumed exactly once, or refused |
-| **revoke** | attestation CAS on state ∈ {OPEN, RESERVED}, idempotency, audit | **linearizable against redeem**: either revoke wins and redeem fails, or redeem wins and revoke reports it was too late |
-| **provision / rotate / disable principal** | principal write, audit append | both, or neither |
-| **expiry sweep** | per-candidate state CAS, occurrence, claim release | each candidate expires wholly or not at all |
+| owner-decision | idempotency, state CAS, claim → RELEASED, payload validation (§2.4), attestations minted | attestations exist for released content, or nothing |
+| reserve | attestation CAS `OPEN → RESERVED`, lease, claim predicate, audience + enabled check | leased once, or refused |
+| redeem | attestation CAS `RESERVED → CONSUMED` on `leaseId`, outcome, claim predicate | consumed exactly once, or refused |
+| revoke | attestation CAS on state ∈ {OPEN, RESERVED}, idempotency, audit | **linearizable against redeem** |
+| lease-expiry sweep | attestation CAS `RESERVED → INDETERMINATE` on an expired lease | each attestation transitions wholly; **never back to OPEN** |
+| attestation-expiry sweep | attestation CAS `OPEN → EXPIRED` | wholly or not at all |
+| resolve-indeterminate | attestation CAS from INDETERMINATE, audit | resolved once, audited |
+| provision / rotate / disable | principal write, audit append | both, or neither |
+| candidate expiry sweep | state CAS, occurrence, claim per §8.1 | each candidate wholly or not at all |
 
-v2 omitted revoke, provisioning and the expiry sweep. All three mutate authoritative state.
-
-### 8.2 Idempotency as a database invariant
+### 8.4 Idempotency
 
 ```
 idempotency { _id: { principalId, scope, key }, requestHash, status, result?, createdAt, expiresAt }
 ```
 
-Committed **in the same transaction** as the mutation. A repeated key with a different `requestHash` is an
+Committed in the same transaction as the mutation. A repeated key with a different `requestHash` is an
 error, never a silently unrelated result.
 
-### 8.3 Occurrence-scoped findings
+### 8.5 Occurrence-scoped findings
 
 Every accepted finding gets a **gate-generated immutable occurrence id**. Inheritance and discharge
-reference occurrence ids, never the reviewer's chosen label, so a reused label cannot conflate unrelated
-defects. The label is kept for display only. This closes candidate K's declared `rec-4`.
+reference occurrence ids, never the reviewer's label. Closes candidate K's `rec-4`.
 
 ---
 
@@ -334,29 +392,29 @@ defects. The label is kept for display only. This closes candidate K's declared 
 
 Candidate and content identity, the transition table, independence, evidence records, accumulated findings
 with reviewer-only causal discharge, remediation lineage, billing classes — **189 tests move with them.**
-
 Round-10 defects fixed by the move: successor inheritance becomes one transaction; the capability concept
-disappears entirely, because there is no injected store to hand a token to.
+disappears, because there is no injected store.
 
 ---
 
 ## 10. What I will not do
 
 No deployment. No public port. No credential creation. No DNS change. No production data. No live route or
-executor wiring. No change to the offline owner key or layer 2. The deliverable runs locally and in tests,
-with a Dockerfile and `.env.example`.
+executor wiring. No change to the offline owner key or layers 1–2. Runs locally and in tests, with a
+Dockerfile and `.env.example`.
 
 ---
 
 ## 11. Questions for this review
 
-1. **§2 — does layering the attestation as a third check alongside the existing envelope and offline-owner
-   signatures compose correctly**, and is "inert until configured" the right rollout, matching how layer 2
-   was introduced?
-2. **§2.5 — is reserve/apply/redeem the right protocol**, and is my division of responsibility honest:
-   the gate guarantees at most one open window, the executor guarantees at-most-once application?
-3. **§8 — is the claim transition table exhaustive**, and is denying registration from `RELEASED` correct?
-4. **§7 — which row is still wrong or missing?**
-5. **§8.1 — is any boundary still too narrow?**
-6. **Is this now build-ready?** If yes I will start implementing. If a fourth revision is needed, say what
-   must change — that is far cheaper than another ten rounds against code.
+1. **§2.4 — does the gate computing `actionDigest` and validating the payload per kind close the
+   content-to-action gap**, and are the three per-kind rules right? `configuration.rollback` requiring its
+   target to be already-`RELEASED` is the one I am least sure of.
+2. **§2.6 — is `INDETERMINATE` as a terminal state with owner-authorized recovery the right answer**, or
+   does it strand pipelines in practice often enough to need something else?
+3. **§2.8 — is the execution predicate exact enough to implement**, and is putting `attestationId` and
+   `leaseId` in the envelope payload (so layer 1 covers them) correct?
+4. **§8.1 — is the cross-digest successor operation right now**, including leaving a REJECTED predecessor
+   claim untouched?
+5. **§8.2 — is the claim predicate right?**
+6. **Is this build-ready?** If a fifth revision is needed, say exactly what must change.
