@@ -62,10 +62,38 @@ def emit(lines: list[str]) -> None:
             handle.write(text + "\n")
 
 
+# A run that does not execute must never pass. pytest can abort during collection —
+# a session-level UsageError, a plugin failure, a bad option — and still write a JUnit
+# report containing a handful of collection errors. Every one of those is either in the
+# baseline or is a new failure, so without this floor the arithmetic comes out clean and
+# the gate goes GREEN on a suite that never ran.
+#
+# That is not hypothetical: run 33667698252 collected 1 test of ~2939 and this script
+# passed it. A missing result is not zero.
+MIN_COLLECTED = int(os.environ.get("BACKEND_MIN_COLLECTED", "2500"))
+
+
 def main() -> int:
     junit_path, baseline_path = sys.argv[1], sys.argv[2]
     collected, passing, non_passing = load_report(junit_path)
     baseline = load_baseline(baseline_path)
+
+    if len(collected) < MIN_COLLECTED:
+        emit([
+            "### Backend gate",
+            "",
+            f"**FAILING: only {len(collected)} tests were collected, expected at least "
+            f"{MIN_COLLECTED}.**",
+            "",
+            "The suite did not run. pytest aborted — most likely during collection — so the",
+            "quarantine comparison below would be meaningless and is not attempted. Read the",
+            "test-suite step's log for the abort reason; it is not in the JUnit report,",
+            "because a session-level error is not a test case.",
+            "",
+            f"    collected {len(collected)}  passing {len(passing)}  "
+            f"non-passing {len(non_passing)}",
+        ])
+        return 1
 
     regressions = sorted(non_passing - baseline)
     recovered = sorted(baseline & passing)

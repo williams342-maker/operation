@@ -12,6 +12,21 @@ import pytest
 _ENV_AT_STARTUP = dict(os.environ)
 
 
+
+
+@pytest.fixture(scope="session")
+def env_at_startup():
+    """The job environment as pytest saw it, before any test module was imported.
+
+    Exposed as a fixture rather than an importable constant on purpose: a test
+    doing `from conftest import ...` imports conftest a SECOND time, as a
+    top-level module distinct from the one pytest loaded, re-running its
+    module-level code and taking a second snapshot. The fixture hands out the
+    one pytest already has.
+    """
+    return dict(_ENV_AT_STARTUP)
+
+
 def make_valid_maker_doc(slug="smoke-maker", email=None, **overrides):
     """Build a Mongo maker fixture that satisfies the full Maker model.
 
