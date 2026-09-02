@@ -139,7 +139,21 @@ jobs:
       # The modules still failing (test_iter90_admin_design_file_delete, test_iter81_full_sweep,
       # test_iter80_returns_policy_and_image_uploads, test_listing_image_upload) all read the second.
       PUBLIC_BACKEND_URL: http://localhost:8001
-      DB_NAME: backend_ci_test
+      # test_database, NOT a CI-specific name, because 37 test modules FORCE that value at import:
+      #
+      #     # assignment (setdefault is a no-op when .env already set DB_NAME).
+      #     os.environ["DB_NAME"] = "test_database"
+      #
+      # That is deliberate and worth keeping — it stops a destructive suite running against whatever
+      # database happens to be configured. But a hard assignment beats anything this job sets, so with
+      # DB_NAME=backend_ci_test the tests wrote to test_database while the API SERVER, started before
+      # pytest and never re-reading it, read backend_ci_test. Each side was self-consistent: the write
+      # succeeded, the read-back succeeded, and the endpoint answered 404 "Maker no longer exists."
+      # That cost 13 tests across 5 modules.
+      #
+      # Setting the same value the tests force makes the two processes agree, leaves the 37 assignments
+      # as no-ops, and keeps their safety property intact. Nothing asserts on the old name.
+      DB_NAME: test_database
       # Set explicitly rather than relying on config.py's non-production default of
       # "dev-local-secret-change-me" — that default is 26 bytes, which is what triggers PyJWT 2.13.0's
       # InsecureKeyLengthWarning throughout the suite. 32+ bytes keeps the logs readable. It is a
