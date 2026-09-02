@@ -54,11 +54,33 @@ def test_overview_returns_shape(headers):
     # latest_run may be None if no scan has ever happened in this DB; both OK
 
 
-def test_manual_scan_then_overview_reflects(headers):
-    # Trigger a scan
+@pytest.fixture(scope="module")
+def scan_run(headers):
+    """One scan for the whole module, owned by a fixture rather than by a test.
+
+    Two tests need a completed scan to exist. Previously only
+    test_manual_scan_then_overview_reflects ran one, and
+    test_history_returns_time_series simply assumed it had — its own comment
+    said "at least the run from test_manual_scan_then_overview_reflects should
+    be in the history". That is an order dependency between tests: when the scan
+    test failed, history failed too, for a reason that had nothing to do with
+    history.
+
+    A fixture makes the dependency explicit and runs the scan once.
+    """
     r = requests.post(f"{API}/admin/seo-agent/scan/run", headers=headers, timeout=180)
     assert r.status_code == 200, r.text
-    run = r.json()
+    return r.json()
+
+
+# The scan fetches and analyses pages; the client already allows 180s for it. The
+# suite-wide ceiling is 45s, so without this marker pytest killed the test at 45
+# while the request was still legitimately in flight — a race between two
+# timeouts, not a defect in the endpoint. 240 leaves the client's own 180 room to
+# expire first and report something useful.
+@pytest.mark.timeout(240)
+def test_manual_scan_then_overview_reflects(headers, scan_run):
+    run = scan_run
     assert set(run["scores"].keys()) == {"overall", "technical", "content", "authority"}
     assert run["counts"]["targets_scanned"] >= 0
     for s in run["scores"].values():
@@ -136,7 +158,8 @@ def test_recommendations_returns_ranked_groups(headers):
         assert rec["affected_count"] == len(rec["issue_ids"]) or rec["affected_count"] > len(rec["issue_ids"])
 
 
-def test_history_returns_time_series(headers):
+@pytest.mark.timeout(240)
+def test_history_returns_time_series(headers, scan_run):
     r = requests.get(f"{API}/admin/seo-agent/history?days=30", headers=headers, timeout=15)
     assert r.status_code == 200, r.text
     d = r.json()
@@ -144,9 +167,10 @@ def test_history_returns_time_series(headers):
     assert isinstance(d["history"], list)
     assert "queue_activity" in d
     assert {"applied", "rejected", "rolled_back"}.issubset(d["queue_activity"].keys())
-    # At least the run from test_manual_scan_then_overview_reflects
-    # should be in the history.
-    assert len(d["history"]) >= 1
+    # The scan_run fixture guarantees a completed run exists, so this is now a
+    # property of the endpoint rather than of test execution order.
+    assert len(d["history"]) >= 1, (
+        "history is empty despite scan %s having completed" % scan_run["id"])
     # Every history point carries scores in [0..100]
     for h in d["history"]:
         for s in h["scores"].values():
@@ -181,12 +205,16 @@ def test_history_requires_admin():
 
 
 # iter413c — Pillar 3 Authority + Autopilot mode
-def test_authority_pillar_surfaces_issues(headers):
+@pytest.mark.timeout(240)
+def test_authority_pillar_surfaces_issues(headers, scan_run):
     """Scan should produce authority-pillar issues for makers with
-    incomplete profiles + the new authority recommendations."""
-    r = requests.post(f"{API}/admin/seo-agent/scan/run", headers=headers, timeout=180)
-    assert r.status_code == 200, r.text
-    run = r.json()
+    incomplete profiles + the new authority recommendations.
+
+    Uses the shared scan_run fixture. This test previously ran a THIRD scan of
+    its own, so the module paid for the same slow analysis three times and lost
+    the same 45s-versus-180s race three times.
+    """
+    run = scan_run
     # Authority count is exposed in counts and used by the scoring
     assert "authority" in run["counts"]
     # Bundled issues include the new pillar

@@ -48,8 +48,27 @@ def test_token_mint_and_verify_roundtrip():
 def test_token_rejects_tampered_signature():
     from digital_delivery import mint_download_token, verify_download_token
     token, _ = mint_download_token("s", "f")
-    # Flip the last char of the signature.
-    bad = token[:-1] + ("A" if token[-1] != "A" else "B")
+    # Flip a character in the MIDDLE of the signature, never the last one.
+    #
+    # The signature is a 32-byte HMAC-SHA256, base64url-encoded without padding
+    # into 43 characters. 43 characters carry 258 bits; the digest is 256. The
+    # FINAL character therefore has bits that decode to nothing, and several
+    # distinct final characters decode to byte-identical signatures.
+    #
+    # Flipping the last character was consequently a no-op a meaningful fraction
+    # of the time: the "tampered" token decoded to exactly the original bytes,
+    # verified correctly, and this test failed with DID NOT RAISE. That is a
+    # defect in the tampering, not in verify_download_token, which was right to
+    # accept a token identical to one it had issued.
+    #
+    # A middle character's six bits are all significant, so this always changes
+    # the decoded signature. The assertion below makes that a checked property
+    # rather than a claim.
+    pay, sig = token.split(".", 1)
+    i = len(sig) // 2
+    bad_sig = sig[:i] + ("A" if sig[i] != "A" else "B") + sig[i + 1:]
+    assert bad_sig != sig, "tampering did not change the signature"
+    bad = f"{pay}.{bad_sig}"
     with pytest.raises(ValueError):
         verify_download_token(bad)
 
