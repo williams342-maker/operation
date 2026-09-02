@@ -60,7 +60,7 @@ class TestAutoBoostStatus:
         assert isinstance(data["next_candidates"], list)
 
     def test_status_requires_auth(self):
-        r = requests.get(f"{API}/maker/auto-boost/status")
+        r = requests.get(f"{API}/maker/auto-boost/status", timeout=15)
         assert r.status_code in (401, 403)
 
 
@@ -210,7 +210,7 @@ class TestAdminFeedbackReply:
     def test_reply_requires_auth(self, feedback_id):
         r = requests.post(
             f"{API}/admin/feedback/{feedback_id}/reply",
-            json={"subject": "x", "message": "y"},
+            json={"subject": "x", "message": "y"}, timeout=15,
         )
         assert r.status_code in (401, 403)
 

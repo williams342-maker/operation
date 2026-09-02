@@ -56,10 +56,25 @@ class _LoopAwareMotor:
             loop is None or not loop.is_closed()
         ):
             return entry[1]
-        # Prune clients whose loops have closed (their sockets are dead).
+        # Prune clients whose loops have closed, and CLOSE them. Closing is not
+        # optional and the reference drop alone was a leak: a dead event loop
+        # does not close motor's sockets. PyMongo holds real TCP connections
+        # and background monitor threads that outlive the loop, so a pruned-
+        # but-unclosed client keeps both for the life of the process.
+        #
+        # Production never reaches this branch — one uvicorn loop, one client.
+        # A full pytest session reaches it constantly: every asyncio.run() and
+        # every pytest-asyncio loop mints another client, and across ~2900
+        # tests the discarded ones accumulated file descriptors and threads
+        # until new connections stalled.
         for k in [k for k, (l, c) in self._clients.items()
                   if l is not None and l.is_closed()]:
-            self._clients.pop(k, None)
+            _, dead = self._clients.pop(k, (None, None))
+            if dead is not None:
+                try:
+                    dead.close()
+                except Exception:
+                    pass
         c = AsyncIOMotorClient(self._url)
         self._clients[key] = (loop, c)
         return c

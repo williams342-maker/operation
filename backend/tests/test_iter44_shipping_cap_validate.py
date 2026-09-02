@@ -33,21 +33,21 @@ def H(maker_jwt):
 # (b) Cap CRUD
 class TestCap:
     def test_set_cap_50(self, H):
-        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 50})
+        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 50}, timeout=15)
         assert r.status_code == 200
         assert r.json()["monthly_cap_cents"] == 5000
 
     def test_negative_400(self, H):
-        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": -1})
+        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": -1}, timeout=15)
         assert r.status_code == 400
 
     def test_too_high_400(self, H):
-        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 200000})
+        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 200000}, timeout=15)
         assert r.status_code == 400
 
     def test_ledger_exposes_cap_and_month_spent(self, H):
-        requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 50})
-        r = requests.get(f"{BASE}/api/maker/shipping/ledger", headers=H)
+        requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 50}, timeout=15)
+        r = requests.get(f"{BASE}/api/maker/shipping/ledger", headers=H, timeout=15)
         assert r.status_code == 200
         d = r.json()
         assert "monthly_cap_cents" in d
@@ -56,7 +56,7 @@ class TestCap:
         assert isinstance(d["month_spent_cents"], int)
 
     def test_zero_disables(self, H):
-        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 0})
+        r = requests.patch(f"{BASE}/api/maker/shipping/cap", headers=H, json={"monthly_cap_usd": 0}, timeout=15)
         assert r.status_code == 200
         assert r.json()["monthly_cap_cents"] == 0
 
@@ -67,7 +67,7 @@ class TestValidateAddress:
         r = requests.post(f"{BASE}/api/maker/shipping/validate-address", headers=H, json={
             "name": "Test", "street1": "215 Clayton St", "city": "San Francisco",
             "state": "CA", "zip": "94117", "country": "US",
-        })
+        }, timeout=15)
         # 200 if shippo configured; expected is_valid true for real address
         assert r.status_code in (200, 503), r.text
         if r.status_code == 200:
@@ -80,7 +80,7 @@ class TestValidateAddress:
         r = requests.post(f"{BASE}/api/maker/shipping/validate-address", headers=H, json={
             "name": "X", "street1": "NOT A STREET", "city": "Nowhere",
             "state": "XX", "zip": "99999", "country": "US",
-        })
+        }, timeout=15)
         assert r.status_code in (200, 400, 503)
         if r.status_code == 200:
             d = r.json()
@@ -89,7 +89,7 @@ class TestValidateAddress:
     def test_unauth_rejected(self):
         r = requests.post(f"{BASE}/api/maker/shipping/validate-address", json={
             "street1": "1 Main", "city": "X", "state": "CA", "zip": "94117"
-        })
+        }, timeout=15)
         assert r.status_code in (401, 403)
 
 

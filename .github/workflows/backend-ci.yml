@@ -1,0 +1,376 @@
+# Backend CI — the first CI this component has ever had.
+#
+# `backend/` holds 392 test files and 2331 collected tests, and until now NO workflow referenced
+# backend/, pytest, requirements, setup-python or pip. Every backend change — including three
+# dependency PRs merged on 2026-09-01 — was landing with a green tick that verified nothing about it.
+#
+# BOTH JOBS NOW GATE. backend-lint has since it was added; backend-tests gates as of 2026-09-02.
+#
+# The suite's pass rate is unknown. It could not be established locally, because pytest.ini documents
+# that motor's AsyncIOMotorClient is constructed at IMPORT TIME in core.py, so essentially every test
+# file needs a reachable MongoDB just to be collected — a machine without one hangs in asyncio rather
+# than failing. This job is therefore a MEASUREMENT first: it runs the suite, records the numbers, and
+# publishes them, so the health of the suite becomes a fact instead of a guess.
+#
+# Steps 1-3 of the promotion path are done: the numbers were measured over fifteen runs, the 370 tests
+# that do not pass are quarantined explicitly in backend/tests/quarantine.txt, and `continue-on-error` is
+# gone. Step 4 is the owner's: add `backend-tests` to the required contexts in branch protection. Until
+# that happens this job reports honestly but does not block a merge.
+
+name: Backend CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  # Unlike backend-tests below, THIS ONE IS A GATE. It is fast, deterministic, currently clean, and
+  # every rule it selects means "this code is definitely broken" rather than "this code is untidy".
+  #
+  # It exists because the first backend test run surfaced NameError: name '_env_get' is not defined
+  # from routers/contact_messages.py:140 — live, on the public contact form. Tracing it found the same
+  # undefined name at 8 call sites across 5 modules, plus an undefined `db` in scheduler.py, none of
+  # which any check in this repository would have caught:
+  #
+  #   review_prompts.py:36,37,38     module level, so `import review_prompts` raised outright and the
+  #                                  review-prompt sweep was dead for all 3 of its callers
+  #   routers/contact_messages.py    public contact form: 500 AFTER the row was inserted
+  #   routers/settings.py:154        beta feedback submit, same shape
+  #   routers/merchant_rules.py:145  maker feed autofix
+  #   scheduler.py:633,694           the secrets-rotation nudge job
+  #   scheduler.py:1141 (`db`)       the 04:45 UTC promoted-listings allocator, whose NameError was
+  #                                  swallowed by `except Exception` into a log line, so it had never
+  #                                  once run successfully
+  #
+  # Verified against the pre-fix code from git: this selection reports exactly those 9 defects, with no
+  # false positives and nothing missed.
+  #
+  # Syntax errors need no rule code: ruff reports them unconditionally. E999 used to select them and was
+  # REMOVED in ruff 0.16 — selecting it is a hard error ("Rule `E999` was removed and cannot be
+  # selected"), which is how the first run of this job failed. Verified that a deliberately broken file
+  # is still reported with only F821,F822,F823 selected.
+  #
+  # ONLY rules that are already at zero are selected, which is what makes this gateable today.
+  # Deliberately NOT selected: F811 (8 hits) and F401 (331 unused imports). Those are real debt but
+  # they are style-adjacent and would make this job unlandable. Widen the selection when a rule reaches
+  # zero, never by adding a rule that is already failing.
+  backend-lint:
+    name: backend-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Pinned: an unpinned linter turns an upstream release into a surprise red gate on an unrelated
+      # pull request.
+      - run: pip install ruff==0.16.5
+      - name: Undefined names and syntax errors
+        # emergentintegrations/ is vendored third-party code, excluded because we do not fix it here.
+        # Tests are INCLUDED: an undefined name in a test is equally a defect.
+        run: ruff check --select F821,F822,F823 --exclude emergentintegrations backend
+
+  backend-tests:
+    name: backend-tests
+    runs-on: ubuntu-latest
+    # 120, not 60: raised after the seeding fix. A job that exceeds timeout-minutes is CANCELLED, and
+    # cancellation skips the `if: always()` steps that publish the numbers and upload the JUnit XML — so
+    # an over-running measurement produces no measurement at all. The bound also moved in the wrong
+    # direction on purpose: bounding the seed fixture converted ~450 setup HANGS into tests that now
+    # actually execute, and running a test costs more wall-clock than timing one out. Headroom here is
+    # cheap; a lost 45-minute run is not.
+    #
+    # 60, not 30: the first full run reached 82% at the 30-minute cap and was cancelled. The suite is
+    # genuinely slow - roughly 2300 tests, most of them touching MongoDB, several hanging until the
+    # per-test timeout fires. Parallelising with xdist is NOT an option: tests/conftest.py manages
+    # shared seed collections across the session, so concurrent workers would corrupt each other.
+    timeout-minutes: 120
+    services:
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017
+      # THE TESTS MUST TALK TO THE SERVER THIS JOB STARTS, AND WITHOUT THIS THEY DID NOT.
+      # 105 test files fall back to a hardcoded EXTERNAL host when this variable is unset:
+      #     os.environ.get("REACT_APP_BACKEND_URL", "https://active-project-4.preview.emergentagent.com")
+      # 175 files read the variable; only 29 load /app/frontend/.env. Writing that file — which the step
+      # below does — therefore left ~146 files resolving to a third-party preview environment, so CI was
+      # issuing real HTTP requests to somebody else's deployment and asserting on whatever came back.
+      # That is where the 401s at .../api/admin/auth/verify came from: the tokens were minted with this
+      # job's throwaway secret and were meaningless to that host.
+      # Setting it in the job environment is what actually points the suite at 127.0.0.1:8001.
+      REACT_APP_BACKEND_URL: http://localhost:8001
+      # A SECOND variable defaults to the same external host, and setting only the first one above did
+      # not move the number: run 33639279365 still had 18 failures naming
+      # active-project-4.preview.emergentagent.com, against 19 before the change. An AST sweep of the
+      # tests for env lookups whose default is that host finds two names, not one:
+      #     REACT_APP_BACKEND_URL   69 call sites
+      #     PUBLIC_BACKEND_URL      10 call sites
+      # The modules still failing (test_iter90_admin_design_file_delete, test_iter81_full_sweep,
+      # test_iter80_returns_policy_and_image_uploads, test_listing_image_upload) all read the second.
+      PUBLIC_BACKEND_URL: http://localhost:8001
+      DB_NAME: backend_ci_test
+      # Set explicitly rather than relying on config.py's non-production default of
+      # "dev-local-secret-change-me" — that default is 26 bytes, which is what triggers PyJWT 2.13.0's
+      # InsecureKeyLengthWarning throughout the suite. 32+ bytes keeps the logs readable. It is a
+      # throwaway CI value and authenticates nothing outside this job.
+      MAKER_AUTH_SECRET: ci-only-throwaway-secret-not-a-real-credential-0123456789
+      # The admin allow-list. Without it config.py resolves admin_emails to an EMPTY tuple, so
+      # is_super_admin_email() is false for everybody and every admin test 403s at
+      # /api/admin/auth/verify — the token is issued fine, then rejected with "This email is no longer
+      # authorized for admin". That was 61 tests in the first measured run, plus 13 more raising
+      # KeyError: 'OPS_EMAIL' by reading the variable directly.
+      #
+      # These values are not secrets and grant nothing: they name which addresses the throwaway
+      # backend_ci_test database treats as admin, and the tests already hardcode them —
+      # `issue_admin_magic_token("team@craftersmarket.org")` appears 42 times, and the shared helper
+      # resolves `(ADMIN_EMAILS or OPS_EMAIL or "team@craftersmarket.org").split(",")[0]`. Setting them
+      # makes the SERVER agree with what the suite has always assumed.
+      #
+      # ADMIN_EMAILS takes precedence over OPS_EMAIL in config.py, so both are set: OPS_EMAIL because
+      # 13 tests read os.environ["OPS_EMAIL"] directly, ADMIN_EMAILS because three others hardcode the
+      # owner's address. team@ stays FIRST — the helper above takes [0] as the super-admin.
+      OPS_EMAIL: team@craftersmarket.org
+      ADMIN_EMAILS: team@craftersmarket.org,williams342@gmail.com
+      # Background work off: the suite asserts on request/response behaviour, and schedulers firing
+      # mid-run make failures non-deterministic.
+      SCHEDULER_ENABLED: "false"
+      GSC_ENABLED: "false"
+      OPS_DIGEST_ENABLED: "false"
+      PROD_WATCHDOG_ENABLED: "false"
+      SOCIAL_AUTO_PUBLISH_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          # 3.12, not 3.13: dependency resolution rejects some pinned packages that cap at
+          # Requires-Python <3.13.
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        # requirements.txt is installed AS WRITTEN. This step used to filter it, because
+        # emergentintegrations==0.1.0 returns 404 from PyPI and broke the install outright. That
+        # workaround hid a real packaging defect, so the pin was removed at source instead and the
+        # vendoring documented there. If this step ever fails on an unresolvable pin again, fix
+        # requirements.txt — do not reintroduce a filter here, because a filtered install is no
+        # longer testing what a developer or a deploy would actually get.
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-timeout
+
+      - name: Recreate the container paths the tests hardcode
+        # 88 test files do `open("/app/frontend/.env")` at MODULE level and 197 call
+        # `load_dotenv("/app/backend/.env")` — absolute paths from the original Emergent container
+        # layout. The open() raises FileNotFoundError during COLLECTION, so files fail before a single
+        # assertion runs.
+        #
+        # These are SYMLINKS to the checkout, not empty directories. Empty directories satisfied the
+        # .env opens but nothing else, and the tests reach past them: tests/conftest.py loads its seed
+        # fixture from /app/backend/data/community_designs_seed.json, and ~40 tests read real files
+        # under /app/frontend/public/ and /app/frontend/src/. Those files all exist in this repository
+        # — they were simply unreachable at the paths the tests use. Linking the trees makes every
+        # hardcoded container path resolve to the real content.
+        #
+        # This reproduces the layout rather than editing ~200 test files. The real fix is to resolve
+        # those paths relative to the repository; that is a separate change, and a large one.
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /app
+          sudo ln -sfn "$GITHUB_WORKSPACE/backend"  /app/backend
+          sudo ln -sfn "$GITHUB_WORKSPACE/frontend" /app/frontend
+          # Neither .env is tracked (nothing under backend/ or frontend/ is), so both are created here
+          # in the workspace and reached through the links above.
+          #
+          # The KEY must be present, not merely the file. An empty .env still fails 30 collections:
+          # some files use the tolerant `next(..., "http://localhost:8001")` fallback, but others do
+          # os.environ["REACT_APP_BACKEND_URL"] or assert on it, so they raise KeyError/AssertionError
+          # at import. The first CI run is what established that distinction.
+          echo "REACT_APP_BACKEND_URL=http://localhost:8001" > "$GITHUB_WORKSPACE/frontend/.env"
+          : > "$GITHUB_WORKSPACE/backend/.env"
+          # Prove the links resolve before 2300 tests depend on them.
+          test -f /app/frontend/.env
+          test -f /app/frontend/public/index.html
+          test -f /app/backend/data/community_designs_seed.json
+          echo "container paths resolve to the checkout"
+
+      - name: Start the API server the tests integrate against
+        # THE POINT OF THIS RUN. The first measurement scored 38.2%, but 1560 of 1758 failures (89%)
+        # were a single cause: requests/httpx ConnectionError to localhost:8001, plus pytest-timeout
+        # hangs waiting on it. This suite is integration-style against a live backend, so MongoDB alone
+        # was never going to exercise it.
+        #
+        # No configuration is needed beyond the job env: config.py treats an unset APP_ENV as
+        # non-production, which skips the Stripe/PayPal/email requirements and defaults storage_backend
+        # to "local" so no R2 credentials are wanted either.
+        # --log-level info, NOT warning: at warning the server logs no requests at all, so a failure
+        # cannot be traced past the client's traceback. info gives one line per request with its
+        # status, which is what distinguishes "the server never received it" from "the server
+        # answered 404" from "the server accepted it and never replied".
+        run: |
+          set -euo pipefail
+          nohup python -m uvicorn server:app --host 127.0.0.1 --port 8001 --log-level info             > /tmp/uvicorn.log 2>&1 &
+          # Probe for ANY HTTP response rather than a specific route: this app exposes no health
+          # endpoint, so a 404 still proves the server is listening and routing.
+          for i in $(seq 1 90); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/ || true)"
+            if [ "$code" != "000" ]; then
+              echo "API server ready after ${i}s (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::API server failed to start within 90s"
+          cat /tmp/uvicorn.log
+          exit 1
+
+      # KNOWN FAILURE CLASS, not yet resolved: ~92 tests time out in the CALL phase.
+      #
+      # Established from the JUnit report of run 33632438049:
+      #   - all 92 are call-phase; setup-phase timeouts are now ZERO (they were 450)
+      #   - none involve the external preview host
+      #   - each is blocked in socket.recv_into, waiting on a response from 127.0.0.1:8001
+      #   - the heaviest modules (test_returns_cases, test_policy_versioning,
+      #     test_secrets_rotation, test_seo_policy_notify, test_social_momentum) do NOT use the
+      #     network at all. They drive the app in-process through
+      #     httpx.AsyncClient(transport=ASGITransport(app=app)), so their socket wait is motor
+      #     talking to MongoDB, not an HTTP call to 127.0.0.1:8001. An earlier version of this
+      #     comment blamed missing request timeouts in these files; that was wrong — they issue
+      #     no `requests` calls whatsoever.
+      #   - test_iter412_seo_agent is a different case again: it passes timeout=180 deliberately,
+      #     because POST /admin/seo-agent/scan/run is expected to take minutes. --timeout=30 kills
+      #     it at 30s, so that one is a CI mismatch rather than a server fault
+      #
+      # 151 genuinely unbounded requests./httpx. calls WERE found and fixed across 13 other test
+      # files, but none of those files appear above, so that fix is not expected to move this
+      # number. It was worth doing on its own terms: a test that can wait forever on the network
+      # is a defect whether or not it is currently hanging.
+      #
+      # NOT established: why the server does not answer the others. The scan handler is fully
+      # await-based with no blocking call found, so "one slow handler stalls the single uvicorn
+      # loop" is a hypothesis, NOT a conclusion. Raising --timeout is not obviously right either:
+      # 92 tests waiting 120s each would add over an hour of wall-clock to find out.
+      #
+      # Resolve this before promoting backend-tests to a required gate.
+      # --timeout=45, NOT 30, and the 15 seconds of headroom are the whole point.
+      #
+      # core.py builds AsyncIOMotorClient(url) with no serverSelectionTimeoutMS, so pymongo uses its
+      # default of 30 SECONDS. The old --timeout=30 collided with that exactly: when a Mongo operation
+      # cannot select a server, pymongo raises ServerSelectionTimeoutError at 30.000s and pytest-timeout
+      # kills the test at 30.000s. pytest wins the race, so all ~92 call-phase hangs were reported as an
+      # opaque "Timeout (>30.0s)" over an idle event loop with NO application frames and no cause.
+      #
+      # That is an instrumentation defect in this file, not a property of the suite. The timeout chosen
+      # here was destroying the very error that explains the failure. With 45s, pymongo's exception
+      # surfaces first and each hang reports what it was actually waiting for.
+      #
+      # Cost: a genuine hang now burns 45s instead of 30s, roughly +23 minutes across ~92 tests, taking
+      # the job to about 80 minutes against the 120-minute cap. That is worth paying to turn 92
+      # undiagnosable hangs into 92 messages.
+      - name: Run the test suite
+        # --timeout guards against the import-time motor client hanging on a connection rather than
+        # failing, which is how this suite behaves with no MongoDB reachable. 30s rather than 60s
+        # halves what each hanging test costs; the first full run showed several reaching the limit.
+        # --continue-on-collection-errors is essential here, not cosmetic. pytest ABORTS the entire run
+        # on any collection error, so a handful of unimportable files hid the state of ~2300 others:
+        # the first two runs reported 30 and then 7 "tests", all collection failures, with nothing
+        # executed. Six of the remaining files issue HTTP requests to localhost:8001 at IMPORT time and
+        # need the live API server the previous step starts; one (test_iter132_review_prompts.py) is
+        # simply broken with `NameError: _env_get`, and stays a genuine failure.
+        #
+        # `|| true` keeps the measurement steps below running on failure; the real outcome is reported
+        # from the JUnit XML.
+        run: |
+          set -uo pipefail
+          pytest -q --timeout=45 --continue-on-collection-errors             --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
+
+      - name: Publish the numbers
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET, pathlib
+          p = pathlib.Path("/tmp/backend-junit.xml")
+          print("### Backend test suite\n")
+          if not p.exists():
+              print("No JUnit report was produced — the run failed before any test executed.")
+              raise SystemExit(0)
+          r = ET.parse(p).getroot()
+          s = r if r.tag == "testsuite" else (r.find("testsuite") or r)
+          get = lambda k: int(s.get(k) or 0)
+          total, fail, err, skip = get("tests"), get("failures"), get("errors"), get("skipped")
+          print(f"| metric | count |\n| --- | --- |")
+          print(f"| collected | {total} |")
+          print(f"| passed | {total - fail - err - skip} |")
+          print(f"| failed | {fail} |")
+          print(f"| errored | {err} |")
+          print(f"| skipped | {skip} |")
+          print("\nThis job does not gate merges yet. Promote it once these numbers are stable — see the workflow header.")
+          PY
+
+      - name: Gate on the quarantine baseline
+        if: always()
+        # THIS STEP IS WHAT MAKES backend-tests A GATE. The pytest step above ends in `|| true`, so it
+        # never fails the job by itself; the job's verdict comes from here.
+        #
+        # The rule is "nothing got worse", not "the suite is green" — it is not green, and pretending
+        # otherwise would make the gate a lie. 370 known non-passing tests are listed explicitly in
+        # backend/tests/quarantine.txt, by exact node id, with no globbing. A failure outside that list
+        # fails the job.
+        #
+        # A quarantined test that starts PASSING is reported, not failed. Five listed tests alternate
+        # between runs, so failing on an unexpected pass would hand this gate a guaranteed false red
+        # whenever one flipped. They are printed every run instead, so the list cannot quietly rot.
+        working-directory: .
+        run: python .github/scripts/check_backend_quarantine.py /tmp/backend-junit.xml backend/tests/quarantine.txt
+
+      - name: Show the API server log
+        if: always()
+        # The tail is a convenience; the ARTIFACT below is the evidence. Every diagnosis in this job so
+        # far has been client-side only, because the server ran at --log-level warning and nothing kept
+        # its output. That is why the ~92 call-phase hangs and the 24 setup failures on
+        # POST /api/maker/auth/verify could each be characterised but not explained: there was no record
+        # of what the server did with those requests, or whether it received them at all.
+        run: tail -n 80 /tmp/uvicorn.log || true
+
+      - name: Retain the API server log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-uvicorn-log
+          path: /tmp/uvicorn.log
+          if-no-files-found: warn
+
+      - name: Retain the JUnit report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-junit
+          path: /tmp/backend-junit.xml
+          if-no-files-found: warn

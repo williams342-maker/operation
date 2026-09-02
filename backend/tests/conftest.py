@@ -1,4 +1,15 @@
+import os
+
 import pytest
+
+# The job environment as it was when pytest loaded this file, which pytest does
+# BEFORE it imports any test module. That ordering is the whole point: six test
+# modules run os.environ.setdefault("EMERGENT_LLM_KEY", "sk-test-stub") and one
+# does the same for STRIPE_API_KEY, at MODULE level, during collection. From
+# that moment the test process's live environment no longer describes the
+# environment the API SERVER was started with, and the server is what actually
+# answers 503. This snapshot is that shared starting environment.
+_ENV_AT_STARTUP = dict(os.environ)
 
 
 def make_valid_maker_doc(slug="smoke-maker", email=None, **overrides):
@@ -123,16 +134,31 @@ def _ensure_canonical_seed_session():
                     except Exception:
                         pass
 
+        # A best-effort helper must also be TIME-BOUNDED. Without the
+        # wait_for below, the awaits in _upsert() can park the fresh loop
+        # indefinitely (epoll with no timer and no I/O event), and because
+        # this fixture is module-scoped AND autouse, one hang fails every
+        # test in that module on setup. In the first full CI run that was
+        # 450 setup failures — 45% of everything that did not pass — all
+        # from this one line. Seeding here is a convenience: server.py
+        # already calls seed_if_empty() at startup, so giving up is
+        # strictly better than hanging.
+        async def _upsert_bounded():
+            await asyncio.wait_for(_upsert(), timeout=10)
+
         # asyncio.run() creates + tears down a fresh loop each call —
         # safe between modules. If we happen to already be inside a
         # running loop (rare at fixture-setup time), fall back to a
         # thread so we don't crash the whole test run.
         try:
-            asyncio.run(_upsert())
+            asyncio.run(_upsert_bounded())
         except RuntimeError:
             import threading
-            t = threading.Thread(target=lambda: asyncio.run(_upsert()))
-            t.start(); t.join(timeout=5)
+            t = threading.Thread(target=lambda: asyncio.run(_upsert_bounded()))
+            t.start(); t.join(timeout=15)
+        # A TimeoutError from wait_for falls through to the outer
+        # `except Exception: pass` below, which is exactly the intended
+        # best-effort behaviour.
     except Exception:
         # Best-effort: if the seed system has moved on, let the
         # dependent tests fail with their original assertion message.
@@ -891,3 +917,106 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(smoke)
         if basename in SLOW_FILES:
             item.add_marker(slow)
+
+
+# ── Unconfigured third-party capabilities are SKIPS, not failures ───────────
+#
+# The backend answers HTTP 503 with a specific message when a capability has
+# no credentials in the running environment: R2 object storage, Stripe,
+# EnrichLabs, and the Emergent LLM key. CI holds none of those and should not
+# — they are real third-party credentials. A test that cannot run is not a
+# test that failed, and 72 of them were being counted as failures.
+#
+# THE SKIP IS CONDITIONAL ON THE ENVIRONMENT, NEVER ON THE MESSAGE ALONE.
+# Each entry below pairs the backend's own 503 text with a probe of the same
+# configuration the backend itself consults. If the credential IS present and
+# the endpoint still reports "not configured", that is a genuine regression
+# and stays a failure. Anything a probe cannot positively determine — an
+# import that fails, a config layer that raises — also stays a failure. The
+# default is always to report, never to hide.
+#
+# Scope worth stating: the probes describe the environment the API SERVER was
+# started with, not this process's current one. Those are NOT the same thing —
+# see _ENV_AT_STARTUP at the top of this file for why, and note that the
+# assumption "both inherit the same job environment, so they agree" was written
+# here first and then disproved by measurement. The r2_storage probe below is
+# the one exception: it calls the app's own is_configured(), which resolves
+# live. That is safe only because no test writes an R2_* variable (verified);
+# if one ever does, give it the snapshot treatment too.
+#
+# LATENT HAZARD, checked and currently absent. The match is against the
+# failure text, so a test that deliberately ASSERTS one of these strings —
+# "unconfigured Stripe must answer 503 with this detail" — would be converted
+# to a skip when it failed, hiding a real regression. As of 2026-09-02 no test
+# in this suite contains any of these strings (verified by grep; only this
+# file does). If you add such a test, exclude it here explicitly rather than
+# loosening the match.
+#
+# KNOWN RESIDUAL, deliberately not handled. Roughly 24 further tests fail as a
+# bare status diff — `assert 503 == 401` — because they assert a status code
+# and httpx puts only the code in the assertion, not the response body. The
+# configuration message never reaches this hook, so those stay failures.
+#
+# That is the correct outcome, not a gap to close by loosening the rule. The
+# backend has 63 HTTPException(503) sites and they are NOT all configuration:
+# "AI is busy - please retry in a few seconds", "AI temporarily unavailable",
+# "AI refine failed", "AI design generation failed" and "verification
+# unavailable" are genuine runtime errors. A rule that skipped any unexpected
+# 503 would hide every one of them. From a status code alone this hook cannot
+# prove configuration rather than failure, so it declines to skip.
+#
+# The way to reclaim those tests is to make them assert on the body as well as
+# the status, which puts the evidence in the report where this hook can read
+# it. That is a change to the tests, not to this rule.
+
+def _r2_unconfigured() -> bool:
+    try:
+        from r2_storage import is_configured
+        return not is_configured()
+    except Exception:
+        return False  # cannot determine -> not a skip
+
+
+def _env_missing(name: str):
+    def probe() -> bool:
+        # Reads the STARTUP SNAPSHOT rather than config.env_get(), which resolves
+        # os.environ live. Live resolution was wrong here and measurably so: in
+        # the run that first exercised this hook, 12 tests kept failing with
+        # "Help assistant is not configured" and "EMERGENT_LLM_KEY not set"
+        # because a sibling test module had already planted a stub key in this
+        # process. The probe saw a key, the server never had one, and the skip
+        # was declined for tests that genuinely could not run.
+        try:
+            return not (_ENV_AT_STARTUP.get(name, "") or "").strip()
+        except Exception:
+            return False  # cannot determine -> not a skip
+    return probe
+
+
+# (substring of the backend's 503 detail, probe that the capability is absent)
+_UNCONFIGURED_CAPABILITIES = (
+    ("File uploads are not configured", _r2_unconfigured),
+    ("R2 storage is not configured", _r2_unconfigured),
+    ("R2 storage is not available", _r2_unconfigured),
+    ("Video storage isn't configured", _r2_unconfigured),
+    ("EnrichLabs integration not configured", _env_missing("ENRICHLABS_API_KEY")),
+    ("Stripe is not configured", _env_missing("STRIPE_API_KEY")),
+    ("Help assistant is not configured", _env_missing("EMERGENT_LLM_KEY")),
+    ("EMERGENT_LLM_KEY not set", _env_missing("EMERGENT_LLM_KEY")),
+)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    # Setup failures count too: several of these capabilities are exercised
+    # from module fixtures, so the 503 surfaces during setup rather than call.
+    if report.outcome == "failed" and report.when in ("setup", "call"):
+        text = str(report.longrepr)
+        for marker, unconfigured in _UNCONFIGURED_CAPABILITIES:
+            if marker in text and unconfigured():
+                report.outcome = "skipped"
+                reason = f"unconfigured in this environment: {marker.rstrip('.')}"
+                report.longrepr = (__file__, 0, f"Skipped: {reason}")
+                break
+    return report

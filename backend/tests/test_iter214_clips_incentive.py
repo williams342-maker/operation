@@ -73,7 +73,7 @@ def test_incentive_status_public_no_auth():
 
 # ─── First organic clip earns featured=true ────────────────────────────────
 def test_first_organic_clip_gets_featured(maker_headers, loop):
-    pre = requests.get(f"{API}/clips/incentive-status").json()
+    pre = requests.get(f"{API}/clips/incentive-status", timeout=15).json()
     if pre["claimed"]:
         pytest.skip("All 50 slots claimed; skip url path featured-true test")
 
@@ -101,12 +101,12 @@ def test_first_organic_clip_gets_featured(maker_headers, loop):
     assert doc["is_seed"] is False
 
     # Verify status flipped (slots_used incremented)
-    post = requests.get(f"{API}/clips/incentive-status").json()
+    post = requests.get(f"{API}/clips/incentive-status", timeout=15).json()
     assert post["slots_used"] == pre["slots_used"] + 1
     assert post["slots_remaining"] == pre["slots_remaining"] - 1
 
     # Cleanup
-    delr = requests.delete(f"{API}/maker/clips/{clip_id}", headers=maker_headers)
+    delr = requests.delete(f"{API}/maker/clips/{clip_id}", headers=maker_headers, timeout=15)
     assert delr.status_code == 200
 
 
@@ -114,7 +114,7 @@ def test_first_organic_clip_gets_featured(maker_headers, loop):
 def test_seeded_clips_excluded_from_cap(loop):
     """Insert a fake seeded clip with is_seed:true. Verify
     incentive-status doesn't budge."""
-    pre = requests.get(f"{API}/clips/incentive-status").json()
+    pre = requests.get(f"{API}/clips/incentive-status", timeout=15).json()
     seed_id = f"TEST_seed_{uuid.uuid4().hex[:8]}"
     doc = {
         "id": seed_id,
@@ -133,7 +133,7 @@ def test_seeded_clips_excluded_from_cap(loop):
     }
     try:
         _run_db_query("clips", "insert_one", doc)
-        post = requests.get(f"{API}/clips/incentive-status").json()
+        post = requests.get(f"{API}/clips/incentive-status", timeout=15).json()
         # organic count unchanged (seed excluded)
         assert post["organic_clips_total"] == pre["organic_clips_total"]
         assert post["slots_used"] == pre["slots_used"]
@@ -146,7 +146,7 @@ def test_cap_at_50_then_51st_gets_false(maker_headers, loop):
     """Pad organic featured count up to 50 with synthetic rows, then
     submit one more via the URL path. Expected: featured=false +
     claimed=true on status."""
-    pre = requests.get(f"{API}/clips/incentive-status").json()
+    pre = requests.get(f"{API}/clips/incentive-status", timeout=15).json()
     deficit = max(0, 50 - pre["slots_used"])
     pad_ids = []
 
@@ -173,7 +173,7 @@ def test_cap_at_50_then_51st_gets_false(maker_headers, loop):
                 })
             _run_db_query("clips", "insert_many", pad_docs)
 
-        status = requests.get(f"{API}/clips/incentive-status").json()
+        status = requests.get(f"{API}/clips/incentive-status", timeout=15).json()
         assert status["claimed"] is True, status
         assert status["slots_remaining"] == 0
 
@@ -194,7 +194,7 @@ def test_cap_at_50_then_51st_gets_false(maker_headers, loop):
         doc = _run_db_query("clips", "find_one", {"id": clip_id}, {"_id": 0})
         assert doc["featured"] is False
 
-        requests.delete(f"{API}/maker/clips/{clip_id}", headers=maker_headers)
+        requests.delete(f"{API}/maker/clips/{clip_id}", headers=maker_headers, timeout=15)
     finally:
         if pad_ids:
             _run_db_query("clips", "delete_many", {"id": {"$in": pad_ids}})
