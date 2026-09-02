@@ -42,7 +42,11 @@ jobs:
     runs-on: ubuntu-latest
     # Measurement, not a gate. See the header. Remove this line to promote it.
     continue-on-error: true
-    timeout-minutes: 30
+    # 60, not 30: the first full run reached 82% at the 30-minute cap and was cancelled. The suite is
+    # genuinely slow - roughly 2300 tests, most of them touching MongoDB, several hanging until the
+    # per-test timeout fires. Parallelising with xdist is NOT an option: tests/conftest.py manages
+    # shared seed collections across the session, so concurrent workers would corrupt each other.
+    timeout-minutes: 60
     services:
       mongo:
         image: mongo:8.0
@@ -106,7 +110,8 @@ jobs:
 
       - name: Run the test suite
         # --timeout guards against the import-time motor client hanging on a connection rather than
-        # failing, which is how this suite behaves with no MongoDB reachable.
+        # failing, which is how this suite behaves with no MongoDB reachable. 30s rather than 60s
+        # halves what each hanging test costs; the first full run showed several reaching the limit.
         # --continue-on-collection-errors is essential here, not cosmetic. pytest ABORTS the entire run
         # on any collection error, so a handful of unimportable files hid the state of ~2300 others:
         # the first two runs reported 30 and then 7 "tests", all collection failures, with nothing
@@ -118,7 +123,7 @@ jobs:
         # from the JUnit XML.
         run: |
           set -uo pipefail
-          pytest -q --timeout=60 --continue-on-collection-errors             --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
+          pytest -q --timeout=30 --continue-on-collection-errors             --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
 
       - name: Publish the numbers
         if: always()
