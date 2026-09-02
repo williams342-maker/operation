@@ -68,6 +68,23 @@ jobs:
       # InsecureKeyLengthWarning throughout the suite. 32+ bytes keeps the logs readable. It is a
       # throwaway CI value and authenticates nothing outside this job.
       MAKER_AUTH_SECRET: ci-only-throwaway-secret-not-a-real-credential-0123456789
+      # The admin allow-list. Without it config.py resolves admin_emails to an EMPTY tuple, so
+      # is_super_admin_email() is false for everybody and every admin test 403s at
+      # /api/admin/auth/verify — the token is issued fine, then rejected with "This email is no longer
+      # authorized for admin". That was 61 tests in the first measured run, plus 13 more raising
+      # KeyError: 'OPS_EMAIL' by reading the variable directly.
+      #
+      # These values are not secrets and grant nothing: they name which addresses the throwaway
+      # backend_ci_test database treats as admin, and the tests already hardcode them —
+      # `issue_admin_magic_token("team@craftersmarket.org")` appears 42 times, and the shared helper
+      # resolves `(ADMIN_EMAILS or OPS_EMAIL or "team@craftersmarket.org").split(",")[0]`. Setting them
+      # makes the SERVER agree with what the suite has always assumed.
+      #
+      # ADMIN_EMAILS takes precedence over OPS_EMAIL in config.py, so both are set: OPS_EMAIL because
+      # 13 tests read os.environ["OPS_EMAIL"] directly, ADMIN_EMAILS because three others hardcode the
+      # owner's address. team@ stays FIRST — the helper above takes [0] as the super-admin.
+      OPS_EMAIL: team@craftersmarket.org
+      ADMIN_EMAILS: team@craftersmarket.org,williams342@gmail.com
       # Background work off: the suite asserts on request/response behaviour, and schedulers firing
       # mid-run make failures non-deterministic.
       SCHEDULER_ENABLED: "false"
