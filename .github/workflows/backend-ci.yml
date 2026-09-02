@@ -99,26 +99,39 @@ jobs:
           pip install pytest-timeout
 
       - name: Recreate the container paths the tests hardcode
-        # 103 test files do `open("/app/frontend/.env")` at MODULE level and 197 call
+        # 88 test files do `open("/app/frontend/.env")` at MODULE level and 197 call
         # `load_dotenv("/app/backend/.env")` — absolute paths from the original Emergent container
-        # layout. The open() raises FileNotFoundError during COLLECTION, so 76 files fail before a
-        # single assertion runs. Creating the file is necessary but NOT sufficient: some files fall back
-        # to http://localhost:8001 when the key is missing, while 30 others read
-        # os.environ["REACT_APP_BACKEND_URL"] or assert on it and raise at import. The key is written
-        # below for that reason.
+        # layout. The open() raises FileNotFoundError during COLLECTION, so files fail before a single
+        # assertion runs.
         #
-        # This reproduces the layout rather than editing 103 test files. The real fix is to resolve
+        # These are SYMLINKS to the checkout, not empty directories. Empty directories satisfied the
+        # .env opens but nothing else, and the tests reach past them: tests/conftest.py loads its seed
+        # fixture from /app/backend/data/community_designs_seed.json, and ~40 tests read real files
+        # under /app/frontend/public/ and /app/frontend/src/. Those files all exist in this repository
+        # — they were simply unreachable at the paths the tests use. Linking the trees makes every
+        # hardcoded container path resolve to the real content.
+        #
+        # This reproduces the layout rather than editing ~200 test files. The real fix is to resolve
         # those paths relative to the repository; that is a separate change, and a large one.
         run: |
           set -euo pipefail
-          sudo mkdir -p /app/frontend /app/backend
-          sudo chmod -R a+rwx /app
+          sudo mkdir -p /app
+          sudo ln -sfn "$GITHUB_WORKSPACE/backend"  /app/backend
+          sudo ln -sfn "$GITHUB_WORKSPACE/frontend" /app/frontend
+          # Neither .env is tracked (nothing under backend/ or frontend/ is), so both are created here
+          # in the workspace and reached through the links above.
+          #
           # The KEY must be present, not merely the file. An empty .env still fails 30 collections:
           # some files use the tolerant `next(..., "http://localhost:8001")` fallback, but others do
           # os.environ["REACT_APP_BACKEND_URL"] or assert on it, so they raise KeyError/AssertionError
           # at import. The first CI run is what established that distinction.
-          echo "REACT_APP_BACKEND_URL=http://localhost:8001" > /app/frontend/.env
-          : > /app/backend/.env
+          echo "REACT_APP_BACKEND_URL=http://localhost:8001" > "$GITHUB_WORKSPACE/frontend/.env"
+          : > "$GITHUB_WORKSPACE/backend/.env"
+          # Prove the links resolve before 2300 tests depend on them.
+          test -f /app/frontend/.env
+          test -f /app/frontend/public/index.html
+          test -f /app/backend/data/community_designs_seed.json
+          echo "container paths resolve to the checkout"
 
       - name: Start the API server the tests integrate against
         # THE POINT OF THIS RUN. The first measurement scored 38.2%, but 1560 of 1758 failures (89%)
@@ -154,8 +167,8 @@ jobs:
         # on any collection error, so a handful of unimportable files hid the state of ~2300 others:
         # the first two runs reported 30 and then 7 "tests", all collection failures, with nothing
         # executed. Six of the remaining files issue HTTP requests to localhost:8001 at IMPORT time and
-        # need a live API server, which this job does not yet start; one
-        # (test_iter132_review_prompts.py) is simply broken with `NameError: _env_get`.
+        # need the live API server the previous step starts; one (test_iter132_review_prompts.py) is
+        # simply broken with `NameError: _env_get`, and stays a genuine failure.
         #
         # `|| true` keeps the measurement steps below running on failure; the real outcome is reported
         # from the JUnit XML.

@@ -123,16 +123,31 @@ def _ensure_canonical_seed_session():
                     except Exception:
                         pass
 
+        # A best-effort helper must also be TIME-BOUNDED. Without the
+        # wait_for below, the awaits in _upsert() can park the fresh loop
+        # indefinitely (epoll with no timer and no I/O event), and because
+        # this fixture is module-scoped AND autouse, one hang fails every
+        # test in that module on setup. In the first full CI run that was
+        # 450 setup failures — 45% of everything that did not pass — all
+        # from this one line. Seeding here is a convenience: server.py
+        # already calls seed_if_empty() at startup, so giving up is
+        # strictly better than hanging.
+        async def _upsert_bounded():
+            await asyncio.wait_for(_upsert(), timeout=10)
+
         # asyncio.run() creates + tears down a fresh loop each call —
         # safe between modules. If we happen to already be inside a
         # running loop (rare at fixture-setup time), fall back to a
         # thread so we don't crash the whole test run.
         try:
-            asyncio.run(_upsert())
+            asyncio.run(_upsert_bounded())
         except RuntimeError:
             import threading
-            t = threading.Thread(target=lambda: asyncio.run(_upsert()))
-            t.start(); t.join(timeout=5)
+            t = threading.Thread(target=lambda: asyncio.run(_upsert_bounded()))
+            t.start(); t.join(timeout=15)
+        # A TimeoutError from wait_for falls through to the outer
+        # `except Exception: pass` below, which is exactly the intended
+        # best-effort behaviour.
     except Exception:
         # Best-effort: if the seed system has moved on, let the
         # dependent tests fail with their original assertion message.
