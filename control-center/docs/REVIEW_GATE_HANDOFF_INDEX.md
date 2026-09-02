@@ -4,7 +4,7 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate I, awaiting round-8 review.
+**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate J, awaiting round-9 review.
 
 **Owner action: ONE ITEM OPEN** — see §I of the current candidate handoff. Full test provenance needs key
 material for an attestation scheme, which is outside my standing authority. Everything else in this
@@ -28,7 +28,8 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | F | `05162ac1` / `0c220758` | `REVIEW_GATE_HANDOFF_05162ac1_20260902.md` | **NO-GO** | 3 CRITICAL — evidence was persisted but not provenanced; rejection was scoped to one record so a new candidateId laundered it; a successor needed only different paperwork |
 | G | `ac9fb611` / `d83a03e5` | `REVIEW_GATE_HANDOFF_ac9fb611_20260902.md` | **NO-GO** | 2 CRITICAL — the rejection ledger was three non-atomic operations, so identical content could be approved and rejected concurrently; a test-plan label counted as work, so `tp-1 → tp-2` laundered a defective artifact. 1 MAJOR — a stranger could self-enrol as a participant and supersede |
 | H | `0890f6e0` / `75f098e8` | `REVIEW_GATE_HANDOFF_0890f6e0_20260902.md` | **NO-GO** | 1 CRITICAL — `READY_FOR_OWNER_DECISION` is terminal, so a later rejection of identical content could not revoke it; atomicity could not fix an ordering-independent defect. 3 MAJOR — findings were discarded so remediation was unprovable; `requestedReviewerClass` was never enforced |
-| I | `0ce56c85` + this commit | `REVIEW_GATE_HANDOFF_0ce56c85_20260902.md` | *pending round 8* | — |
+| I | `0ce56c85` / `c5b66c5f` | `REVIEW_GATE_HANDOFF_0ce56c85_20260902.md` | **NO-GO** | 2 CRITICAL — the package published `InMemoryReviewGateStore`, whose `create` took a caller-built state, so a record could be written straight into `READY_FOR_OWNER_DECISION`; findings could be laundered by a second, milder rejection |
+| J | `d7341739` + this commit | `REVIEW_GATE_HANDOFF_d7341739_20260902.md` | *pending round 9* | — |
 
 Retrieve any superseded handoff with:
 
@@ -55,10 +56,25 @@ Recorded because the pattern matters more than any single finding.
 | G→H | `contentDigest` covers "the work" | it counted `testPlanVersion`, so editing a label was a remediation — **and my own test asserted this was correct** |
 | H→I | C6-1 is "closed" by the widened CAS | the defect was not an ordering problem, so ordering could not fix it; a terminal decision cannot be revoked by a later fact |
 | H→I | `requestedReviewerClass` records the reviewer requirement | it was parsed and never consulted; anyone unconflicted could approve |
+| I→J | callers cannot supply authoritative state | the package exported the store that writes it, `create` and all |
+| I→J | an earlier finding was "either fixed, or raised again" | nothing enforced either branch; a milder second rejection erased a CRITICAL |
 
-**Seven rounds, eleven claims, each stronger than the mechanism behind it.** Nine were caught by the
+**Eight rounds, thirteen claims, each stronger than the mechanism behind it.** Eleven were caught by the
 reviewer; two I found myself, one by mutation-checking my own test and one because an assertion written to
 be falsifiable actually failed.
+
+**Round 8 turned one of these into a named pattern rather than a list of incidents.** Three separate
+times I have built a mediating layer, described it as the boundary, and left the primitive it mediates on
+the public surface:
+
+| round | the mediator I built | the primitive I left published |
+| --- | --- | --- |
+| 3 | `ReviewGateService` | `evaluateTransition` |
+| 5 | `TrustedPrincipal` | `principalFromSession` |
+| 8 | the service's store contract | `InMemoryReviewGateStore` |
+
+Before accepting any boundary claim of mine, check what the package actually hands out. Twice the fix has
+been the same shape as the previous fix, and I did not notice until the reviewer pointed at the third.
 
 **Three times now a test of mine has certified a hole** rather than caught it — round 4's boundary test
 that could not fail, round 6's assertion that a test-plan label constituted work, and round 7's
@@ -84,7 +100,7 @@ and test the mechanism rather than read the description.
 
 ## Standing constraints on this workstream
 
-- Production deployment is **frozen**. Production mutations across all nine candidates: **0**.
+- Production deployment is **frozen**. Production mutations across all ten candidates: **0**.
 - `main` is protected and PR-gated. No pull request has been opened for this branch.
 - Not authorised without separate owner instruction: flipping the agent-v2 flag, publishing an agent
   release, creating signing keys, exposing public ports, mutating production data, changing DNS.
