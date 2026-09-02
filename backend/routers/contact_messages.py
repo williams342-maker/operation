@@ -137,7 +137,7 @@ async def submit_contact_message(
     # iter105 — deep-link to the contact row inside the admin dashboard.
     import os as _os
     from notify_webhook import notify_team
-    _site = (_env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
+    _site = (env_get("PUBLIC_SITE_URL") or "https://craftersmarket.org").rstrip("/")
     bg.add_task(
         notify_team,
         kind="contact",

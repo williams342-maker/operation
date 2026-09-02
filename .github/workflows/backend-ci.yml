@@ -37,6 +37,48 @@ permissions:
   contents: read
 
 jobs:
+  # Unlike backend-tests below, THIS ONE IS A GATE. It is fast, deterministic, currently clean, and
+  # every rule it selects means "this code is definitely broken" rather than "this code is untidy".
+  #
+  # It exists because the first backend test run surfaced NameError: name '_env_get' is not defined
+  # from routers/contact_messages.py:140 — live, on the public contact form. Tracing it found the same
+  # undefined name at 8 call sites across 5 modules, plus an undefined `db` in scheduler.py, none of
+  # which any check in this repository would have caught:
+  #
+  #   review_prompts.py:36,37,38     module level, so `import review_prompts` raised outright and the
+  #                                  review-prompt sweep was dead for all 3 of its callers
+  #   routers/contact_messages.py    public contact form: 500 AFTER the row was inserted
+  #   routers/settings.py:154        beta feedback submit, same shape
+  #   routers/merchant_rules.py:145  maker feed autofix
+  #   scheduler.py:633,694           the secrets-rotation nudge job
+  #   scheduler.py:1141 (`db`)       the 04:45 UTC promoted-listings allocator, whose NameError was
+  #                                  swallowed by `except Exception` into a log line, so it had never
+  #                                  once run successfully
+  #
+  # Verified against the pre-fix code from git: this selection reports exactly those 9 defects, with no
+  # false positives and nothing missed.
+  #
+  # ONLY rules that are already at zero are selected, which is what makes this gateable today.
+  # Deliberately NOT selected: F811 (8 hits) and F401 (331 unused imports). Those are real debt but
+  # they are style-adjacent and would make this job unlandable. Widen the selection when a rule reaches
+  # zero, never by adding a rule that is already failing.
+  backend-lint:
+    name: backend-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Pinned: an unpinned linter turns an upstream release into a surprise red gate on an unrelated
+      # pull request.
+      - run: pip install ruff==0.16.5
+      - name: Undefined names and syntax errors
+        # emergentintegrations/ is vendored third-party code, excluded because we do not fix it here.
+        # Tests are INCLUDED: an undefined name in a test is equally a defect.
+        run: ruff check --select E999,F821,F822,F823 --exclude emergentintegrations backend
+
   backend-tests:
     name: backend-tests
     runs-on: ubuntu-latest

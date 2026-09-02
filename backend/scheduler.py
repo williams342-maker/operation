@@ -630,7 +630,7 @@ async def _job_secrets_rotation_nudge() -> None:
         # Classify each tracked, configured secret by status
         candidates: list[dict] = []
         for spec in TRACKED_SECRETS:
-            is_set = any(bool(_env_get(k)) for k in spec["env_keys"])
+            is_set = any(bool(env_get(k)) for k in spec["env_keys"])
             if not is_set:
                 continue
             last = rows.get(spec["id"])
@@ -691,7 +691,7 @@ async def _job_secrets_rotation_nudge() -> None:
         soon_items = [f for f in fresh if f["status"] == "due_soon"]
 
         # ---- Email digest (ops) ----
-        ops = (_env_get("OPS_EMAIL") or "").strip()
+        ops = (env_get("OPS_EMAIL") or "").strip()
         if ops:
             try:
                 from email_service import _send
@@ -1135,6 +1135,7 @@ async def _job_promote_allocator() -> None:
     Wallets that drop below the $5 boost floor are simply skipped (the
     UI surfaces a "top up to resume" hint)."""
     try:
+        from core import db
         from services import promote_allocator as _alloc
         from services import promote_wallet as _wallet
         ran = skipped = 0
