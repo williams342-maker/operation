@@ -1,4 +1,22 @@
-name: Control Center CI
+# Named distinctly from control-center-ci.yml, which is ALSO called "Control Center CI".
+#
+# Both workflows had a job id `verify` and no explicit job name, so both emitted a status check called
+# `verify` — and branch protection requires the single context "verify". Two different pipelines were
+# answering to one required name: a pull request could show a passing `verify` beside a failing `verify`
+# with nothing in the UI to tell them apart, and the log had to be opened to find out which pipeline had
+# actually failed. That happened on #28 and again on #36.
+#
+# This job is the LIGHTER of the two - it runs the MongoDB suite, the coverage count, typecheck, lint and
+# build. control-center-ci.yml additionally runs Gitleaks, the dependency audit, shell verification, the
+# agent upgrade dry run, Playwright end-to-end tests and a repository integrity check. So `verify` is
+# deliberately left to that workflow: the required context now resolves to the COMPREHENSIVE gate rather
+# than to whichever of the two GitHub happened to pick.
+#
+# Consequence worth knowing: `quick-verify` is not in the required-checks list. It still runs and is still
+# visible on every pull request, but it does not block a merge. Adding it would mostly duplicate work the
+# comprehensive gate already does; if you want it enforced, add the `quick-verify` context in branch
+# protection.
+name: Control Center CI (quick)
 
 on:
   pull_request:
@@ -7,6 +25,9 @@ on:
 
 jobs:
   verify:
+    # The CHECK name comes from this, not from the workflow name. The job id stays `verify` so nothing
+    # referencing it breaks; only the reported context changes.
+    name: quick-verify
     runs-on: ubuntu-latest
     services:
       mongo:
