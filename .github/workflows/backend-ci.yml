@@ -116,6 +116,16 @@ jobs:
         working-directory: backend
     env:
       MONGO_URL: mongodb://127.0.0.1:27017
+      # THE TESTS MUST TALK TO THE SERVER THIS JOB STARTS, AND WITHOUT THIS THEY DID NOT.
+      # 105 test files fall back to a hardcoded EXTERNAL host when this variable is unset:
+      #     os.environ.get("REACT_APP_BACKEND_URL", "https://active-project-4.preview.emergentagent.com")
+      # 175 files read the variable; only 29 load /app/frontend/.env. Writing that file — which the step
+      # below does — therefore left ~146 files resolving to a third-party preview environment, so CI was
+      # issuing real HTTP requests to somebody else's deployment and asserting on whatever came back.
+      # That is where the 401s at .../api/admin/auth/verify came from: the tokens were minted with this
+      # job's throwaway secret and were meaningless to that host.
+      # Setting it in the job environment is what actually points the suite at 127.0.0.1:8001.
+      REACT_APP_BACKEND_URL: http://localhost:8001
       DB_NAME: backend_ci_test
       # Set explicitly rather than relying on config.py's non-production default of
       # "dev-local-secret-change-me" — that default is 26 bytes, which is what triggers PyJWT 2.13.0's
