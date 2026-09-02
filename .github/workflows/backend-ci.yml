@@ -240,6 +240,26 @@ jobs:
           cat /tmp/uvicorn.log
           exit 1
 
+      # KNOWN FAILURE CLASS, not yet resolved: ~92 tests time out in the CALL phase.
+      #
+      # Established from the JUnit report of run 33632438049:
+      #   - all 92 are call-phase; setup-phase timeouts are now ZERO (they were 450)
+      #   - none involve the external preview host
+      #   - each is blocked in socket.recv_into, waiting on a response from 127.0.0.1:8001
+      #   - the heaviest modules (test_returns_cases, test_policy_versioning,
+      #     test_secrets_rotation, test_seo_policy_notify, test_social_momentum) call
+      #     requests.* with NO timeout argument at all, so they wait indefinitely and only
+      #     pytest-timeout ends them
+      #   - test_iter412_seo_agent is different: it passes timeout=180 deliberately, because
+      #     POST /admin/seo-agent/scan/run is expected to take minutes. --timeout=30 kills it
+      #     at 30s, so that one is a CI mismatch rather than a server fault
+      #
+      # NOT established: why the server does not answer the others. The scan handler is fully
+      # await-based with no blocking call found, so "one slow handler stalls the single uvicorn
+      # loop" is a hypothesis, NOT a conclusion. Raising --timeout is not obviously right either:
+      # 92 tests waiting 120s each would add over an hour of wall-clock to find out.
+      #
+      # Resolve this before promoting backend-tests to a required gate.
       - name: Run the test suite
         # --timeout guards against the import-time motor client hanging on a connection rather than
         # failing, which is how this suite behaves with no MongoDB reachable. 30s rather than 60s
