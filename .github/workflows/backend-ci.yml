@@ -107,11 +107,18 @@ jobs:
       - name: Run the test suite
         # --timeout guards against the import-time motor client hanging on a connection rather than
         # failing, which is how this suite behaves with no MongoDB reachable.
+        # --continue-on-collection-errors is essential here, not cosmetic. pytest ABORTS the entire run
+        # on any collection error, so a handful of unimportable files hid the state of ~2300 others:
+        # the first two runs reported 30 and then 7 "tests", all collection failures, with nothing
+        # executed. Six of the remaining files issue HTTP requests to localhost:8001 at IMPORT time and
+        # need a live API server, which this job does not yet start; one
+        # (test_iter132_review_prompts.py) is simply broken with `NameError: _env_get`.
+        #
         # `|| true` keeps the measurement steps below running on failure; the real outcome is reported
         # from the JUnit XML.
         run: |
           set -uo pipefail
-          pytest -q --timeout=60 --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
+          pytest -q --timeout=60 --continue-on-collection-errors             --junitxml=/tmp/backend-junit.xml -p no:cacheprovider || true
 
       - name: Publish the numbers
         if: always()
