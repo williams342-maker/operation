@@ -58,6 +58,11 @@ jobs:
   # Verified against the pre-fix code from git: this selection reports exactly those 9 defects, with no
   # false positives and nothing missed.
   #
+  # Syntax errors need no rule code: ruff reports them unconditionally. E999 used to select them and was
+  # REMOVED in ruff 0.16 — selecting it is a hard error ("Rule `E999` was removed and cannot be
+  # selected"), which is how the first run of this job failed. Verified that a deliberately broken file
+  # is still reported with only F821,F822,F823 selected.
+  #
   # ONLY rules that are already at zero are selected, which is what makes this gateable today.
   # Deliberately NOT selected: F811 (8 hits) and F401 (331 unused imports). Those are real debt but
   # they are style-adjacent and would make this job unlandable. Widen the selection when a rule reaches
@@ -77,7 +82,7 @@ jobs:
       - name: Undefined names and syntax errors
         # emergentintegrations/ is vendored third-party code, excluded because we do not fix it here.
         # Tests are INCLUDED: an undefined name in a test is equally a defect.
-        run: ruff check --select E999,F821,F822,F823 --exclude emergentintegrations backend
+        run: ruff check --select F821,F822,F823 --exclude emergentintegrations backend
 
   backend-tests:
     name: backend-tests
