@@ -4,7 +4,7 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate H, awaiting round-7 review.
+**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate I, awaiting round-8 review.
 
 **Owner action: ONE ITEM OPEN** — see §I of the current candidate handoff. Full test provenance needs key
 material for an attestation scheme, which is outside my standing authority. Everything else in this
@@ -27,7 +27,8 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | E | `76203f01` | `review-gate-codex-handoff-20260902.md` @ `76203f01` | **NO-GO** | 1 CRITICAL — `TESTED` and remediation were caller assertions, never recorded evidence; 2 MODERATE on vacuous tests |
 | F | `05162ac1` / `0c220758` | `REVIEW_GATE_HANDOFF_05162ac1_20260902.md` | **NO-GO** | 3 CRITICAL — evidence was persisted but not provenanced; rejection was scoped to one record so a new candidateId laundered it; a successor needed only different paperwork |
 | G | `ac9fb611` / `d83a03e5` | `REVIEW_GATE_HANDOFF_ac9fb611_20260902.md` | **NO-GO** | 2 CRITICAL — the rejection ledger was three non-atomic operations, so identical content could be approved and rejected concurrently; a test-plan label counted as work, so `tp-1 → tp-2` laundered a defective artifact. 1 MAJOR — a stranger could self-enrol as a participant and supersede |
-| H | `0890f6e0` + this commit | `REVIEW_GATE_HANDOFF_0890f6e0_20260902.md` | *pending round 7* | — |
+| H | `0890f6e0` / `75f098e8` | `REVIEW_GATE_HANDOFF_0890f6e0_20260902.md` | **NO-GO** | 1 CRITICAL — `READY_FOR_OWNER_DECISION` is terminal, so a later rejection of identical content could not revoke it; atomicity could not fix an ordering-independent defect. 3 MAJOR — findings were discarded so remediation was unprovable; `requestedReviewerClass` was never enforced |
+| I | `0ce56c85` + this commit | `REVIEW_GATE_HANDOFF_0ce56c85_20260902.md` | *pending round 8* | — |
 
 Retrieve any superseded handoff with:
 
@@ -52,14 +53,21 @@ Recorded because the pattern matters more than any single finding.
 | F→G | a successor "must differ from what it replaces" | it compared paperwork, so a re-run of the same code qualified |
 | G→H | rejected content "is refused at registration" | the check, the commit and the ledger write were three operations, so a concurrent GO slipped between them |
 | G→H | `contentDigest` covers "the work" | it counted `testPlanVersion`, so editing a label was a remediation — **and my own test asserted this was correct** |
+| H→I | C6-1 is "closed" by the widened CAS | the defect was not an ordering problem, so ordering could not fix it; a terminal decision cannot be revoked by a later fact |
+| H→I | `requestedReviewerClass` records the reviewer requirement | it was parsed and never consulted; anyone unconflicted could approve |
 
-**Six rounds, nine claims, each stronger than the mechanism behind it.** Seven were caught by the
+**Seven rounds, eleven claims, each stronger than the mechanism behind it.** Nine were caught by the
 reviewer; two I found myself, one by mutation-checking my own test and one because an assertion written to
 be falsifiable actually failed.
 
-**Twice now a test of mine has certified a hole** rather than caught it — round 4's boundary test that
-could not fail, and round 6's assertion that a test-plan label constituted work. A green suite here is
-evidence that the assertions I wrote hold, and nothing more.
+**Three times now a test of mine has certified a hole** rather than caught it — round 4's boundary test
+that could not fail, round 6's assertion that a test-plan label constituted work, and round 7's
+concurrency test that omitted the one ordering that mattered. A green suite here is evidence that the
+assertions I wrote hold, and nothing more.
+
+**And in round 7 I declared a CRITICAL closed and it was not.** I had widened the compare-and-set contract
+and reported C6-1 as fixed; the defect was not an ordering problem, so ordering could not touch it. When a
+handoff of mine says a finding is closed, that is a claim to re-derive like any other.
 
 **And in round 6 I told the reviewer that the rejection ledger's atomicity was where I would look first.
 It was broken.** Naming a weakness is not fixing it, and my ranking of where the risk lies has not
@@ -76,7 +84,7 @@ and test the mechanism rather than read the description.
 
 ## Standing constraints on this workstream
 
-- Production deployment is **frozen**. Production mutations across all eight candidates: **0**.
+- Production deployment is **frozen**. Production mutations across all nine candidates: **0**.
 - `main` is protected and PR-gated. No pull request has been opened for this branch.
 - Not authorised without separate owner instruction: flipping the agent-v2 flag, publishing an agent
   release, creating signing keys, exposing public ports, mutating production data, changing DNS.
