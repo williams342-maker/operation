@@ -68,6 +68,10 @@ export type CandidateRecord = {
   state: ReviewState;
   /** Set when this candidate exists to replace one that was rejected. See createSuccessor. */
   supersedes?: string;
+  /** Finding ids from the predecessor that this candidate claims to address. See createSuccessor. */
+  remediates?: readonly string[];
+  /** Append-only. Every verdict ever recorded against this candidate, findings included. */
+  verdicts: StoredVerdict[];
   participants: Participant[];
   /** Append-only. One row per accepted transition. */
   occurrences: TransitionOccurrence[];
@@ -103,6 +107,23 @@ export type EvidenceRecord = {
   at: string;
 };
 
+/**
+ * A verdict as recorded, findings included.
+ *
+ * Round 7: the objective this workstream exists to serve includes findings and remediation, and the
+ * system was DISCARDING the findings. A verdict was evaluated, its transition committed, and its content
+ * dropped -- so "was this remediated?" could only ever be answered by comparing digests, which is what
+ * rounds 5, 6 and 7 each broke in a different way. You cannot establish that a finding was addressed if
+ * you did not keep the finding.
+ */
+export type StoredVerdict = {
+  reviewerIdentity: string;
+  verdict: "GO" | "NO_GO";
+  findings: ReadonlyArray<{ id: string; severity: string; summary: string }>;
+  submittedAt: string;
+  at: string;
+};
+
 export type TransitionOccurrence = {
   occurrenceId: string;
   from: ReviewState;
@@ -135,6 +156,19 @@ export interface ReviewGateStore {
    */
   isContentRejected(contentDigest: string): Promise<boolean>;
   /**
+   * The candidate id currently holding this content, if any is still live.
+   *
+   * ROUND 7's CRITICAL, and it could not be fixed by tightening atomicity. READY_FOR_OWNER_DECISION is
+   * terminal, so once identical content reached it, a later NO_GO on a twin recorded a rejection that
+   * nothing could act on: the same work was simultaneously rejected and awaiting the owner. Per-operation
+   * atomicity establishes ordering; it cannot make a later fact revoke an earlier terminal decision.
+   *
+   * So the contradiction is prevented rather than resolved: AT MOST ONE LIVE CANDIDATE MAY CARRY A GIVEN
+   * CONTENT DIGEST. Two twins can no longer exist to disagree about. CANCELLED and EXPIRED release the
+   * claim, because abandoning work should not permanently bar re-submitting it.
+   */
+  findLiveByContent(contentDigest: string): Promise<string | null>;
+  /**
    * Apply a transition if and only if the state is still what the caller read.
    *
    * ROUND 6 WIDENED THIS CONTRACT, because a compare-and-set that only guards state is not enough. The
@@ -159,6 +193,7 @@ export interface ReviewGateStore {
     addParticipant?: Participant;
     requireContentNotRejected?: string;
     recordRejectionOfContent?: string;
+    addVerdict?: StoredVerdict;
   }): Promise<boolean>;
 }
 
@@ -169,6 +204,15 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
 
   async isContentRejected(digest: string): Promise<boolean> {
     return this.rejected.has(digest);
+  }
+
+  async findLiveByContent(digest: string): Promise<string | null> {
+    for (const record of this.records.values()) {
+      if (record.contentDigest === digest && !RELEASES_CONTENT.includes(record.state)) {
+        return record.candidateId;
+      }
+    }
+    return null;
   }
 
   // NOTE the absence of a standalone recordRejection. It existed until round 6 and is deliberately gone:
@@ -195,6 +239,13 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
 
   async create(record: CandidateRecord): Promise<boolean> {
     if (this.records.has(record.candidateId)) return false;
+    // Checked HERE rather than in the service, so the check and the write cannot interleave. Two
+    // concurrent registrations of the same content must not both succeed; the loser sees false.
+    for (const existing of this.records.values()) {
+      if (existing.contentDigest === record.contentDigest
+        && !RELEASES_CONTENT.includes(existing.state)) return false;
+    }
+    if (this.rejected.has(record.contentDigest)) return false;
     this.records.set(record.candidateId, structuredClone(record));
     return true;
   }
@@ -207,6 +258,7 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     addParticipant?: Participant;
     requireContentNotRejected?: string;
     recordRejectionOfContent?: string;
+    addVerdict?: StoredVerdict;
   }): Promise<boolean> {
     // Everything below runs without an await, so it is one atomic step against this store. That is the
     // contract the interface states, and the reason the rejection check moved in here.
@@ -223,6 +275,7 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     found.state = input.nextState;
     found.occurrences.push(input.occurrence);
     if (input.addParticipant) found.participants.push(input.addParticipant);
+    if (input.addVerdict) found.verdicts.push(structuredClone(input.addVerdict));
     if (input.recordRejectionOfContent && !this.rejected.has(input.recordRejectionOfContent)) {
       this.rejected.set(input.recordRejectionOfContent, {
         candidateId: input.candidateId,
@@ -242,8 +295,16 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
  * through it.
  */
 export interface SessionAuthenticator {
-  /** Verify a caller-supplied proof and return the identity it establishes, or null if it establishes none. */
-  authenticate(proof: unknown): { identity: string } | null;
+  /**
+   * Verify a caller-supplied proof and return the identity it establishes, or null if it establishes
+   * none. `reviewerClasses` are the review authorities the application grants that identity.
+   *
+   * ROUND 7: `requestedReviewerClass` sat in the binding, was parsed, and was then never consulted --
+   * so a candidate could ask for an "independent" reviewer and be approved by anyone at all who happened
+   * to have no conflicting participation. A field that records a requirement and never enforces it is
+   * worse than no field, because it reads like a control.
+   */
+  authenticate(proof: unknown): { identity: string; reviewerClasses?: readonly string[] } | null;
 }
 
 const MINTED = new WeakSet<object>();
@@ -270,14 +331,17 @@ const MINTED = new WeakSet<object>();
  * cannot make that claim on its behalf. It is no longer a claim the package makes falsely.
  */
 export class TrustedPrincipal {
-  private constructor(readonly identity: string) {}
+  private constructor(
+    readonly identity: string,
+    readonly reviewerClasses: readonly string[] = [],
+  ) {}
 
   /**
    * INTERNAL. Deliberately not reachable from the package index, which exports this class as a TYPE
    * ONLY -- so external code has no value binding to call a static on. Minting is the service’s job.
    */
   static mint(authenticator: SessionAuthenticator, proof: unknown): TrustedPrincipal | null {
-    let established: { identity: string } | null = null;
+    let established: { identity: string; reviewerClasses?: readonly string[] } | null = null;
     try {
       established = authenticator.authenticate(proof);
     } catch {
@@ -285,7 +349,10 @@ export class TrustedPrincipal {
     }
     const identity = String(established?.identity ?? "").trim();
     if (!identity) return null;
-    const principal = new TrustedPrincipal(identity);
+    const classes = Array.isArray(established?.reviewerClasses)
+      ? established!.reviewerClasses!.map((c) => String(c).trim()).filter(Boolean)
+      : [];
+    const principal = new TrustedPrincipal(identity, Object.freeze(classes));
     MINTED.add(principal);
     return principal;
   }
@@ -311,6 +378,33 @@ const UNAUTHENTICATED = Object.freeze({
  * away. TEST_FAILED is included because a build that never passed its tests is exactly the case where a
  * successor is the right answer.
  */
+/**
+ * States in which a candidate no longer holds its content claim.
+ *
+ * NOT the same list as terminalStates: READY_FOR_OWNER_DECISION is terminal but very much still holds
+ * its content -- that is the whole point of round 7's finding. NO_GO releases the record but the
+ * rejection ledger takes over, so the content stays barred by a different mechanism.
+ */
+const RELEASES_CONTENT: readonly ReviewState[] = Object.freeze(["CANCELLED", "EXPIRED"]);
+
+/** Severities a successor cannot simply decline to address. */
+const BLOCKING_SEVERITIES: readonly string[] = Object.freeze(["CRITICAL", "MAJOR"]);
+
+/**
+ * The findings a replacement has to answer for: those raised by the most recent rejection.
+ *
+ * Only the latest NO_GO counts. An earlier rejection's findings were either fixed by whatever produced
+ * the candidate that got re-reviewed, or raised again -- and if a reviewer chose not to raise them again,
+ * that is the reviewer's call to make, not a debt this function should resurrect.
+ */
+function outstandingFindings(record: CandidateRecord):
+  ReadonlyArray<{ id: string; severity: string; summary: string }> {
+  const rejections = record.verdicts.filter((v) => v.verdict === "NO_GO");
+  const latest = rejections[rejections.length - 1];
+  if (!latest) return [];
+  return latest.findings.filter((f) => BLOCKING_SEVERITIES.includes(f.severity));
+}
+
 const SUPERSEDABLE: readonly ReviewState[] = Object.freeze([
   "NO_GO", "REMEDIATION_REQUIRED", "REMEDIATING", "TEST_FAILED", "CANCELLED", "EXPIRED",
 ]);
@@ -382,8 +476,21 @@ export class ReviewGateService {
       state: "BUILT",
       participants: [{ identity: binding.authorIdentity, role: "author", at: now }],
       occurrences: [],
+      verdicts: [],
     });
-    if (!created) return { ok: false, code: "candidate_exists", message: "candidate id already registered" };
+    if (!created) {
+      // The store refuses for three reasons and they are worth distinguishing for the caller, so ask it
+      // which one applies. The refusal itself already happened atomically; this is only diagnosis.
+      const live = await this.store.findLiveByContent(contentDigest(binding));
+      if (live) {
+        return {
+          ok: false,
+          code: "content_already_live",
+          message: `candidate ${live} already carries this exact work; at most one may be live at a time`,
+        };
+      }
+      return { ok: false, code: "candidate_exists", message: "candidate id already registered" };
+    }
     return { ok: true, state: "BUILT" };
   }
 
@@ -460,6 +567,8 @@ export class ReviewGateService {
     candidateId: string;
     supersedes: string;
     binding: CandidateBinding;
+    /** Finding ids from the predecessor's rejection that this candidate addresses. */
+    remediates?: readonly string[];
   }): Promise<ServiceResult> {
     const principal = this.principal(proof);
     if (!principal) return UNAUTHENTICATED;
@@ -525,6 +634,31 @@ export class ReviewGateService {
         message: "only the author of the rejected candidate, or a recorded remediator, may replace it",
       };
     }
+    // ROUND 7's MAJOR, which Codex said should block further certification work and I agree did.
+    // "Remediated" was `contentDigest(new) !== contentDigest(prior)`: ANY genuine code change let a
+    // successor through, whether or not it touched the defect that was found. Rounds 5, 6 and 7 each
+    // broke a different version of that same shortcut. The findings are now kept, and a successor has to
+    // say which of them it addresses.
+    const blocking = [...outstandingFindings(prior)];
+    const claimed = new Set(input.remediates ?? []);
+    const unaddressed = blocking.filter((f) => !claimed.has(f.id));
+    if (unaddressed.length > 0) {
+      return {
+        ok: false,
+        code: "findings_unaddressed",
+        message:
+          "a successor must address every CRITICAL and MAJOR finding of the rejection it replaces; " +
+          `outstanding: ${unaddressed.map((f) => f.id).join(", ")}`,
+      };
+    }
+    const invented = [...claimed].filter((id) => !blocking.some((f) => f.id === id));
+    if (invented.length > 0) {
+      return {
+        ok: false,
+        code: "findings_unknown",
+        message: `no such finding on the predecessor: ${invented.join(", ")}`,
+      };
+    }
     const now = this.clock();
     const created = await this.store.create({
       candidateId: input.candidateId,
@@ -533,10 +667,22 @@ export class ReviewGateService {
       binding,
       state: "BUILT",
       supersedes: input.supersedes,
+      remediates: [...claimed],
       participants: [{ identity: binding.authorIdentity, role: "author", at: now }],
       occurrences: [],
+      verdicts: [],
     });
-    if (!created) return { ok: false, code: "candidate_exists", message: "candidate id already registered" };
+    if (!created) {
+      const live = await this.store.findLiveByContent(contentDigest(binding));
+      if (live) {
+        return {
+          ok: false,
+          code: "content_already_live",
+          message: `candidate ${live} already carries this exact work; at most one may be live at a time`,
+        };
+      }
+      return { ok: false, code: "candidate_exists", message: "candidate id already registered" };
+    }
     return { ok: true, state: "BUILT" };
   }
 
@@ -589,6 +735,16 @@ export class ReviewGateService {
     // an independent party legitimately arrives at a candidate they have no prior connection to. That
     // move grants no role, and the independence check still governs the verdict that follows.
     const claimingReview = record.state === "REVIEW_REQUESTED" && input.to === "REVIEW_IN_PROGRESS";
+    if (claimingReview && !principal.reviewerClasses.includes(record.binding.requestedReviewerClass)) {
+      // ROUND 7: the stranger entry point was open to ANY authenticated identity, so it could be used to
+      // seize a review the candidate never asked that party to perform. It is now open only to identities
+      // the application says hold the class the candidate requested.
+      return {
+        ok: false,
+        code: "reviewer_class_not_held",
+        message: `this candidate requested a ${record.binding.requestedReviewerClass} reviewer`,
+      };
+    }
     const known = record.participants.some((x) => x.identity === principal.identity)
       || record.binding.authorIdentity === principal.identity;
     if (!known && !claimingReview) {
@@ -699,6 +855,20 @@ export class ReviewGateService {
     const record = await this.store.load(intent.candidateId);
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
+    // ROUND 7: requestedReviewerClass was parsed into the binding and then never consulted, so a
+    // candidate could ask for an independent reviewer and be approved by whoever turned up without a
+    // conflicting participation record. A field that states a requirement and never enforces it reads
+    // like a control and is not one.
+    if (!principal.reviewerClasses.includes(record.binding.requestedReviewerClass)) {
+      return {
+        ok: false,
+        code: "reviewer_class_not_held",
+        message:
+          `this candidate requested a ${record.binding.requestedReviewerClass} reviewer; ` +
+          "the authenticated actor does not hold that class",
+      };
+    }
+
     const to: ReviewState = verdict.verdict === "GO" ? "GO" : "NO_GO";
     if (to === "GO" && await this.store.isContentRejected(record.contentDigest)) {
       // ROUND 4, the payoff step of the attack: a candidate is rejected, walks the remediation loop
@@ -745,6 +915,15 @@ export class ReviewGateService {
       // while the other committed NO_GO -- the same work simultaneously rejected and ready for the owner.
       requireContentNotRejected: to === "GO" ? record.contentDigest : undefined,
       recordRejectionOfContent: to === "NO_GO" ? record.contentDigest : undefined,
+      // Kept, not discarded. A rejection whose findings are thrown away cannot be shown to have been
+      // remediated by anything, which is what forced three rounds of digest-comparison workarounds.
+      addVerdict: {
+        reviewerIdentity: principal.identity,
+        verdict: verdict.verdict,
+        findings: verdict.findings,
+        submittedAt: verdict.submittedAt,
+        at: now,
+      },
     });
     if (!applied) {
       return {

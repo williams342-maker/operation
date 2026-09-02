@@ -14,10 +14,24 @@ import {
 // and the service mints the principal through the authenticator the application injected. This test
 // authenticator stands in for that application; note that it is the only thing here that decides who
 // anyone is, which is the point of the third round of this design.
+/**
+ * Identities the application grants the "independent" review authority.
+ *
+ * Deliberately NOT everyone: round 7 found that requestedReviewerClass was parsed and never enforced, so
+ * a test harness that granted the class to all identities would make the new check vacuous -- and this
+ * suite has twice shipped an assertion that certified a hole rather than catching one.
+ */
+const INDEPENDENT_REVIEWERS = new Set(["codex", "dana", "erin"]);
+
 const auth: SessionAuthenticator = {
   authenticate(proof) {
     const id = (proof as { userId?: unknown } | null)?.userId;
-    return typeof id === "string" && id.trim() ? { identity: id.trim() } : null;
+    if (typeof id !== "string" || !id.trim()) return null;
+    const identity = id.trim();
+    return {
+      identity,
+      reviewerClasses: INDEPENDENT_REVIEWERS.has(identity) ? ["independent"] : [],
+    };
   },
 };
 
@@ -74,7 +88,9 @@ async function seeded(state?: string) {
       ["TESTED", "t1"], ["FROZEN", "t2"], ["REVIEW_REQUESTED", "t3"], ["REVIEW_IN_PROGRESS", "t4"],
     ];
     for (const [to, occ] of path) {
-      await svc.transition(who("claude"), {
+      // REVIEW_IN_PROGRESS is the reviewer claiming the review, so it is codex who makes that move.
+      const actor = to === "REVIEW_IN_PROGRESS" ? "codex" : "claude";
+      await svc.transition(who(actor), {
     candidateId: "c1", occurrenceId: occ,
         billingClass: "INTERNAL_QA_TEST", to: to as never,
       });
@@ -102,15 +118,44 @@ test("CRITICAL-1: a caller cannot claim its own current state", async () => {
   assert.equal((result as { code: string }).code, "illegal_transition");
 });
 
+/**
+ * A candidate authored by someone who ALSO holds the independent reviewer class.
+ *
+ * Round 7 added a reviewer-class check that fires before the independence check, so an ordinary author
+ * is now refused for not holding the class -- which would let the independence assertions below pass for
+ * the wrong reason. "erin" holds the class AND authors this candidate, so independence is the only thing
+ * left that can refuse her.
+ */
+async function authoredByAReviewer(id: string) {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding({ authorIdentity: "erin", candidateCommit: oid("f"), candidateTree: oid("f") });
+  await svc.createCandidate(who("erin"), { candidateId: id, binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: id, occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: `ev-${id}`, resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: `run/${id}`,
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    const r = await svc.transition(who("erin"), {
+      candidateId: id, occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  }
+  const claimed = await svc.transition(who("erin"), {
+    candidateId: id, occurrenceId: "4", billingClass: "INTERNAL_REVIEW", to: "REVIEW_IN_PROGRESS" });
+  assert.equal(claimed.ok, true, `claim: ${JSON.stringify(claimed)}`);
+  return { store, svc, binding: b };
+}
+
 test("CRITICAL-1: a caller cannot supply an empty participation ledger", async () => {
-  const { svc } = await seeded("REVIEW_IN_PROGRESS");
+  const { svc, binding: b } = await authoredByAReviewer("c1e");
   // The author tries to approve, which previously worked by passing participants: [].
   // There is no participants parameter; the ledger is loaded, and it already holds the author row
-  // written by createCandidate.
-  const result = await svc.submitVerdict(who("claude"), {
-    candidateId: "c1", occurrenceId: "x2", billingClass: "INTERNAL_REVIEW",
+  // written by createCandidate. She holds the reviewer class, so ONLY independence can stop her.
+  const result = await svc.submitVerdict(who("erin"), {
+    candidateId: "c1e", occurrenceId: "x2", billingClass: "INTERNAL_REVIEW",
     verdict: {
-      candidateDigest: candidateDigest(binding()), reviewerIdentity: "claude",
+      candidateDigest: candidateDigest(b), reviewerIdentity: "erin",
       verdict: "GO", findings: [], submittedAt: "2026-09-02T01:00:00.000Z",
     },
   });
@@ -135,18 +180,54 @@ test("CRITICAL-1: the ledger is written by the operations, not by the caller", a
 // ── CRITICAL 2 — reviewer identity is bound to the authenticated actor ───────────────────────────────
 
 test("CRITICAL-2: an author cannot submit a verdict naming an uninvolved reviewer", async () => {
-  const { svc } = await seeded("REVIEW_IN_PROGRESS");
-  // The exact attack from the review: authenticate as the author, name "codex" in the payload. The
-  // independence check would then evaluate the innocent identity and pass.
-  const result = await svc.submitVerdict(who("claude"), {
-    candidateId: "c1", occurrenceId: "x3", billingClass: "INTERNAL_REVIEW",
+  const { svc, binding: b } = await authoredByAReviewer("c2e");
+  // The exact attack from round 1: authenticate as the author, name someone else in the payload, and the
+  // independence check evaluates the innocent identity. Again erin holds the class, so the refusal below
+  // is the actor/verdict binding doing the work rather than the class check short-circuiting it.
+  const result = await svc.submitVerdict(who("erin"), {
+    candidateId: "c2e", occurrenceId: "x3", billingClass: "INTERNAL_REVIEW",
     verdict: {
-      candidateDigest: candidateDigest(binding()), reviewerIdentity: "codex",
+      candidateDigest: candidateDigest(b), reviewerIdentity: "codex",
       verdict: "GO", findings: [], submittedAt: "2026-09-02T01:00:00.000Z",
     },
   });
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, "verdict_actor_mismatch");
+});
+
+test("round 7: a reviewer without the requested class cannot issue the verdict", async () => {
+  // requestedReviewerClass was parsed and never consulted until round 7. "frank" is authenticated, has no
+  // conflicting participation, and would previously have been accepted as the independent reviewer.
+  const { svc } = await seeded("REVIEW_IN_PROGRESS");
+  const result = await svc.submitVerdict(who("frank"), {
+    candidateId: "c1", occurrenceId: "fx", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(binding()), reviewerIdentity: "frank",
+      verdict: "GO", findings: [], submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal((result as { code: string }).code, "reviewer_class_not_held");
+});
+
+test("round 7: a stranger without the class cannot seize a requested review", async () => {
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding();
+  await svc.createCandidate(who("claude"), { candidateId: "seize", binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "seize", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-seize", resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/seize",
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    await svc.transition(who("claude"), {
+      candidateId: "seize", occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+  }
+  const seized = await svc.transition(who("frank"), {
+    candidateId: "seize", occurrenceId: "s", billingClass: "INTERNAL_REVIEW", to: "REVIEW_IN_PROGRESS" });
+  assert.equal(seized.ok, false, "the stranger entry point is for requested reviewers, not for anyone");
+  assert.equal((seized as { code: string }).code, "reviewer_class_not_held");
 });
 
 test("a genuine independent reviewer still succeeds — the fix is not merely refusing everything", async () => {
@@ -300,8 +381,10 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
     assert.equal(r.ok, true, `${to} should have applied: ${JSON.stringify(r)}`);
   };
 
-  for (const [to, id] of [["TESTED", "s1"], ["FROZEN", "s2"], ["REVIEW_REQUESTED", "s3"],
-    ["REVIEW_IN_PROGRESS", "s4"]] as const) await step(to, id);
+  for (const [to, id] of [["TESTED", "s1"], ["FROZEN", "s2"], ["REVIEW_REQUESTED", "s3"]] as const) {
+    await step(to, id);
+  }
+  await step("REVIEW_IN_PROGRESS", "s4", "codex");
 
   // codex reviews honestly and rejects.
   const nogo = await svc.submitVerdict(who("codex"), {
@@ -330,6 +413,7 @@ test("C3 end-to-end: a reviewer who remediates cannot then approve their own rem
   await step("FROZEN", "s10", "codex");
   await step("REVIEW_REQUESTED", "s11", "codex");
   await step("REVIEW_IN_PROGRESS", "s12", "codex");
+
 
   const record = await store.load("c9");
   assert.ok(record!.participants.some((p) => p.identity === "codex" && p.role === "remediator"),
@@ -504,7 +588,7 @@ test("C4/C5: rejected CONTENT can never reach GO, even from a second reviewer", 
   });
   for (const [to, id] of [["TESTED", "a"], ["FROZEN", "b"], ["REVIEW_REQUESTED", "c"],
     ["REVIEW_IN_PROGRESS", "d"]] as const) {
-    const r = await svc.transition(who("claude"), {
+    const r = await svc.transition(who(to === "REVIEW_IN_PROGRESS" ? "codex" : "claude"), {
       candidateId: "r1", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
     assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
   }
@@ -533,7 +617,7 @@ test("C4/C5: rejected CONTENT can never reach GO, even from a second reviewer", 
   });
   for (const [to, id] of [["TESTED", "h"], ["FROZEN", "i"], ["REVIEW_REQUESTED", "j"],
     ["REVIEW_IN_PROGRESS", "k"]] as const) {
-    const r = await svc.transition(who("claude"), {
+    const r = await svc.transition(who(to === "REVIEW_IN_PROGRESS" ? "codex" : "claude"), {
       candidateId: "r1", occurrenceId: id, billingClass: "INTERNAL_QA_TEST", to: to as never });
     assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
   }
@@ -592,7 +676,7 @@ async function rejected(id: string, over: Partial<CandidateBinding> = {}) {
   });
   for (const [to, occ] of [["TESTED", "p1"], ["FROZEN", "p2"], ["REVIEW_REQUESTED", "p3"],
     ["REVIEW_IN_PROGRESS", "p4"]] as const) {
-    const r = await svc.transition(who("claude"), {
+    const r = await svc.transition(who(to === "REVIEW_IN_PROGRESS" ? "codex" : "claude"), {
       candidateId: id, occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
     assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
   }
@@ -679,7 +763,7 @@ test("C4: a genuine successor is registered and records what it replaces", async
   const { store, svc } = await rejected("s3");
   const fixed = binding({ candidateCommit: oid("d"), candidateTree: oid("e"), testResultDigest: dig("7") });
   const successor = await svc.createSuccessor(who("claude"), {
-    candidateId: "s4", supersedes: "s3", binding: fixed,
+    candidateId: "s4", supersedes: "s3", binding: fixed, remediates: ["F1"],
   });
   assert.equal(successor.ok, true, `a changed candidate must register: ${JSON.stringify(successor)}`);
   const record = await store.load("s4");
@@ -758,82 +842,84 @@ async function ready(store: InMemoryReviewGateStore, svc: ReviewGateService, id:
   });
   for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"],
     ["REVIEW_IN_PROGRESS", "4"]] as const) {
-    const r = await svc.transition(who("claude"), {
+    const r = await svc.transition(who(to === "REVIEW_IN_PROGRESS" ? "codex" : "claude"), {
       candidateId: id, occurrenceId: `${id}-${occ}`, billingClass: "INTERNAL_QA_TEST", to: to as never });
     assert.equal(r.ok, true, `${id} ${to}: ${JSON.stringify(r)}`);
   }
 }
 
-test("C6-1: identical content cannot be approved and rejected concurrently", async () => {
-  // Codex's round-6 attack, run rather than described. Two records, identical content, both reaching
-  // REVIEW_IN_PROGRESS before either is rejected. Previously both verdict paths read "not rejected"
-  // before either committed, so one could commit GO while the other committed NO_GO -- the same work
-  // simultaneously rejected and ready for the owner.
+test("C7: a second live candidate cannot carry content that is already live", async () => {
+  // ROUND 7's CRITICAL, and it is why these tests changed shape. The previous version raced a GO on one
+  // twin against a NO_GO on its identical twin, and asserted that the late owner transition failed. Codex
+  // pointed out the ordering that assertion missed: move the approved twin to READY_FOR_OWNER_DECISION
+  // FIRST, then reject the other. That state is terminal, so nothing could revoke it -- the same work
+  // ended up permanently awaiting the owner AND recorded as rejected.
+  //
+  // Per-operation atomicity cannot fix that: it establishes ordering, it cannot make a later fact undo an
+  // earlier terminal decision. So the contradiction is now PREVENTED rather than resolved. Twins cannot
+  // both be live, so there is no second record from which to disagree.
   const store = new InMemoryReviewGateStore();
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
   const shared = binding();
   await ready(store, svc, "twinA", shared);
-  // The second record has to be registered before any rejection exists, which is exactly the window.
-  await ready(store, svc, "twinB", shared);
-  assert.equal((await store.load("twinA"))!.contentDigest, (await store.load("twinB"))!.contentDigest,
-    "the premise of this test is that both records carry the same work");
-
-  const verdict = (id: string, outcome: "GO" | "NO_GO", reviewer: string) =>
-    svc.submitVerdict(who(reviewer), {
-      candidateId: id, occurrenceId: `v-${id}`, billingClass: "INTERNAL_REVIEW",
-      verdict: {
-        candidateDigest: candidateDigest(shared), reviewerIdentity: reviewer, verdict: outcome,
-        findings: outcome === "NO_GO"
-          ? [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }] : [],
-        submittedAt: "2026-09-02T01:00:00.000Z",
-      },
-    });
-
-  const [approve, reject] = await Promise.all([
-    verdict("twinA", "GO", "dana"),
-    verdict("twinB", "NO_GO", "codex"),
-  ]);
-  assert.equal(reject.ok, true, `the rejection must stand: ${JSON.stringify(reject)}`);
-
-  // Whatever the interleaving, the rejected work must not be sitting in GO afterwards.
-  const a = await store.load("twinA");
-  if (approve.ok) {
-    // The approval won the race. The last gate before an owner sees it must now refuse.
-    const owner = await svc.transition(who("claude"), {
-      candidateId: "twinA", occurrenceId: "own", billingClass: "INTERNAL_QA_TEST",
-      to: "READY_FOR_OWNER_DECISION",
-    });
-    assert.equal(owner.ok, false,
-      "rejected content must never reach owner decision, even if its GO won the race");
-  } else {
-    assert.equal(a!.state, "REVIEW_IN_PROGRESS", "a refused approval must not have moved the candidate");
-  }
+  const twin = await svc.createCandidate(who("claude"), { candidateId: "twinB", binding: shared });
+  assert.equal(twin.ok, false, "the twin that made the contradiction possible cannot be registered");
+  assert.equal((twin as { code: string }).code, "content_already_live");
 });
 
-test("C6-1: a GO cannot be issued once the same content is rejected elsewhere", async () => {
-  // The sequential form of the same property, which is what the atomic CAS guard has to deliver.
+test("C7: the ordering Codex identified is now unreachable, not merely refused", async () => {
+  // Walk the attack as far as it can still go: approve, advance to owner decision, then try to set up
+  // the rejecting twin. The setup itself is what fails, which is stronger than catching it at the end.
   const store = new InMemoryReviewGateStore();
   const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
   const shared = binding();
-  await ready(store, svc, "seqA", shared);
-  await ready(store, svc, "seqB", shared);
-  const rejected = await svc.submitVerdict(who("codex"), {
-    candidateId: "seqB", occurrenceId: "vb", billingClass: "INTERNAL_REVIEW",
+  await ready(store, svc, "ownA", shared);
+  const approved = await svc.submitVerdict(who("codex"), {
+    candidateId: "ownA", occurrenceId: "v", billingClass: "INTERNAL_REVIEW",
     verdict: {
-      candidateDigest: candidateDigest(shared), reviewerIdentity: "codex", verdict: "NO_GO",
-      findings: [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }],
-      submittedAt: "2026-09-02T01:00:00.000Z",
-    },
-  });
-  assert.equal(rejected.ok, true);
-  const approved = await svc.submitVerdict(who("dana"), {
-    candidateId: "seqA", occurrenceId: "va", billingClass: "INTERNAL_REVIEW",
-    verdict: {
-      candidateDigest: candidateDigest(shared), reviewerIdentity: "dana", verdict: "GO",
+      candidateDigest: candidateDigest(shared), reviewerIdentity: "codex", verdict: "GO",
       findings: [], submittedAt: "2026-09-02T01:00:00.000Z",
     },
   });
-  assert.equal(approved.ok, false, "the twin carries rejected content and cannot be approved");
+  assert.equal(approved.ok, true, JSON.stringify(approved));
+  const owner = await svc.transition(who("claude"), {
+    candidateId: "ownA", occurrenceId: "own", billingClass: "INTERNAL_QA_TEST",
+    to: "READY_FOR_OWNER_DECISION",
+  });
+  assert.equal(owner.ok, true, `the honest path must still work: ${JSON.stringify(owner)}`);
+  assert.equal((await store.load("ownA"))!.state, "READY_FOR_OWNER_DECISION");
+
+  // Now the step the previous design allowed: register the twin that would reject the same content.
+  const rejecter = await svc.createCandidate(who("claude"), { candidateId: "ownB", binding: shared });
+  assert.equal(rejecter.ok, false,
+    "content awaiting the owner must not be re-registerable, or a later NO_GO would contradict it");
+  assert.equal((rejecter as { code: string }).code, "content_already_live");
+});
+
+test("C7: cancelling releases the content claim, so abandoned work can be resubmitted", async () => {
+  // The counterpart. If holding the claim forever were the rule, cancelling a candidate would
+  // permanently bar its content, and the gate would be a trap rather than a control.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding();
+  await svc.createCandidate(who("claude"), { candidateId: "relA", binding: b });
+  const blocked = await svc.createCandidate(who("claude"), { candidateId: "relB", binding: b });
+  assert.equal(blocked.ok, false, "while relA is live the content is claimed");
+
+  const cancelled = await svc.transition(who("claude"), {
+    candidateId: "relA", occurrenceId: "c", billingClass: "INTERNAL_QA_TEST", to: "CANCELLED" });
+  assert.equal(cancelled.ok, true, JSON.stringify(cancelled));
+  const retry = await svc.createCandidate(who("claude"), { candidateId: "relB", binding: b });
+  assert.equal(retry.ok, true, `cancelling must release the claim: ${JSON.stringify(retry)}`);
+});
+
+test("C7: a rejection still bars the content even though NO_GO releases nothing", async () => {
+  // CANCELLED and EXPIRED release the claim; NO_GO does not need to, because the rejection ledger takes
+  // over. Both mechanisms are needed and this proves the handover between them.
+  const { svc } = await rejected("barA");
+  const retry = await svc.createCandidate(who("claude"), { candidateId: "barB", binding: binding() });
+  assert.equal(retry.ok, false);
+  assert.equal((retry as { code: string }).code, "content_already_rejected");
 });
 
 test("C6-2: editing the test plan label is not a remediation", async () => {
@@ -903,4 +989,93 @@ test("M6-1: an independent reviewer can still claim a review they have no prior 
   const record = await store.load("claim1");
   assert.equal(record!.participants.some((p) => p.identity === "codex"), false,
     "claiming a review grants no role, so it cannot be used to enrol");
+});
+
+// ── round-7 MAJOR: remediation now has to answer the findings, not just differ ────────────────────────
+
+test("C7: findings survive the verdict that raised them", async () => {
+  // The system used to evaluate a verdict, commit its transition, and discard its content. You cannot
+  // establish that a finding was addressed if you did not keep the finding -- which is why three rounds
+  // of digest comparison kept failing to express "remediated".
+  const { store } = await rejected("keep1");
+  const record = await store.load("keep1");
+  assert.equal(record!.verdicts.length, 1, "the verdict must be on the record");
+  const [stored] = record!.verdicts;
+  assert.equal(stored.verdict, "NO_GO");
+  assert.equal(stored.reviewerIdentity, "codex");
+  assert.deepEqual(stored.findings.map((f) => f.id), ["F1"]);
+  assert.equal(stored.findings[0].severity, "CRITICAL");
+});
+
+test("C7: a successor must address every blocking finding it inherits", async () => {
+  const { svc } = await rejected("addr1");
+  const silent = await svc.createSuccessor(who("claude"), {
+    candidateId: "addr2", supersedes: "addr1",
+    binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
+    // remediates omitted entirely: real code change, no claim about what it fixes
+  });
+  assert.equal(silent.ok, false, "changing code is not the same as addressing the finding");
+  assert.equal((silent as { code: string }).code, "findings_unaddressed");
+});
+
+test("C7: a successor cannot claim to have fixed a finding that was never raised", async () => {
+  const { svc } = await rejected("inv1");
+  const invented = await svc.createSuccessor(who("claude"), {
+    candidateId: "inv2", supersedes: "inv1",
+    binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
+    remediates: ["F1", "F-DOES-NOT-EXIST"],
+  });
+  assert.equal(invented.ok, false, "a remediation claim must reference a real finding");
+  assert.equal((invented as { code: string }).code, "findings_unknown");
+});
+
+test("C7: the remediation claim is recorded, not merely checked and forgotten", async () => {
+  const { store, svc } = await rejected("rec1");
+  const ok = await svc.createSuccessor(who("claude"), {
+    candidateId: "rec2", supersedes: "rec1",
+    binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
+    remediates: ["F1"],
+  });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  const record = await store.load("rec2");
+  assert.deepEqual([...record!.remediates!], ["F1"],
+    "what a successor claims to fix is part of the lineage, not a transient argument");
+  assert.equal(record!.supersedes, "rec1");
+});
+
+test("C7: an OBSERVATION does not block a successor, but a MAJOR does", async () => {
+  // The severity split has to be real in both directions, or it is just a list.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding({ candidateCommit: oid("7"), candidateTree: oid("7") });
+  await svc.createCandidate(who("claude"), { candidateId: "sev1", binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "sev1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-sev1", resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/sev1",
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    await svc.transition(who("claude"), {
+      candidateId: "sev1", occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+  }
+  await svc.transition(who("codex"), {
+    candidateId: "sev1", occurrenceId: "4", billingClass: "INTERNAL_REVIEW", to: "REVIEW_IN_PROGRESS" });
+  await svc.submitVerdict(who("codex"), {
+    candidateId: "sev1", occurrenceId: "v", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(b), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [
+        { id: "BIG", severity: "MAJOR", summary: "must be addressed" },
+        { id: "NIT", severity: "OBSERVATION", summary: "worth noting only" },
+      ],
+      submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  const addressingOnlyTheMajor = await svc.createSuccessor(who("claude"), {
+    candidateId: "sev2", supersedes: "sev1",
+    binding: binding({ candidateCommit: oid("8"), candidateTree: oid("8") }),
+    remediates: ["BIG"],
+  });
+  assert.equal(addressingOnlyTheMajor.ok, true,
+    `an OBSERVATION must not block a successor: ${JSON.stringify(addressingOnlyTheMajor)}`);
 });
