@@ -97,6 +97,12 @@ jobs:
           cache: npm
           cache-dependency-path: control-center/package-lock.json
       - run: npm ci
+      # The agent and api suites import @control-center/shared by its BUILT output, so the dist must
+      # exist before they can even load. The deleted ci.yml got this for free from `npm test`, whose
+      # pretest builds it; dropping that step as "duplicated work" removed the build too and the suites
+      # failed to import rather than running.
+      - name: Build the shared package the suites import
+        run: npm run build --workspace @control-center/shared
       - name: Verify capability-gated tests skip rather than fail when the capability is absent
         run: |
           set -euo pipefail
