@@ -4,7 +4,7 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate G, awaiting round-6 review.
+**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate H, awaiting round-7 review.
 
 **Owner action: ONE ITEM OPEN** — see §I of the candidate G handoff. Full test provenance needs key
 material for an attestation scheme, which is outside my standing authority. Everything else in this
@@ -26,7 +26,8 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | D | `5dd28eb0` / `ef8e64da` | `review-gate-codex-handoff-20260902.md` @ `ef8e64da` | **NO-GO** | 2 CRITICAL — evaluator reachable at a package subpath (no `exports` map); principal forgeable by every consumer |
 | E | `76203f01` | `review-gate-codex-handoff-20260902.md` @ `76203f01` | **NO-GO** | 1 CRITICAL — `TESTED` and remediation were caller assertions, never recorded evidence; 2 MODERATE on vacuous tests |
 | F | `05162ac1` / `0c220758` | `REVIEW_GATE_HANDOFF_05162ac1_20260902.md` | **NO-GO** | 3 CRITICAL — evidence was persisted but not provenanced; rejection was scoped to one record so a new candidateId laundered it; a successor needed only different paperwork |
-| G | `ac9fb611` + this commit | `REVIEW_GATE_HANDOFF_ac9fb611_20260902.md` | *pending round 6* | — |
+| G | `ac9fb611` / `d83a03e5` | `REVIEW_GATE_HANDOFF_ac9fb611_20260902.md` | **NO-GO** | 2 CRITICAL — the rejection ledger was three non-atomic operations, so identical content could be approved and rejected concurrently; a test-plan label counted as work, so `tp-1 → tp-2` laundered a defective artifact. 1 MAJOR — a stranger could self-enrol as a participant and supersede |
+| H | `0890f6e0` + this commit | `REVIEW_GATE_HANDOFF_0890f6e0_20260902.md` | *pending round 7* | — |
 
 Retrieve any superseded handoff with:
 
@@ -49,10 +50,21 @@ Recorded because the pattern matters more than any single finding.
 | E→F | evidence "must match a recorded result" | no recorded result existed anywhere |
 | F→G | a rejected digest "can never reach GO" | rejection was scoped to one record; a new `candidateId` bypassed it |
 | F→G | a successor "must differ from what it replaces" | it compared paperwork, so a re-run of the same code qualified |
+| G→H | rejected content "is refused at registration" | the check, the commit and the ledger write were three operations, so a concurrent GO slipped between them |
+| G→H | `contentDigest` covers "the work" | it counted `testPlanVersion`, so editing a label was a remediation — **and my own test asserted this was correct** |
 
-**Five rounds, seven claims, each stronger than the mechanism behind it.** Five were caught by the
+**Six rounds, nine claims, each stronger than the mechanism behind it.** Seven were caught by the
 reviewer; two I found myself, one by mutation-checking my own test and one because an assertion written to
 be falsifiable actually failed.
+
+**Twice now a test of mine has certified a hole** rather than caught it — round 4's boundary test that
+could not fail, and round 6's assertion that a test-plan label constituted work. A green suite here is
+evidence that the assertions I wrote hold, and nothing more.
+
+**And in round 6 I told the reviewer that the rejection ledger's atomicity was where I would look first.
+It was broken.** Naming a weakness is not fixing it, and my ranking of where the risk lies has not
+predicted where the defects were. Treat the "where this is weakest" section of any handoff of mine as a
+starting point, not a map.
 
 The shape is consistent enough to state as a rule: **I attach a guarantee to the wrong object, then
 describe it as though it were attached to the right one.** Round 5 is the cleanest example — rejection was
@@ -64,11 +76,13 @@ and test the mechanism rather than read the description.
 
 ## Standing constraints on this workstream
 
-- Production deployment is **frozen**. Production mutations across all six candidates: **0**.
+- Production deployment is **frozen**. Production mutations across all eight candidates: **0**.
 - `main` is protected and PR-gated. No pull request has been opened for this branch.
 - Not authorised without separate owner instruction: flipping the agent-v2 flag, publishing an agent
   release, creating signing keys, exposing public ports, mutating production data, changing DNS.
 - The branch `feat/review-gate-20260902` is pushed. Nothing is merged and nothing is wired into a
   running route.
 
-**Owner action: None.**
+**Owner action: ONE ITEM** — test provenance needs key material for an attestation scheme, which is
+outside my standing authority. See §I of the current candidate handoff. Every other item in this
+workstream proceeds without owner involvement.
