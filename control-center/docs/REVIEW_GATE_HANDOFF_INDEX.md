@@ -6,8 +6,9 @@ specific, immutable candidate identity.
 
 **Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate K, awaiting round-10 review.
 
-**Owner action: ONE ITEM OPEN** — see §I of the current candidate handoff. Full test provenance needs key
-material for an attestation scheme, which is outside my standing authority. Everything else in this
+**Owner action: TWO ITEMS OPEN**, both in §I of the current candidate handoff — (1) test provenance needs
+key material for an attestation scheme; (2) whether application code holding the service is trusted, which
+decides whether authoritative mutation needs a separately deployed boundary. Everything else in this
 workstream continues without owner involvement.
 
 This file exists because the per-round handoff was previously **overwritten in place**, which destroyed
