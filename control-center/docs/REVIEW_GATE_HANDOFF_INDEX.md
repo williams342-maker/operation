@@ -4,7 +4,7 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate J, awaiting round-9 review.
+**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate K, awaiting round-10 review.
 
 **Owner action: ONE ITEM OPEN** — see §I of the current candidate handoff. Full test provenance needs key
 material for an attestation scheme, which is outside my standing authority. Everything else in this
@@ -29,7 +29,8 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | G | `ac9fb611` / `d83a03e5` | `REVIEW_GATE_HANDOFF_ac9fb611_20260902.md` | **NO-GO** | 2 CRITICAL — the rejection ledger was three non-atomic operations, so identical content could be approved and rejected concurrently; a test-plan label counted as work, so `tp-1 → tp-2` laundered a defective artifact. 1 MAJOR — a stranger could self-enrol as a participant and supersede |
 | H | `0890f6e0` / `75f098e8` | `REVIEW_GATE_HANDOFF_0890f6e0_20260902.md` | **NO-GO** | 1 CRITICAL — `READY_FOR_OWNER_DECISION` is terminal, so a later rejection of identical content could not revoke it; atomicity could not fix an ordering-independent defect. 3 MAJOR — findings were discarded so remediation was unprovable; `requestedReviewerClass` was never enforced |
 | I | `0ce56c85` / `c5b66c5f` | `REVIEW_GATE_HANDOFF_0ce56c85_20260902.md` | **NO-GO** | 2 CRITICAL — the package published `InMemoryReviewGateStore`, whose `create` took a caller-built state, so a record could be written straight into `READY_FOR_OWNER_DECISION`; findings could be laundered by a second, milder rejection |
-| J | `d7341739` + this commit | `REVIEW_GATE_HANDOFF_d7341739_20260902.md` | *pending round 9* | — |
+| J | `d7341739` / `1afc9c5b` | `REVIEW_GATE_HANDOFF_d7341739_20260902.md` | **NO-GO** | 2 CRITICAL — `private readonly store` is erased, so `(service as any).store` handed back the live store; `resolves` was an unordered tombstone that could pre-authorise deleting a finding not yet raised. **Plus a design judgement: the defect rate was not converging** |
+| K | `8e7ad8ba` + this commit | `REVIEW_GATE_HANDOFF_8e7ad8ba_20260902.md` | *pending round 10* | — |
 
 Retrieve any superseded handoff with:
 
@@ -58,6 +59,8 @@ Recorded because the pattern matters more than any single finding.
 | H→I | `requestedReviewerClass` records the reviewer requirement | it was parsed and never consulted; anyone unconflicted could approve |
 | I→J | callers cannot supply authoritative state | the package exported the store that writes it, `create` and all |
 | I→J | an earlier finding was "either fixed, or raised again" | nothing enforced either branch; a milder second rejection erased a CRITICAL |
+| J→K | the store is "off the public surface" | true of the module namespace; the live object was reachable through the exported service |
+| J→K | `resolves` is a discharge by a reviewer | it was an order-independent tombstone that could be laid before the finding existed |
 
 **Eight rounds, thirteen claims, each stronger than the mechanism behind it.** Eleven were caught by the
 reviewer; two I found myself, one by mutation-checking my own test and one because an assertion written to
@@ -72,9 +75,32 @@ the public surface:
 | 3 | `ReviewGateService` | `evaluateTransition` |
 | 5 | `TrustedPrincipal` | `principalFromSession` |
 | 8 | the service's store contract | `InMemoryReviewGateStore` |
+| 9 | `#private` fields and a capability | the capability's own `private constructor` — erased, so anyone could build one |
 
-Before accepting any boundary claim of mine, check what the package actually hands out. Twice the fix has
-been the same shape as the previous fix, and I did not notice until the reviewer pointed at the third.
+Before accepting any boundary claim of mine, check what the package actually hands out. The fourth
+instance happened **inside the fix for the third**, and my own test caught it — the first time in nine
+rounds the suite found something before the reviewer did.
+
+---
+
+## The design judgement, round 9
+
+I asked the reviewer, separately from the verdict, whether the defect rate was converging or whether the
+design itself was the problem. The answer is worth quoting, because it reframes everything above:
+
+> "The system repeatedly treats TypeScript visibility, export selection, interfaces, and comments as
+> security-capability boundaries. They are packaging and maintainability mechanisms, not robust runtime
+> authority boundaries. Continuing to patch the current object graph is likely to produce more variations
+> of the same defect."
+
+Candidate K implements that advice rather than patching again: ECMAScript `#private` fields, a
+capability object that cannot be constructed outside its module, causal ordering on finding discharge, and
+a boundary test that inspects a live service instance instead of a module namespace.
+
+**Two of the five recommendations are not done** — a separately deployed persistence boundary, and
+occurrence-scoped rather than id-scoped findings — and they are declared as open in the candidate K
+handoff. A third, "define whether application code holding the service is trusted", is an owner decision
+and is now the second item on the owner-authority list.
 
 **Three times now a test of mine has certified a hole** rather than caught it — round 4's boundary test
 that could not fail, round 6's assertion that a test-plan label constituted work, and round 7's
@@ -100,13 +126,14 @@ and test the mechanism rather than read the description.
 
 ## Standing constraints on this workstream
 
-- Production deployment is **frozen**. Production mutations across all ten candidates: **0**.
+- Production deployment is **frozen**. Production mutations across all eleven candidates: **0**.
 - `main` is protected and PR-gated. No pull request has been opened for this branch.
 - Not authorised without separate owner instruction: flipping the agent-v2 flag, publishing an agent
   release, creating signing keys, exposing public ports, mutating production data, changing DNS.
 - The branch `feat/review-gate-20260902` is pushed. Nothing is merged and nothing is wired into a
   running route.
 
-**Owner action: ONE ITEM** — test provenance needs key material for an attestation scheme, which is
-outside my standing authority. See §I of the current candidate handoff. Every other item in this
+**Owner action: TWO ITEMS**, both in §I of the current candidate handoff — (1) test provenance needs key
+material for an attestation scheme; (2) whether application code holding the service is trusted, which
+decides if authoritative mutation needs a separately deployed boundary. Every other item in this
 workstream proceeds without owner involvement.
