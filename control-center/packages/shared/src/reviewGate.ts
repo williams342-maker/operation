@@ -9,10 +9,14 @@ import { z } from "zod";
 //
 // Two rules carry most of the weight, and both are enforced structurally rather than by convention:
 //
-//   1. IDENTITY IS CONTENT. A candidate's id is a digest over what it actually is — repository, base and
-//      candidate commit, tree, patch, artifact and manifest digests, lock digests, test-result digest.
-//      Change any of that and you have a different candidate, so a review of the old one cannot follow
-//      the code. Approval can never float with a branch name or a PR number.
+//   1. IDENTITY IS CONTENT. NOT the record key — `candidateId` is a caller-chosen string and always was.
+//      What is a digest is the BINDING: `candidateDigest` over the whole submission, and `contentDigest`
+//      over the work alone. Change the work and you have different content, so a review of the old work
+//      cannot follow the code, and approval never floats with a branch name or a PR number.
+//
+//      This comment used to say "a candidate's id is a digest", which was false and was exactly the
+//      mistake that produced round 5's CRITICAL: I kept attaching identity guarantees to the database key
+//      instead of to the content. The sentence outlived the design it described.
 //
 //   2. TRUST IS NOT INPUT. `tests_passed: true`, `reviewed: true`, `approved: true` supplied by a caller
 //      mean nothing. Transitions consult recorded evidence and recorded participation. This is the same
@@ -186,13 +190,19 @@ export function candidateDigest(binding: CandidateBinding): string {
  * plan. Re-running tests does not change it. Re-freezing at a later time does not change it. Editing the
  * authority reference does not change it.
  *
+ * ROUND 6 REMOVED `testPlanVersion` FROM THIS LIST, and my own test had been asserting the wrong thing.
+ * A test plan label describes how the work is checked, not the work. Leaving it in meant a rejected
+ * artifact could be re-presented as remediated by editing `tp-1` to `tp-2` — the identical defective
+ * commit, tree, patch, artifact and manifest, laundered by a label. That is the same failure as round 5
+ * in a smaller box: remediation attached to inequality of an identifier rather than to changed work.
+ *
  * NOTE WHAT THIS COSTS: two candidates identical in content but targeting different environments share a
  * content digest, so a rejection in one environment blocks approval in the other. That is the direction I
  * want the error to point.
  */
 const CONTENT_FIELDS = Object.freeze([
   "projectId", "repository", "baseCommit", "candidateCommit", "candidateTree",
-  "patchDigest", "artifactDigest", "manifestDigest", "dependencyLockDigests", "testPlanVersion",
+  "patchDigest", "artifactDigest", "manifestDigest", "dependencyLockDigests",
 ] as const);
 
 export function contentDigest(binding: CandidateBinding): string {

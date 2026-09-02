@@ -395,6 +395,12 @@ test("C5-3: paperwork fields change candidate identity but NOT content identity"
     ["authorityRef", "OWNER-SOMETHING-ELSE"],
     ["requestedReviewerClass", "internal"],
     ["testResultDigest", dig("8")],
+    // ROUND 6 MOVED testPlanVersion HERE, from the content list below. A test plan label describes how
+    // the work is checked, not the work: leaving it in content meant a rejected artifact could be
+    // re-presented as remediated by editing tp-1 to tp-2, with the identical defective commit, tree,
+    // patch, artifact and manifest. The previous version of this suite asserted the opposite and so
+    // blessed the bypass -- which is why an independent reviewer found it and I did not.
+    ["testPlanVersion", "tp-99"],
   ] as const) {
     const changed = binding({ [field]: value } as Partial<CandidateBinding>);
     assert.notEqual(candidateDigest(changed), candidateDigest(base),
@@ -415,7 +421,6 @@ test("C5-3: content fields change content identity", () => {
     ["patchDigest", dig("9")],
     ["artifactDigest", dig("9")],
     ["manifestDigest", dig("9")],
-    ["testPlanVersion", "tp-99"],
   ] as const) {
     assert.notEqual(contentDigest(binding({ [field]: value } as Partial<CandidateBinding>)), base,
       `${field} is part of the work and must change the content digest`);
@@ -429,10 +434,10 @@ test("C5-3: the content field list is exactly what the digest covers", () => {
   // fails here instead of silently widening or narrowing what counts as a remediation.
   assert.deepEqual([...contentFields].sort(), [
     "artifactDigest", "baseCommit", "candidateCommit", "candidateTree", "dependencyLockDigests",
-    "manifestDigest", "patchDigest", "projectId", "repository", "testPlanVersion",
+    "manifestDigest", "patchDigest", "projectId", "repository",
   ]);
   for (const field of ["createdAt", "occurrenceId", "authorityRef", "testResultDigest",
-    "requestedReviewerClass", "baseBranch", "expiresAt", "authorIdentity"]) {
+    "requestedReviewerClass", "baseBranch", "expiresAt", "authorIdentity", "testPlanVersion"]) {
     assert.equal(contentFields.includes(field), false,
       `${field} must stay out of the content digest, or re-submitting the same work would look new`);
   }

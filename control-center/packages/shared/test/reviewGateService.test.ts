@@ -744,3 +744,163 @@ test("C5-1: a recorded run names the runner, the run and the content it applies 
   assert.equal(record.contentDigest, (await store.load("sd3"))!.contentDigest,
     "evidence is pinned to the content it was recorded against");
 });
+
+// ── round-6 findings ─────────────────────────────────────────────────────────────────────────────────
+
+/** Drive a candidate to REVIEW_IN_PROGRESS on its own store, so two can be raced against each other. */
+async function ready(store: InMemoryReviewGateStore, svc: ReviewGateService, id: string,
+                     b = binding()) {
+  await svc.createCandidate(who("claude"), { candidateId: id, binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: id, occurrenceId: `ev-${id}`, billingClass: "INTERNAL_QA_TEST",
+    evidenceId: `evid-${id}`, resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: `run/${id}`,
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"],
+    ["REVIEW_IN_PROGRESS", "4"]] as const) {
+    const r = await svc.transition(who("claude"), {
+      candidateId: id, occurrenceId: `${id}-${occ}`, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${id} ${to}: ${JSON.stringify(r)}`);
+  }
+}
+
+test("C6-1: identical content cannot be approved and rejected concurrently", async () => {
+  // Codex's round-6 attack, run rather than described. Two records, identical content, both reaching
+  // REVIEW_IN_PROGRESS before either is rejected. Previously both verdict paths read "not rejected"
+  // before either committed, so one could commit GO while the other committed NO_GO -- the same work
+  // simultaneously rejected and ready for the owner.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const shared = binding();
+  await ready(store, svc, "twinA", shared);
+  // The second record has to be registered before any rejection exists, which is exactly the window.
+  await ready(store, svc, "twinB", shared);
+  assert.equal((await store.load("twinA"))!.contentDigest, (await store.load("twinB"))!.contentDigest,
+    "the premise of this test is that both records carry the same work");
+
+  const verdict = (id: string, outcome: "GO" | "NO_GO", reviewer: string) =>
+    svc.submitVerdict(who(reviewer), {
+      candidateId: id, occurrenceId: `v-${id}`, billingClass: "INTERNAL_REVIEW",
+      verdict: {
+        candidateDigest: candidateDigest(shared), reviewerIdentity: reviewer, verdict: outcome,
+        findings: outcome === "NO_GO"
+          ? [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }] : [],
+        submittedAt: "2026-09-02T01:00:00.000Z",
+      },
+    });
+
+  const [approve, reject] = await Promise.all([
+    verdict("twinA", "GO", "dana"),
+    verdict("twinB", "NO_GO", "codex"),
+  ]);
+  assert.equal(reject.ok, true, `the rejection must stand: ${JSON.stringify(reject)}`);
+
+  // Whatever the interleaving, the rejected work must not be sitting in GO afterwards.
+  const a = await store.load("twinA");
+  if (approve.ok) {
+    // The approval won the race. The last gate before an owner sees it must now refuse.
+    const owner = await svc.transition(who("claude"), {
+      candidateId: "twinA", occurrenceId: "own", billingClass: "INTERNAL_QA_TEST",
+      to: "READY_FOR_OWNER_DECISION",
+    });
+    assert.equal(owner.ok, false,
+      "rejected content must never reach owner decision, even if its GO won the race");
+  } else {
+    assert.equal(a!.state, "REVIEW_IN_PROGRESS", "a refused approval must not have moved the candidate");
+  }
+});
+
+test("C6-1: a GO cannot be issued once the same content is rejected elsewhere", async () => {
+  // The sequential form of the same property, which is what the atomic CAS guard has to deliver.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const shared = binding();
+  await ready(store, svc, "seqA", shared);
+  await ready(store, svc, "seqB", shared);
+  const rejected = await svc.submitVerdict(who("codex"), {
+    candidateId: "seqB", occurrenceId: "vb", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(shared), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }],
+      submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(rejected.ok, true);
+  const approved = await svc.submitVerdict(who("dana"), {
+    candidateId: "seqA", occurrenceId: "va", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(shared), reviewerIdentity: "dana", verdict: "GO",
+      findings: [], submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(approved.ok, false, "the twin carries rejected content and cannot be approved");
+});
+
+test("C6-2: editing the test plan label is not a remediation", async () => {
+  // The round-6 CRITICAL: testPlanVersion used to count as work, so tp-1 -> tp-2 laundered an identical
+  // defective artifact through the successor check.
+  const { svc } = await rejected("tp1");
+  const relabelled = await svc.createSuccessor(who("claude"), {
+    candidateId: "tp2", supersedes: "tp1", binding: binding({ testPlanVersion: "tp-2" }),
+  });
+  assert.equal(relabelled.ok, false, "a different test plan label is not different work");
+  assert.equal((relabelled as { code: string }).code, "successor_identical");
+});
+
+test("M6-1: a stranger cannot self-enrol as a participant and then supersede", async () => {
+  // The loophole was mine: the REVIEW_REQUESTED transition writes a requester row for whoever performs
+  // it, and any authenticated identity could perform it. So a stranger self-enrolled, cancelled the
+  // candidate, and superseded it -- entirely through legal moves.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "own1", binding: binding() });
+  const enrol = await svc.transition(who("mallory"), {
+    candidateId: "own1", occurrenceId: "m1", billingClass: "INTERNAL_QA_TEST", to: "TESTED",
+  });
+  assert.equal(enrol.ok, false, "a stranger must not be able to move somebody else's candidate");
+  assert.equal((enrol as { code: string }).code, "actor_not_participant");
+  const record = await store.load("own1");
+  assert.equal(record!.participants.some((p) => p.identity === "mallory"), false,
+    "and must not have written themselves into the ledger by trying");
+});
+
+test("M6-1: only the author or a recorded remediator may replace a rejected candidate", async () => {
+  const { store, svc } = await rejected("resp1");
+  // codex reviewed it, so codex IS a participant -- but a reviewer is not the party responsible for
+  // the work, and letting a reviewer author the replacement is how independence gets laundered.
+  assert.ok((await store.load("resp1"))!.participants.some((p) => p.identity === "codex"),
+    "the premise: codex is a participant on this candidate");
+  const byReviewer = await svc.createSuccessor(who("codex"), {
+    candidateId: "resp2", supersedes: "resp1",
+    binding: binding({ authorIdentity: "codex", candidateCommit: oid("e") }),
+  });
+  assert.equal(byReviewer.ok, false, "a reviewer is a participant but not the responsible party");
+  assert.equal((byReviewer as { code: string }).code, "successor_actor_uninvolved");
+});
+
+test("M6-1: an independent reviewer can still claim a review they have no prior link to", async () => {
+  // The counterpart. Requiring participation to move a candidate would break the one case where a
+  // stranger legitimately arrives: an independent reviewer picking up REVIEW_REQUESTED.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding();
+  await svc.createCandidate(who("claude"), { candidateId: "claim1", binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "claim1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-claim1", resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/claim1",
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    const r = await svc.transition(who("claude"), {
+      candidateId: "claim1", occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  }
+  const claimed = await svc.transition(who("codex"), {
+    candidateId: "claim1", occurrenceId: "claim", billingClass: "INTERNAL_REVIEW",
+    to: "REVIEW_IN_PROGRESS",
+  });
+  assert.equal(claimed.ok, true, `a reviewer must be able to claim a review: ${JSON.stringify(claimed)}`);
+  const record = await store.load("claim1");
+  assert.equal(record!.participants.some((p) => p.identity === "codex"), false,
+    "claiming a review grants no role, so it cannot be used to enrol");
+});

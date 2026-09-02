@@ -134,13 +134,31 @@ export interface ReviewGateStore {
    * has to answer this question across all of them.
    */
   isContentRejected(contentDigest: string): Promise<boolean>;
-  recordRejection(contentDigest: string, candidateId: string, at: string): Promise<void>;
+  /**
+   * Apply a transition if and only if the state is still what the caller read.
+   *
+   * ROUND 6 WIDENED THIS CONTRACT, because a compare-and-set that only guards state is not enough. The
+   * rejection check, the transition and the ledger write used to be three separate calls, so two records
+   * carrying identical content could both read "not rejected", then one commit GO while the other
+   * committed NO_GO. Identical content ended up simultaneously rejected and ready for owner decision.
+   *
+   * An implementation MUST perform all of the following in one atomic step, or return false:
+   *   - the state still equals expectedState, and the occurrence id is unused;
+   *   - if `requireContentNotRejected` is set, that content has no rejection recorded;
+   *   - if `recordRejectionOfContent` is set, that rejection is written as part of the same step.
+   *
+   * The in-memory implementation below is synchronous, so it satisfies this trivially. A Mongo
+   * implementation needs a transaction or a single conditional update; this comment is the contract it
+   * has to meet, and §H.16 remains open precisely because that implementation does not exist yet.
+   */
   compareAndSetState(input: {
     candidateId: string;
     expectedState: ReviewState;
     nextState: ReviewState;
     occurrence: TransitionOccurrence;
     addParticipant?: Participant;
+    requireContentNotRejected?: string;
+    recordRejectionOfContent?: string;
   }): Promise<boolean>;
 }
 
@@ -153,9 +171,9 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     return this.rejected.has(digest);
   }
 
-  async recordRejection(digest: string, candidateId: string, at: string): Promise<void> {
-    if (!this.rejected.has(digest)) this.rejected.set(digest, { candidateId, at });
-  }
+  // NOTE the absence of a standalone recordRejection. It existed until round 6 and is deliberately gone:
+  // a second, non-atomic way to write the rejection ledger is a way to write it at the wrong moment.
+  // Rejections are now written only by compareAndSetState, in the same step that commits the NO_GO.
 
   async recordEvidence(record: EvidenceRecord): Promise<boolean> {
     const all = [...this.evidence.values()].flat();
@@ -187,7 +205,11 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     nextState: ReviewState;
     occurrence: TransitionOccurrence;
     addParticipant?: Participant;
+    requireContentNotRejected?: string;
+    recordRejectionOfContent?: string;
   }): Promise<boolean> {
+    // Everything below runs without an await, so it is one atomic step against this store. That is the
+    // contract the interface states, and the reason the rejection check moved in here.
     const found = this.records.get(input.candidateId);
     if (!found) return false;
     // The guard that makes concurrent transitions safe: if someone else moved the state since we read
@@ -195,9 +217,18 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     if (found.state !== input.expectedState) return false;
     // Occurrence ids are idempotency keys. A replayed callback must be a no-op, not a second transition.
     if (found.occurrences.some((o) => o.occurrenceId === input.occurrence.occurrenceId)) return false;
+    // Re-checked HERE, not before the call: a rejection committed by a concurrent verdict between the
+    // caller's check and this write must lose the race, not slip through it.
+    if (input.requireContentNotRejected && this.rejected.has(input.requireContentNotRejected)) return false;
     found.state = input.nextState;
     found.occurrences.push(input.occurrence);
     if (input.addParticipant) found.participants.push(input.addParticipant);
+    if (input.recordRejectionOfContent && !this.rejected.has(input.recordRejectionOfContent)) {
+      this.rejected.set(input.recordRejectionOfContent, {
+        candidateId: input.candidateId,
+        at: input.occurrence.at,
+      });
+    }
     return true;
   }
 }
@@ -478,11 +509,20 @@ export class ReviewGateService {
         message: `a candidate in ${prior.state} is not awaiting remediation; nothing to supersede`,
       };
     }
-    if (!prior.participants.some((participant) => participant.identity === principal.identity)) {
+    // ROUND 6, M6-1. "Any participant" was too wide, and I had created the loophole myself: the
+    // REVIEW_REQUESTED transition writes a requester row for whoever performs it, and any authenticated
+    // identity could perform it. So a stranger self-enrolled as a participant, cancelled the candidate,
+    // and superseded it -- entirely through legal moves. Only the party responsible for the work may
+    // replace it.
+    const responsible = new Set<string>([
+      prior.binding.authorIdentity,
+      ...prior.participants.filter((x) => x.role === "remediator").map((x) => x.identity),
+    ]);
+    if (!responsible.has(principal.identity)) {
       return {
         ok: false,
         code: "successor_actor_uninvolved",
-        message: "only a participant in the rejected candidate may register its successor",
+        message: "only the author of the rejected candidate, or a recorded remediator, may replace it",
       };
     }
     const now = this.clock();
@@ -541,6 +581,24 @@ export class ReviewGateService {
     const record = await this.store.load(intent.candidateId);
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
+    // ROUND 6, M6-1 at its source. Any authenticated identity could move anybody's candidate, which is
+    // how a stranger wrote themselves into the participation ledger. Participation is now a prerequisite
+    // for moving a candidate rather than a side effect of having moved it.
+    //
+    // THE ONE EXCEPTION is a reviewer picking up a review: REVIEW_REQUESTED -> REVIEW_IN_PROGRESS is how
+    // an independent party legitimately arrives at a candidate they have no prior connection to. That
+    // move grants no role, and the independence check still governs the verdict that follows.
+    const claimingReview = record.state === "REVIEW_REQUESTED" && input.to === "REVIEW_IN_PROGRESS";
+    const known = record.participants.some((x) => x.identity === principal.identity)
+      || record.binding.authorIdentity === principal.identity;
+    if (!known && !claimingReview) {
+      return {
+        ok: false,
+        code: "actor_not_participant",
+        message: "only a participant in this candidate may move it, or a reviewer claiming the review",
+      };
+    }
+
     const now = this.clock();
     const decision = evaluateTransition({
       from: record.state,
@@ -592,6 +650,10 @@ export class ReviewGateService {
       candidateId: intent.candidateId,
       expectedState: record.state,
       nextState: input.to,
+      // ROUND 6: GO -> READY_FOR_OWNER_DECISION went through the ordinary transition path and never
+      // re-consulted the rejection ledger, so a GO that beat a concurrent NO_GO on identical content
+      // could still carry it to the owner. The last step before an owner sees it re-checks.
+      requireContentNotRejected: input.to === "READY_FOR_OWNER_DECISION" ? record.contentDigest : undefined,
       occurrence: {
         occurrenceId: intent.occurrenceId,
         from: record.state,
@@ -676,19 +738,22 @@ export class ReviewGateService {
         at: now,
       },
       addParticipant: { identity: principal.identity, role: "reviewer", at: now },
+      // ROUND 6, C6-1. These two fields are why the CAS contract had to widen. Approving re-checks the
+      // rejection ledger INSIDE the same atomic step that commits GO, and rejecting writes the ledger
+      // inside the step that commits NO_GO. Previously the check, the commit and the write were three
+      // calls, so two records with identical content could both read "not rejected", then one commit GO
+      // while the other committed NO_GO -- the same work simultaneously rejected and ready for the owner.
+      requireContentNotRejected: to === "GO" ? record.contentDigest : undefined,
+      recordRejectionOfContent: to === "NO_GO" ? record.contentDigest : undefined,
     });
     if (!applied) {
       return {
         ok: false,
         code: "state_moved_or_replayed",
-        message: "the candidate changed state since it was read, or this verdict was already applied",
+        message:
+          "the candidate changed state since it was read, this verdict was already applied, " +
+          "or its content was rejected concurrently",
       };
-    }
-    if (to === "NO_GO") {
-      // Written only after the transition has actually applied, so a rejected transition cannot poison
-      // the content ledger. This outlives the record: a fresh candidateId carrying the same work will be
-      // refused at registration.
-      await this.store.recordRejection(record.contentDigest, record.candidateId, now);
     }
     return { ok: true, state: to };
   }
