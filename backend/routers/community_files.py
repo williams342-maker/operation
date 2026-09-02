@@ -832,6 +832,10 @@ async def unlock_checkout(claims: dict = Depends(current_buyer)):
     """Mint a Stripe Checkout session for the $5 unlimited-downloads unlock."""
     import stripe as stripe_sdk
     from core import STRIPE_API_KEY
+    # See routers/checkout.py: an empty key reaches Session.create and surfaces as a 500 rather
+    # than the 503 this codebase uses for an unconfigured capability.
+    if not STRIPE_API_KEY:
+        raise HTTPException(503, "Stripe is not configured.")
     stripe_sdk.api_key = STRIPE_API_KEY
     user_id = claims["sub"]
     user = await db.community_users.find_one({"user_id": user_id}, {"_id": 0})
