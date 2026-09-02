@@ -274,6 +274,11 @@ chat, tickets, command arguments, and environment variables.
 
 ### W10 — Independent review of the authority chain *(owner-gated)*
 
+> **A candidate exists and it is PARKED.** Three certification rounds, three NO-GOs, each hole a
+> relocation of the last. See `forge-chain-PARKED.md` in this directory for the summary, and
+> `forge-chain-status-20260901.md` on branch `review/forge-chain-20260901` (PR #33) for the full
+> record. It needs a human security reviewer, not another author-side pass.
+
 Once W5 and W6 exist, route the complete Forge -> OpsWorkbench -> Agent authority and evidence chain to an
 independent certifier. Do not self-certify it.
 
