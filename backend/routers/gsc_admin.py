@@ -113,8 +113,10 @@ async def gsc_oauth_start(request: Request, _: dict = Depends(current_admin)):
     client_id = (env_get("GSC_OAUTH_CLIENT_ID") or "").strip()
     redirect_uri = _resolve_redirect_uri(request)
     if not client_id or not redirect_uri:
+        # 503, not 500: an unconfigured capability is not a server fault. See credits.py and
+        # subscriptions.py, which already answer 503 for exactly this condition.
         raise HTTPException(
-            500,
+            503,
             "GSC OAuth not configured. Set GSC_OAUTH_CLIENT_ID + "
             "GSC_OAUTH_CLIENT_SECRET env vars (redirect URI is derived "
             "from the inbound request host automatically).",

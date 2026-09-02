@@ -98,7 +98,10 @@ async def _audience_filter(audience: str) -> dict:
 @router.get("/push/vapid-public-key")
 async def get_vapid_public_key():
     if not VAPID_PUBLIC:
-        raise HTTPException(500, "VAPID_PUBLIC_KEY not configured.")
+        # 503, not 500: an unconfigured capability is not a server fault. This codebase already
+        # answers 503 "... is not configured" in credits.py, subscriptions.py, checkout.py and
+        # community_files.py; these sites were the exception.
+        raise HTTPException(503, "VAPID_PUBLIC_KEY not configured.")
     return {"public_key": VAPID_PUBLIC}
 
 
@@ -262,7 +265,10 @@ async def admin_push_broadcast(
     body: BroadcastRequest, claims: dict = Depends(current_admin),
 ):
     if not VAPID_PRIVATE_PEM:
-        raise HTTPException(500, "VAPID keys not configured on backend.")
+        # 503, not 500: an unconfigured capability is not a server fault. This codebase already
+        # answers 503 "... is not configured" in credits.py, subscriptions.py, checkout.py and
+        # community_files.py; these sites were the exception.
+        raise HTTPException(503, "VAPID keys not configured on backend.")
     flt = await _audience_filter(body.audience)
     subs = await db.push_subscriptions.find(flt, {"_id": 0}).to_list(10000)
     if not subs:
