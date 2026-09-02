@@ -168,6 +168,9 @@ export function candidateDigest(binding: CandidateBinding): string {
 /** A verdict older than this is refused outright rather than silently honoured. */
 export const MAX_VERDICT_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
+/** Tolerated clock disagreement between a reviewer's host and the gate. */
+export const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
 export class ReviewGateError extends Error {
   readonly code: string;
   constructor(code: string, message: string) {
@@ -286,8 +289,16 @@ export function evaluateTransition(input: {
     if (binding.expiresAt && now > Date.parse(binding.expiresAt) && to !== "EXPIRED" && to !== "CANCELLED") {
       return { ok: false, code: "candidate_expired", message: "the candidate expired; only EXPIRED or CANCELLED remain" };
     }
-    if (verdict && now - Date.parse(verdict.submittedAt) > MAX_VERDICT_AGE_MS) {
-      return { ok: false, code: "verdict_stale", message: "the verdict is older than the maximum accepted age" };
+    if (verdict) {
+      const age = now - Date.parse(verdict.submittedAt);
+      // Future-dated first. Checking only `age > MAX` let a verdict timestamped in the future produce a
+      // NEGATIVE age and sail past the limit — a forged verdict could then outlive the window entirely.
+      if (age < -MAX_CLOCK_SKEW_MS) {
+        return { ok: false, code: "verdict_future_dated", message: "the verdict is dated in the future beyond tolerated skew" };
+      }
+      if (age > MAX_VERDICT_AGE_MS) {
+        return { ok: false, code: "verdict_stale", message: "the verdict is older than the maximum accepted age" };
+      }
     }
   }
 

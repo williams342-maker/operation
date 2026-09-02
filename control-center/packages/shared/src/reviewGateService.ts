@@ -131,13 +131,53 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
   }
 }
 
+/**
+ * An identity the SERVER established, not a string a request supplied.
+ *
+ * The independent review's point stands and is worth stating without varnish: the previous version took
+ * `actorIdentity: string` on every operation, so a caller could set both the actor and the verdict's
+ * reviewer to the same uninvolved name and have string equality "authenticate" an assertion against
+ * itself. The hole had moved one layer out, not closed.
+ *
+ * The brand makes a plain string unusable as a principal, so application code cannot fabricate one by
+ * accident or by type assertion alone. BE CLEAR ABOUT WHAT THIS IS NOT: it is a compile-time boundary,
+ * not a cryptographic one. Anything that can call `principalFromSession` can still mint a principal.
+ * Real assurance needs the API layer to be the only caller — which is why the import-boundary test
+ * exists, and why wiring routes through auth middleware is a prerequisite for any production claim
+ * about this gate.
+ */
+export class TrustedPrincipal {
+  /**
+   * PRIVATE constructor. Application code cannot write `new TrustedPrincipal("codex")` — the compiler
+   * refuses it — so an identity cannot be conjured from a request string at the call site.
+   */
+  private constructor(readonly identity: string) {}
+
+  /**
+   * The only way to obtain a principal. Intended for authentication middleware holding a session it has
+   * already verified — never a request body, query string, or header value.
+   */
+  static fromSession(session: { userId: string; authenticatedAt: string }): TrustedPrincipal {
+    const identity = String(session?.userId ?? "").trim();
+    if (!identity) throw new Error("cannot mint a principal from an unauthenticated session");
+    if (!session?.authenticatedAt) throw new Error("a principal requires an authenticated session");
+    return new TrustedPrincipal(identity);
+  }
+}
+
+/** Convenience wrapper; see TrustedPrincipal.fromSession. */
+export function principalFromSession(session: { userId: string; authenticatedAt: string }): TrustedPrincipal {
+  return TrustedPrincipal.fromSession(session);
+}
+
 export type ServiceResult =
   | { ok: true; state: ReviewState }
   | { ok: false; code: string; message: string };
 
+// NOTE the absence of an identity field. Identity is not request data; it arrives as a TrustedPrincipal
+// argument that a request string cannot become.
 const intentSchema = z.object({
   candidateId: z.string().min(1).max(200),
-  actorIdentity: z.string().min(1).max(200),
   occurrenceId: z.string().min(1).max(200),
   billingClass: z.enum(billingClasses),
 });
@@ -149,10 +189,9 @@ export class ReviewGateService {
   ) {}
 
   /** Registering a candidate writes the author participation row. Nothing else may write it. */
-  async createCandidate(input: {
+  async createCandidate(principal: TrustedPrincipal, input: {
     candidateId: string;
     binding: CandidateBinding;
-    actorIdentity: string;
   }): Promise<ServiceResult> {
     let binding: CandidateBinding;
     try {
@@ -160,7 +199,7 @@ export class ReviewGateService {
     } catch (error) {
       return { ok: false, code: "malformed_input", message: (error as Error).message.slice(0, 300) };
     }
-    if (binding.authorIdentity !== input.actorIdentity) {
+    if (binding.authorIdentity !== principal.identity) {
       return {
         ok: false,
         code: "author_actor_mismatch",
@@ -184,9 +223,22 @@ export class ReviewGateService {
    * Every non-verdict move. The caller says where it wants to go and who it is; it does not get to say
    * where it currently is.
    */
-  async transition(input: z.input<typeof intentSchema> & {
+  /**
+   * Which participation a transition necessarily creates. Derived from the move, never supplied.
+   *
+   * The previous version let the CALLER pass `addRole`, which an independent review found to be a
+   * complete independence bypass: a reviewer could issue NO_GO, walk the candidate through
+   * REMEDIATING while omitting the role, and then approve their own remediation, because the ledger
+   * still showed them as reviewer only. Roles a participant earns are a property of what they did.
+   */
+  private static roleFor(to: ReviewState): Participant["role"] | undefined {
+    if (to === "REMEDIATING") return "remediator";
+    if (to === "REVIEW_REQUESTED") return "requester";
+    return undefined;
+  }
+
+  async transition(principal: TrustedPrincipal, input: z.input<typeof intentSchema> & {
     to: ReviewState;
-    addRole?: Participant["role"];
   }): Promise<ServiceResult> {
     let intent: z.infer<typeof intentSchema>;
     try {
@@ -213,7 +265,7 @@ export class ReviewGateService {
       binding: record.binding,
       boundDigest: record.digest,
       participants: record.participants,
-      actorIdentity: intent.actorIdentity,
+      actorIdentity: principal.identity,
       now,
     });
     if (!decision.ok) return decision;
@@ -226,13 +278,14 @@ export class ReviewGateService {
         occurrenceId: intent.occurrenceId,
         from: record.state,
         to: input.to,
-        actorIdentity: intent.actorIdentity,
+        actorIdentity: principal.identity,
         billingClass: intent.billingClass,
         at: now,
       },
-      addParticipant: input.addRole
-        ? { identity: intent.actorIdentity, role: input.addRole, at: now }
-        : undefined,
+      addParticipant: (() => {
+        const role = ReviewGateService.roleFor(input.to);
+        return role ? { identity: principal.identity, role, at: now } : undefined;
+      })(),
     });
     if (!applied) {
       return {
@@ -249,7 +302,7 @@ export class ReviewGateService {
    * else is refused by the policy layer. Independence is decided against the stored ledger, which the
    * caller cannot supply, truncate, or empty.
    */
-  async submitVerdict(input: z.input<typeof intentSchema> & { verdict: unknown }): Promise<ServiceResult> {
+  async submitVerdict(principal: TrustedPrincipal, input: z.input<typeof intentSchema> & { verdict: unknown }): Promise<ServiceResult> {
     let intent: z.infer<typeof intentSchema>;
     let verdict: Verdict;
     try {
@@ -273,7 +326,7 @@ export class ReviewGateService {
       boundDigest: record.digest,
       participants: record.participants,
       verdict,
-      actorIdentity: intent.actorIdentity,
+      actorIdentity: principal.identity,
       now,
     });
     if (!decision.ok) return decision;
@@ -286,11 +339,11 @@ export class ReviewGateService {
         occurrenceId: intent.occurrenceId,
         from: record.state,
         to,
-        actorIdentity: intent.actorIdentity,
+        actorIdentity: principal.identity,
         billingClass: intent.billingClass,
         at: now,
       },
-      addParticipant: { identity: intent.actorIdentity, role: "reviewer", at: now },
+      addParticipant: { identity: principal.identity, role: "reviewer", at: now },
     });
     if (!applied) {
       return {
