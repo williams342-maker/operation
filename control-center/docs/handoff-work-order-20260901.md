@@ -210,13 +210,29 @@ multiple CSP headers, so the effective policy is the stricter one and this is no
 layers disagreeing about policy is a maintenance hazard and makes the effective policy hard to reason
 about. Consolidate to one authority.
 
-### W8 — Decide Foundry's disposition *(decision, then small execution)*
+### W8 — Decide Foundry's disposition — ~~open~~ **RESOLVED 2026-09-01: archived, not merged**
 
-`integration/foundry-consolidated` is 4 commits and roughly 2330 insertions of unmerged work on a product
-that has been scoped out. It is not being reviewed and it is drifting from `main`. Either extract it per
-`website-builder-extraction-audit.md`, which already maps the seams (`audit.ts`, `db.ts`, `auth.ts`,
-`req.orgId`/`req.user`, two owned collections, one cross-domain read), or tag it for durability and stop
-carrying it as an integration branch. Do not merge it as Forge work.
+`integration/foundry-consolidated` is preserved on `origin` as the annotated tag
+**`archive/foundry-consolidated-20260901`** (tip `470983211a2e`) and PR #22 is closed. The branch is
+untouched; reopening is one click.
+
+**Why archived rather than extracted or merged.** Two independent reasons pointed the same way:
+
+1. [website-builder-extraction-audit.md](website-builder-extraction-audit.md) had already decided the
+   builder is a **future standalone product, not a cockpit surface**. This branch adds a `/foundry`
+   route *inside* the control-center SPA — the opposite of that decision.
+2. **The standalone version now exists**, deployed separately by the owner at `foundry.opsworkbench.org`,
+   with its own route set (`/examples`, `/pricing`, `/about`, `/privacy`, `/terms`). This branch's routes
+   are `/` and `/foundry` inside the control center. They are **different artifacts**, so merging this
+   would not advance the live product; it would put a product surface into the internal control plane.
+
+**State at archival:** 4 commits ahead, 22 behind `main`, last touched 2026-08-03, still merging
+cleanly — so this was a decision, not a rescue from conflict. Nothing on `main` references the modules,
+and the only shared change (`audit.ts`) adds credit-ledger and website-brief action names specific to
+this work, so there was nothing to salvage separately.
+
+**Note for anyone re-reading §3.** "Foundry is not Forge" still stands, and is now stronger: the branch,
+the live standalone site, and the Forge authority chain are three distinct things.
 
 ### W9 — Agent release signing *(owner-gated, unchanged)*
 
