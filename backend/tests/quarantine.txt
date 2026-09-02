@@ -22,7 +22,24 @@
 #     13  POST /api/maker/auth/verify returning 404; seven hypotheses eliminated, cause not yet found
 #      5  known flaky (0.2% of the suite)
 #      2  GET /api/admin/gsc/oauth-start returning 500 with no logged exception
-#      4  suspected-unguarded Stripe routers, same shape as the two fixed in 6ffb52bf but unproven
+#         (was: "4 suspected-unguarded Stripe routers" — DISPROVEN 2026-09-02, see below)
+#
+# CORRECTION to commit 6ffb52bf. That commit listed promote.py, prod_health.py, maker.py and
+# shipping.py as "the same shape but unproven", on the strength of a grep for the literal string
+# "Stripe is not configured". A grep for one error message is not a guard audit, and reading the
+# four call sites shows every one of them already handles an absent key:
+#   prod_health.py  returns early on `placeholder or mode == "MISSING"` with operator guidance
+#   shipping.py     try/except -> logs, returns ""
+#   maker.py        try/except at 2361 -> logs, continues
+#   promote.py      try/except -> HTTPException(502, ...)
+# None of them can produce the unhandled 500 that checkout.py and community_files.py did, so there
+# are ZERO further instances of that defect. Do not "fix" these four.
+#
+# Noted while checking, NOT acted on: 22 sites across routers/ interpolate a caught exception into
+# the client-facing response body (9x 502, 9x 400, 4x 500, 2x 503). Some are good UX — a 400 naming
+# the expected date format. Others hand provider internals to the caller. That is an error-message
+# policy question for the owner, not a defect with one right answer, so it is recorded rather than
+# changed.
 #
 # TO SHRINK THIS FILE: fix a test, delete its line, and the gate holds you to it.
 tests.test_admin_seo_shipping.TestAdminAuth::test_request_non_admin_silent
