@@ -1,8 +1,11 @@
-# Review gate as a separate service — design v6
+# Review gate as a separate service — design v7
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Status:** **DESIGN — NOT IMPLEMENTED.** Revision 6, after five design reviews.
+**Status:** **DESIGN — READY TO BUILD.** Revision 7, after six design reviews.
+**Next step:** implementation. The sixth review's guidance was to make one short revision resolving the
+remaining contradiction and then build, because *"further wholesale design revision after those
+corrections would have low marginal value."* This is that revision.
 **Decision it implements:** Owner chose **Option B** from `REVIEW_GATE_TRUST_BOUNDARY_DECISION.md`.
 
 ---
@@ -16,6 +19,13 @@
 | v3 | NO-GO | The successor claim was modelled against the **wrong digest**. An expiring lease **cannot fence a host mutation**. `contentDigest` and `actionDigest` sitting side by side does not establish that the action applies the reviewed content. |
 | v4 | NO-GO | Successor and claim models now sound. But minting, reservation and signing were **circular** — the payload must contain ids that do not exist until after the payload is digested. And the configuration rule named fields the real payload does not have. |
 | v5 | NO-GO | Ordering now non-circular. But authorization was **checked before the effect and consumed after it**, so two deliveries could both pass and both mutate the host. The attestation's own expiry was absent from the predicate. And `changeDigest` — the operand the whole configuration rule compares against — **does not exist on the candidate binding**. |
+| v6 | NO-GO | The `EXECUTING` acquisition was accepted as correct. But the document still described **two incompatible protocols**: §2.4 said minting takes the payload, §2.6 said binding does. An implementer following the wrong one would rebuild v4's circularity. |
+
+**The v6 finding worth flagging**: I fixed the circularity in §2.6 and left the contradicting sentence
+standing in §2.4 and in the transaction table. **The document specified two different protocols at once**,
+and the older one was the broken one. Fixing a design in the section you are editing, while an earlier
+section still says the opposite, is the documentation form of the same error I have made in code all the
+way through this workstream.
 
 **The v5 finding worth flagging**: I designed `redeemable → apply → redeem`, which is a check/use race. Two
 deliveries both observe `RESERVED_BOUND`, both pass the check, **both mutate the host**, and only one wins
@@ -87,13 +97,16 @@ v3 let an attestation carry `contentDigest` and `actionDigest` as adjacent field
 put it, *"can truthfully identify reviewed content A while authorizing an action payload B that does not
 deploy A."* Adjacency is not a relationship.
 
-**Minting requires the full action payload.** The gate computes
-`actionDigest = privilegedActionDigest(payload)` **itself**, with the same function layer 2 uses, which
-already excludes the signature field so the digest cannot recurse. It never accepts a caller's digest.
+**All of this happens at BIND (step 3 of §2.6), never at mint.** Minting creates an *unbound* attestation
+with no payload and no `actionDigest`; that is what makes the sequence non-circular, and this section
+previously said the opposite while §2.6 said the truth.
 
-Then it validates the payload against the released candidate's binding. **v4's rule named fields that do
-not exist**; these are written against `configurationDeploymentPayloadSchema` and the agent-upgrade
-payload as they actually are.
+At bind, the gate computes `actionDigest = privilegedActionDigest(payload)` **itself**, with the same
+function layer 2 uses, which already excludes the signature field so the digest cannot recurse. It never
+accepts a caller's digest. It then validates the payload against the released candidate's subject.
+
+**v4's rules named fields that do not exist**; these are written against
+`configurationDeploymentPayloadSchema` and the agent-upgrade payload as they actually are.
 
 #### First: the candidate binding needs a typed subject
 
@@ -113,8 +126,16 @@ subject:
   | { kind: "agent.upgrade",         artifactDigest, releaseManifestDigest }
 ```
 
-An attestation of kind K may only be minted from a candidate whose `subject.kind` matches K. A code
-candidate cannot authorize a configuration change, because the subject discriminant is part of identity.
+The permitted mappings are stated explicitly, because "kind matches subject.kind" cannot be literal —
+both configuration kinds map to one subject:
+
+| attestation `kind` | required `subject.kind` |
+| --- | --- |
+| `configuration.apply` | `configuration.change` |
+| `configuration.rollback` | `configuration.change` **with `rollbackTarget` present** |
+| `agent.upgrade` | `agent.upgrade` |
+
+A code candidate can authorize neither, because the discriminant is part of `contentDigest`.
 
 #### `configuration.apply`
 
@@ -156,12 +177,26 @@ the *rollback* mutations. The attestation then binds exactly as `configuration.a
 recomputation.
 
 The previously-`RELEASED` target remains an **additional eligibility requirement** — you may not roll back
-to content that was never reviewed — but it is no longer doing identity work it cannot do. This removes
-the special case almost entirely, which is the strongest signal it was wrong.
+to content that was never reviewed — and v6 left that requirement with **no named operand**, which is the
+same defect as `changeDigest` one revision earlier. It now has one:
+
+```
+subject: { kind: "configuration.change", changeDigest, environmentId,
+           targetProfileId, targetProfileRevision,
+           rollbackTarget?: { candidateId, contentDigest } }   // REQUIRED for the rollback kind
+```
+
+`rollbackTarget` is part of the subject and therefore part of `contentDigest`, so it is fixed at review
+time and cannot be edited afterwards. **The bind transaction checks
+`contentClaims[subject.rollbackTarget.contentDigest]` against §8.2 for
+`subject.rollbackTarget.candidateId`** — the same predicate used everywhere else.
+
+So the rollback change set proves *what is being dispatched*, and `rollbackTarget` proves *what state it
+claims to restore was itself reviewed and released*. Two separate assertions, each with an operand.
 
 #### A kind with no verifiable rule gets no attestation
 
-If a payload cannot be tied to reviewed content by a stated rule, the gate refuses to mint. The
+If a payload cannot be tied to reviewed content by a stated rule, the gate refuses to BIND. The
 attestation asserts *"this payload applies this reviewed change"* only because the gate checked it.
 
 ### 2.5 What an attestation binds
@@ -176,7 +211,7 @@ reviewAttestations {
   audiencePrincipalId,             // which executor may consume it
   candidateId,                     // provenance
   nonce,
-  grantedByPrincipalId, grantedAt, expiresAt,
+  grantedByPrincipalId, grantedAt,
   state,                           // PENDING | RESERVED_UNBOUND | RESERVED_BOUND | EXECUTING
                                    //   | CONSUMED | REVOKED | EXPIRED | INDETERMINATE | ABORTED
   expiresAt,                       // the ATTESTATION's own validity, distinct from the lease's
@@ -282,11 +317,19 @@ audit metadata dressed as proof. `INDETERMINATE → CONSUMED` requires all of:
   channel, or signed by it) and immutable;
 - that entry **binds `actionDigest`, `attestationId`, `leaseId`, `serverId` and the execution attempt** —
   a reference that does not name what it is a reference to proves nothing;
-- `observedHostStateDigest` matches an **expected post-state** the gate can name. For configuration this
-  is the agent's own reported `configurationDigest` from `deploymentProgressSchema`, which already exists;
-  for agent upgrade it is the installed artifact digest;
-- the outcome is unambiguous — a failed automatic rollback, or a partially applied upgrade, is **not**
-  `APPLIED`.
+- **the journal entry records a TERMINAL outcome from the original attempt**, with the post-effect digest
+  that attempt produced. v6 called the agent's reported `configurationDigest` "the expected post-state",
+  which it is not: it is an *optional result observation*, produced **after** execution. Comparing a later
+  observation to it can compare two executor assertions, or in the worst case a value to itself;
+- **the terminal phase is the one the action requires** — normally `succeeded`. `rolled_back` does
+  **not** prove the requested change remains applied; it proves the opposite. A failed automatic rollback
+  or a partially applied upgrade is **not** `APPLIED`;
+- `observedHostStateDigest` is a **fresh authenticated observation taken at reconciliation time**, and it
+  must equal the digest the terminal journal entry recorded. Two independent readings, one from the
+  original attempt and one taken now — not one value compared with itself.
+
+**If there is no terminal journal record from the original attempt, reconciliation stays
+`INDETERMINATE`** — there is nothing to compare a fresh reading against.
 
 **Where no decisive expected post-state can be computed, reconciliation stays `INDETERMINATE`.** The
 alternative is letting an owner's assertion manufacture a consumed authorization, which is the shape of
@@ -455,10 +498,15 @@ disablement. v5 named the concept in the predicate while the principal model car
 `credentialRotatedAt` — a timestamp, which cannot serve as an epoch: two rotations within a clock tick
 are indistinguishable, and clock adjustment moves it backwards.
 
-Concurrency rule: the epoch used for a request is the one read when the credential is authenticated, in
-the same transaction as the operation. A request that overlaps a rotation therefore either sees the old
-epoch and fails the lease comparison, or sees the new one and never matches a lease stamped before it.
-Either way it refuses; it cannot straddle.
+Concurrency rule, corrected — v6 claimed every request overlapping a rotation refuses, which is not the
+linearizable result and overstated the guarantee:
+
+> **Rotation and authorization are serialized. No operation using the old credential or epoch may commit
+> after rotation commits.**
+
+So an `acquire` that commits *before* rotation legitimately wins and may proceed; the host mutation it
+authorized is not retroactively unauthorized. One that has not committed when rotation does will fail
+authentication or the epoch comparison. The property is ordering, not universal refusal.
 
 ---
 
@@ -471,7 +519,7 @@ Either way it refuses; it cannot straddle.
 | `POST` | `/candidates/:id/evidence` | record a test execution |
 | `POST` | `/candidates/:id/actions/:action` | one named lifecycle action (§7) |
 | `POST` | `/candidates/:id/verdicts` | GO / NO_GO with findings |
-| `POST` | `/candidates/:id/owner-decision` | accept the outcome; mint attestations from payloads (§2.4) |
+| `POST` | `/candidates/:id/owner-decision` | accept the outcome; mint UNBOUND attestations (no payload) |
 | `POST` | `/candidates/:id/attestations` | mint a further attestation from RELEASED content |
 | `POST` | `/attestations/:id/reserve` | executor takes a lease (no payload yet) |
 | `POST` | `/attestations/:id/bind` | executor submits the final payload; gate fixes `actionDigest` |
@@ -502,11 +550,11 @@ Either way it refuses; it cannot straddle.
 | `begin-remediation` | REMEDIATION_REQUIRED | author or participant | records remediator |
 | `submit-retest-request` | REMEDIATING | remediator | |
 | `owner-decision` | GO | owner | mints attestations (§2.4) |
-| `mint-further-attestation` | claim RELEASED | owner | same payload validation; no history overwrite |
+| `mint-further-attestation` | claim RELEASED | owner | mints another UNBOUND attestation; validation happens at bind like any other; no history overwrite |
 | `reserve` | attestation PENDING | its `audiencePrincipalId`, enabled | → RESERVED_UNBOUND; stamps `credentialEpoch`; claim predicate §8.2 |
 | `bind` | attestation RESERVED_UNBOUND | the lease holder, matching epoch | submits the payload; gate computes and fixes `actionDigest` (§2.4) → RESERVED_BOUND |
 | `acquire` | attestation RESERVED_BOUND | the lease holder, matching `leaseId` and epoch | → EXECUTING. **One winner. Before any host mutation.** Both expiries checked |
-| `redeem` | attestation **EXECUTING** | the lease holder, matching `leaseId` and epoch | → CONSUMED |
+| `redeem` | attestation **EXECUTING** | the lease holder, matching `leaseId` and epoch | → CONSUMED; both expiries and the claim predicate checked, as §2.8 |
 | `renew-lease` | RESERVED_UNBOUND or RESERVED_BOUND | the lease holder, same `leaseId` and epoch | extends expiry; cannot revive an expired lease or change holder |
 | `revoke` | PENDING, RESERVED_UNBOUND, RESERVED_BOUND | owner | **not legal from EXECUTING** — the effect may be underway, and the honest outcome there is INDETERMINATE, not a row claiming it was stopped |
 | `unbound-expiry` | PENDING or RESERVED_UNBOUND | the gate's sweep | → `EXPIRED`. **Safe**: nothing is bound, so nothing was dispatched |
@@ -580,11 +628,11 @@ MongoDB **as a replica set** is required.
 | evidence | idempotency, evidence uniqueness, candidate association | recorded once, or not at all |
 | action | idempotency, state CAS, occurrence, participation row | the move with its rows, or nothing |
 | verdict | idempotency, state CAS, verdict + finding occurrences, claim disposition | the verdict and its consequences, or nothing |
-| owner-decision | idempotency, state CAS, claim → RELEASED, payload validation (§2.4), attestations minted | attestations exist for released content, or nothing |
+| owner-decision | idempotency, state CAS, claim → RELEASED, **unbound** attestations minted (no payload, no `actionDigest`) | unbound attestations exist for released content, or nothing |
 | reserve | attestation CAS `PENDING → RESERVED_UNBOUND`, lease + `credentialEpoch`, claim predicate, audience + enabled check | leased once, or refused |
-| bind | attestation CAS `RESERVED_UNBOUND → RESERVED_BOUND`, payload validation (§2.4), `actionDigest` written once | bound exactly once with a validated payload, or refused |
+| bind | attestation CAS `RESERVED_UNBOUND → RESERVED_BOUND`, payload validation + subject relationship + rollback-target claim (§2.4), `actionDigest` written once, both expiries | bound exactly once with a validated payload, or refused |
 | acquire | attestation CAS `RESERVED_BOUND → EXECUTING` on `leaseId` + epoch + **both expiries** + claim predicate | exactly one caller acquires; all others refused **before** any host mutation |
-| redeem | attestation CAS `EXECUTING → CONSUMED` on `leaseId` + epoch, outcome | consumed exactly once, or refused |
+| redeem | attestation CAS `EXECUTING → CONSUMED` on `leaseId` + epoch + **both expiries** + claim predicate, outcome | consumed exactly once, or refused |
 | revoke | attestation CAS on state ∈ {PENDING, RESERVED_UNBOUND, RESERVED_BOUND}, idempotency, audit | **linearizable against redeem** |
 | unbound-expiry sweep | attestation CAS `{PENDING, RESERVED_UNBOUND} → EXPIRED` | wholly or not at all |
 | bound-lease-expiry sweep | attestation CAS `{RESERVED_BOUND, EXECUTING} → INDETERMINATE` | wholly; **never back to PENDING or RESERVED_UNBOUND** |
