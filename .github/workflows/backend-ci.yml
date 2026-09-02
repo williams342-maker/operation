@@ -86,9 +86,10 @@ jobs:
         # 103 test files do `open("/app/frontend/.env")` at MODULE level and 197 call
         # `load_dotenv("/app/backend/.env")` — absolute paths from the original Emergent container
         # layout. The open() raises FileNotFoundError during COLLECTION, so 76 files fail before a
-        # single assertion runs. The tests read REACT_APP_BACKEND_URL from that file and fall back to
-        # http://localhost:8001 when the key is absent, so an empty file is enough to make them
-        # collect.
+        # single assertion runs. Creating the file is necessary but NOT sufficient: some files fall back
+        # to http://localhost:8001 when the key is missing, while 30 others read
+        # os.environ["REACT_APP_BACKEND_URL"] or assert on it and raise at import. The key is written
+        # below for that reason.
         #
         # This reproduces the layout rather than editing 103 test files. The real fix is to resolve
         # those paths relative to the repository; that is a separate change, and a large one.
