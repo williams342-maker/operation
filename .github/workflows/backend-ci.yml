@@ -95,8 +95,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo mkdir -p /app/frontend /app/backend
-          sudo touch /app/frontend/.env /app/backend/.env
-          sudo chmod -R a+rw /app
+          sudo chmod -R a+rwx /app
+          # The KEY must be present, not merely the file. An empty .env still fails 30 collections:
+          # some files use the tolerant `next(..., "http://localhost:8001")` fallback, but others do
+          # os.environ["REACT_APP_BACKEND_URL"] or assert on it, so they raise KeyError/AssertionError
+          # at import. The first CI run is what established that distinction.
+          echo "REACT_APP_BACKEND_URL=http://localhost:8001" > /app/frontend/.env
+          : > /app/backend/.env
 
       - name: Run the test suite
         # --timeout guards against the import-time motor client hanging on a connection rather than
