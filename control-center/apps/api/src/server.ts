@@ -58,7 +58,10 @@ app.use(compression());
 app.use(cors({ origin: process.env.CONTROL_CENTER_WEB_ORIGIN || "http://localhost:5173", credentials: true }));
 app.use(rateLimit({ windowMs: 60_000, limit: 180 }));
 app.use(express.json({ limit: "1mb", verify: captureRawBody }));
-app.get("/healthz", (_req, res) => { const identity = resolveBuildIdentity(); res.json({ ok: true, status: "alive", version: identity.version, commit: identity.commit, source: identity.source }); });
+// `source` is now three-valued: "manifest" (validated), "env" (development, self-declared), or
+// "unverified" (a manifest was configured and did not validate). runtimeDigest is measured over the
+// JavaScript actually loaded, so two hosts claiming one commit can be compared.
+app.get("/healthz", (_req, res) => { const identity = resolveBuildIdentity(); res.json({ ok: true, status: "alive", version: identity.version, commit: identity.commit, source: identity.source, runtimeDigest: identity.runtimeDigest }); });
 app.get("/readyz", async (_req, res) => { const health = await runtimeHealth(); res.status(health.status === "ready" ? 200 : 503).json(health); });
 // Coarse per-IP cap on the credential endpoints, on top of the global limiter and the per-account
 // progressive lockout (authThrottle). Disabled under test so the integration suite's many logins from
