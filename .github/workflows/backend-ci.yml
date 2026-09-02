@@ -84,11 +84,18 @@ jobs:
     runs-on: ubuntu-latest
     # Measurement, not a gate. See the header. Remove this line to promote it.
     continue-on-error: true
+    # 120, not 60: raised after the seeding fix. A job that exceeds timeout-minutes is CANCELLED, and
+    # cancellation skips the `if: always()` steps that publish the numbers and upload the JUnit XML — so
+    # an over-running measurement produces no measurement at all. The bound also moved in the wrong
+    # direction on purpose: bounding the seed fixture converted ~450 setup HANGS into tests that now
+    # actually execute, and running a test costs more wall-clock than timing one out. Headroom here is
+    # cheap; a lost 45-minute run is not.
+    #
     # 60, not 30: the first full run reached 82% at the 30-minute cap and was cancelled. The suite is
     # genuinely slow - roughly 2300 tests, most of them touching MongoDB, several hanging until the
     # per-test timeout fires. Parallelising with xdist is NOT an option: tests/conftest.py manages
     # shared seed collections across the session, so concurrent workers would corrupt each other.
-    timeout-minutes: 60
+    timeout-minutes: 120
     services:
       mongo:
         image: mongo:8.0

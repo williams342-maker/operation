@@ -930,6 +930,31 @@ def pytest_collection_modifyitems(config, items):
 # skip a test whose server genuinely lost a credential the test process still
 # sees — which is why it narrows on the exact 503 strings rather than on
 # status code alone.
+#
+# LATENT HAZARD, checked and currently absent. The match is against the
+# failure text, so a test that deliberately ASSERTS one of these strings —
+# "unconfigured Stripe must answer 503 with this detail" — would be converted
+# to a skip when it failed, hiding a real regression. As of 2026-09-02 no test
+# in this suite contains any of these strings (verified by grep; only this
+# file does). If you add such a test, exclude it here explicitly rather than
+# loosening the match.
+#
+# KNOWN RESIDUAL, deliberately not handled. Roughly 24 further tests fail as a
+# bare status diff — `assert 503 == 401` — because they assert a status code
+# and httpx puts only the code in the assertion, not the response body. The
+# configuration message never reaches this hook, so those stay failures.
+#
+# That is the correct outcome, not a gap to close by loosening the rule. The
+# backend has 63 HTTPException(503) sites and they are NOT all configuration:
+# "AI is busy - please retry in a few seconds", "AI temporarily unavailable",
+# "AI refine failed", "AI design generation failed" and "verification
+# unavailable" are genuine runtime errors. A rule that skipped any unexpected
+# 503 would hide every one of them. From a status code alone this hook cannot
+# prove configuration rather than failure, so it declines to skip.
+#
+# The way to reclaim those tests is to make them assert on the body as well as
+# the status, which puts the evidence in the report where this hook can read
+# it. That is a change to the tests, not to this rule.
 
 def _r2_unconfigured() -> bool:
     try:
