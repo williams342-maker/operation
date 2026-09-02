@@ -126,6 +126,15 @@ jobs:
       # job's throwaway secret and were meaningless to that host.
       # Setting it in the job environment is what actually points the suite at 127.0.0.1:8001.
       REACT_APP_BACKEND_URL: http://localhost:8001
+      # A SECOND variable defaults to the same external host, and setting only the first one above did
+      # not move the number: run 33639279365 still had 18 failures naming
+      # active-project-4.preview.emergentagent.com, against 19 before the change. An AST sweep of the
+      # tests for env lookups whose default is that host finds two names, not one:
+      #     REACT_APP_BACKEND_URL   69 call sites
+      #     PUBLIC_BACKEND_URL      10 call sites
+      # The modules still failing (test_iter90_admin_design_file_delete, test_iter81_full_sweep,
+      # test_iter80_returns_policy_and_image_uploads, test_listing_image_upload) all read the second.
+      PUBLIC_BACKEND_URL: http://localhost:8001
       DB_NAME: backend_ci_test
       # Set explicitly rather than relying on config.py's non-production default of
       # "dev-local-secret-change-me" — that default is 26 bytes, which is what triggers PyJWT 2.13.0's
