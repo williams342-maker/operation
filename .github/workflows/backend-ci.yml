@@ -19,17 +19,25 @@
 
 name: Backend CI
 
+# NO `paths:` FILTER, DELIBERATELY, and it must stay that way while these jobs are required.
+#
+# A required status check that never runs does not pass — it leaves the pull request blocked with
+# nothing to click. With `paths: [backend/**]` a docs-only change never triggers this workflow, so
+# `backend-tests` and `backend-lint` never report and the PR waits forever. PR #44 is the worked
+# example: it changed one file under control-center/docs and ran exactly four checks, with both
+# backend jobs absent. Making them required while that filter existed would have deadlocked it.
+#
+# The cost of always running is now small enough to ignore: the suite went from 63 minutes to about
+# 2.5 after the DB_NAME drift was fixed, and backend-lint finishes in under 20 seconds. Paying ~3
+# minutes on every pull request is the price of a gate that actually gates.
+#
+# If the suite ever gets slow again, the fix is to make it fast, or to add a job that reports the
+# same check name for skipped paths — NOT to reintroduce a filter under a required check.
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-ci.yml"
   push:
     branches: [ main ]
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-ci.yml"
 
 permissions:
   contents: read
