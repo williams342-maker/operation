@@ -4,7 +4,9 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** ENGINEERING IN PROGRESS — REVIEW READY. Candidate K, awaiting round-10 review.
+**Current disposition:** **BLOCKED — OWNER ACTION REQUIRED.** Candidate K received NO-GO in round 10, and
+the reviewer stated plainly that incremental patching should stop pending a trust-boundary redesign. See
+`REVIEW_GATE_TRUST_BOUNDARY_DECISION.md` for the decision required.
 
 **Owner action: TWO ITEMS OPEN**, both in §I of the current candidate handoff — (1) test provenance needs
 key material for an attestation scheme; (2) whether application code holding the service is trusted, which
@@ -31,7 +33,7 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | H | `0890f6e0` / `75f098e8` | `REVIEW_GATE_HANDOFF_0890f6e0_20260902.md` | **NO-GO** | 1 CRITICAL — `READY_FOR_OWNER_DECISION` is terminal, so a later rejection of identical content could not revoke it; atomicity could not fix an ordering-independent defect. 3 MAJOR — findings were discarded so remediation was unprovable; `requestedReviewerClass` was never enforced |
 | I | `0ce56c85` / `c5b66c5f` | `REVIEW_GATE_HANDOFF_0ce56c85_20260902.md` | **NO-GO** | 2 CRITICAL — the package published `InMemoryReviewGateStore`, whose `create` took a caller-built state, so a record could be written straight into `READY_FOR_OWNER_DECISION`; findings could be laundered by a second, milder rejection |
 | J | `d7341739` / `1afc9c5b` | `REVIEW_GATE_HANDOFF_d7341739_20260902.md` | **NO-GO** | 2 CRITICAL — `private readonly store` is erased, so `(service as any).store` handed back the live store; `resolves` was an unordered tombstone that could pre-authorise deleting a finding not yet raised. **Plus a design judgement: the defect rate was not converging** |
-| K | `8e7ad8ba` + this commit | `REVIEW_GATE_HANDOFF_8e7ad8ba_20260902.md` | *pending round 10* | — |
+| K | `8e7ad8ba` / `aedd4f1e` | `REVIEW_GATE_HANDOFF_8e7ad8ba_20260902.md` | **NO-GO** | 2 CRITICAL — the service hands its write capability to the caller-supplied store, so a wrapper captures it; successor inheritance is a non-atomic snapshot. **And the design judgement: same shape, stop patching** |
 
 Retrieve any superseded handoff with:
 
@@ -77,6 +79,7 @@ the public surface:
 | 5 | `TrustedPrincipal` | `principalFromSession` |
 | 8 | the service's store contract | `InMemoryReviewGateStore` |
 | 9 | `#private` fields and a capability | the capability's own `private constructor` — erased, so anyone could build one |
+| 10 | a capability only the module can construct | the service **passes it to the caller-supplied store** |
 
 Before accepting any boundary claim of mine, check what the package actually hands out. The fourth
 instance happened **inside the fix for the third**, and my own test caught it — the first time in nine
