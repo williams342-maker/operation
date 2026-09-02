@@ -4,7 +4,7 @@
 # backend/, pytest, requirements, setup-python or pip. Every backend change — including three
 # dependency PRs merged on 2026-09-01 — was landing with a green tick that verified nothing about it.
 #
-# THIS JOB DOES NOT GATE MERGES YET, AND THAT IS DELIBERATE.
+# BOTH JOBS NOW GATE. backend-lint has since it was added; backend-tests gates as of 2026-09-02.
 #
 # The suite's pass rate is unknown. It could not be established locally, because pytest.ini documents
 # that motor's AsyncIOMotorClient is constructed at IMPORT TIME in core.py, so essentially every test
@@ -12,12 +12,10 @@
 # than failing. This job is therefore a MEASUREMENT first: it runs the suite, records the numbers, and
 # publishes them, so the health of the suite becomes a fact instead of a guess.
 #
-# Promote it to a required check once the numbers are known and stable:
-#   1. read the run summary for the real pass/fail/skip counts,
-#   2. fix or quarantine what fails,
-#   3. remove `continue-on-error` below,
-#   4. add `backend-tests` to the required contexts in branch protection.
-# Adding it as a required gate today would only pin a red check to every pull request.
+# Steps 1-3 of the promotion path are done: the numbers were measured over fifteen runs, the 370 tests
+# that do not pass are quarantined explicitly in backend/tests/quarantine.txt, and `continue-on-error` is
+# gone. Step 4 is the owner's: add `backend-tests` to the required contexts in branch protection. Until
+# that happens this job reports honestly but does not block a merge.
 
 name: Backend CI
 
@@ -87,8 +85,6 @@ jobs:
   backend-tests:
     name: backend-tests
     runs-on: ubuntu-latest
-    # Measurement, not a gate. See the header. Remove this line to promote it.
-    continue-on-error: true
     # 120, not 60: raised after the seeding fix. A job that exceeds timeout-minutes is CANCELLED, and
     # cancellation skips the `if: always()` steps that publish the numbers and upload the JUnit XML — so
     # an over-running measurement produces no measurement at all. The bound also moved in the wrong
@@ -337,6 +333,22 @@ jobs:
           print(f"| skipped | {skip} |")
           print("\nThis job does not gate merges yet. Promote it once these numbers are stable — see the workflow header.")
           PY
+
+      - name: Gate on the quarantine baseline
+        if: always()
+        # THIS STEP IS WHAT MAKES backend-tests A GATE. The pytest step above ends in `|| true`, so it
+        # never fails the job by itself; the job's verdict comes from here.
+        #
+        # The rule is "nothing got worse", not "the suite is green" — it is not green, and pretending
+        # otherwise would make the gate a lie. 370 known non-passing tests are listed explicitly in
+        # backend/tests/quarantine.txt, by exact node id, with no globbing. A failure outside that list
+        # fails the job.
+        #
+        # A quarantined test that starts PASSING is reported, not failed. Five listed tests alternate
+        # between runs, so failing on an unexpected pass would hand this gate a guaranteed false red
+        # whenever one flipped. They are printed every run instead, so the list cannot quietly rot.
+        working-directory: .
+        run: python .github/scripts/check_backend_quarantine.py /tmp/backend-junit.xml backend/tests/quarantine.txt
 
       - name: Show the API server log
         if: always()
