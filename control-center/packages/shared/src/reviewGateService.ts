@@ -152,9 +152,9 @@ export type TransitionOccurrence = {
  */
 export interface ReviewGateStore {
   load(candidateId: string): Promise<CandidateRecord | null>;
-  create(record: CandidateRecord): Promise<boolean>;
+  create(capability: StoreWriteCapability, record: CandidateRecord): Promise<boolean>;
   /** Append-only. Returns false if the evidence id was already used, so a replay cannot double-count. */
-  recordEvidence(record: EvidenceRecord): Promise<boolean>;
+  recordEvidence(capability: StoreWriteCapability, record: EvidenceRecord): Promise<boolean>;
   loadEvidence(candidateId: string): Promise<EvidenceRecord[]>;
   /**
    * Has THIS CONTENT ever been rejected, on any candidate record?
@@ -195,7 +195,7 @@ export interface ReviewGateStore {
    * implementation needs a transaction or a single conditional update; this comment is the contract it
    * has to meet, and §H.16 remains open precisely because that implementation does not exist yet.
    */
-  compareAndSetState(input: {
+  compareAndSetState(capability: StoreWriteCapability, input: {
     candidateId: string;
     expectedState: ReviewState;
     nextState: ReviewState;
@@ -229,7 +229,8 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
   // a second, non-atomic way to write the rejection ledger is a way to write it at the wrong moment.
   // Rejections are now written only by compareAndSetState, in the same step that commits the NO_GO.
 
-  async recordEvidence(record: EvidenceRecord): Promise<boolean> {
+  async recordEvidence(capability: StoreWriteCapability, record: EvidenceRecord): Promise<boolean> {
+    if (capability !== WRITE) return false;
     const all = [...this.evidence.values()].flat();
     if (all.some((e) => e.evidenceId === record.evidenceId)) return false;
     const forCandidate = this.evidence.get(record.candidateId) ?? [];
@@ -247,7 +248,10 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     return found ? structuredClone(found) : null;
   }
 
-  async create(record: CandidateRecord): Promise<boolean> {
+  async create(capability: StoreWriteCapability, record: CandidateRecord): Promise<boolean> {
+    // Not "who are you" but "what do you hold". A caller that reached this object by any route still
+    // cannot write without the capability, and the capability cannot be constructed outside this module.
+    if (capability !== WRITE) return false;
     // DEFENCE IN DEPTH, added in round 8. Removing this class from the package index stops a consumer
     // obtaining it, but the application implements or holds a store either way, and `create` used to
     // accept a caller-built record INCLUDING ITS STATE -- so a fabricated record could be written
@@ -269,7 +273,7 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     return true;
   }
 
-  async compareAndSetState(input: {
+  async compareAndSetState(capability: StoreWriteCapability, input: {
     candidateId: string;
     expectedState: ReviewState;
     nextState: ReviewState;
@@ -279,6 +283,7 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     recordRejectionOfContent?: string;
     addVerdict?: StoredVerdict;
   }): Promise<boolean> {
+    if (capability !== WRITE) return false;
     // Everything below runs without an await, so it is one atomic step against this store. That is the
     // contract the interface states, and the reason the rejection check moved in here.
     const found = this.records.get(input.candidateId);
@@ -333,6 +338,45 @@ export interface SessionAuthenticator {
 }
 
 const MINTED = new WeakSet<object>();
+
+/**
+ * The right to perform an authoritative write.
+ *
+ * ROUND 9 CHANGED THE APPROACH RATHER THAN PATCHING IT AGAIN. The reviewer's judgement was that the
+ * defect rate was not converging because the design kept treating TypeScript visibility, export
+ * selection and interfaces as security boundaries when they are packaging mechanisms. Three rounds
+ * running, the fix for "the primitive is reachable" was to stop exporting the primitive -- and each time
+ * it stayed reachable by another route. Round 8 removed the store from the package index; round 9 pointed
+ * out that `private readonly store` emits an ordinary property, so `(service as any).store` handed it
+ * straight back.
+ *
+ * So the store's mutators no longer trust their caller's identity at all. They require an instance of
+ * this class, which has a private constructor and is never exported as a value. The module holds the only
+ * one. Reaching the store object is now insufficient: you also need something you cannot construct.
+ *
+ * WHAT THIS IS NOT. An application implementing ReviewGateStore against its own database can obviously
+ * write to that database directly -- it owns it. This boundary governs code holding THIS package's
+ * objects, and the durable store must enforce its own invariants regardless. That is stated in the store
+ * contract and remains open as H.16.
+ */
+const CAPABILITY_KEY: unique symbol = Symbol("review-gate.store-write");
+
+export class StoreWriteCapability {
+  constructor(key: symbol) {
+    // NOT `private constructor`. I wrote it that way first and MY OWN TEST CAUGHT IT: TypeScript
+    // privacy is erased, so `new StoreWriteCapability()` succeeded at runtime and the capability was
+    // free to anyone. That is the identical mistake this class exists to stop -- compile-time visibility
+    // standing in for a runtime boundary -- reproduced inside the fix for it, which is the fourth time
+    // in this workstream. The key is a module-private symbol, so the throw below is real.
+    if (key !== CAPABILITY_KEY) {
+      throw new Error("StoreWriteCapability cannot be constructed; it is held only by ReviewGateService");
+    }
+  }
+}
+
+// The only instance, and it is not exported. A consumer can name the type, and can neither build one nor
+// reach this binding.
+const WRITE = new StoreWriteCapability(CAPABILITY_KEY);
 
 /**
  * An identity the SERVER established, not a string a request supplied.
@@ -436,16 +480,30 @@ function outstandingFindings(record: CandidateRecord):
   ReadonlyArray<{ id: string; severity: string; summary: string }> {
   const raised = new Map<string, { id: string; severity: string; summary: string }>();
   for (const finding of record.inherited ?? []) raised.set(finding.id, finding);
+  // ROUND 9 MADE THIS PASS CAUSAL. The previous version accumulated every finding and then, in a SECOND
+  // pass, deleted every id ever mentioned in any verdict's `resolves`. Order did not matter, so a
+  // resolution could precede the finding it discharged: submit `resolves: ["FUTURE"]` before FUTURE
+  // exists, and when a later NO_GO raises it as a CRITICAL the stale tombstone erases it on arrival. A
+  // single verdict could even raise and resolve the same finding in one breath. `resolves` was a
+  // timeless tombstone, and I had described it as a discharge.
+  //
+  // Verdicts are replayed IN ORDER, and a discharge only applies to what is outstanding when it happens.
   for (const verdict of record.verdicts) {
-    if (verdict.verdict !== "NO_GO") continue;
-    for (const finding of verdict.findings) {
-      if (BLOCKING_SEVERITIES.includes(finding.severity)) raised.set(finding.id, finding);
+    if (verdict.verdict === "NO_GO") {
+      for (const finding of verdict.findings) {
+        if (BLOCKING_SEVERITIES.includes(finding.severity)) raised.set(finding.id, finding);
+      }
     }
-  }
-  for (const verdict of record.verdicts) {
+    // Applied AFTER this verdict's own findings are recorded, which is why submitVerdict separately
+    // refuses a verdict that resolves what it raises: without that, this ordering would permit it.
     for (const id of verdict.resolves ?? []) raised.delete(id);
   }
   return [...raised.values()];
+}
+
+/** What is outstanding BEFORE a given verdict is applied. Used to validate that verdict's discharges. */
+function outstandingBefore(record: CandidateRecord): ReadonlySet<string> {
+  return new Set(outstandingFindings(record).map((f) => f.id));
 }
 
 const SUPERSEDABLE: readonly ReviewState[] = Object.freeze([
@@ -465,18 +523,29 @@ const intentSchema = z.object({
 });
 
 export class ReviewGateService {
+  // ECMAScript private fields, not TypeScript `private`. Round 9: `private readonly store` compiles to an
+  // ordinary property, so `(service as any).store` returned the live store and the whole gate could be
+  // driven around. `#` is enforced by the runtime -- there is no cast that reaches it.
+  readonly #store: ReviewGateStore;
+  readonly #authenticator: SessionAuthenticator;
+  readonly #clock: () => string;
+
   constructor(
-    private readonly store: ReviewGateStore,
-    private readonly authenticator: SessionAuthenticator,
-    private readonly clock: () => string = () => new Date().toISOString(),
-  ) {}
+    store: ReviewGateStore,
+    authenticator: SessionAuthenticator,
+    clock: () => string = () => new Date().toISOString(),
+  ) {
+    this.#store = store;
+    this.#authenticator = authenticator;
+    this.#clock = clock;
+  }
 
   /**
    * Every operation starts here. The caller hands over a proof, never an identity and never a principal:
    * there is no argument on this surface that a request body could become.
    */
   private principal(proof: unknown): TrustedPrincipal | null {
-    const minted = TrustedPrincipal.mint(this.authenticator, proof);
+    const minted = TrustedPrincipal.mint(this.#authenticator, proof);
     return minted && TrustedPrincipal.isTrusted(minted) ? minted : null;
   }
 
@@ -500,18 +569,18 @@ export class ReviewGateService {
         message: "the binding names a different author than the authenticated actor",
       };
     }
-    const now = this.clock();
+    const now = this.#clock();
     // Round 5's attack was to re-register rejected content under a fresh candidateId. Refusing it at
     // registration is better than refusing it at approval: the author finds out now, not after a reviewer
     // has spent time on it.
-    if (await this.store.isContentRejected(contentDigest(binding))) {
+    if (await this.#store.isContentRejected(contentDigest(binding))) {
       return {
         ok: false,
         code: "content_already_rejected",
         message: "this exact content was rejected; register a successor that changes it",
       };
     }
-    const created = await this.store.create({
+    const created = await this.#store.create(WRITE, {
       candidateId: input.candidateId,
       digest: candidateDigest(binding),
       contentDigest: contentDigest(binding),
@@ -524,7 +593,7 @@ export class ReviewGateService {
     if (!created) {
       // The store refuses for three reasons and they are worth distinguishing for the caller, so ask it
       // which one applies. The refusal itself already happened atomically; this is only diagnosis.
-      const live = await this.store.findLiveByContent(contentDigest(binding));
+      const live = await this.#store.findLiveByContent(contentDigest(binding));
       if (live) {
         return {
           ok: false,
@@ -562,7 +631,7 @@ export class ReviewGateService {
     if (isCustomerBillable(intent.billingClass)) {
       return { ok: false, code: "billing_class_not_internal", message: "recording a test run is internal cost" };
     }
-    const record = await this.store.load(intent.candidateId);
+    const record = await this.#store.load(intent.candidateId);
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
     // SEPARATION OF DUTIES ON EVIDENCE. Round 5 showed the author could invent a testResultDigest and
@@ -580,7 +649,7 @@ export class ReviewGateService {
         message: "the author of a candidate cannot record its test evidence",
       };
     }
-    const written = await this.store.recordEvidence({
+    const written = await this.#store.recordEvidence(WRITE, {
       evidenceId: input.evidenceId,
       candidateId: intent.candidateId,
       resultDigest: input.resultDigest,
@@ -588,7 +657,7 @@ export class ReviewGateService {
       runReference: input.runReference,
       contentDigest: record.contentDigest,
       recordedBy: principal.identity,
-      at: this.clock(),
+      at: this.#clock(),
     });
     if (!written) {
       return { ok: false, code: "evidence_replayed", message: "that evidence id was already recorded" };
@@ -615,7 +684,7 @@ export class ReviewGateService {
   }): Promise<ServiceResult> {
     const principal = this.principal(proof);
     if (!principal) return UNAUTHENTICATED;
-    const prior = await this.store.load(input.supersedes);
+    const prior = await this.#store.load(input.supersedes);
     if (!prior) return { ok: false, code: "unknown_candidate", message: "no such prior candidate" };
     let binding: CandidateBinding;
     try {
@@ -635,7 +704,7 @@ export class ReviewGateService {
       };
     }
     // ...and the new content must not itself be something already rejected elsewhere.
-    if (await this.store.isContentRejected(contentDigest(binding))) {
+    if (await this.#store.isContentRejected(contentDigest(binding))) {
       return {
         ok: false,
         code: "content_already_rejected",
@@ -702,8 +771,8 @@ export class ReviewGateService {
         message: `no such finding on the predecessor: ${invented.join(", ")}`,
       };
     }
-    const now = this.clock();
-    const created = await this.store.create({
+    const now = this.#clock();
+    const created = await this.#store.create(WRITE, {
       candidateId: input.candidateId,
       digest: candidateDigest(binding),
       contentDigest: contentDigest(binding),
@@ -719,7 +788,7 @@ export class ReviewGateService {
       verdicts: [],
     });
     if (!created) {
-      const live = await this.store.findLiveByContent(contentDigest(binding));
+      const live = await this.#store.findLiveByContent(contentDigest(binding));
       if (live) {
         return {
           ok: false,
@@ -770,7 +839,7 @@ export class ReviewGateService {
         message: `review-gate work must not be customer-billable; got ${intent.billingClass}`,
       };
     }
-    const record = await this.store.load(intent.candidateId);
+    const record = await this.#store.load(intent.candidateId);
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
     // ROUND 6, M6-1 at its source. Any authenticated identity could move anybody's candidate, which is
@@ -801,7 +870,7 @@ export class ReviewGateService {
       };
     }
 
-    const now = this.clock();
+    const now = this.#clock();
     const decision = evaluateTransition({
       from: record.state,
       to: input.to,
@@ -823,7 +892,7 @@ export class ReviewGateService {
       // "no evidence" shadow "expired" and "illegal move", so a candidate that was refused for a more
       // fundamental reason reported the evidence gap instead. A caller should be told the first thing
       // that is wrong with the request, not the last thing I happened to add.
-      const evidence = await this.store.loadEvidence(intent.candidateId);
+      const evidence = await this.#store.loadEvidence(intent.candidateId);
       const matching = evidence.filter((e) => e.resultDigest === record.binding.testResultDigest);
       if (matching.length === 0) {
         return {
@@ -848,7 +917,7 @@ export class ReviewGateService {
       }
     }
 
-    const applied = await this.store.compareAndSetState({
+    const applied = await this.#store.compareAndSetState(WRITE, {
       candidateId: intent.candidateId,
       expectedState: record.state,
       nextState: input.to,
@@ -898,7 +967,7 @@ export class ReviewGateService {
     if (intent.billingClass !== "INTERNAL_REVIEW") {
       return { ok: false, code: "billing_class_not_review", message: "a verdict is INTERNAL_REVIEW work" };
     }
-    const record = await this.store.load(intent.candidateId);
+    const record = await this.#store.load(intent.candidateId);
     if (!record) return { ok: false, code: "unknown_candidate", message: "no such candidate" };
 
     // ROUND 7: requestedReviewerClass was parsed into the binding and then never consulted, so a
@@ -915,8 +984,32 @@ export class ReviewGateService {
       };
     }
 
+    // ROUND 9, C9-2. A discharge has to reference a finding that is actually outstanding at the moment it
+    // is made. Two refusals, and the second is the shorter attack: a NO_GO carrying CRITICAL F1 together
+    // with resolves: ["F1"] used to erase its own finding immediately.
+    const outstandingNow = outstandingBefore(record);
+    const raisedHere = new Set(verdict.findings.map((f) => f.id));
+    const selfDischarged = verdict.resolves.filter((id) => raisedHere.has(id));
+    if (selfDischarged.length > 0) {
+      return {
+        ok: false,
+        code: "verdict_resolves_own_finding",
+        message: `a verdict cannot raise and discharge the same finding: ${selfDischarged.join(", ")}`,
+      };
+    }
+    const notOutstanding = verdict.resolves.filter((id) => !outstandingNow.has(id));
+    if (notOutstanding.length > 0) {
+      return {
+        ok: false,
+        code: "resolves_unknown_finding",
+        message:
+          "a discharge must name a finding that is currently outstanding on this candidate; " +
+          `not outstanding: ${notOutstanding.join(", ")}`,
+      };
+    }
+
     const to: ReviewState = verdict.verdict === "GO" ? "GO" : "NO_GO";
-    if (to === "GO" && await this.store.isContentRejected(record.contentDigest)) {
+    if (to === "GO" && await this.#store.isContentRejected(record.contentDigest)) {
       // ROUND 4, the payoff step of the attack: a candidate is rejected, walks the remediation loop
       // without changing, and a DIFFERENT independent reviewer approves the identical content. The
       // binding is immutable, so a NO_GO on this record is a NO_GO on this digest, and it stays one.
@@ -947,7 +1040,7 @@ export class ReviewGateService {
         };
       }
     }
-    const now = this.clock();
+    const now = this.#clock();
     const decision = evaluateTransition({
       from: record.state,
       to,
@@ -960,7 +1053,7 @@ export class ReviewGateService {
     });
     if (!decision.ok) return decision;
 
-    const applied = await this.store.compareAndSetState({
+    const applied = await this.#store.compareAndSetState(WRITE, {
       candidateId: intent.candidateId,
       expectedState: record.state,
       nextState: to,

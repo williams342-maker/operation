@@ -1238,3 +1238,149 @@ test("C8-2: a reviewer cannot approve a successor while inherited findings stand
   assert.equal(explicitGo.ok, true,
     `a reviewer must be able to discharge a finding they have checked: ${JSON.stringify(explicitGo)}`);
 });
+
+// ── round-9 findings ─────────────────────────────────────────────────────────────────────────────────
+
+test("C9-1: the service does not leak its store, authenticator or clock", async () => {
+  // Round 9's CRITICAL. `private readonly store` is a COMPILE-TIME annotation that emits an ordinary
+  // property, so `(service as any).store` returned the live store and the whole gate could be driven
+  // around it. The fields are ECMAScript `#private` now, which the runtime enforces.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const reachable = svc as unknown as Record<string, unknown>;
+  for (const name of ["store", "authenticator", "clock", "_store", "#store"]) {
+    assert.equal(reachable[name], undefined, `${name} must not be reachable on the service instance`);
+  }
+  // And nothing enumerable on the instance or its prototype hands the store back either.
+  const names = [
+    ...Object.getOwnPropertyNames(svc),
+    ...Object.getOwnPropertyNames(Object.getPrototypeOf(svc)),
+  ];
+  for (const name of names) {
+    const value = (svc as unknown as Record<string, unknown>)[name];
+    assert.notEqual(value, store, `${name} exposes the store instance`);
+    assert.notEqual(value, auth, `${name} exposes the authenticator`);
+  }
+});
+
+test("C9-1: holding the store is not enough; authoritative writes need the capability", async () => {
+  // The second barrier, and the one that matters if a store instance is reachable some other way -- an
+  // application implements the port, after all. The mutators require an object that cannot be
+  // constructed outside the module.
+  const store = new InMemoryReviewGateStore();
+  const b = binding();
+  const forged = await (store as unknown as {
+    create(cap: unknown, record: unknown): Promise<boolean>;
+  }).create({} as unknown, {
+    candidateId: "nocap", digest: candidateDigest(b), contentDigest: contentDigest(b), binding: b,
+    state: "BUILT", participants: [], occurrences: [], verdicts: [],
+  });
+  assert.equal(forged, false, "a write without the capability must be refused");
+  assert.equal(await store.load("nocap"), null);
+});
+
+test("C9-1: the capability cannot be constructed by a consumer", async () => {
+  const mod = await import("../src/reviewGateService.js") as Record<string, unknown>;
+  const Cap = mod.StoreWriteCapability as { new (key?: unknown): unknown } | undefined;
+  assert.ok(Cap, "the class is exported so the port can be typed against it");
+  // A RUNTIME throw, not a compile-time one. The first version of this test asserted against a TypeScript
+  // `private constructor`, which is erased -- and the test failed, correctly, because the capability was
+  // constructible by anyone.
+  assert.throws(() => new Cap!(), /cannot be constructed/,
+    "the constructor must refuse anyone without the module-private key");
+  assert.throws(() => new Cap!(Symbol("guess")), /cannot be constructed/,
+    "and a guessed symbol must not work either");
+  assert.equal((mod as { WRITE?: unknown }).WRITE, undefined,
+    "the single instance must not be reachable from the module either");
+});
+
+test("C9-1: the whole lifecycle cannot be walked through the store directly", async () => {
+  // The concrete attack: reach the store, walk BUILT -> ... -> READY_FOR_OWNER_DECISION through legal
+  // transitions with no evidence, no reviewer class and no verdict. Every write is refused for want of
+  // the capability, so the record never leaves BUILT.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "walk", binding: binding() });
+  const drive = store as unknown as {
+    compareAndSetState(cap: unknown, input: unknown): Promise<boolean>;
+  };
+  const path = [["BUILT", "TESTED"], ["TESTED", "FROZEN"], ["FROZEN", "REVIEW_REQUESTED"],
+    ["REVIEW_REQUESTED", "REVIEW_IN_PROGRESS"], ["REVIEW_IN_PROGRESS", "GO"],
+    ["GO", "READY_FOR_OWNER_DECISION"]] as const;
+  for (const [from, to] of path) {
+    const applied = await drive.compareAndSetState({} as unknown, {
+      candidateId: "walk", expectedState: from, nextState: to,
+      occurrence: {
+        occurrenceId: `x-${to}`, from, to, actorIdentity: "mallory",
+        billingClass: "INTERNAL_QA_TEST", at: "2026-09-02T02:00:00.000Z",
+      },
+    });
+    assert.equal(applied, false, `${from} -> ${to} must be refused without the capability`);
+  }
+  const record = await store.load("walk");
+  assert.equal(record!.state, "BUILT", "the record must not have moved at all");
+  assert.deepEqual(record!.verdicts, []);
+});
+
+test("C9-2: a verdict cannot raise and discharge the same finding", async () => {
+  // The short form of round 9's second CRITICAL: a NO_GO carrying CRITICAL F1 together with
+  // resolves: ["F1"] erased its own finding on arrival.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding({ candidateCommit: oid("3"), candidateTree: oid("3") });
+  await svc.createCandidate(who("claude"), { candidateId: "self1", binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "self1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-self1", resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/self1",
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    await svc.transition(who("claude"), {
+      candidateId: "self1", occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+  }
+  await svc.transition(who("codex"), {
+    candidateId: "self1", occurrenceId: "4", billingClass: "INTERNAL_REVIEW", to: "REVIEW_IN_PROGRESS" });
+  const selfErasing = await svc.submitVerdict(who("codex"), {
+    candidateId: "self1", occurrenceId: "v", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(b), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [{ id: "F1", severity: "CRITICAL", summary: "a real defect" }],
+      resolves: ["F1"],
+      submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(selfErasing.ok, false);
+  assert.equal((selfErasing as { code: string }).code, "verdict_resolves_own_finding");
+});
+
+test("C9-2: a discharge cannot be pre-authorised for a finding that does not exist yet", async () => {
+  // The longer attack: resolve "FUTURE" before it is raised, then raise it as a CRITICAL later and let
+  // the stale tombstone erase it. `resolves` was an unordered, timeless tombstone; it is now a discharge
+  // of something outstanding at the moment it is made.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  const b = binding({ candidateCommit: oid("4"), candidateTree: oid("4") });
+  await svc.createCandidate(who("claude"), { candidateId: "pre1", binding: b });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "pre1", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-pre1", resultDigest: b.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/pre1",
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    await svc.transition(who("claude"), {
+      candidateId: "pre1", occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+  }
+  await svc.transition(who("codex"), {
+    candidateId: "pre1", occurrenceId: "4", billingClass: "INTERNAL_REVIEW", to: "REVIEW_IN_PROGRESS" });
+  const preAuthorised = await svc.submitVerdict(who("codex"), {
+    candidateId: "pre1", occurrenceId: "v", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(b), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [{ id: "REAL", severity: "MINOR", summary: "something small" }],
+      resolves: ["FUTURE"],
+      submittedAt: "2026-09-02T01:00:00.000Z",
+    },
+  });
+  assert.equal(preAuthorised.ok, false, "a tombstone cannot be laid for a finding that does not exist");
+  assert.equal((preAuthorised as { code: string }).code, "resolves_unknown_finding");
+});
