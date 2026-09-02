@@ -96,7 +96,10 @@ async def admin_db_backup(request: Request, claims: dict = Depends(require_super
     mongo_url = settings.mongo_url
     db_name = settings.db_name
     if not mongo_url or not db_name:
-        raise HTTPException(500, "MONGO_URL / DB_NAME missing from backend env.")
+        # 503, not 500: an unconfigured capability is not a server fault. This codebase already
+        # answers 503 "... is not configured" in credits.py, subscriptions.py, checkout.py and
+        # community_files.py; these sites were the exception.
+        raise HTTPException(503, "MONGO_URL / DB_NAME missing from backend env.")
     if not os.path.isfile(_MONGODUMP):
         raise HTTPException(500, "mongodump binary not available on backend pod.")
 
