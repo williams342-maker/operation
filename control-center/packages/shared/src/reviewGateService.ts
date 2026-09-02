@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   candidateBindingSchema,
   candidateDigest,
+  isTransitionAllowed,
   contentDigest,
   verdictSchema,
   type CandidateBinding,
@@ -70,6 +71,13 @@ export type CandidateRecord = {
   supersedes?: string;
   /** Finding ids from the predecessor that this candidate claims to address. See createSuccessor. */
   remediates?: readonly string[];
+  /**
+   * Blocking findings carried over from the candidate this one replaces, still undischarged.
+   *
+   * Without this a successor started with a clean sheet, so the defect that caused the rejection was
+   * forgotten the moment a new record existed.
+   */
+  inherited?: ReadonlyArray<{ id: string; severity: string; summary: string }>;
   /** Append-only. Every verdict ever recorded against this candidate, findings included. */
   verdicts: StoredVerdict[];
   participants: Participant[];
@@ -120,6 +128,8 @@ export type StoredVerdict = {
   reviewerIdentity: string;
   verdict: "GO" | "NO_GO";
   findings: ReadonlyArray<{ id: string; severity: string; summary: string }>;
+  /** Earlier findings this reviewer confirmed are addressed. Only a verdict can discharge a finding. */
+  resolves: readonly string[];
   submittedAt: string;
   at: string;
 };
@@ -238,6 +248,15 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
   }
 
   async create(record: CandidateRecord): Promise<boolean> {
+    // DEFENCE IN DEPTH, added in round 8. Removing this class from the package index stops a consumer
+    // obtaining it, but the application implements or holds a store either way, and `create` used to
+    // accept a caller-built record INCLUDING ITS STATE -- so a fabricated record could be written
+    // straight into READY_FOR_OWNER_DECISION with no test, no freeze, no review and no verdict.
+    //
+    // A candidate begins at BUILT with nothing behind it. A store that accepts anything else is being
+    // asked to launder history, and refuses.
+    if (record.state !== "BUILT") return false;
+    if (record.occurrences.length > 0 || record.verdicts.length > 0) return false;
     if (this.records.has(record.candidateId)) return false;
     // Checked HERE rather than in the service, so the check and the write cannot interleave. Two
     // concurrent registrations of the same content must not both succeed; the loser sees false.
@@ -264,6 +283,12 @@ export class InMemoryReviewGateStore implements ReviewGateStore {
     // contract the interface states, and the reason the rejection check moved in here.
     const found = this.records.get(input.candidateId);
     if (!found) return false;
+    // ROUND 8: this method used to assign any nextState it was handed, so anyone holding the store could
+    // walk BUILT straight to READY_FOR_OWNER_DECISION. The service checks the transition table before
+    // calling; the store now checks it again, because a guard that only exists in the caller is a
+    // convention. This does NOT make the store safe to drive directly -- it enforces no evidence, no
+    // independence and no reviewer class -- it only removes the cheapest way to forge a decision.
+    if (!isTransitionAllowed(input.expectedState, input.nextState)) return false;
     // The guard that makes concurrent transitions safe: if someone else moved the state since we read
     // it, we lose rather than overwrite.
     if (found.state !== input.expectedState) return false;
@@ -391,18 +416,36 @@ const RELEASES_CONTENT: readonly ReviewState[] = Object.freeze(["CANCELLED", "EX
 const BLOCKING_SEVERITIES: readonly string[] = Object.freeze(["CRITICAL", "MAJOR"]);
 
 /**
- * The findings a replacement has to answer for: those raised by the most recent rejection.
+ * Every blocking finding this candidate still owes an answer for.
  *
- * Only the latest NO_GO counts. An earlier rejection's findings were either fixed by whatever produced
- * the candidate that got re-reviewed, or raised again -- and if a reviewer chose not to raise them again,
- * that is the reviewer's call to make, not a debt this function should resurrect.
+ * ROUND 8 REPLACED THE PREVIOUS VERSION, WHICH LOOKED ONLY AT THE LATEST REJECTION. I had reasoned that
+ * an earlier finding was "either fixed, or raised again". Codex showed that nothing enforced either
+ * branch, and the laundering path was trivial: take a rejected candidate round the remediation loop,
+ * collect a SECOND NO_GO carrying only a MINOR finding, and the latest rejection now has no blocking
+ * findings at all. The CRITICAL from the first rejection simply evaporated. My comment asserted an
+ * invariant the code did not have -- the same mistake, in the same shape, for the eighth time.
+ *
+ * Findings now ACCUMULATE and are only removed by a reviewer discharging them:
+ *   - every CRITICAL and MAJOR from every NO_GO on this record, plus
+ *   - whatever this candidate inherited from the one it replaces,
+ *   - minus the ids a reviewer has explicitly `resolves`-ed in any verdict here.
+ *
+ * An author's `remediates` claim is deliberately NOT subtracted. Claiming is not discharging.
  */
 function outstandingFindings(record: CandidateRecord):
   ReadonlyArray<{ id: string; severity: string; summary: string }> {
-  const rejections = record.verdicts.filter((v) => v.verdict === "NO_GO");
-  const latest = rejections[rejections.length - 1];
-  if (!latest) return [];
-  return latest.findings.filter((f) => BLOCKING_SEVERITIES.includes(f.severity));
+  const raised = new Map<string, { id: string; severity: string; summary: string }>();
+  for (const finding of record.inherited ?? []) raised.set(finding.id, finding);
+  for (const verdict of record.verdicts) {
+    if (verdict.verdict !== "NO_GO") continue;
+    for (const finding of verdict.findings) {
+      if (BLOCKING_SEVERITIES.includes(finding.severity)) raised.set(finding.id, finding);
+    }
+  }
+  for (const verdict of record.verdicts) {
+    for (const id of verdict.resolves ?? []) raised.delete(id);
+  }
+  return [...raised.values()];
 }
 
 const SUPERSEDABLE: readonly ReviewState[] = Object.freeze([
@@ -668,6 +711,9 @@ export class ReviewGateService {
       state: "BUILT",
       supersedes: input.supersedes,
       remediates: [...claimed],
+      // Carried forward, not discharged. The author has said which of these they addressed; a reviewer
+      // still has to agree before any of them stops blocking.
+      inherited: blocking,
       participants: [{ identity: binding.authorIdentity, role: "author", at: now }],
       occurrences: [],
       verdicts: [],
@@ -882,6 +928,25 @@ export class ReviewGateService {
         message: "this exact content was rejected; remediation must change the work, not the paperwork",
       };
     }
+
+    // ORDER MATTERS AND IT IS DELIBERATE. The content-rejection check runs first because it is the more
+    // fundamental refusal: this work was rejected, full stop. Undischarged findings are the narrower
+    // reason, and a caller should be told the fundamental one when both apply.
+    if (to === "GO") {
+      // ROUND 8. A successor inherits the blocking findings of what it replaces, and only a reviewer can
+      // retire them. Approving therefore means accounting for every one: either this verdict resolves it,
+      // or an earlier verdict on this record did. Silence is not agreement.
+      const owed = outstandingFindings(record).filter((f) => !verdict.resolves.includes(f.id));
+      if (owed.length > 0) {
+        return {
+          ok: false,
+          code: "findings_outstanding",
+          message:
+            "cannot approve while findings remain undischarged; resolve them explicitly in the verdict: " +
+            owed.map((f) => f.id).join(", "),
+        };
+      }
+    }
     const now = this.clock();
     const decision = evaluateTransition({
       from: record.state,
@@ -921,6 +986,7 @@ export class ReviewGateService {
         reviewerIdentity: principal.identity,
         verdict: verdict.verdict,
         findings: verdict.findings,
+        resolves: verdict.resolves,
         submittedAt: verdict.submittedAt,
         at: now,
       },

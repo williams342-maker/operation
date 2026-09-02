@@ -125,6 +125,8 @@ test("the index publishes TrustedPrincipal as a type, never as a value", async (
   // text-matching test of mine passed for the wrong reason. Importing the module and looking at what is
   // actually bound cannot be fooled by my regex.
   const surface = await import("../src/index.js") as Record<string, unknown>;
+  assert.equal(surface.InMemoryReviewGateStore, undefined,
+    "the store is the mutation primitive the service mediates; publishing it hands out the bypass");
   assert.equal(surface.TrustedPrincipal, undefined,
     "TrustedPrincipal must not be a value on the public surface; a consumer could call its statics");
   assert.equal(surface.principalFromSession, undefined,
@@ -150,7 +152,6 @@ test("the index still exports the surface consumers legitimately need", async ()
   const expected: Array<[string, string]> = [
     ["candidateDigest", "function"],
     ["ReviewGateService", "function"],
-    ["InMemoryReviewGateStore", "function"],
     ["isTransitionAllowed", "function"],
     ["independenceOf", "function"],
     ["candidateBindingSchema", "object"],

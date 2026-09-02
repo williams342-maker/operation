@@ -35,10 +35,22 @@ export {
 //     code no value binding, so there is no `TrustedPrincipal.mint` to reach.
 //   - the minting path is not here at all. Identity is established by the SessionAuthenticator the
 //     application injects into ReviewGateService, and operations take an opaque proof.
+// InMemoryReviewGateStore is ABSENT from this list as of round 8, and that is the point.
+//
+// An independent review observed that publishing it handed every consumer the mutation primitive the
+// service exists to mediate: `create()` takes a caller-built record including its state, and
+// `compareAndSetState()` wrote any nextState it was given. Importing the store and writing a record
+// straight into READY_FOR_OWNER_DECISION reconstructed the original bypass one layer below the service.
+// That is the third time I have published the primitive and described the wrapper as the boundary.
+//
+// The store is a PORT. An application supplies its own implementation of the ReviewGateStore type; the
+// in-memory one is a reference used by this package's own tests, which reach it by relative path from
+// inside the package. It is not part of what the package hands out.
 export {
   billingClasses, nonBillableClasses, isCustomerBillable,
-  InMemoryReviewGateStore, ReviewGateService,
+  ReviewGateService,
   type BillingClass, type CandidateRecord, type TransitionOccurrence,
   type ReviewGateStore, type ServiceResult, type SessionAuthenticator,
+  type EvidenceRecord, type StoredVerdict,
   type TrustedPrincipal,
 } from "./reviewGateService.js";

@@ -255,6 +255,15 @@ export const verdictSchema = z.object({
     severity: z.enum(["CRITICAL", "MAJOR", "MODERATE", "MINOR", "OBSERVATION"]),
     summary: z.string().min(1).max(4000),
   })).max(500).default([]),
+  /**
+   * Findings from EARLIER rejections that this reviewer has confirmed are addressed.
+   *
+   * ROUND 8 SEPARATED CLAIMING FROM DISCHARGING. An author's `remediates` list on a successor says what
+   * they believe they fixed; it is a claim, and a claim is not evidence. Only a reviewer looking at the
+   * work can retire a finding, so only a verdict can do it. Anything outstanding and undischarged blocks
+   * GO, which forces a reviewer to account for inherited defects rather than inherit them silently.
+   */
+  resolves: z.array(safeId).max(500).default([]),
   submittedAt: z.string().datetime(),
 });
 export type Verdict = z.infer<typeof verdictSchema>;

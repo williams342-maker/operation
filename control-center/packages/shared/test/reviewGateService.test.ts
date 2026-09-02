@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { candidateDigest, type CandidateBinding } from "../src/reviewGate.js";
+import { candidateDigest, contentDigest, type CandidateBinding } from "../src/reviewGate.js";
 import {
   InMemoryReviewGateStore,
   ReviewGateService,
@@ -666,7 +666,9 @@ test("C4: a retest cannot lean on evidence recorded before the remediation", asy
 /** Drive a candidate all the way to a genuine NO_GO, which is the only honest starting point for a successor. */
 async function rejected(id: string, over: Partial<CandidateBinding> = {}) {
   const store = new InMemoryReviewGateStore();
-  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  let nowValue = "2026-09-02T02:00:00.000Z";
+  const clock = { advance: (t: string) => { nowValue = t; } };
+  const svc = new ReviewGateService(store, auth, () => nowValue);
   const b = binding(over);
   await svc.createCandidate(who("claude"), { candidateId: id, binding: b });
   await svc.recordTestExecution(who("ci"), {
@@ -689,7 +691,7 @@ async function rejected(id: string, over: Partial<CandidateBinding> = {}) {
     },
   });
   assert.equal(verdict.ok, true, `NO_GO: ${JSON.stringify(verdict)}`);
-  return { store, svc, binding: b };
+  return { store, svc, binding: b, clock };
 }
 
 test("C5-3: a successor changing only paperwork is not a remediation", async () => {
@@ -1078,4 +1080,161 @@ test("C7: an OBSERVATION does not block a successor, but a MAJOR does", async ()
   });
   assert.equal(addressingOnlyTheMajor.ok, true,
     `an OBSERVATION must not block a successor: ${JSON.stringify(addressingOnlyTheMajor)}`);
+});
+
+// ── round-8 findings ─────────────────────────────────────────────────────────────────────────────────
+
+test("C8-1: the store refuses a fabricated record, whoever holds it", async () => {
+  // Codex's round-8 CRITICAL. The package published InMemoryReviewGateStore, so a consumer could write a
+  // record straight into READY_FOR_OWNER_DECISION with no test, no freeze, no review and no verdict. The
+  // class is off the public surface now, but the application holds a store either way, so the store
+  // itself refuses to launder history.
+  const store = new InMemoryReviewGateStore();
+  const b = binding();
+  const fabricated = await store.create({
+    candidateId: "forged", digest: candidateDigest(b), contentDigest: contentDigest(b), binding: b,
+    state: "READY_FOR_OWNER_DECISION",
+    participants: [], occurrences: [], verdicts: [],
+  });
+  assert.equal(fabricated, false, "a candidate begins at BUILT with nothing behind it");
+  assert.equal(await store.load("forged"), null);
+});
+
+test("C8-1: the store refuses a record arriving with history it never earned", async () => {
+  const store = new InMemoryReviewGateStore();
+  const b = binding();
+  const withVerdicts = await store.create({
+    candidateId: "pre", digest: candidateDigest(b), contentDigest: contentDigest(b), binding: b,
+    state: "BUILT", participants: [], occurrences: [],
+    verdicts: [{
+      reviewerIdentity: "codex", verdict: "GO", findings: [], resolves: [],
+      submittedAt: "2026-09-02T01:00:00.000Z", at: "2026-09-02T01:00:00.000Z",
+    }],
+  });
+  assert.equal(withVerdicts, false, "a new candidate cannot arrive already approved");
+});
+
+test("C8-1: the store refuses an illegal transition even when driven directly", async () => {
+  // Defence in depth: the service checks the table before calling, but a guard that exists only in the
+  // caller is a convention. BUILT -> READY_FOR_OWNER_DECISION is not a legal move and the store says so.
+  const store = new InMemoryReviewGateStore();
+  const svc = new ReviewGateService(store, auth, () => "2026-09-02T02:00:00.000Z");
+  await svc.createCandidate(who("claude"), { candidateId: "direct", binding: binding() });
+  const jumped = await store.compareAndSetState({
+    candidateId: "direct", expectedState: "BUILT", nextState: "READY_FOR_OWNER_DECISION",
+    occurrence: {
+      occurrenceId: "x", from: "BUILT", to: "READY_FOR_OWNER_DECISION",
+      actorIdentity: "mallory", billingClass: "INTERNAL_QA_TEST", at: "2026-09-02T02:00:00.000Z",
+    },
+  });
+  assert.equal(jumped, false, "the store must not write a state the transition table forbids");
+  assert.equal((await store.load("direct"))!.state, "BUILT");
+});
+
+test("C8-2: a second, milder rejection cannot launder the first one's CRITICAL", async () => {
+  // The laundering path Codex found: take a rejected candidate round the remediation loop, collect a
+  // SECOND NO_GO carrying only a MINOR finding, and -- when only the latest rejection counted -- the
+  // original CRITICAL simply evaporated. Findings accumulate now.
+  // A moving clock: the retest evidence has to be recorded strictly after the REMEDIATING transition,
+  // which is the round-5 fix still doing its job three rounds later.
+  const { store, svc, clock } = await rejected("laun1");   // NO_GO with CRITICAL F1
+  let occ = 0;
+  const step = async (to: string, actor = "claude") => {
+    const r = await svc.transition(who(actor), {
+      candidateId: "laun1", occurrenceId: `l${occ++}`, billingClass: "INTERNAL_QA_TEST", to: to as never });
+    assert.equal(r.ok, true, `${to}: ${JSON.stringify(r)}`);
+  };
+  await step("REMEDIATION_REQUIRED");
+  await step("REMEDIATING");
+  await step("RETEST_REQUIRED");
+  clock.advance("2026-09-02T05:00:00.000Z");
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "laun1", occurrenceId: "ev2", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-laun1-2", resultDigest: binding().testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/laun1-2",
+  });
+  await step("TESTED");
+  await step("FROZEN");
+  await step("REVIEW_REQUESTED");
+  await step("REVIEW_IN_PROGRESS", "codex");
+  const milder = await svc.submitVerdict(who("codex"), {
+    candidateId: "laun1", occurrenceId: "v2", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(binding()), reviewerIdentity: "codex", verdict: "NO_GO",
+      findings: [{ id: "NIT", severity: "MINOR", summary: "a triviality" }],
+      submittedAt: "2026-09-02T01:30:00.000Z",
+    },
+  });
+  assert.equal(milder.ok, true, JSON.stringify(milder));
+
+  const record = await store.load("laun1");
+  const outstanding = record!.verdicts.flatMap((v) => v.findings)
+    .filter((f) => f.severity === "CRITICAL").map((f) => f.id);
+  assert.deepEqual(outstanding, ["F1"], "the original CRITICAL is still on the record");
+
+  // And a successor claiming nothing must still owe F1.
+  const clean = await svc.createSuccessor(who("claude"), {
+    candidateId: "laun2", supersedes: "laun1",
+    binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
+    remediates: [],
+  });
+  assert.equal(clean.ok, false, "a milder second rejection must not discharge the first one's CRITICAL");
+  assert.equal((clean as { code: string }).code, "findings_unaddressed");
+});
+
+test("C8-2: a successor inherits its predecessor's findings, and only a reviewer discharges them", async () => {
+  // The author's `remediates` is a CLAIM. It lets the successor be registered; it does not retire the
+  // finding. Approving the successor requires a reviewer to say so explicitly.
+  const { store, svc } = await rejected("inh1");
+  const successor = await svc.createSuccessor(who("claude"), {
+    candidateId: "inh2", supersedes: "inh1",
+    binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
+    remediates: ["F1"],
+  });
+  assert.equal(successor.ok, true, JSON.stringify(successor));
+  const record = await store.load("inh2");
+  assert.deepEqual(record!.inherited!.map((f) => f.id), ["F1"],
+    "the defect must not be forgotten just because a new record exists");
+});
+
+test("C8-2: a reviewer cannot approve a successor while inherited findings stand", async () => {
+  const { svc } = await rejected("silent1");
+  await svc.createSuccessor(who("claude"), {
+    candidateId: "silent2", supersedes: "silent1",
+    binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
+    remediates: ["F1"],
+  });
+  const b2 = binding({ candidateCommit: oid("d"), candidateTree: oid("e") });
+  await svc.recordTestExecution(who("ci"), {
+    candidateId: "silent2", occurrenceId: "ev", billingClass: "INTERNAL_QA_TEST",
+    evidenceId: "ev-silent2", resultDigest: b2.testResultDigest,
+    runnerIdentity: "ci-runner", runReference: "run/silent2",
+  });
+  for (const [to, occ] of [["TESTED", "1"], ["FROZEN", "2"], ["REVIEW_REQUESTED", "3"]] as const) {
+    await svc.transition(who("claude"), {
+      candidateId: "silent2", occurrenceId: occ, billingClass: "INTERNAL_QA_TEST", to: to as never });
+  }
+  await svc.transition(who("dana"), {
+    candidateId: "silent2", occurrenceId: "4", billingClass: "INTERNAL_REVIEW", to: "REVIEW_IN_PROGRESS" });
+
+  const silentGo = await svc.submitVerdict(who("dana"), {
+    candidateId: "silent2", occurrenceId: "v", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(b2), reviewerIdentity: "dana", verdict: "GO",
+      findings: [], submittedAt: "2026-09-02T01:30:00.000Z",
+    },
+  });
+  assert.equal(silentGo.ok, false, "silence is not agreement that an inherited defect was fixed");
+  assert.equal((silentGo as { code: string }).code, "findings_outstanding");
+
+  // The counterpart: a reviewer who explicitly discharges it CAN approve.
+  const explicitGo = await svc.submitVerdict(who("dana"), {
+    candidateId: "silent2", occurrenceId: "v2", billingClass: "INTERNAL_REVIEW",
+    verdict: {
+      candidateDigest: candidateDigest(b2), reviewerIdentity: "dana", verdict: "GO",
+      findings: [], resolves: ["F1"], submittedAt: "2026-09-02T01:30:00.000Z",
+    },
+  });
+  assert.equal(explicitGo.ok, true,
+    `a reviewer must be able to discharge a finding they have checked: ${JSON.stringify(explicitGo)}`);
 });
