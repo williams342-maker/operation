@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 load_dotenv("/app/frontend/.env")
 load_dotenv("/app/backend/.env")
 
+_DB_AT_IMPORT = os.environ.get("DB_NAME")  # diagnostic: value at collection time
 BASE_URL = (
     os.environ.get("REACT_APP_BACKEND_URL")
     or "https://active-project-4.preview.emergentagent.com"
@@ -78,10 +79,10 @@ def founder():
         # job environment and is not visible from here, which is exactly the
         # comparison this message is meant to enable.
         raise AssertionError(
-            "verify %d after a CONFIRMED seed. this process: db=%r mongo=%r "
-            "email=%r base=%r; server said: %s"
-            % (r.status_code, os.environ.get("DB_NAME"), os.environ.get("MONGO_URL"),
-               email, BASE_URL, r.text[:160]))
+            "verify %d after a CONFIRMED seed. DB_NAME at import=%r, at fixture=%r "
+            "(job sets backend_ci_test). mongo=%r email=%r; server said: %s"
+            % (r.status_code, _DB_AT_IMPORT, os.environ.get("DB_NAME"),
+               os.environ.get("MONGO_URL"), email, r.text[:120]))
     jwt = r.json()["token"]
 
     yield {"slug": slug, "email": email, "jwt": jwt}
