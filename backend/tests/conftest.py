@@ -12,6 +12,38 @@ import pytest
 _ENV_AT_STARTUP = dict(os.environ)
 
 
+def pytest_collection_finish(session):
+    """Fail loudly if DB_NAME drifted while test modules were being imported.
+
+    The tests and the API server are separate processes that agree only by both
+    reading DB_NAME. When they stop agreeing, nothing says so: the tests write to
+    one database and read it back successfully, the server reads another and
+    correctly reports the row missing, and the symptom is a 404 from
+    POST /api/maker/auth/verify with no hint of a database anywhere in it. That
+    cost five modules and thirteen tests, and seven wrong hypotheses, before the
+    value was finally printed.
+
+    32 test modules call os.environ.setdefault("DB_NAME", "test_database") at
+    module level. setdefault is meant to yield to a configured value and normally
+    does. In CI it demonstrably did not: DB_NAME was already "test_database" by
+    the time a later module was imported, though the job sets backend_ci_test.
+    What clears it during collection is not yet known.
+
+    So this asserts the invariant rather than the explanation. It runs after every
+    test module has been imported and before any test executes, which is exactly
+    the window the drift happens in.
+    """
+    started = _ENV_AT_STARTUP.get("DB_NAME")
+    now = os.environ.get("DB_NAME")
+    if started and now != started:
+        raise pytest.UsageError(
+            "DB_NAME changed while test modules were imported: %r -> %r. "
+            "The API server still uses %r, so every test that seeds through its own "
+            "client will write somewhere the server does not read. Find the module "
+            "that rebound it rather than changing this check."
+            % (started, now, started))
+
+
 def make_valid_maker_doc(slug="smoke-maker", email=None, **overrides):
     """Build a Mongo maker fixture that satisfies the full Maker model.
 
