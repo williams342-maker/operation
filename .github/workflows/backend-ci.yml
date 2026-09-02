@@ -233,9 +233,13 @@ jobs:
         # No configuration is needed beyond the job env: config.py treats an unset APP_ENV as
         # non-production, which skips the Stripe/PayPal/email requirements and defaults storage_backend
         # to "local" so no R2 credentials are wanted either.
+        # --log-level info, NOT warning: at warning the server logs no requests at all, so a failure
+        # cannot be traced past the client's traceback. info gives one line per request with its
+        # status, which is what distinguishes "the server never received it" from "the server
+        # answered 404" from "the server accepted it and never replied".
         run: |
           set -euo pipefail
-          nohup python -m uvicorn server:app --host 127.0.0.1 --port 8001 --log-level warning             > /tmp/uvicorn.log 2>&1 &
+          nohup python -m uvicorn server:app --host 127.0.0.1 --port 8001 --log-level info             > /tmp/uvicorn.log 2>&1 &
           # Probe for ANY HTTP response rather than a specific route: this app exposes no health
           # endpoint, so a 404 still proves the server is listening and routing.
           for i in $(seq 1 90); do
@@ -336,7 +340,20 @@ jobs:
 
       - name: Show the API server log
         if: always()
-        run: tail -n 60 /tmp/uvicorn.log || true
+        # The tail is a convenience; the ARTIFACT below is the evidence. Every diagnosis in this job so
+        # far has been client-side only, because the server ran at --log-level warning and nothing kept
+        # its output. That is why the ~92 call-phase hangs and the 24 setup failures on
+        # POST /api/maker/auth/verify could each be characterised but not explained: there was no record
+        # of what the server did with those requests, or whether it received them at all.
+        run: tail -n 80 /tmp/uvicorn.log || true
+
+      - name: Retain the API server log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-uvicorn-log
+          path: /tmp/uvicorn.log
+          if-no-files-found: warn
 
       - name: Retain the JUnit report
         if: always()
