@@ -906,3 +906,73 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(smoke)
         if basename in SLOW_FILES:
             item.add_marker(slow)
+
+
+# ── Unconfigured third-party capabilities are SKIPS, not failures ───────────
+#
+# The backend answers HTTP 503 with a specific message when a capability has
+# no credentials in the running environment: R2 object storage, Stripe,
+# EnrichLabs, and the Emergent LLM key. CI holds none of those and should not
+# — they are real third-party credentials. A test that cannot run is not a
+# test that failed, and 72 of them were being counted as failures.
+#
+# THE SKIP IS CONDITIONAL ON THE ENVIRONMENT, NEVER ON THE MESSAGE ALONE.
+# Each entry below pairs the backend's own 503 text with a probe of the same
+# configuration the backend itself consults. If the credential IS present and
+# the endpoint still reports "not configured", that is a genuine regression
+# and stays a failure. Anything a probe cannot positively determine — an
+# import that fails, a config layer that raises — also stays a failure. The
+# default is always to report, never to hide.
+#
+# Scope worth stating: the probes read the TEST process's configuration,
+# while the 503 came from the API server process. In CI both inherit the same
+# job environment, so they agree. If those two ever diverge, this hook could
+# skip a test whose server genuinely lost a credential the test process still
+# sees — which is why it narrows on the exact 503 strings rather than on
+# status code alone.
+
+def _r2_unconfigured() -> bool:
+    try:
+        from r2_storage import is_configured
+        return not is_configured()
+    except Exception:
+        return False  # cannot determine -> not a skip
+
+
+def _env_missing(name: str):
+    def probe() -> bool:
+        try:
+            from config import env_get
+            return not (env_get(name, "") or "").strip()
+        except Exception:
+            return False  # cannot determine -> not a skip
+    return probe
+
+
+# (substring of the backend's 503 detail, probe that the capability is absent)
+_UNCONFIGURED_CAPABILITIES = (
+    ("File uploads are not configured", _r2_unconfigured),
+    ("R2 storage is not configured", _r2_unconfigured),
+    ("R2 storage is not available", _r2_unconfigured),
+    ("Video storage isn't configured", _r2_unconfigured),
+    ("EnrichLabs integration not configured", _env_missing("ENRICHLABS_API_KEY")),
+    ("Stripe is not configured", _env_missing("STRIPE_API_KEY")),
+    ("Help assistant is not configured", _env_missing("EMERGENT_LLM_KEY")),
+    ("EMERGENT_LLM_KEY not set", _env_missing("EMERGENT_LLM_KEY")),
+)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    # Setup failures count too: several of these capabilities are exercised
+    # from module fixtures, so the 503 surfaces during setup rather than call.
+    if report.outcome == "failed" and report.when in ("setup", "call"):
+        text = str(report.longrepr)
+        for marker, unconfigured in _UNCONFIGURED_CAPABILITIES:
+            if marker in text and unconfigured():
+                report.outcome = "skipped"
+                reason = f"unconfigured in this environment: {marker.rstrip('.')}"
+                report.longrepr = (__file__, 0, f"Skipped: {reason}")
+                break
+    return report
