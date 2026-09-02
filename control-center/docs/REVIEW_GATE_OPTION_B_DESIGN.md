@@ -1,8 +1,8 @@
-# Review gate as a separate service — design v5
+# Review gate as a separate service — design v6
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Status:** **DESIGN — NOT IMPLEMENTED.** Revision 5, after four design reviews.
+**Status:** **DESIGN — NOT IMPLEMENTED.** Revision 6, after five design reviews.
 **Decision it implements:** Owner chose **Option B** from `REVIEW_GATE_TRUST_BOUNDARY_DECISION.md`.
 
 ---
@@ -15,6 +15,12 @@
 | v2 | NO-GO | The grant bound content and environment but not the action, target, or audience — and would have *replaced* the repo's existing offline owner signature with a bearer endpoint. A later rejection did not invalidate an outstanding grant. Verdicts were missing from the authorization matrix. |
 | v3 | NO-GO | The successor claim was modelled against the **wrong digest**. An expiring lease **cannot fence a host mutation**. `contentDigest` and `actionDigest` sitting side by side does not establish that the action applies the reviewed content. |
 | v4 | NO-GO | Successor and claim models now sound. But minting, reservation and signing were **circular** — the payload must contain ids that do not exist until after the payload is digested. And the configuration rule named fields the real payload does not have. |
+| v5 | NO-GO | Ordering now non-circular. But authorization was **checked before the effect and consumed after it**, so two deliveries could both pass and both mutate the host. The attestation's own expiry was absent from the predicate. And `changeDigest` — the operand the whole configuration rule compares against — **does not exist on the candidate binding**. |
+
+**The v5 finding worth flagging**: I designed `redeemable → apply → redeem`, which is a check/use race. Two
+deliveries both observe `RESERVED_BOUND`, both pass the check, **both mutate the host**, and only one wins
+the final CAS. I had written the CAS at the wrong end of the operation — it protected the bookkeeping
+rather than the effect. §2.6 now acquires execution *before* the mutation.
 
 **The v4 finding worth flagging**: I specified that `attestationId` and `leaseId` travel inside the action
 payload *and* that the gate computes `actionDigest` over that payload at minting time. Those cannot both
@@ -89,15 +95,36 @@ Then it validates the payload against the released candidate's binding. **v4's r
 not exist**; these are written against `configurationDeploymentPayloadSchema` and the agent-upgrade
 payload as they actually are.
 
+#### First: the candidate binding needs a typed subject
+
+v5 said "the candidate binding carries `changeDigest`". **It does not.** `candidateBindingSchema` has no
+such field, so `contentDigest` did not cover it and the central comparison of my own rule had **no
+reviewed, immutable operand**. The rule was unimplementable as written.
+
+Adding a loose field is not enough either — the review was right that a generic code-artifact candidate
+could then authorize a configuration change. The binding gains a **discriminated subject**, and the whole
+subject is covered by `contentDigest`:
+
+```
+subject:
+  | { kind: "code",                  artifactDigest, manifestDigest, ... }   // today's shape
+  | { kind: "configuration.change",  changeDigest, environmentId,
+                                     targetProfileId, targetProfileRevision }
+  | { kind: "agent.upgrade",         artifactDigest, releaseManifestDigest }
+```
+
+An attestation of kind K may only be minted from a candidate whose `subject.kind` matches K. A code
+candidate cannot authorize a configuration change, because the subject discriminant is part of identity.
+
 #### `configuration.apply`
 
 The reviewed thing is the **change set**, and the repository already has a canonical digest over exactly
 it — `configurationChangeDigest()` over each mutation's `{name, operation, secret, versionId}`.
 
-The candidate binding carries `changeDigest`. The gate **recomputes** `configurationChangeDigest(payload.mutations)`
-and requires equality. It additionally requires `payload.environmentId`, `payload.targetProfileId` and
-`payload.targetProfileRevision` to match the values bound into the candidate, so a reviewed change set
-cannot be redirected at a different environment or profile.
+The gate **recomputes** `configurationChangeDigest(payload.mutations)` and requires equality with
+`subject.changeDigest`, and requires `payload.environmentId`, `payload.targetProfileId` and
+`payload.targetProfileRevision` to equal the subject's, so a reviewed change set cannot be redirected at a
+different environment or profile.
 
 **What this deliberately does NOT assert, stated because the previous ten rounds over-claimed:**
 
@@ -111,20 +138,26 @@ cannot be redirected at a different environment or profile.
 
 #### `agent.upgrade`
 
-The candidate binding's `artifactDigest` must equal the payload's `artifactSha256`, and the bound
-`manifestDigest` must equal the payload's canonical manifest digest. Both are digests of the bytes that
-will actually be installed, so this kind binds more tightly than configuration does.
+`subject.artifactDigest` must equal `payload.agentUpgrade.artifactSha256`, and
+`subject.releaseManifestDigest` must equal `payload.agentUpgrade.releaseManifestDigest`. Both are digests
+of the bytes that will actually be installed, so this kind binds more tightly than configuration does.
 
-#### `configuration.rollback`
+#### `configuration.rollback` — reviewed as a change in its own right
 
-v4 required only that the rollback target resolve to *some* `RELEASED` digest. The review was right that
-this is eligibility, not identity: an attestation for candidate A could have authorized rollback to
-unrelated released content B.
+v4 bound the rollback attestation to the *target's* identity. The review showed that is still only
+eligibility: the rollback payload carries its own `mutations`, and *"identity-bound metadata alone does
+not prove that the payload restores that identity."* Restoring a prior state requires the **inverse**
+change set, whose digest is not the target's `changeDigest` — so there was no equality to check, and I
+was asserting a relationship I had no way to verify.
 
-**A rollback attestation is about the content being restored.** Its `contentDigest` and `candidateId` are
-the **rollback target's**, and that claim must satisfy §8.2 exactly as any other. The forward candidate's
-`rollbackTargetId` must resolve immutably to that same content digest, and the attestation records both,
-so the pair is bound rather than merely each being individually plausible.
+**So a rollback is not a special case. It is a candidate.** The rollback change set is reviewed like any
+other: a candidate with `subject.kind === "configuration.change"` whose `changeDigest` is the digest of
+the *rollback* mutations. The attestation then binds exactly as `configuration.apply` does, by
+recomputation.
+
+The previously-`RELEASED` target remains an **additional eligibility requirement** — you may not roll back
+to content that was never reviewed — but it is no longer doing identity work it cannot do. This removes
+the special case almost entirely, which is the strongest signal it was wrong.
 
 #### A kind with no verifiable rule gets no attestation
 
@@ -138,15 +171,15 @@ reviewAttestations {
   _id: attestationId,              // gate-generated, unguessable
   kind,                            // configuration.apply | configuration.rollback | agent.upgrade
   contentDigest,                   // the reviewed work
-  actionDigest,                    // computed by the gate from the payload (§2.4)
   orgId, serverId,                 // exact target; targetSetDigest for a rollout
   targetEnvironmentClass,
   audiencePrincipalId,             // which executor may consume it
   candidateId,                     // provenance
   nonce,
   grantedByPrincipalId, grantedAt, expiresAt,
-  state,                           // PENDING | RESERVED_UNBOUND | RESERVED_BOUND
+  state,                           // PENDING | RESERVED_UNBOUND | RESERVED_BOUND | EXECUTING
                                    //   | CONSUMED | REVOKED | EXPIRED | INDETERMINATE | ABORTED
+  expiresAt,                       // the ATTESTATION's own validity, distinct from the lease's
   actionDigest?,                   // ABSENT until binding (§2.6); immutable once set
   lease?: { leaseId, holderPrincipalId, credentialEpoch, expiresAt },
   reconciliation?,                 // required to leave INDETERMINATE (§2.6)
@@ -172,8 +205,34 @@ revisions.
 | 3 | **bind** | the lease holder | `RESERVED_BOUND` | submits the final payload **containing both ids**. The gate validates it per §2.4, computes `actionDigest`, and stores it. **Immutable from here.** |
 | 4 | **sign** | the owner, offline | — | signs that exact `actionDigest` (layer 2, unchanged) |
 | 5 | **dispatch** | control-center | — | envelope covers the payload, so both ids are covered by layer 1 |
-| 6 | **apply** | executor | — | journals `STARTED` keyed by `actionDigest`, acts, journals the outcome |
-| 7 | **redeem** | the lease holder | `CONSUMED` | CAS on matching `leaseId` and `credentialEpoch` |
+| 6 | **acquire** | executor | `EXECUTING` | **CAS `RESERVED_BOUND → EXECUTING`. One winner, before any host mutation.** |
+| 7 | **apply** | executor | — | durable local claim on `actionDigest` first (see below), then acts |
+| 8 | **redeem** | the lease holder | `CONSUMED` | CAS `EXECUTING → CONSUMED` on matching `leaseId` and `credentialEpoch` |
+
+#### Why acquisition exists, and why the CAS moved
+
+v5 had the executor evaluate `redeemable`, mutate the host, then redeem. That is a check/use race: two
+deliveries both observe `RESERVED_BOUND`, both pass the check, **both mutate the host**, and only one wins
+the final CAS. The compare-and-set was protecting the bookkeeping instead of the effect. Revocation or
+lease expiry landing between the check and the mutation had the same problem — the database could say
+`REVOKED` while the host was already changing.
+
+**`EXECUTING` is acquired atomically before the mutation.** Exactly one delivery wins. After acquisition:
+
+- **revocation no longer wins.** `revoke` is legal only from `PENDING`, `RESERVED_UNBOUND` or
+  `RESERVED_BOUND`; once `EXECUTING`, the effect may already be underway and the honest outcome is
+  `INDETERMINATE`, not a database row claiming it was stopped.
+- **expiry leads to `INDETERMINATE`**, never back to any reservable state.
+
+#### The gate cannot do this alone
+
+One atomic winner at the gate does not prevent an executor applying twice by itself — a restart mid-apply,
+a retried delivery inside the executor. **The executor must take a durable local claim keyed by
+`actionDigest` before the effect**, and refuse any duplicate.
+
+**This is a gap in the current agent**, not a hypothetical: its replay protection is an in-memory nonce
+map, which does not survive a restart. Making that durable is a prerequisite of executor wiring, and it is
+listed as such rather than assumed.
 
 **Immutability and who may act:** `kind`, `contentDigest`, `orgId`, `serverId`,
 `targetEnvironmentClass`, `audiencePrincipalId` and `candidateId` are fixed at mint. `actionDigest` is
@@ -212,9 +271,26 @@ reconciliation {
 
 | reconciliation says | transition | then |
 | --- | --- | --- |
-| **APPLIED** | `INDETERMINATE → CONSUMED` | the record shows a consumed authorization with its evidence; nothing further |
+| **APPLIED** | `INDETERMINATE → CONSUMED` | only if the evidence rule below is satisfied |
 | **NOT_APPLIED** | `INDETERMINATE → ABORTED` | terminal. **Never reopened.** A retry needs a fresh attestation through the full sequence above, including a new owner signature |
 | **inconclusive** | stays `INDETERMINATE` | the pipeline stays halted; the design refuses to guess |
+
+**An owner asserting `APPLIED` is not evidence, and v5 treated it as though it were.** The fields were
+audit metadata dressed as proof. `INDETERMINATE → CONSUMED` requires all of:
+
+- the referenced journal entry is **authenticated to the executor** (retrieved over its authenticated
+  channel, or signed by it) and immutable;
+- that entry **binds `actionDigest`, `attestationId`, `leaseId`, `serverId` and the execution attempt** —
+  a reference that does not name what it is a reference to proves nothing;
+- `observedHostStateDigest` matches an **expected post-state** the gate can name. For configuration this
+  is the agent's own reported `configurationDigest` from `deploymentProgressSchema`, which already exists;
+  for agent upgrade it is the installed artifact digest;
+- the outcome is unambiguous — a failed automatic rollback, or a partially applied upgrade, is **not**
+  `APPLIED`.
+
+**Where no decisive expected post-state can be computed, reconciliation stays `INDETERMINATE`.** The
+alternative is letting an owner's assertion manufacture a consumed authorization, which is the shape of
+error this entire workstream exists to prevent.
 
 **The division of responsibility, stated honestly:** the gate guarantees at most one *bound* reservation
 exists at a time, and that an ambiguous outcome halts rather than retries. It does **not** guarantee
@@ -223,6 +299,13 @@ effect point, the honest answer is that `INDETERMINATE` requires a human.
 
 **Lease renewal** by the same holder with the same `leaseId` and `credentialEpoch` is permitted for
 availability. It cannot change holder or identity, and cannot revive an expired lease.
+
+**A lease can never outlive the attestation.** v5 let renewal extend a lease past the attestation's own
+`expiresAt`, so a review-validity window could be extended indefinitely by an executor renewing its lease
+— and the predicate never checked `attestation.expiresAt` at all. Every lease expiry is
+`min(requested, attestation.expiresAt)`, and **both** expiries are checked inside every reserve, bind,
+renew, acquire and redeem transaction. Nothing depends on the sweep having run: the sweep tidies state,
+it does not enforce the rule.
 
 ### 2.7 Fail closed, and activation that cannot be downgraded
 
@@ -248,18 +331,29 @@ enforcement. So enforcement is **per-executor durable state**, not the presence 
 allow(apply) ⇔
      verifyEnvelope(envelope)                                  // layer 1
   ∧  verifyOwnerAuthorization(ownerPublicKey, parts, sig)      // layer 2, unchanged
-  ∧  gate.redeemable(attestationId, leaseId) where the gate checks, in one transaction:
+  ∧  gate.acquire(attestationId, leaseId) SUCCEEDS             // layer 3 — a MUTATION, not a query
+  ∧  executor.claim(actionDigest) SUCCEEDS                     // durable, local, before the effect
+
+gate.acquire is one transaction that CAS-es RESERVED_BOUND -> EXECUTING only if:
         attestation.state == RESERVED_BOUND
+      ∧ attestation.expiresAt > now                            // v5 omitted this entirely
       ∧ lease.leaseId == leaseId ∧ lease.expiresAt > now
       ∧ lease.holderPrincipalId == authenticated principal
-      ∧ lease.credentialEpoch == the authenticated principal's CURRENT epoch
+      ∧ lease.credentialEpoch == the principal's CURRENT epoch
       ∧ principal not disabled
       ∧ attestation.kind == envelope.taskType
-      ∧ attestation.actionDigest == parts.actionDigest        // the digest layer 2 signed
+      ∧ attestation.actionDigest == parts.actionDigest         // the digest layer 2 signed
       ∧ attestation.orgId == parts.orgId
       ∧ attestation.serverId == parts.serverId
       ∧ contentClaims[attestation.contentDigest] satisfies §8.2
 ```
+
+**Layer 3 is a mutation, not a question.** v5 wrote it as `redeemable(...)` — a predicate the executor
+consulted and then acted on. Anything that only *reads* before an effect is a check/use race by
+construction. Acquisition succeeds for exactly one caller.
+
+**Both expiries are checked.** `attestation.expiresAt` was absent from v5's predicate, so a renewed lease
+could carry a stale review indefinitely.
 
 **`credentialEpoch`** closes a gap v4 promised in §2.7 and never expressed here: "still enabled" does not
 prove the credential was not *rotated* after reservation. The epoch is stamped into the lease at reserve
@@ -268,7 +362,18 @@ permitting it.
 
 `attestationId` and `leaseId` travel **in the envelope payload**, so layer 1 covers them and they cannot
 be swapped in transit. Both exist before the payload is finalised — see the sequence in §2.6, which is
-what makes that possible. The executor authenticates to the gate as `audiencePrincipalId` with **its own**
+what makes that possible.
+
+**Their canonical location must be specified**, because `taskPayloadSchema` is `.strict()` and defines
+neither today — so the gate, the owner signer, the API and the executor could otherwise hash different
+structures. They go in one object, added to the schema:
+
+```
+reviewAuthorization: { attestationId, leaseId }     // required for privileged kinds
+```
+
+It is part of the payload, therefore inside `privilegedActionDigest`, therefore covered by the owner's
+signature and by the envelope digest. No separate hashing rule. The executor authenticates to the gate as `audiencePrincipalId` with **its own**
 credential, never one the control-center supplies.
 
 **Agent gate credentials** are provisioned by the same operator CLI as any other principal (§5) and are
@@ -295,6 +400,9 @@ attestations. Everything else is a client with no privilege beyond its credentia
   a secret's contents.
 - **Canonical digest calculation** and the artifact store's digest→bytes mapping.
 - **Executor target identity** — that an executor claiming `serverId` is that server.
+- **The executor's durable local claim on `actionDigest`.** The gate guarantees one acquisition; only the
+  executor can stop *itself* applying twice across a restart. The current agent's replay map is in-memory
+  and does not survive one — making it durable is a prerequisite of wiring, not an optional hardening.
 - **Trusted time and entropy** for expiry, leases and identifiers.
 - **The owner's authentication and signing workstation** (layer 2).
 - **Release registry / artifact distribution integrity.**
@@ -334,12 +442,23 @@ principals {
   reviewerClasses: [...],                  // e.g. ["independent"]
   roles: [...],                            // author | ci | reviewer | owner | executor
   audienceFor?: { orgId, serverId }[],     // executors: which targets they may act on
+  credentialEpoch,                         // MONOTONIC INTEGER, not a timestamp
   createdAt, disabledAt?, credentialRotatedAt?
 }
 ```
 
 Provisioning is an **operator CLI** run by the owner; every action appends to an audit collection.
-**I will create no credentials.** Disablement and rotation invalidate outstanding reservations (§2.7).
+**I will create no credentials.**
+
+**`credentialEpoch` is a monotonic integer**, incremented **in the same transaction** as any rotation or
+disablement. v5 named the concept in the predicate while the principal model carried only
+`credentialRotatedAt` — a timestamp, which cannot serve as an epoch: two rotations within a clock tick
+are indistinguishable, and clock adjustment moves it backwards.
+
+Concurrency rule: the epoch used for a request is the one read when the credential is authenticated, in
+the same transaction as the operation. A request that overlaps a rotation therefore either sees the old
+epoch and fails the lease comparison, or sees the new one and never matches a lease stamped before it.
+Either way it refuses; it cannot straddle.
 
 ---
 
@@ -357,6 +476,7 @@ Provisioning is an **operator CLI** run by the owner; every action appends to an
 | `POST` | `/attestations/:id/reserve` | executor takes a lease (no payload yet) |
 | `POST` | `/attestations/:id/bind` | executor submits the final payload; gate fixes `actionDigest` |
 | `POST` | `/attestations/:id/renew` | executor extends its lease |
+| `POST` | `/attestations/:id/acquire` | executor takes execution, **before** mutating |
 | `POST` | `/attestations/:id/redeem` | executor completes |
 | `POST` | `/attestations/:id/revoke` | owner |
 | `POST` | `/attestations/:id/resolve-indeterminate` | owner, after reconciliation (§2.6) |
@@ -385,11 +505,12 @@ Provisioning is an **operator CLI** run by the owner; every action appends to an
 | `mint-further-attestation` | claim RELEASED | owner | same payload validation; no history overwrite |
 | `reserve` | attestation PENDING | its `audiencePrincipalId`, enabled | → RESERVED_UNBOUND; stamps `credentialEpoch`; claim predicate §8.2 |
 | `bind` | attestation RESERVED_UNBOUND | the lease holder, matching epoch | submits the payload; gate computes and fixes `actionDigest` (§2.4) → RESERVED_BOUND |
-| `redeem` | attestation RESERVED_BOUND | the lease holder, matching `leaseId` and epoch | → CONSUMED |
+| `acquire` | attestation RESERVED_BOUND | the lease holder, matching `leaseId` and epoch | → EXECUTING. **One winner. Before any host mutation.** Both expiries checked |
+| `redeem` | attestation **EXECUTING** | the lease holder, matching `leaseId` and epoch | → CONSUMED |
 | `renew-lease` | RESERVED_UNBOUND or RESERVED_BOUND | the lease holder, same `leaseId` and epoch | extends expiry; cannot revive an expired lease or change holder |
-| `revoke` | PENDING, RESERVED_UNBOUND, RESERVED_BOUND | owner | linearizable against redeem |
+| `revoke` | PENDING, RESERVED_UNBOUND, RESERVED_BOUND | owner | **not legal from EXECUTING** — the effect may be underway, and the honest outcome there is INDETERMINATE, not a row claiming it was stopped |
 | `unbound-expiry` | PENDING or RESERVED_UNBOUND | the gate's sweep | → `EXPIRED`. **Safe**: nothing is bound, so nothing was dispatched |
-| `bound-lease-expiry` | RESERVED_BOUND | the gate's sweep | → `INDETERMINATE`, terminal. **Never back to PENDING** |
+| `bound-lease-expiry` | RESERVED_BOUND **or EXECUTING** | the gate's sweep | → `INDETERMINATE`, terminal. **Never back to PENDING** |
 | `resolve-indeterminate` | INDETERMINATE | owner, with a reconciliation record (§2.6) | APPLIED → CONSUMED; NOT_APPLIED → ABORTED; inconclusive stays INDETERMINATE |
 | `provision` / `rotate` / `disable` principal | — | owner, via operator CLI | audited; invalidates reservations |
 | `cancel` | any non-terminal | author or owner | claim per §8.1 |
@@ -462,11 +583,12 @@ MongoDB **as a replica set** is required.
 | owner-decision | idempotency, state CAS, claim → RELEASED, payload validation (§2.4), attestations minted | attestations exist for released content, or nothing |
 | reserve | attestation CAS `PENDING → RESERVED_UNBOUND`, lease + `credentialEpoch`, claim predicate, audience + enabled check | leased once, or refused |
 | bind | attestation CAS `RESERVED_UNBOUND → RESERVED_BOUND`, payload validation (§2.4), `actionDigest` written once | bound exactly once with a validated payload, or refused |
-| redeem | attestation CAS `RESERVED_BOUND → CONSUMED` on `leaseId` + epoch, outcome, claim predicate | consumed exactly once, or refused |
+| acquire | attestation CAS `RESERVED_BOUND → EXECUTING` on `leaseId` + epoch + **both expiries** + claim predicate | exactly one caller acquires; all others refused **before** any host mutation |
+| redeem | attestation CAS `EXECUTING → CONSUMED` on `leaseId` + epoch, outcome | consumed exactly once, or refused |
 | revoke | attestation CAS on state ∈ {PENDING, RESERVED_UNBOUND, RESERVED_BOUND}, idempotency, audit | **linearizable against redeem** |
 | unbound-expiry sweep | attestation CAS `{PENDING, RESERVED_UNBOUND} → EXPIRED` | wholly or not at all |
-| bound-lease-expiry sweep | attestation CAS `RESERVED_BOUND → INDETERMINATE` | wholly; **never back to PENDING or RESERVED_UNBOUND** |
-| resolve-indeterminate | attestation CAS from INDETERMINATE to CONSUMED or ABORTED, reconciliation record, audit | resolved once with evidence, or stays INDETERMINATE |
+| bound-lease-expiry sweep | attestation CAS `{RESERVED_BOUND, EXECUTING} → INDETERMINATE` | wholly; **never back to PENDING or RESERVED_UNBOUND** |
+| resolve-indeterminate | attestation CAS from INDETERMINATE to CONSUMED or ABORTED, **evidence rule of §2.6 checked**, reconciliation record, audit | resolved once with validated evidence, or stays INDETERMINATE |
 | provision / rotate / disable | principal write, audit append | both, or neither |
 | candidate expiry sweep | state CAS, occurrence, claim per §8.1 | each candidate wholly or not at all |
 
@@ -505,16 +627,18 @@ Dockerfile and `.env.example`.
 
 ## 11. Questions for this review
 
-1. **§2.6 — is the mint → reserve → bind → sign → dispatch → apply → redeem sequence non-circular and
-   complete?** Specifically: is it right that an *unbound* attestation can expire safely and be abandoned,
-   while a *bound* one cannot?
-2. **§2.4 — do the three per-kind rules now map to real fields?** `configuration.apply` binds the change
-   digest and explicitly does not bind `expectedConfigurationDigest` or the sealed values;
-   `configuration.rollback` is now bound to the rollback target's own candidate and claim. Is the
-   configuration rule strong enough to be worth asserting, given the secret material is out of reach?
-3. **§2.6 — is the reconciliation record sufficient** to justify `INDETERMINATE → CONSUMED`, and is
-   `ABORTED` correctly terminal?
-4. **§2.8 — does `credentialEpoch` close the rotation gap**, and is the predicate now implementable
-   as written?
-5. **Is any state in the attestation machine unreachable or missing a transition?**
-6. **Is this build-ready?** If a sixth revision is needed, say exactly what must change.
+1. **§2.6 / §2.8 — does acquiring `EXECUTING` before the mutation close the check/use race?** And is the
+   division right: the gate guarantees one acquisition, the executor's durable `actionDigest` claim
+   guarantees it does not re-apply across its own restart?
+2. **§2.4 — is the typed `subject` the right fix** for a comparison that had no operand, and does making
+   `subject.kind` part of `contentDigest` properly stop a code candidate authorizing a configuration
+   change?
+3. **§2.4 — is treating rollback as an ordinary reviewed change set correct?** It removes the special case
+   entirely, which I read as a good sign, but it does mean a rollback cannot be authorized without its own
+   review.
+4. **§2.6 — is the reconciliation evidence rule now sufficient**, in particular using the agent's reported
+   `configurationDigest` as the expected post-state?
+5. **§5 / §2.8 — is the monotonic epoch and its concurrency rule correct?**
+6. **Is this build-ready?** If not, name what remains — and if the remaining items are ones that can only
+   be settled during implementation, say that too, because I would rather build against a design with
+   known open questions than keep revising a document past the point of usefulness.
