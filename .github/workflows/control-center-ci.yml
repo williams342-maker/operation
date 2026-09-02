@@ -78,8 +78,8 @@ jobs:
       # Forge chain: agent +31 (attestation, evidence, preflight proofs), shared +38 (schema,
       # canonicalization, separate-party proofs). CI asserts these exactly, so a suite that silently
       # stops running is a failure rather than a smaller green number.
-      CI_EXPECTED_TEST_SUITES: "agent=95,api=123,shared=117,web=34"
-      CI_EXPECTED_TESTS: "369"
+      CI_EXPECTED_TEST_SUITES: "agent=100,api=123,shared=117,web=34"
+      CI_EXPECTED_TESTS: "374"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
