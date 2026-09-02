@@ -1,4 +1,15 @@
+import os
+
 import pytest
+
+# The job environment as it was when pytest loaded this file, which pytest does
+# BEFORE it imports any test module. That ordering is the whole point: six test
+# modules run os.environ.setdefault("EMERGENT_LLM_KEY", "sk-test-stub") and one
+# does the same for STRIPE_API_KEY, at MODULE level, during collection. From
+# that moment the test process's live environment no longer describes the
+# environment the API SERVER was started with, and the server is what actually
+# answers 503. This snapshot is that shared starting environment.
+_ENV_AT_STARTUP = dict(os.environ)
 
 
 def make_valid_maker_doc(slug="smoke-maker", email=None, **overrides):
@@ -924,12 +935,14 @@ def pytest_collection_modifyitems(config, items):
 # import that fails, a config layer that raises — also stays a failure. The
 # default is always to report, never to hide.
 #
-# Scope worth stating: the probes read the TEST process's configuration,
-# while the 503 came from the API server process. In CI both inherit the same
-# job environment, so they agree. If those two ever diverge, this hook could
-# skip a test whose server genuinely lost a credential the test process still
-# sees — which is why it narrows on the exact 503 strings rather than on
-# status code alone.
+# Scope worth stating: the probes describe the environment the API SERVER was
+# started with, not this process's current one. Those are NOT the same thing —
+# see _ENV_AT_STARTUP at the top of this file for why, and note that the
+# assumption "both inherit the same job environment, so they agree" was written
+# here first and then disproved by measurement. The r2_storage probe below is
+# the one exception: it calls the app's own is_configured(), which resolves
+# live. That is safe only because no test writes an R2_* variable (verified);
+# if one ever does, give it the snapshot treatment too.
 #
 # LATENT HAZARD, checked and currently absent. The match is against the
 # failure text, so a test that deliberately ASSERTS one of these strings —
@@ -966,9 +979,15 @@ def _r2_unconfigured() -> bool:
 
 def _env_missing(name: str):
     def probe() -> bool:
+        # Reads the STARTUP SNAPSHOT rather than config.env_get(), which resolves
+        # os.environ live. Live resolution was wrong here and measurably so: in
+        # the run that first exercised this hook, 12 tests kept failing with
+        # "Help assistant is not configured" and "EMERGENT_LLM_KEY not set"
+        # because a sibling test module had already planted a stub key in this
+        # process. The probe saw a key, the server never had one, and the skip
+        # was declined for tests that genuinely could not run.
         try:
-            from config import env_get
-            return not (env_get(name, "") or "").strip()
+            return not (_ENV_AT_STARTUP.get(name, "") or "").strip()
         except Exception:
             return False  # cannot determine -> not a skip
     return probe
