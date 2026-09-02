@@ -25,20 +25,20 @@ def admin_headers():
 @pytest.fixture(scope="module", autouse=True)
 def restore_defaults(admin_headers):
     """Snapshot + restore settings around the entire run."""
-    pre = requests.get(f"{API}/admin/settings", headers=admin_headers).json()
+    pre = requests.get(f"{API}/admin/settings", headers=admin_headers, timeout=15).json()
     yield
     defaults = {
         "maintenance_mode": False, "beta_mode": False,
         "allow_maker_applications": True, "live_chat_enabled": True,
         "auto_clear_idle_rooms": False, "idle_clear_minutes": 60,
     }
-    requests.patch(f"{API}/admin/settings", headers=admin_headers, json=defaults)
+    requests.patch(f"{API}/admin/settings", headers=admin_headers, json=defaults, timeout=15)
 
 
 # ---------------- Public ----------------
 class TestPublicSettings:
     def test_public_get_no_auth(self):
-        r = requests.get(f"{API}/settings")
+        r = requests.get(f"{API}/settings", timeout=15)
         assert r.status_code == 200
         d = r.json()
         # 7 public flags
@@ -53,11 +53,11 @@ class TestPublicSettings:
 # ---------------- Admin GET/PATCH ----------------
 class TestAdminSettings:
     def test_admin_get_requires_auth(self):
-        r = requests.get(f"{API}/admin/settings")
+        r = requests.get(f"{API}/admin/settings", timeout=15)
         assert r.status_code in (401, 403)
 
     def test_admin_get_ok(self, admin_headers):
-        r = requests.get(f"{API}/admin/settings", headers=admin_headers)
+        r = requests.get(f"{API}/admin/settings", headers=admin_headers, timeout=15)
         assert r.status_code == 200
         d = r.json()
         assert "auto_clear_idle_rooms" in d
@@ -67,27 +67,27 @@ class TestAdminSettings:
     def test_patch_maintenance_round_trip(self, admin_headers):
         r = requests.patch(f"{API}/admin/settings", headers=admin_headers,
                            json={"maintenance_mode": True,
-                                 "maintenance_message": "TEST_maint_msg"})
+                                 "maintenance_message": "TEST_maint_msg"}, timeout=15)
         assert r.status_code == 200
         assert r.json()["maintenance_mode"] is True
         # Verify via public endpoint
-        pub = requests.get(f"{API}/settings").json()
+        pub = requests.get(f"{API}/settings", timeout=15).json()
         assert pub["maintenance_mode"] is True
         assert pub["maintenance_message"] == "TEST_maint_msg"
         # Reset
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"maintenance_mode": False})
+                       json={"maintenance_mode": False}, timeout=15)
 
     def test_patch_idle_minutes_validation(self, admin_headers):
         r = requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                           json={"idle_clear_minutes": 1})
+                           json={"idle_clear_minutes": 1}, timeout=15)
         assert r.status_code == 422  # below ge=5
         r = requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                           json={"idle_clear_minutes": 9999})
+                           json={"idle_clear_minutes": 9999}, timeout=15)
         assert r.status_code == 422  # above le=1440
 
     def test_patch_empty_400(self, admin_headers):
-        r = requests.patch(f"{API}/admin/settings", headers=admin_headers, json={})
+        r = requests.patch(f"{API}/admin/settings", headers=admin_headers, json={}, timeout=15)
         assert r.status_code == 400
 
 
@@ -96,18 +96,18 @@ class TestBetaFeedback:
     def test_post_when_disabled_403(self, admin_headers):
         # ensure beta off
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"beta_mode": False})
+                       json={"beta_mode": False}, timeout=15)
         r = requests.post(f"{API}/feedback", json={
             "name": "TEST_user", "email": "t@example.com",
-            "message": "hello there"})
+            "message": "hello there"}, timeout=15)
         assert r.status_code == 403
 
     def test_post_when_enabled_200_and_admin_inbox(self, admin_headers):
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"beta_mode": True})
+                       json={"beta_mode": True}, timeout=15)
         r = requests.post(f"{API}/feedback", json={
             "name": "TEST_betauser", "email": "beta@example.com",
-            "message": "TEST_FEEDBACK_MSG_iter18", "page": "/test"})
+            "message": "TEST_FEEDBACK_MSG_iter18", "page": "/test"}, timeout=15)
         assert r.status_code == 200
         body = r.json()
         assert body["received"] is True
@@ -115,26 +115,26 @@ class TestBetaFeedback:
 
         # admin inbox lists it
         inbox = requests.get(f"{API}/admin/feedback", headers=admin_headers,
-                             params={"resolved": "false"}).json()
+                             params={"resolved": "false"}, timeout=15).json()
         ids = [x["id"] for x in inbox["items"]]
         assert fid in ids
 
         # resolve it
         rr = requests.post(f"{API}/admin/feedback/{fid}/resolve",
-                           headers=admin_headers)
+                           headers=admin_headers, timeout=15)
         assert rr.status_code == 200
         # verify resolved=true now
         inbox2 = requests.get(f"{API}/admin/feedback", headers=admin_headers,
-                              params={"resolved": "true"}).json()
+                              params={"resolved": "true"}, timeout=15).json()
         assert fid in [x["id"] for x in inbox2["items"]]
 
         # disable again
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"beta_mode": False})
+                       json={"beta_mode": False}, timeout=15)
 
     def test_resolve_404_for_unknown(self, admin_headers):
         r = requests.post(f"{API}/admin/feedback/does-not-exist/resolve",
-                          headers=admin_headers)
+                          headers=admin_headers, timeout=15)
         assert r.status_code == 404
 
 
@@ -142,27 +142,27 @@ class TestBetaFeedback:
 class TestMakerApplicationGate:
     def test_apply_blocked_when_disabled(self, admin_headers):
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"allow_maker_applications": False})
+                       json={"allow_maker_applications": False}, timeout=15)
         payload = {
             "name": "TEST_blocked", "studio_name": "TEST_blocked",
             "email": "blk@example.com", "location": "Earth",
             "about": "x" * 80, "techniques": ["PLASMA"],
         }
-        r = requests.post(f"{API}/maker-applications", json=payload)
+        r = requests.post(f"{API}/maker-applications", json=payload, timeout=15)
         assert r.status_code == 403, f"expected 403 got {r.status_code} body={r.text[:200]}"
         # restore
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"allow_maker_applications": True})
+                       json={"allow_maker_applications": True}, timeout=15)
 
     def test_apply_allowed_when_enabled(self, admin_headers):
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"allow_maker_applications": True})
+                       json={"allow_maker_applications": True}, timeout=15)
         payload = {
             "name": "TEST_allowed", "studio_name": "TEST_allowedstudio_iter18",
             "email": "allowed_iter18@example.com", "location": "Earth",
             "about": "x" * 80, "techniques": ["PLASMA"],
         }
-        r = requests.post(f"{API}/maker-applications", json=payload)
+        r = requests.post(f"{API}/maker-applications", json=payload, timeout=15)
         # Either 200 or validation (e.g. unknown fields), but NOT 403
         assert r.status_code != 403, f"still blocked: {r.status_code} {r.text[:200]}"
 
@@ -171,7 +171,7 @@ class TestMakerApplicationGate:
 class TestIdleClear:
     def test_clear_idle_endpoint(self, admin_headers):
         r = requests.post(f"{API}/admin/chat/clear-idle?minutes=99999",
-                          headers=admin_headers)
+                          headers=admin_headers, timeout=15)
         assert r.status_code == 200
         d = r.json()
         assert "idle_minutes" in d
@@ -180,14 +180,14 @@ class TestIdleClear:
         assert d["total_deleted"] == 0  # 99999-min window = nothing idle
 
     def test_clear_idle_requires_auth(self):
-        r = requests.post(f"{API}/admin/chat/clear-idle")
+        r = requests.post(f"{API}/admin/chat/clear-idle", timeout=15)
         assert r.status_code in (401, 403)
 
 
 # ---------------- Hard-clear safety ----------------
 class TestHardClearAuth:
     def test_clear_all_requires_admin(self):
-        r = requests.post(f"{API}/admin/chat/clear-all")
+        r = requests.post(f"{API}/admin/chat/clear-all", timeout=15)
         assert r.status_code in (401, 403)
     # NOT firing the actual destructive clear-all; UX requires double-confirm
     # and there are real chat msgs in db (per agent context note).
@@ -199,7 +199,7 @@ class TestLiveChatGate:
         from maker_auth import issue_buyer_magic_token, issue_session_jwt
         # disable
         requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                       json={"live_chat_enabled": False})
+                       json={"live_chat_enabled": False}, timeout=15)
         try:
             from websockets.sync.client import connect
             from websockets.exceptions import InvalidStatus, ConnectionClosed
@@ -219,7 +219,7 @@ class TestLiveChatGate:
                 pass
         finally:
             requests.patch(f"{API}/admin/settings", headers=admin_headers,
-                           json={"live_chat_enabled": True})
+                           json={"live_chat_enabled": True}, timeout=15)
 
 
 # ---------------- Channel list ----------------
@@ -230,9 +230,9 @@ class TestChannels:
         # from the chat router so it scales with future changes.
         from routers.community_chat import CHANNELS as LIVE_CHANNELS
         for ch in LIVE_CHANNELS:
-            r = requests.get(f"{API}/community/chat/{ch}/history")
+            r = requests.get(f"{API}/community/chat/{ch}/history", timeout=15)
             # Whether protected or not, should NOT be 404 "unknown channel"
             assert r.status_code in (200, 401, 403), f"{ch}: {r.status_code}"
         # Unknown channel should 404
-        r404 = requests.get(f"{API}/community/chat/not-a-channel/history")
+        r404 = requests.get(f"{API}/community/chat/not-a-channel/history", timeout=15)
         assert r404.status_code == 404

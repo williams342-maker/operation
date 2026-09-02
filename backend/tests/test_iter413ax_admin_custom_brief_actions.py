@@ -55,7 +55,7 @@ def brief_id(H):
         tn = r.json().get("tracking_number")
         if not tn:
             pytest.skip("Could not extract order_id from create response")
-        lookup = requests.get(f"{BASE_URL}/api/admin/custom-orders?tracking={tn}", headers=H).json()
+        lookup = requests.get(f"{BASE_URL}/api/admin/custom-orders?tracking={tn}", headers=H, timeout=15).json()
         oid = lookup[0]["id"] if lookup else None
         if not oid:
             pytest.skip("Brief lookup by tracking failed")

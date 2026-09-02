@@ -471,6 +471,12 @@ async def create_checkout(req: CheckoutRequest, http_request: Request):
     cancel_url = f"{req.origin_url}/cart"
 
     import stripe as stripe_sdk
+    # Degrade the same way every other Stripe path in this codebase does. Without this the SDK is
+    # handed api_key="" and raises AuthenticationError deep inside Session.create, which escapes as
+    # a 500 with a full traceback in the logs. routers/credits.py and routers/subscriptions.py both
+    # answer 503 here; this endpoint did not, and CI caught it doing exactly that.
+    if not STRIPE_API_KEY:
+        raise HTTPException(503, "Stripe is not configured.")
     stripe_sdk.api_key = STRIPE_API_KEY
 
     line_items = []

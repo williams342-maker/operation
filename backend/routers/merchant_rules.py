@@ -142,7 +142,7 @@ async def autofix_feed_quality(slug: str = Depends(current_maker_slug)) -> dict:
     from routers.pinterest_feed import _resolve_gpc
     from services.merchant_attributes import merchant_attributes
 
-    llm_key = _env_get("EMERGENT_LLM_KEY")
+    llm_key = env_get("EMERGENT_LLM_KEY")
     if not llm_key:
         raise HTTPException(503, "AI is not configured on this deployment.")
 

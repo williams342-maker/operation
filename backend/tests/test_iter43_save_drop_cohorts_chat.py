@@ -36,7 +36,7 @@ MAKER_SLUG = "iron-and-oak"
 def admin_token():
     from maker_auth import issue_admin_magic_token
     magic = issue_admin_magic_token(ADMIN_EMAIL)
-    r = requests.post(f"{BASE_URL}/api/admin/auth/verify", json={"token": magic})
+    r = requests.post(f"{BASE_URL}/api/admin/auth/verify", json={"token": magic}, timeout=15)
     assert r.status_code == 200, r.text
     return r.json()["token"]
 
@@ -52,7 +52,7 @@ def buyer_token():
     magic = issue_buyer_magic_token("test_iter43_buyer@craftersmarket.org")
     r = requests.post(
         f"{BASE_URL}/api/community/auth/magic/verify",
-        json={"token": magic, "accept_eua": True, "eua_version": "2026-04"},
+        json={"token": magic, "accept_eua": True, "eua_version": "2026-04"}, timeout=15,
     )
     assert r.status_code == 200, r.text
     return r.json()["token"]
@@ -105,19 +105,19 @@ class TestSaveDrop:
     def test_save_drop_validates_email(self):
         r = requests.post(
             f"{BASE_URL}/api/save-drop",
-            json={"email": "not-an-email", "maker_slug": MAKER_SLUG},
+            json={"email": "not-an-email", "maker_slug": MAKER_SLUG}, timeout=15,
         )
         assert r.status_code == 422
 
     def test_save_drop_validates_maker_slug_required(self):
         r = requests.post(
-            f"{BASE_URL}/api/save-drop", json={"email": "x@y.com"}
+            f"{BASE_URL}/api/save-drop", json={"email": "x@y.com"}, timeout=15
         )
         assert r.status_code == 422
 
     def test_admin_drop_saves_lists_recent(self, admin_headers):
         r = requests.get(
-            f"{BASE_URL}/api/admin/drop-saves", headers=admin_headers
+            f"{BASE_URL}/api/admin/drop-saves", headers=admin_headers, timeout=15
         )
         assert r.status_code == 200
         data = r.json()
@@ -131,14 +131,14 @@ class TestSaveDrop:
         r = requests.get(
             f"{BASE_URL}/api/admin/drop-saves",
             params={"maker_slug": MAKER_SLUG},
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         for item in r.json()["items"]:
             assert item["maker_slug"] == MAKER_SLUG
 
     def test_admin_drop_saves_requires_auth(self):
-        r = requests.get(f"{BASE_URL}/api/admin/drop-saves")
+        r = requests.get(f"{BASE_URL}/api/admin/drop-saves", timeout=15)
         assert r.status_code in (401, 403)
 
     def test_drop_saves_persisted_in_mongo(self):
@@ -201,7 +201,7 @@ class TestKitTargetedBroadcast:
 class TestCohortRetention:
     def test_cohorts_default_weeks(self, admin_headers):
         r = requests.get(
-            f"{BASE_URL}/api/admin/analytics/cohorts", headers=admin_headers
+            f"{BASE_URL}/api/admin/analytics/cohorts", headers=admin_headers, timeout=15
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -221,7 +221,7 @@ class TestCohortRetention:
     def test_cohorts_weeks_clamped_low(self, admin_headers):
         r = requests.get(
             f"{BASE_URL}/api/admin/analytics/cohorts?weeks=1",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         assert r.json()["weeks"] == 4
@@ -229,13 +229,13 @@ class TestCohortRetention:
     def test_cohorts_weeks_clamped_high(self, admin_headers):
         r = requests.get(
             f"{BASE_URL}/api/admin/analytics/cohorts?weeks=100",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         assert r.json()["weeks"] == 26
 
     def test_cohorts_requires_auth(self):
-        r = requests.get(f"{BASE_URL}/api/admin/analytics/cohorts")
+        r = requests.get(f"{BASE_URL}/api/admin/analytics/cohorts", timeout=15)
         assert r.status_code in (401, 403)
 
 
@@ -243,13 +243,13 @@ class TestCohortRetention:
 class TestCommunityChatRefactor:
     def test_chat_history_general(self):
         r = requests.get(
-            f"{BASE_URL}/api/community/chat/general/history?limit=5"
+            f"{BASE_URL}/api/community/chat/general/history?limit=5", timeout=15
         )
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
     def test_chat_buddies_general(self):
-        r = requests.get(f"{BASE_URL}/api/community/chat/general/buddies")
+        r = requests.get(f"{BASE_URL}/api/community/chat/general/buddies", timeout=15)
         assert r.status_code == 200
         body = r.json()
         assert body["channel"] == "general"
@@ -258,23 +258,23 @@ class TestCommunityChatRefactor:
     def test_chat_history_makers_only_rest_open(self):
         # REST history endpoint is open (no auth) per current implementation
         r = requests.get(
-            f"{BASE_URL}/api/community/chat/makers-only/history?limit=5"
+            f"{BASE_URL}/api/community/chat/makers-only/history?limit=5", timeout=15
         )
         assert r.status_code == 200
 
     def test_chat_history_unknown_channel_404(self):
         r = requests.get(
-            f"{BASE_URL}/api/community/chat/not-a-channel/history"
+            f"{BASE_URL}/api/community/chat/not-a-channel/history", timeout=15
         )
         assert r.status_code == 404
 
     def test_community_forum_still_works(self):
         # Forum threads should still serve via slimmed community.py
-        r = requests.get(f"{BASE_URL}/api/community/forum")
+        r = requests.get(f"{BASE_URL}/api/community/forum", timeout=15)
         assert r.status_code == 200
 
     def test_community_showcase_still_works(self):
-        r = requests.get(f"{BASE_URL}/api/community/showcase")
+        r = requests.get(f"{BASE_URL}/api/community/showcase", timeout=15)
         assert r.status_code == 200
 
 
