@@ -1,8 +1,9 @@
 # Review gate (Option B) — build state
 
 **Date:** 2026-09-02
-**Disposition:** **ENGINEERING COMPLETE FOR THIS SCOPE — IN REVIEW.** Nine build phases landed; round 1
-of independent implementation review returned NO-GO and is remediated.
+**Disposition:** **GO — for the scope it covers.** Independent implementation review returned GO at
+round 5 with no findings, after four NO-GO rounds. **The GO is scoped and does not cover the four open
+items in §Open below**, which the reviewer excluded explicitly.
 **Design:** `REVIEW_GATE_OPTION_B_DESIGN.md` v7, after six design reviews.
 **Branch:** `feat/review-gate-20260902`. **Production mutations: 0. Credentials created: 0.**
 
@@ -36,10 +37,11 @@ configuration that it correctly refused.
 | 7 | **Mongo store + conformance suite** — the same assertions run against both implementations |
 | 8 | **Attestation service** — gate-computed `actionDigest`, per-kind payload validation, reserve/bind/acquire/redeem |
 | 9 | **Attestation routes + operator CLI**; `main()` wired to the store |
-| 10 | **Round-1 review remediation** — see below. Two CRITICALs, five MAJORs, one MINOR |
+| 10 | **Round-1 review remediation** — two CRITICALs, five MAJORs, one MINOR |
+| 11 | **Rounds 2–4 remediation** — see the review record below |
 
-**158 tests: 157 pass, 1 visible skip.** Typecheck clean across all five workspaces. `packages/shared`
-79 (1 pre-existing skip); `apps/agent` 64.
+**162 tests: 161 pass, 1 visible skip.** Typecheck clean across all five workspaces **and across the test
+sources**. `packages/shared` 79 (1 pre-existing skip); `apps/agent` 64.
 
 Counts are not monotonic across phases: phase 5 replaced ~60 service tests with 31, because several old
 attacks are unexpressible on the new surface. The originals are in git history.
@@ -50,7 +52,7 @@ attacks are unexpressible on the new surface. The originals are in git history.
 
 | check | result |
 | --- | --- |
-| `npm test` in `apps/review-gate` | **PASS** — 158, 157 pass, 1 skip |
+| `npm test` in `apps/review-gate` | **PASS** — 162, 161 pass, 1 skip |
 | `npm test` in `packages/shared` | **PASS** — 79, 1 pre-existing skip |
 | `npm test` in `apps/agent` | **PASS** — 64, 5 pre-existing skips |
 | `tsc --noEmit` × 5 workspaces | **PASS** |
@@ -79,6 +81,44 @@ attacks are unexpressible on the new surface. The originals are in git history.
    `authorizePrivilegedTask` is unchanged.
 
 ---
+
+## The review record
+
+Four NO-GO rounds, then GO. The findings are kept because the *pattern* is the useful artifact.
+
+### One defect, five expressions
+
+The principal's issuance guard was defeated five separate times, and **each previous fix was real**:
+
+| round | the guard I had | how it was defeated |
+| --- | --- | --- |
+| — | `private constructor` | TypeScript privacy is erased; `new` worked at runtime. *(My own test caught this one.)* |
+| 1 | a runtime key on the constructor | `AuthenticatedPrincipal.of` was **public** and supplied the key itself |
+| 2 | key on the factory too | the object was **not frozen**; `roles = ["owner"]` just worked |
+| 3 | `Object.freeze(this)` + `instanceof` | `Object.create(prototype)` inherited every method and satisfied both checks |
+| 4 | a `#private` brand | the freeze was **shallow**: `audienceFor[0].serverId` was writable |
+
+The brand — `#issued in value` — is what finally held, because it cannot be inherited, assigned, cloned,
+or produced by a prototype trick. **Four of the five were caught by the reviewer, not by me.**
+
+### The other CRITICALs
+
+| round | finding |
+| --- | --- |
+| 1 | Rotation did not invalidate work in flight — the epoch was compared to the **lease**, never the principal |
+| 2 | A lease never checked **who held it**: any principal at a matching epoch could acquire someone else's |
+| 3 | Mongo revalidation was **advisory** — a transaction that only *reads* the principal takes no lock, so a rotation could commit alongside it |
+
+### And three findings about my own tests
+
+| round | what the test claimed | what it did |
+| --- | --- | --- |
+| 1 | proved the forging path was closed | **used that path** as its normal way of obtaining authority |
+| 2 | drove four lease operations as a non-holder | never created the attestation, so all four refused earlier |
+| 2 | proved every mutation revalidates | asserted only "refused", which any broken method would satisfy |
+
+Plus: **the tests were never typechecked** — `tsconfig` included only `src`. Turning that on surfaced
+sixteen real type errors that had been sitting there.
 
 ## What round 1 of implementation review found
 
@@ -112,7 +152,11 @@ For ten rounds the reviewer found this class of thing and the suite did not.
 
 ---
 
-## Open, and not claimed
+## Open, and NOT covered by the GO
+
+The reviewer stated these remain outside the GO and are not implicitly validated.
+
+
 
 | severity | item |
 | --- | --- |

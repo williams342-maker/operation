@@ -4,7 +4,12 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** **ENGINEERING IN PROGRESS — Option B.** The owner chose option B: the gate is a
+**Current disposition:** **GO for the built scope**, at implementation review round 5 with no findings
+— the first GO in this workstream, after ten NO-GOs on the previous design, six design-review rounds on
+this one, and four implementation rounds. The GO is scoped: it does not cover test provenance, the
+unverified Mongo store, the unwired enforcement point, or the executor durable claim.
+
+**Previously:** ENGINEERING IN PROGRESS — Option B. The owner chose option B: the gate is a
 separate service with its own database. The design went through SIX review rounds before any code was
 written (`REVIEW_GATE_OPTION_B_DESIGN.md` v7), and six build phases have landed. Current build state and
 what remains: `REVIEW_GATE_BUILD_STATE.md`.
