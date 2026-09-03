@@ -2,18 +2,24 @@
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Revision:** v2, after design review round 1 (**NEEDS-REVISION**, 8 findings, 4 HIGH).
+**Revision:** v3, after design review rounds 1 (8 findings, 4 HIGH) and 2 (5 findings, 3 HIGH).
 **Status:** **DESIGN, FOR REVIEW BEFORE ANY CODE.** The owner chose option (b) from
 `REVIEW_GATE_DISPATCH_GAP.md`.
 
 > **Why a design round rather than building it.** The last three NO-GOs in this workstream were design
-> errors that survived code review. Round 1 of *this* review returned four HIGH findings, at least two of
-> which would have shipped as defects had I started from the code — the `mayActOn` one is not
-> implementable as I wrote it, and renewal becomes unowned after acquire.
+> errors that survived code review. Two design rounds have now returned seven HIGH findings, several of
+> which would have shipped had I started from the code — `mayActOn` is not implementable as I wrote it,
+> renewal becomes unowned after acquire, and my proposed disablement behaviour would have silently
+> reversed a security property the operator tool already promises.
+>
+> **Round 2 also found two defects in the already-certified gate**, neither introduced by this design. See
+> §13.
 
 ---
 
-## 0. What review round 1 changed
+## 0. What each review round changed
+
+### Round 1 — 8 findings, 4 HIGH
 
 | # | finding | what I had written | what is true |
 |---|---|---|---|
@@ -25,6 +31,16 @@
 | 6 | MED | "nothing to migrate" | unsupported — the repository cannot establish that deployed databases are empty, and audit records are not disposable. The digest change needs a version marker, not a silent field addition |
 | 7 | MED | "not new, just attributable" | conditionally true, not categorical: a separately deployable credential *transfers* proposal authority to whoever holds it |
 | 8 | MED | assigned reserve/bind/renew/acquire/redeem | the matrix must also cover both mint paths, the sweep, provisioning operations, and the reconciliation evidence path |
+
+### Round 2 — 5 findings, 3 HIGH
+
+| # | finding | what I had written | what is true |
+|---|---|---|---|
+| 1 | HIGH | "kind match" checks remain, so the operation is pinned | **the execution VERB is not pinned at all.** `validatePayload` never compares `kind` to `payload.action`, so a rollback payload binds to an apply attestation. A defect in the certified gate — §13.1 |
+| 2 | HIGH | disablement handled by enumerate-and-revoke | that **silently reverses** a property `operator.ts` already promises, and is a race with no single authority and no completion guarantee. Disablement must differ from rotation, atomically — §8 |
+| 3 | HIGH | the executor renews while `EXECUTING` under `executionAuthority` | that proves credential possession, not that the winning attempt is alive — the lease id is *in the signed payload*. Acquire must mint an attempt-specific capability — §5 |
+| 4 | MED | an "exhaustive" pinned/not-pinned list | still incomplete, and "pinned" was hiding three mechanisms. Now five categories, adding `rollbackTarget` identity, `action`, `upgradeId`, `encryptedValues`/`sealedValues`, and transitive digest coverage — §6 |
+| 5 | MED | reject v1 for execution, keep v1 digests for audit | right policy, **no executable discriminator** — the record has no identity-schema field — §9 |
 
 ---
 
@@ -77,8 +93,15 @@ design the store operation becomes the place binder authority lives.
 
 **On (7):** the reviewer recommended requiring target provisioning for the binder, and I agree. Without
 it, owner assignment alone would let a principal outside its provisioned scope construct host-specific
-payloads. It costs nothing — the binder must be provisioned somewhere, and this makes "for which hosts"
-explicit.
+payloads.
+
+*(Corrected: I wrote "it costs nothing". It does cost something — provisioning and availability coupling.
+A binder that is not provisioned for a target cannot bind for it, so scope changes become a way to break
+deployment. That is the right trade, but it is a trade.)*
+
+**Naming:** the target-scope field is called `audienceFor`, which made sense when only the audience used
+it. Both principals now do. It should be renamed to something neutral, and that rename is part of the
+implementation candidate rather than a follow-up.
 
 ## 4. Two named predicates, and what they are *not*
 
@@ -119,14 +142,36 @@ reconciliation for a deployment that simply took a while.
 
 The split does not create this, but it is now unavoidable to decide it.
 
-**Proposed: the executor may renew while `EXECUTING`, under `executionAuthority`.** Of the three options,
-the alternatives are worse: requiring every action to finish inside the binding lease makes lease length a
-deployment timeout chosen by the wrong party, and letting the *binder* renew during execution puts a
-non-executing principal in control of a live attempt — which is the authority separation this whole design
-exists to create.
+**The executor may extend while `EXECUTING` — but NOT by reusing the lease renewal.** The authority
+assignment was right in v2; reusing the pre-acquire operation was not. The two renewals assert different
+things:
 
-**Open:** whether renewal while `EXECUTING` should be bounded differently (a shorter, repeatable extension
-that requires the executor to still be alive) rather than reusing the binding lease's maximum.
+- pre-acquire renewal preserves the **binder's** allocation and binding window;
+- execution extension asserts that **the acquired attempt is still running**.
+
+Under v2's `executionAuthority`, any process holding the shared audience credential and the lease id —
+which is *in the signed payload*, so it is not a secret — could extend. That proves credential possession,
+not that the winning attempt is alive. The design already treats all processes sharing an audience
+credential as one principal, so nothing there distinguishes the winner.
+
+**A distinct execution-extension contract:**
+
+1. **Acquire atomically stamps an execution attempt**: an attempt identifier generated by the gate, plus
+   the executing principal and its credential epoch. This is the exclusive capability the lease id is not.
+2. **Extension requires**: state `EXECUTING`; that attempt identifier; current audience credential;
+   current target provisioning; live attestation; released claim still authorizable.
+3. **It must occur before the current execution deadline** — an expired attempt does not extend, it
+   reconciles.
+4. **Deadlines are monotonic.** An extension may only move the deadline later. (§14.2: the existing
+   renewal does not have this property.)
+5. **Each extension is short and bounded**, against an absolute cumulative execution deadline. The
+   alternative — repeat until attestation expiry — must be an explicit choice, not a default.
+6. **Redeem uses the attempt identity and execution deadline**, not binder-holder semantics.
+7. **Executor rotation or disablement during an attempt** must have defined behaviour — see §8.
+
+Honest limit: an authenticated extension establishes *principal-level* liveness. Process-instance liveness
+is only established because acquire mints an attempt-specific capability; without step 1 the whole
+mechanism proves nothing beyond possession of a credential and a public identifier.
 
 ## 6. What the provisioner gains — corrected
 
@@ -139,20 +184,39 @@ My round-1 statement, "no new content authority", was an overclaim. The correcte
 > authority: it can reserve, bind, exhaust or strand attestations, and a bound attestation cannot be
 > re-bound.
 
-**What layer 3 pins, exhaustively.** Configuration: the mutation set (via `configurationChangeDigest`),
-`environmentId`, `targetProfileId`, `targetProfileRevision`; plus `kind`, `contentDigest`, `orgId`,
-`serverId` fixed at mint. Agent upgrade: **only** `artifactSha256` and `releaseManifestDigest`.
+**The inventory, in five categories.** Round 2 found my flat pinned/not-pinned split both incomplete and
+misleading, because "pinned" was hiding three different mechanisms. Categorised:
 
-**What it does not pin.** Configuration: `repositoryRoot`, `environmentFilePath`, `composePath`,
+**(1) Directly compared payload fields.** Configuration: the mutation set, via
+`configurationChangeDigest(mutations)`; `environmentId`; `targetProfileId`; `targetProfileRevision`.
+Agent upgrade: `artifactSha256`; `releaseManifestDigest`.
+
+**(2) Transitively committed inside a reviewed digest.** `releaseManifestDigest` commits everything
+`agentReleaseManifestDigest` covers — artifact URL, size, signature and key, supported platforms,
+capabilities, upgrade/rollback compatibility, classification. Saying "only two things are pinned" for
+agent upgrade obscured this. **Note the trap:** similarly *named* payload fields remain independently
+selectable; commitment inside the manifest digest does not constrain the payload field of the same name.
+
+**(3) Fixed at mint by the owner.** `kind`, `contentDigest`, `orgId`, `serverId`,
+`targetEnvironmentClass`, `audiencePrincipalId`, `bindingPrincipalId`, `nonce`, `expiresAt`. For a
+rollback subject, the canonical subject also carries `rollbackTarget.candidateId` and
+`rollbackTarget.contentDigest`.
+
+**(4) Schema literals and generated identifiers.** `automaticRollback` is pinned by the schema to literal
+`true`. `reviewAuthorization.attestationId`/`leaseId` must equal the request's.
+
+**(5) Binder-selectable.** Configuration: `repositoryRoot`, `environmentFilePath`, `composePath`,
 `composeProject`, `statelessServices`, `protectedServices`, `healthChecks`, `expectedConfigurationDigest`,
 `expectedActiveDeploymentId`, `planId`, `planRevision`, `deploymentId`, `environmentKind`, `protected`,
-and the sealed value material. Agent upgrade: manifest `serverId`, expected agent id / current version /
-current binary, target version, release id, `planDigest`, OS, architecture, package type, required
-capabilities, manifest expiry and nonce, artifact signature and key id.
+**`action`** (see §13.1), and both `encryptedValues` and `sealedValues`. Agent upgrade: `upgradeId`,
+manifest `serverId`, expected agent id / current version / current binary, target version, release id,
+`planDigest`, OS, architecture, package type, required capabilities, manifest expiry and nonce, artifact
+signature and key id.
 
-*(Round-1 errors: I omitted `planRevision`, `expectedActiveDeploymentId`, `environmentKind`, `protected`
-and the sealed material; I listed `automaticRollback`, which is schema-pinned to literal `true`; and I
-omitted the agent-upgrade side entirely.)*
+*(Cumulative corrections: round 1 — omitted `planRevision`, `expectedActiveDeploymentId`,
+`environmentKind`, `protected` and sealed material; wrongly listed `automaticRollback`; omitted agent
+upgrade entirely. Round 2 — omitted `rollbackTarget` identity, `action`, `upgradeId`, the
+`encryptedValues`/`sealedValues` distinction, and the whole transitive category.)*
 
 **Also corrected:** I wrote that "only the owner's signature constrains them". It does not stand alone —
 the strict payload schemas and the executor's own path and service protections constrain them too. The
@@ -185,13 +249,33 @@ when rotation is incident response, invalidating limits use of bindings possibly
 compromised credential. This design chooses **availability and owner approval over automatic taint
 propagation**, which is a trade, not an absence of cost.
 
-Consequences that must therefore be specified rather than implied:
+**Disablement is NOT the same as rotation, and v2 got this wrong in a way that would have silently removed
+a property the system already promises.** `operator.ts` states that disabling a principal invalidates its
+outstanding leases. Under the split, acquire deliberately ignores the binder's epoch — so disabling the
+binder would no longer produce that result, and v2's "enumerate and revoke" is not equivalent:
 
-- rotation or disablement **before** bind or renew is blocked by current-credential enforcement (exists);
-- rotation or disablement **after** bind leaves already-bound attestations executable;
-- therefore **incident response must enumerate and explicitly revoke** outstanding bindings — which
-  requires the store to be queryable by binder and by lease holder, and the Mongo indexes to support it;
-- owner revocation must remain linearizable against acquire (exists — revoke is illegal from `EXECUTING`).
+- **acquire can win between enumeration and revocation** — a race, not a gap in diligence;
+- the **provisioning operator** who disables is not the **owner** who may revoke — two authorities, no
+  single atomic one;
+- once acquire has won, **revocation is deliberately illegal**, so the window cannot be closed afterwards;
+- so it has neither one authority nor a completion guarantee. A runbook is not a mechanism.
+
+**Specified instead:**
+
+- **ordinary rotation** may preserve completed bindings (the availability trade above);
+- **binder disablement must atomically taint or invalidate all of that binder's non-`EXECUTING`
+  attestations**, in the same transaction as the disable;
+- **`EXECUTING` records must not be made `REVOKED`** — that would claim an effect was stopped which may
+  already have happened. Either leave them executing and mark them for incident reconciliation, or define
+  a distinct incident state that does not assert the effect stopped;
+- the disable operation, the affected-state rules, its audit event, and the store/index transaction
+  boundaries are specified **together**, not separately;
+- owner revocation remains linearizable against acquire (exists).
+
+**An acceptable alternative** is to check the recorded binder's epoch/status at acquire — provided
+disablement and acquire share a linearizable conflict domain. That is a real design option and I am not
+choosing between them here; both must be costed against the Mongo write-conflict rules in §8.3 of the
+main design.
 
 **Also, independent of this design:** `reconciliation.resolvedByPrincipalId` is caller-supplied and never
 compared to the acting owner (verified — the identifier appears only in the schema). A document claiming
@@ -212,8 +296,18 @@ unexecutable protocol this design exists to fix.
 
 **Legacy records need an explicit policy, and "nothing to migrate" was unsupported.** I cannot establish
 from the repository that any deployed database is empty, and records that cannot execute are still audit
-and provenance. Proposed: legacy attestations are **rejected for new execution** and **retain v1 digest
-semantics for audit**, with any conversion being an explicit owner-approved migration.
+and provenance.
+
+The policy is right but v2 gave it **no executable discriminator** — `AttestationRecord` has no
+identity-schema field, so nothing can tell a v1 record from a v2 one. Specified:
+
+- add **`identitySchemaVersion`** to the record; **absent means legacy v1**;
+- every mint path writes **v2**;
+- **v1 is rejected by**: reserve, bind, acquire, execution extension, redeem;
+- **v1 remains available to**: revoke, the expiry sweep, read and audit, and reconciliation;
+- migration rules are **state-by-state**, and in particular a **bound** record cannot silently acquire a
+  different immutable identity — changing what its digest covers requires new owner authorization, not a
+  rewrite.
 
 ## 10. Surfaces this must travel through
 
@@ -238,12 +332,42 @@ last rule in setup, which is why they were green while the protocol could not ex
   shows this is not merely operational: a separately deployable credential widens who holds proposal
   authority, so the answer changes the threat model.
 
-## 13. Questions for review round 2
+## 13. Findings against the ALREADY-CERTIFIED gate, surfaced by this design review
 
-1. §5 — is executor-renewal-while-`EXECUTING` right, and should it be a distinct bounded extension rather
-   than the binding lease's maximum?
-2. §3 item 7 — requiring the binder to be target-provisioned: any reason not to?
-3. §8 — is "rotation does not invalidate, but incident response must enumerate and revoke" sufficient, or
-   does disablement need to differ from rotation?
-4. §9 — is reject-for-execution plus v1-digest-for-audit the right legacy policy?
-5. Is the corrected §6 statement now complete, or is there a further field class I have missed?
+Neither is introduced by option (b). Both are in code that holds a GO, and both are verified.
+
+### 13.1 HIGH — the execution VERB is not pinned by layer 3
+
+`validatePayload` never compares the attestation's `kind` to `payload.action`. **Verified: the identifier
+`action` does not appear in that function at all.** The payload schema admits both
+`configuration.apply.v1` and `configuration.rollback.v1`, and acquire's kind check compares the
+*caller-supplied* kind against the record, never against the bound payload.
+
+**So a rollback payload can be bound to an apply attestation, or the reverse.** The owner must still sign
+it, but layer 3 does not pin which operation is performed — which contradicts the claim that the gate binds
+"which reviewed change is applied".
+
+**Required:** `validatePayload` must require `configuration.apply → configuration.apply.v1` and
+`configuration.rollback → configuration.rollback.v1`, and this must appear in the retained-checks list and
+in the conformance and choreography tests.
+
+### 13.2 MEDIUM — "renew" can move a deadline BACKWARDS
+
+`renewLease` computes `Math.min(requestedExpiresAt, record.expiresAt)` and writes it, with **no floor at
+the current lease expiry** (verified). An operation described as extending a lease can therefore contract
+it. Not exploitable by an unauthorised party — it needs the lease holder's credential — but it is a
+monotonicity property the design assumes and the code does not provide, and §5 above now depends on it.
+
+**Required:** deadlines move only later, for both lease renewal and execution extension.
+
+## 14. Questions for review round 3
+
+1. §5 — is the execution-attempt contract now sufficient, and is "short bounded extensions against an
+   absolute cumulative deadline" the right default rather than "repeat until attestation expiry"?
+2. §8 — I deliberately did **not** choose between atomic taint-on-disable and a binder epoch/status check
+   at acquire. Both need costing against the Mongo write-conflict rules. Which is preferable, or is that
+   properly an implementation decision?
+3. §6 — is the five-category inventory now defensible as exhaustive?
+4. §13.1 — should fixing the verb binding be part of this candidate, or its own, given it is a defect in
+   already-certified code that exists independently of the split?
+5. Is there anything in v3 that I have made *worse* while fixing round 2?
