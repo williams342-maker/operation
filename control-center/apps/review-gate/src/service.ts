@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { ACTIONS, BLOCKING_SEVERITIES, SUPERSEDABLE, type ReviewAction } from "./actions.js";
-import type { AuthenticatedPrincipal } from "./auth.js";
+import { AuthenticatedPrincipal } from "./auth.js";
 import {
   candidateBindingSchema,
   candidateDigest,
@@ -62,6 +62,19 @@ export type ServiceResult =
   | { ok: false; code: string; message: string };
 
 const fail = (code: string, message: string): ServiceResult => ({ ok: false, code, message });
+
+/**
+ * Refuse anything that is not a principal this process issued.
+ *
+ * Belt and braces beside the brand itself. A forged object of the right SHAPE reaches these methods
+ * exactly as easily as a real one — TypeScript is gone by then — so the shape is checked at the door
+ * rather than assumed from the parameter type.
+ */
+function notIssued(principal: AuthenticatedPrincipal): ServiceResult | null {
+  return AuthenticatedPrincipal.isIssued(principal)
+    ? null
+    : fail("principal_not_issued", "this principal was not issued by authenticate()");
+}
 
 // NOTE the absence of an identity field, a state field, and a participants field. None of them is
 // request data; there is no shape here a caller could use to describe its own position.
@@ -128,6 +141,8 @@ export class ReviewGateService {
     binding: CandidateBinding;
     idempotencyKey: string;
   }): Promise<ServiceResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     let binding: CandidateBinding;
     try {
       binding = candidateBindingSchema.parse(input.binding);
@@ -164,6 +179,8 @@ export class ReviewGateService {
     remediates?: readonly string[];
     idempotencyKey: string;
   }): Promise<ServiceResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     const prior = await this.#store.loadCandidate(input.supersedes);
     if (!prior) return fail("unknown_candidate", "no such prior candidate");
     let binding: CandidateBinding;
@@ -246,6 +263,8 @@ export class ReviewGateService {
     runnerIdentity: string;
     runReference: string;
   }): Promise<ServiceResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     let intent: z.infer<typeof intentSchema>;
     try {
       intent = intentSchema.parse(input);
@@ -294,6 +313,8 @@ export class ReviewGateService {
   async performAction(principal: AuthenticatedPrincipal, input: z.input<typeof intentSchema> & {
     action: ReviewAction;
   }): Promise<ServiceResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     let intent: z.infer<typeof intentSchema>;
     try {
       intent = intentSchema.parse(input);
@@ -403,6 +424,8 @@ export class ReviewGateService {
   async submitVerdict(principal: AuthenticatedPrincipal, input: z.input<typeof intentSchema> & {
     verdict: unknown;
   }): Promise<ServiceResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     let intent: z.infer<typeof intentSchema>;
     let verdict: z.infer<typeof verdictSchema>;
     try {

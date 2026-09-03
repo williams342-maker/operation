@@ -36,6 +36,10 @@ async function audit(db: Db, entry: AuditEntry, session?: ClientSession): Promis
 /**
  * One transaction over the principal change and its audit entry.
  *
+ * Rotation and disablement write the principal document conditioned on its current epoch, which is the
+ * other half of the write-conflict domain the store relies on: a mutation in flight has also written
+ * that document, so one of the two transactions aborts rather than both committing.
+ *
  * An independent review found these were two separate writes, so a crash between them left a principal
  * changed with no record of who changed it -- which contradicts the design postcondition of "both, or
  * neither", and is exactly the gap that matters when someone is trying to work out what happened.

@@ -76,6 +76,20 @@ const PRINCIPAL_KEY: unique symbol = Symbol("review-gate.authenticated-principal
 
 export class AuthenticatedPrincipal {
   /**
+   * The brand. A CLASS FIELD, not a flag, not a symbol on the object.
+   *
+   * This is the fourth expression of one defect. Erased `private constructor`; then a public factory
+   * beside the guard; then an unfrozen object; and now `Object.create(AuthenticatedPrincipal.prototype)`
+   * — which inherits every method, satisfies `instanceof`, and satisfied the `isIssued` check I had just
+   * written out of `instanceof` plus `Object.isFrozen`. Each previous fix was real and the next door was
+   * open.
+   *
+   * `#issued` cannot be inherited, assigned, copied by `Object.assign`, or produced by `structuredClone`.
+   * It exists only on an object this constructor actually ran for, which is what "issued" has to mean.
+   */
+  readonly #issued = true;
+
+  /**
    * NOT `private constructor`. TypeScript privacy is erased, so `new AuthenticatedPrincipal(...)`
    * would succeed at runtime and a route could mint an owner. My own test caught that here, which is
    * the fifth time in this workstream that compile-time visibility stood in for a runtime boundary --
@@ -129,9 +143,14 @@ export class AuthenticatedPrincipal {
     );
   }
 
-  /** True if this object is the frozen, module-issued shape. Cheap to assert, and asserted in tests. */
+  /**
+   * True only for an object this class's constructor actually ran for.
+   *
+   * `#issued in value` is the brand check: it cannot be satisfied by inheritance, assignment, cloning, or
+   * a prototype trick, which is exactly what `instanceof` and `Object.isFrozen` could not distinguish.
+   */
   static isIssued(value: unknown): value is AuthenticatedPrincipal {
-    return value instanceof AuthenticatedPrincipal && Object.isFrozen(value);
+    return typeof value === "object" && value !== null && #issued in (value as AuthenticatedPrincipal);
   }
 
   hasRole(role: string): boolean {
@@ -147,6 +166,11 @@ export class AuthenticatedPrincipal {
     return this.audienceFor.some((t) => t.orgId === orgId && t.serverId === serverId);
   }
 }
+
+// The prototype is frozen too, so imported code cannot replace `hasRole` and change what every
+// principal in the process reports. The class object is frozen for the same reason.
+Object.freeze(AuthenticatedPrincipal.prototype);
+Object.freeze(AuthenticatedPrincipal);
 
 export type AuthOutcome =
   | { ok: true; principal: AuthenticatedPrincipal }

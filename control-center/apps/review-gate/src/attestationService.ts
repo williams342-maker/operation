@@ -16,7 +16,7 @@ import {
   type AttestationKind,
   type AttestationRecord,
 } from "./attestation.js";
-import type { AuthenticatedPrincipal } from "./auth.js";
+import { AuthenticatedPrincipal } from "./auth.js";
 import type { CandidateSubject } from "./policy.js";
 import type { ReviewGateStore } from "./store.js";
 
@@ -33,6 +33,13 @@ export type AttestationResult =
 
 const no = (code: string, message: string): AttestationResult => ({ ok: false, code, message });
 const yes = (value?: unknown): AttestationResult => ({ ok: true, value });
+
+/** Refuse anything that is not a principal this process issued. See service.ts for why. */
+function notIssued(principal: AuthenticatedPrincipal): AttestationResult | null {
+  return AuthenticatedPrincipal.isIssued(principal)
+    ? null
+    : no("principal_not_issued", "this principal was not issued by authenticate()");
+}
 
 const LEASE_MAX_SECONDS = 15 * 60;
 
@@ -82,6 +89,8 @@ export class AttestationService {
       expiresAt: string;
     }>;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     if (!principal.hasRole("owner")) {
       return no("role_required", "only the owner may accept a review outcome");
     }
@@ -183,6 +192,8 @@ export class AttestationService {
     attestationId: string;
     leaseSeconds: number;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
     if (record.audiencePrincipalId !== principal.principalId) {
@@ -234,6 +245,8 @@ export class AttestationService {
     leaseId: string;
     payload: unknown;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
     if (record.lease?.holderPrincipalId !== principal.principalId) {
@@ -284,6 +297,8 @@ export class AttestationService {
     serverId: string;
     kind: AttestationKind;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
     const result = await this.#store.acquireAttestation({
@@ -308,6 +323,8 @@ export class AttestationService {
     attestationId: string;
     leaseId: string;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
     const result = await this.#store.redeemAttestation({
@@ -330,6 +347,8 @@ export class AttestationService {
     leaseId: string;
     leaseSeconds: number;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     const seconds = Math.min(Math.max(1, Math.floor(input.leaseSeconds)), LEASE_MAX_SECONDS);
     const now = this.#clock();
     const result = await this.#store.renewLease({
@@ -360,6 +379,8 @@ export class AttestationService {
       expiresAt: string;
     }>;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     if (!principal.hasRole("owner")) {
       return no("role_required", "only the owner may mint an attestation");
     }
@@ -385,6 +406,8 @@ export class AttestationService {
     attestationId: string;
     reason: string;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     if (!principal.hasRole("owner")) {
       return no("role_required", "only the owner may revoke an attestation");
     }
@@ -409,6 +432,8 @@ export class AttestationService {
     attestationId: string;
     reconciliation: unknown;
   }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
     if (!principal.hasRole("owner")) {
       return no("role_required", "only the owner may resolve an indeterminate attestation");
     }

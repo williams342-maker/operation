@@ -4,6 +4,7 @@ import { AuthenticatedPrincipal, authenticate, generateCredential } from "../src
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { startExpirySweep } from "../src/server.js";
 import { castOf } from "./principals.js";
+import { binding, record as candidateRecord } from "./storeConformance.js";
 
 // The two CRITICALs an independent review found in the first implementation round, as regressions.
 //
@@ -121,35 +122,113 @@ test("a lease can only be used by the principal that holds it", async () => {
   // THE DEFECT: the lease check compared leaseId, epoch and expiry — never the HOLDER. Any other enabled
   // principal whose current epoch matched could use a known leaseId to renew, acquire or redeem someone
   // else's lease, and acquire is the authorization immediately before a host mutation.
+  //
+  // MY FIRST VERSION OF THIS TEST PROVED NOTHING. It never created the attestation, so all four calls
+  // refused with unknown_attestation long before the holder check ran, and it asserted only that they
+  // refused. The reviewer caught that, and the claim I made about the test was false. This one reserves
+  // a real lease first and asserts the exact refusal code.
   const { InMemoryReviewGateStore } = await import("../src/memoryStore.js");
+  const { AttestationService } = await import("../src/attestationService.js");
   const store = new InMemoryReviewGateStore();
-  for (const id of ["agent-1", "agent-2"]) {
-    store.seedPrincipal({
-      principalId: id, displayName: id, roles: ["executor"], reviewerClasses: [],
-      audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
-      credentialEpoch: 1, createdAt: "2026-09-02T00:00:00.000Z",
-    }, `credential-${id}`);
+  const cast = await castOf([
+    { principalId: "claude", roles: ["author"] },
+    { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
+    { principalId: "owner", roles: ["owner"] },
+    { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+  ], store);
+
+  const at = "2026-09-02T01:00:00.000Z";
+  const acting = (id: string) => ({ principalId: id, credentialEpoch: 1 });
+  const idem = (id: string, key: string) => ({ principalId: id, scope: "t", key, requestHash: "h" });
+  // A CONFIGURATION subject, because the attestation kind below may only be minted from one. The kind
+  // to subject mapping is part of content identity, so a code candidate cannot authorize a config change.
+  const b = binding({
+    subject: {
+      kind: "configuration.change",
+      changeDigest: "5".repeat(64),
+      environmentId: "env-000000000001",
+      targetProfileId: "profile-00000001",
+      targetProfileRevision: 1,
+    },
+  });
+  await store.registerCandidate({
+    acting: acting("claude"), record: candidateRecord("c1", { subject: b.subject }), idempotency: idem("claude", "r") });
+  for (const action of ["submit-tests", "freeze", "request-review", "claim-review"] as const) {
+    const who = action === "claim-review" ? "codex" : "claude";
+    const moved = await store.applyAction({
+      acting: acting(who), candidateId: "c1", action, billingClass: "INTERNAL_QA_TEST", at,
+      occurrenceId: `o-${action}`, idempotency: idem(who, action) });
+    assert.equal(moved.applied, true, `${action}: ${JSON.stringify(moved)}`);
   }
-  const thief = { principalId: "agent-2", credentialEpoch: 1 };
-  const now = "2026-09-02T02:00:00.000Z";
-  // agent-2 knows the lease id but does not hold the lease. Every lease operation must refuse it.
-  for (const attempt of [
-    () => store.bindAttestation({
-      acting: thief, attestationId: "at-1", leaseId: "L1", actionDigest: "a".repeat(64), now }),
-    () => store.acquireAttestation({
-      acting: thief, attestationId: "at-1", leaseId: "L1", actionDigest: "a".repeat(64),
-      orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now,
-      requireClaim: { contentDigest: "b".repeat(64), releasedByCandidateId: "c1" } }),
-    () => store.redeemAttestation({
-      acting: thief, attestationId: "at-1", leaseId: "L1", now,
-      requireClaim: { contentDigest: "b".repeat(64), releasedByCandidateId: "c1" } }),
-    () => store.renewLease({
-      acting: thief, attestationId: "at-1", leaseId: "L1",
-      requestedExpiresAt: "2026-09-02T03:00:00.000Z", now }),
-  ]) {
-    const result = await attempt();
-    assert.equal(result.applied, false, "a lease operation by a non-holder must be refused");
-  }
+  await store.applyVerdict({
+    acting: acting("codex"), candidateId: "c1", expectedState: "REVIEW_IN_PROGRESS", nextState: "GO",
+    occurrence: { occurrenceId: "v", from: "REVIEW_IN_PROGRESS", to: "GO", actorIdentity: "codex",
+      billingClass: "INTERNAL_REVIEW", at },
+    verdict: { verdictId: "v1", reviewerIdentity: "codex", verdict: "GO", findings: [], resolves: [],
+      submittedAt: at, at },
+    addParticipant: { identity: "codex", role: "reviewer", at },
+    idempotency: idem("codex", "verdict") });
+
+  const svc = new AttestationService(store, { clock: () => at, ids: (() => {
+    let n = 0; return () => `id-${n++}`;
+  })() });
+  const decision = await svc.recordOwnerDecision(cast.who("owner"), {
+    candidateId: "c1", idempotencyKey: "od",
+    attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
+      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+  });
+  assert.equal(decision.ok, true, JSON.stringify(decision));
+  const [attestationId] = (decision as { value: { attestationIds: string[] } }).value.attestationIds;
+
+  // agent-1 reserves. A REAL lease now exists.
+  const reserved = await svc.reserve(cast.who("agent-1"), { attestationId, leaseSeconds: 300 });
+  assert.equal(reserved.ok, true, JSON.stringify(reserved));
+  const { leaseId } = (reserved as { value: { leaseId: string } }).value;
+
+  // agent-2 knows the lease id, is enabled, and is at the same epoch. Only the HOLDER check stops it.
+  //
+  // Each attempt is made at the state where the holder check is REACHABLE. An earlier draft fired them
+  // all at once and three refused on state before reaching the holder — which is the same class of
+  // worthlessness as the version that never created the attestation at all.
+  const thief = acting("agent-2");
+  const claim = { contentDigest: candidateRecord("c1", { subject: b.subject }).contentDigest,
+    releasedByCandidateId: "c1" };
+  const digest = "a".repeat(64);
+  const refusal = async (name: string, promise: Promise<{ applied: boolean; code?: string }>) => {
+    const result = await promise;
+    assert.equal(result.applied, false, `${name} by a non-holder must be refused`);
+    assert.equal(result.code, "not_lease_holder",
+      `${name} must refuse for the HOLDER, not for some earlier reason`);
+  };
+
+  // RESERVED_UNBOUND: bind and renew are both legal here for the holder.
+  await refusal("bind", store.bindAttestation({
+    acting: thief, attestationId, leaseId, actionDigest: digest, now: at }));
+  await refusal("renew", store.renewLease({
+    acting: thief, attestationId, leaseId,
+    requestedExpiresAt: "2026-09-02T03:00:00.000Z", now: at }));
+
+  // The holder binds, so the attestation reaches RESERVED_BOUND and acquire becomes reachable.
+  const bound = await store.bindAttestation({
+    acting: acting("agent-1"), attestationId, leaseId, actionDigest: digest, now: at });
+  assert.equal(bound.applied, true, JSON.stringify(bound));
+  await refusal("acquire", store.acquireAttestation({
+    acting: thief, attestationId, leaseId, actionDigest: digest,
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim }));
+
+  // The holder acquires, so redeem becomes reachable.
+  const acquired = await store.acquireAttestation({
+    acting: acting("agent-1"), attestationId, leaseId, actionDigest: digest,
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim });
+  assert.equal(acquired.applied, true, JSON.stringify(acquired));
+  await refusal("redeem", store.redeemAttestation({
+    acting: thief, attestationId, leaseId, now: at, requireClaim: claim }));
+
+  // ...and the legitimate holder still completes, so the check is not simply refusing everyone.
+  const redeemed = await store.redeemAttestation({
+    acting: acting("agent-1"), attestationId, leaseId, now: at, requireClaim: claim });
+  assert.equal(redeemed.applied, true, JSON.stringify(redeemed));
 });
 
 test("every authenticated mutation revalidates the principal, not just the lease ones", async () => {
@@ -178,7 +257,12 @@ test("every authenticated mutation revalidates the principal, not just the lease
       lease: { leaseId: "L", holderPrincipalId: "ghost", credentialEpoch: 1,
         expiresAt: "2026-09-02T03:00:00.000Z" },
       requireClaim: { contentDigest: "b".repeat(64), releasedByCandidateId: "c1" },
-    }) as { applied: boolean };
+    }) as { applied: boolean; code?: string };
     assert.equal(result.applied, false, `${method} must refuse an unknown principal`);
+    // THE EXACT CODE. Asserting only "refused" would pass for a method with no revalidation at all,
+    // because malformed input, a missing record or an idempotency clash would refuse it anyway. The
+    // reviewer was right that the first version certified nothing.
+    assert.equal(result.code, "unknown_principal",
+      `${method} must refuse BECAUSE the principal is unknown, not for some earlier reason`);
   }
 });
