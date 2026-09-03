@@ -49,11 +49,26 @@ written against the actual schema.
 
 ## 1. The one-sentence honest status
 
-**Until the enforcement point in §2 is wired and activated, this gate is ADVISORY.** It records and
-enforces the review lifecycle for callers that use it. It prevents nothing for a caller that does not.
+**The enforcement point is now wired, and every executor is DISABLED, so this gate is still ADVISORY in
+practice.** The executor code path in §2.6 exists and is tested; no executor has been activated, and
+activation is an owner action that has not been taken. An executor whose durable record says `DISABLED`
+behaves exactly as it did before this change.
 
-That sentence stays in this document, in the service README, and in `/healthz` until §2.7 activation ships
-and is reviewed.
+What changed, precisely:
+
+| | before wiring | after wiring | after activation (NOT DONE) |
+|---|---|---|---|
+| gate prevents a deployment | no | no | yes |
+| executor consults the gate | never | only when ENFORCING | yes |
+| unreviewed privileged task | applies | applies | refused |
+| gate unreachable | irrelevant | irrelevant | deployment stops |
+
+The third column is the one that has not happened. Activation is described in §2.7, requires an owner
+decision and a gate credential per executor, and is deliberately not something this work could do to
+itself.
+
+That status sentence stays in this document, in the service README, and in `/healthz` until an executor is
+activated and that activation is reviewed.
 
 ---
 

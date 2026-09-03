@@ -35,16 +35,38 @@ export function verifyOwnerAuthorization(ownerPublicKeyB64: string, parts: Param
   return verifyAgentSignature(ownerPublicKeyB64, ownerAuthorizationMessage(parts), signature);
 }
 
+/**
+ * Layer 3: the review attestation the payload must carry when an executor is ENFORCING.
+ *
+ * It lives inside the payload (see `reviewAuthorizationSchema` in configurationDeployment.ts), so it is
+ * covered by both the owner's offline signature and the transport envelope digest. This type is only the
+ * shape `authorizePrivilegedTask` checks for; the gate is what decides whether it means anything.
+ */
+export type ReviewAuthorizationRef = { attestationId: string; leaseId: string };
+
 export type PrivilegedTaskDecision =
   | { authorized: true }
-  | { authorized: false; reason: "envelope-invalid" | "expired" | "owner-authorization-missing" | "owner-authorization-invalid" };
+  | { authorized: false; reason: "envelope-invalid" | "expired" | "owner-authorization-missing" | "owner-authorization-invalid" | "review-authorization-missing" };
 
 // A privileged task executes only if BOTH independent layers pass:
 //   layer 1 — transport/envelope integrity (verifyEnvelope: the control-plane/agent transport key), and
 //   layer 2 — owner authorization (the owner PUBLIC key), bound to this exact task+target+payload.
 // The transport key alone can NEVER satisfy layer 2, so a compromised control-plane envelope-signing key
 // cannot create or dispatch an executable privileged task. Fails closed with a specific reason.
-export function authorizePrivilegedTask(input: { envelope: TaskEnvelope; payload: unknown; ownerAuthorization?: OwnerAuthorization; ownerPublicKey: string; verifyEnvelope: () => boolean; now?: number }): PrivilegedTaskDecision {
+/**
+ * Layers 1 and 2, plus the layer-3 PRECONDITION.
+ *
+ * WHAT LAYER 3 IS NOT DOING HERE. This function is pure and synchronous; it cannot talk to the gate, and
+ * it must not pretend to. What it checks is that an ENFORCING executor was handed a payload that names an
+ * attestation and a lease — the presence of the thing the executor will then have to redeem for real.
+ * Acquisition is a MUTATION on the gate and happens at the effect point, not here: a predicate consulted
+ * before an effect is a check/use race, which is the defect that shaped this whole design.
+ *
+ * INERT WHEN NOT ENFORCING. `requireReviewAuthorization` defaults to false, so the existing two layers
+ * behave exactly as before and adding this cannot break the path it is being added to — the same additive
+ * discipline the owner-authorization layer used when it was introduced.
+ */
+export function authorizePrivilegedTask(input: { envelope: TaskEnvelope; payload: unknown; ownerAuthorization?: OwnerAuthorization; ownerPublicKey: string; verifyEnvelope: () => boolean; now?: number; requireReviewAuthorization?: boolean }): PrivilegedTaskDecision {
   if (!input.verifyEnvelope()) return { authorized: false, reason: "envelope-invalid" };
   if (isTaskExpired(input.envelope.expiresAt, input.now)) return { authorized: false, reason: "expired" };
   if (!input.ownerAuthorization) return { authorized: false, reason: "owner-authorization-missing" };
@@ -59,5 +81,20 @@ export function authorizePrivilegedTask(input: { envelope: TaskEnvelope; payload
     nonce: oa.nonce,
     keyVersion: oa.keyVersion
   }, oa.signature);
-  return ok ? { authorized: true } : { authorized: false, reason: "owner-authorization-invalid" };
+  if (!ok) return { authorized: false, reason: "owner-authorization-invalid" };
+  if (input.requireReviewAuthorization) {
+    const reference = readReviewAuthorization(input.payload);
+    if (!reference) return { authorized: false, reason: "review-authorization-missing" };
+  }
+  return { authorized: true };
+}
+
+/** The layer-3 reference carried inside the payload, or null if it is absent or malformed. */
+export function readReviewAuthorization(payload: unknown): ReviewAuthorizationRef | null {
+  const candidate = (payload as { reviewAuthorization?: unknown } | null)?.reviewAuthorization;
+  if (!candidate || typeof candidate !== "object") return null;
+  const { attestationId, leaseId } = candidate as { attestationId?: unknown; leaseId?: unknown };
+  if (typeof attestationId !== "string" || !attestationId) return null;
+  if (typeof leaseId !== "string" || !leaseId) return null;
+  return { attestationId, leaseId };
 }

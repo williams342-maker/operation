@@ -1,0 +1,320 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import crypto from "node:crypto";
+import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuthorization, privilegedActionDigest } from "@control-center/shared";
+import { agentConfigSchema } from "../src/config.js";
+import { readEnforcement, writeEnforcement, resolveEnforcement } from "../src/reviewEnforcement.js";
+import { ExecutionJournal } from "../src/executionJournal.js";
+import { ReviewGateClient } from "../src/reviewGateClient.js";
+import { acquireForEffect, recordEffect } from "../src/reviewEnforcedExecution.js";
+
+process.env.NODE_ENV = "test";
+const { verifyTask } = await import("../src/agent.js");
+
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "review-enforcement-"));
+
+const cp = generateAgentKeyPairs();
+const owner = generateAgentKeyPairs();
+const baseConfig = agentConfigSchema.parse({ controlCenterUrl: "https://cc.test", agentId: "agent-1", agentSecret: "unused-legacy-secret", keyProtocolVersion: "agent-v2", controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey });
+
+/** A fully valid layer-1 + layer-2 privileged task; layer 3 varies. */
+function privilegedTask(review?: { attestationId: string; leaseId: string }, ownerAuth: "valid" | "forged" = "valid") {
+  const core = { projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment: { planId: "plan-1" } };
+  const payload = review ? { ...core, reviewAuthorization: review } : core;
+  const nonce = "owner-nonce-1"; const keyVersion = "owner-v1"; const expiresAt = new Date(Date.now() + 3600_000).toISOString();
+  // The owner signs the action digest, which EXCLUDES ownerAuthorization but includes reviewAuthorization.
+  const signature = signOwnerAuthorization(ownerAuth === "forged" ? generateAgentKeyPairs().signingPrivateKey : owner.signingPrivateKey, { taskType: "configuration.apply", orgId: "org-1", serverId: "server-1", actionDigest: privilegedActionDigest(payload), expiresAt, nonce, keyVersion });
+  const signed = { ...payload, ownerAuthorization: { signature, issuedAt: new Date().toISOString(), expiresAt, nonce, keyVersion } };
+  const unsigned = { protocolVersion: "task-v1" as const, taskId: "task-1", taskType: "configuration.apply" as const, orgId: "org-1", serverId: "server-1", agentId: "agent-1", issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString(), nonce: "envelope-nonce", payloadDigest: payloadDigest(signed), signingKeyVersion: "cp-ed25519-v1" };
+  return { envelope: { ...unsigned, signature: signTaskEnvelopeV2(cp.signingPrivateKey, unsigned) }, payload: signed };
+}
+
+const REVIEW = { attestationId: "att-1", leaseId: "lease-1" };
+/** The journal treats an action digest as a filename, so it insists on a real sha256 hex. */
+const digestOf = (label: string) => crypto.createHash("sha256").update(label).digest("hex");
+
+/** A gate that records what it was asked and answers however the test says. */
+function fakeGate(answers: Record<string, { status: number; body: unknown }>) {
+  const calls: { url: string; authorization: string; body: any }[] = [];
+  const impl: typeof fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, authorization: String((init?.headers as any)?.authorization ?? ""), body: JSON.parse(String(init?.body ?? "{}")) });
+    const key = url.includes("/acquire") ? "acquire" : "redeem";
+    const answer = answers[key] ?? { status: 200, body: { ok: true } };
+    return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { "content-type": "application/json" } });
+  };
+  return { calls, client: (credential = "executor-own-credential") => new ReviewGateClient({ url: "https://gate.test", credential, timeoutMs: 1000 }, impl) };
+}
+
+// ── the durable enforcement state ──────────────────────────────────────────────────────────────────
+
+test("an executor with no record is DISABLED, and activation is durable and audited", () => {
+  const dir = tmp();
+  assert.equal(readEnforcement(dir).state, "DISABLED");
+  writeEnforcement(dir, { state: "ENFORCING", by: "owner", reason: "activated for staging" });
+  assert.equal(readEnforcement(dir).state, "ENFORCING");
+  // Deactivation is as loud as activation: the history keeps both, so turning enforcement off leaves a trace.
+  writeEnforcement(dir, { state: "DISABLED", by: "owner", reason: "rolled back" });
+  const record = readEnforcement(dir);
+  assert.equal(record.state, "DISABLED");
+  assert.deepEqual(record.history.map((h) => h.state), ["DISABLED", "ENFORCING", "DISABLED"]);
+});
+
+test("a CORRUPTED enforcement record throws — it is never read as DISABLED", () => {
+  const dir = tmp();
+  writeEnforcement(dir, { state: "ENFORCING", by: "owner", reason: "activated" });
+  // If corrupting one file downgraded this executor to advisory, corrupting one file would be the bypass.
+  fs.writeFileSync(path.join(dir, "review-enforcement.json"), '{"state":"ENFORCING"}');
+  assert.throws(() => readEnforcement(dir), /unreadable/);
+  fs.writeFileSync(path.join(dir, "review-enforcement.json"), "not json at all");
+  assert.throws(() => readEnforcement(dir));
+});
+
+test("an ENFORCING executor with no usable gate configuration REFUSES TO START", () => {
+  const dir = tmp();
+  writeEnforcement(dir, { state: "ENFORCING", by: "owner", reason: "activated" });
+  assert.throws(() => resolveEnforcement({ stateDir: dir }), /refuses to start/);
+  assert.throws(() => resolveEnforcement({ stateDir: dir, gate: { url: "https://gate.test" } }), /refuses to start/);
+  // Losing the credential is losing the configuration; it must not read as "not enforcing".
+  assert.throws(() => resolveEnforcement({ stateDir: dir, gate: { url: "https://gate.test", credential: "" } }), /refuses to start/);
+  const ok = resolveEnforcement({ stateDir: dir, gate: { url: "https://gate.test", credential: "c" } });
+  assert.equal(ok.enforcing, true);
+});
+
+test("a DISABLED executor resolves to advisory even with gate configuration present", () => {
+  // Configuration alone must not activate enforcement; activation is the durable record's job.
+  assert.equal(resolveEnforcement({ stateDir: tmp(), gate: { url: "https://gate.test", credential: "c" } }).enforcing, false);
+});
+
+// ── the per-host journal ───────────────────────────────────────────────────────────────────────────
+
+test("the journal admits ONE attempt per action on this host, across restarts", () => {
+  const dir = tmp();
+  const claim = { actionDigest: digestOf("action-a"), attestationId: "att-1", leaseId: "lease-1", serverId: "server-1", at: new Date().toISOString() };
+  assert.equal(new ExecutionJournal(dir).claim(claim).claimed, true);
+
+  // A NEW journal object over the same directory is the restart case: the file, not memory, decides.
+  const restarted = new ExecutionJournal(dir);
+  const second = restarted.claim(claim);
+  assert.equal(second.claimed, false);
+  // Nothing recorded an outcome, so the previous attempt may have changed the host and died. Refusing is
+  // the only honest answer; retrying would be a second application.
+  assert.equal(second.claimed === false && second.reason, "in_flight_or_indeterminate");
+
+  restarted.complete({ actionDigest: digestOf("action-a"), outcome: "SUCCEEDED", at: new Date().toISOString() });
+  const third = new ExecutionJournal(dir).claim(claim);
+  assert.equal(third.claimed === false && third.reason, "already_applied");
+
+  // A different action is unaffected — the journal fences one action, not the executor.
+  assert.equal(new ExecutionJournal(dir).claim({ ...claim, actionDigest: digestOf("action-b") }).claimed, true);
+});
+
+test("a FAILED attempt is still terminal — a failure is not a licence to try again", () => {
+  const dir = tmp();
+  const journal = new ExecutionJournal(dir);
+  const claim = { actionDigest: digestOf("action-f"), attestationId: "att-1", leaseId: "lease-1", serverId: "server-1", at: new Date().toISOString() };
+  journal.claim(claim);
+  journal.complete({ actionDigest: digestOf("action-f"), outcome: "FAILED", error: "apply blew up", at: new Date().toISOString() });
+  const again = new ExecutionJournal(dir).claim(claim);
+  assert.equal(again.claimed === false && again.reason, "already_applied");
+});
+
+test("the journal refuses an action digest that is not a sha256 hex", () => {
+  const journal = new ExecutionJournal(tmp());
+  // The digest becomes a filename. A gate or control-center that could choose that filename could make
+  // this executor claim, or overwrite, any file it likes.
+  for (const bad of ["../../escape", "digest-a", "", "a".repeat(63), "A".repeat(64), "/etc/passwd"]) {
+    assert.throws(() => journal.claim({ actionDigest: bad, attestationId: "a", leaseId: "l", serverId: "s", at: new Date().toISOString() }), /sha256/);
+  }
+});
+
+// ── the gate client fails closed ───────────────────────────────────────────────────────────────────
+
+test("the gate client fails closed on every unhappy answer", async () => {
+  const cases: [string, { status: number; body: unknown }, RegExp][] = [
+    ["a refusal", { status: 409, body: { ok: false, code: "attestation_not_reserved" } }, /attestation_not_reserved/],
+    ["a server error", { status: 500, body: { ok: false } }, /gate_status_500/],
+    ["a 200 that does not say ok", { status: 200, body: { result: "fine" } }, /gate_status_200/],
+  ];
+  for (const [name, answer, expected] of cases) {
+    const gate = fakeGate({ acquire: answer });
+    const outcome = await gate.client().acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply" });
+    assert.equal(outcome.ok, false, name);
+    assert.match(outcome.ok === false ? outcome.code : "", expected, name);
+  }
+});
+
+test("an unreachable or unreadable gate is a refusal, never a pass", async () => {
+  const unreachable = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => { throw new Error("ECONNREFUSED"); });
+  const down = await unreachable.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k" });
+  assert.equal(down.ok === false && down.code, "gate_unreachable");
+
+  const garbage = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => new Response("<html>proxy error</html>", { status: 200 }));
+  const unreadable = await garbage.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k" });
+  assert.equal(unreadable.ok === false && unreadable.code, "gate_unreadable");
+});
+
+test("a gate that does not answer promptly is a gate that is unreachable", async () => {
+  const hanging = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 120 }, (_input, init) =>
+    new Promise((_resolve, reject) => {
+      // A gate that never answers must not hold a deployment open indefinitely, and must never be waited
+      // out into a pass. The abort is the answer.
+      init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+    }));
+  const outcome = await hanging.acquire({ attestationId: "a", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k" });
+  assert.equal(outcome.ok === false && outcome.code, "gate_timeout");
+});
+
+test("an executor with NO owner public key is still stopped at the effect point", async () => {
+  // Layer 2 is only enforced when an owner key is configured — pre-existing behaviour this change does not
+  // alter. So for an executor missing that key, verification alone lets a privileged task through:
+  const noOwnerKey = agentConfigSchema.parse({ controlCenterUrl: "https://cc.test", agentId: "agent-1", agentSecret: "unused-legacy-secret", keyProtocolVersion: "agent-v2", controlPlanePublicKey: cp.signingPublicKey });
+  verifyTask(noOwnerKey, privilegedTask() as never, true); // does not throw
+
+  // The effect point is what actually stops it, which is the whole point of enforcing at the mutation
+  // rather than at a predicate: an unreviewed payload cannot acquire, whatever verification concluded.
+  const gate = fakeGate({});
+  const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(tmp()), payload: privilegedTask().payload, taskType: "configuration.apply", orgId: "org-1", serverId: "server-1", at: new Date().toISOString() });
+  assert.equal(outcome.refused === true && outcome.code, "review_authorization_missing");
+  assert.equal(gate.calls.length, 0);
+});
+
+test("the executor authenticates to the gate with ITS OWN credential", async () => {
+  const gate = fakeGate({});
+  await gate.client("executor-own-credential").acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply" });
+  // An instruction is not authorization. If the control-center could supply the proof that its own
+  // deployment was reviewed, the review would be decorative.
+  assert.equal(gate.calls[0].authorization, "Bearer executor-own-credential");
+  assert.match(gate.calls[0].url, /\/attestations\/att-1\/acquire$/);
+});
+
+// ── acquisition ordering: the actual enforcement point ─────────────────────────────────────────────
+
+test("a payload with no review authorization never reaches the gate", async () => {
+  const gate = fakeGate({});
+  const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(tmp()), payload: { configurationDeployment: { planId: "p" } }, taskType: "configuration.apply", orgId: "org-1", serverId: "server-1", at: new Date().toISOString() });
+  assert.equal(outcome.refused === true && outcome.code, "review_authorization_missing");
+  assert.equal(gate.calls.length, 0);
+});
+
+test("acquisition sends the digest of the payload ABOUT TO BE APPLIED", async () => {
+  const gate = fakeGate({});
+  const payload = { configurationDeployment: { planId: "plan-1" }, reviewAuthorization: REVIEW };
+  const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(tmp()), payload, taskType: "configuration.apply", orgId: "org-1", serverId: "server-1", at: new Date().toISOString() });
+  assert.equal(outcome.refused, false);
+  // Computed here from the bytes, with the same function layer 2 signs — not taken from the control-center.
+  assert.equal(gate.calls[0].body.actionDigest, privilegedActionDigest(payload));
+  assert.deepEqual([gate.calls[0].body.orgId, gate.calls[0].body.serverId, gate.calls[0].body.kind], ["org-1", "server-1", "configuration.apply"]);
+});
+
+test("when the GATE refuses, this host's journal is left untouched", async () => {
+  const dir = tmp();
+  const gate = fakeGate({ acquire: { status: 409, body: { ok: false, code: "attestation_revoked" } } });
+  const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(dir), payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  assert.equal(outcome.refused === true && outcome.code, "attestation_revoked");
+  // A refusal must not poison the journal: the action never had permission, and a later authorized
+  // attempt must not find a claim standing in its way.
+  assert.equal(fs.existsSync(dir) ? fs.readdirSync(dir).length : 0, 0);
+  const retry = await acquireForEffect({ gate: fakeGate({}).client(), journal: new ExecutionJournal(dir), payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  assert.equal(retry.refused, false);
+});
+
+test("a prior unresolved attempt on this host refuses AFTER the gate has moved to EXECUTING", async () => {
+  const dir = tmp();
+  const payload = { configurationDeployment: { planId: "plan-1" }, reviewAuthorization: REVIEW };
+  const first = fakeGate({});
+  await acquireForEffect({ gate: first.client(), journal: new ExecutionJournal(dir), payload, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+
+  const second = fakeGate({});
+  const outcome = await acquireForEffect({ gate: second.client(), journal: new ExecutionJournal(dir), payload, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  assert.equal(outcome.refused === true && outcome.code, "prior_attempt_unresolved");
+  // The attestation is deliberately LEFT executing rather than redeemed: this host may already have
+  // applied the action, and nothing here is entitled to decide that it did not.
+  assert.equal(second.calls.filter((c) => c.url.includes("/redeem")).length, 0);
+});
+
+// ── settlement ordering ────────────────────────────────────────────────────────────────────────────
+
+test("the journal is written BEFORE the gate is told", async () => {
+  const dir = tmp();
+  const journal = new ExecutionJournal(dir);
+  const gate = fakeGate({});
+  const acquired = await acquireForEffect({ gate: gate.client(), journal, payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  assert.equal(acquired.refused, false);
+  if (acquired.refused) return;
+
+  let journalledBeforeRedeem = false;
+  const observing = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => {
+    // At the moment redeem is called, the durable local record must already say what happened.
+    journalledBeforeRedeem = new ExecutionJournal(dir).claim({ actionDigest: acquired.actionDigest, attestationId: "att-1", leaseId: "l", serverId: "s", at: new Date().toISOString() }).claimed === false;
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
+  });
+  const settled = await recordEffect({ gate: observing, journal, acquired, succeeded: true, terminalPhase: "succeeded", at: new Date().toISOString() });
+  assert.equal(settled.redeemed, true);
+  assert.equal(journalledBeforeRedeem, true);
+});
+
+test("a failed redeem does not un-apply anything — it leaves the record for a human", async () => {
+  const dir = tmp();
+  const journal = new ExecutionJournal(dir);
+  const gate = fakeGate({ redeem: { status: 503, body: { ok: false, code: "gate_unavailable" } } });
+  const acquired = await acquireForEffect({ gate: gate.client(), journal, payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  if (acquired.refused) return assert.fail("acquisition should have succeeded");
+  const settled = await recordEffect({ gate: gate.client(), journal, acquired, succeeded: true, at: new Date().toISOString() });
+  assert.equal(settled.redeemed, false);
+  // The local truth survives the gate being unreachable: this host did apply it, and says so.
+  const after = new ExecutionJournal(dir).claim({ actionDigest: acquired.actionDigest, attestationId: "att-1", leaseId: "l", serverId: "s", at: new Date().toISOString() });
+  assert.equal(after.claimed === false && after.reason, "already_applied");
+});
+
+// ── layer 3 as a precondition on verification ──────────────────────────────────────────────────────
+
+test("ENFORCING requires the payload to name an attestation; ADVISORY is unchanged", () => {
+  // Advisory (the default, and today's behaviour): a valid two-layer task passes with no review reference.
+  verifyTask(baseConfig, privilegedTask() as never);
+  verifyTask(baseConfig, privilegedTask(REVIEW) as never);
+  // Enforcing: the reference is required before the executor will even attempt acquisition.
+  assert.throws(() => verifyTask(baseConfig, privilegedTask() as never, true), /review-authorization-missing/);
+  verifyTask(baseConfig, privilegedTask(REVIEW) as never, true);
+});
+
+test("layer 3 does not weaken layers 1 and 2", () => {
+  // A review reference is not a substitute for the owner's signature. A task carrying a perfectly good
+  // attestation reference and a forged owner authorization must still be refused on layer 2.
+  assert.throws(() => verifyTask(baseConfig, privilegedTask(REVIEW, "forged") as never, true), /owner-authorization-invalid/);
+  assert.throws(() => verifyTask(baseConfig, privilegedTask(REVIEW, "forged") as never, false), /owner-authorization-invalid/);
+});
+
+// ── the wiring itself ──────────────────────────────────────────────────────────────────────────────
+
+test("acquisition is wired BEFORE the effect, and settlement after it", () => {
+  const source = fs.readFileSync(new URL("../src/agent.ts", import.meta.url), "utf8");
+  const body = source.slice(source.indexOf("async function executeTask"), source.indexOf("async function pollOnce"));
+  const acquire = body.indexOf("acquireForEffect");
+  const apply = body.indexOf("executeConfigurationDeployment");
+  const handoff = body.indexOf("handoffUpgrade");
+  assert.ok(acquire > -1 && apply > -1 && handoff > -1);
+  // Every privileged effect in this function is downstream of acquisition. If a new privileged case is
+  // added above it, this fails.
+  assert.ok(acquire < apply, "configuration deployment must not run before acquisition");
+  assert.ok(acquire < handoff, "upgrade handoff must not run before acquisition");
+  assert.ok(body.indexOf("settle(enforcement, acquired") > acquire, "settlement follows acquisition");
+  // A refused acquisition returns; it does not fall through into the switch.
+  assert.match(body.slice(acquire, apply), /outcome\.refused[\s\S]*?return;/);
+});
+
+test("a task cannot supply the credential the executor presents to the gate", async () => {
+  const gate = fakeGate({});
+  // Everything a task could plausibly smuggle in, offered at the acquire call site.
+  await gate.client("executor-own-credential").acquire({
+    attestationId: "att-1", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k",
+    credential: "attacker-supplied", authorization: "Bearer attacker-supplied", token: "attacker-supplied",
+  } as never);
+  // The header comes from configuration and nothing else: an instruction is not authorization.
+  assert.equal(gate.calls[0].authorization, "Bearer executor-own-credential");
+  // And none of it is forwarded to the gate as body fields it might trust.
+  assert.deepEqual(Object.keys(gate.calls[0].body).sort(), ["actionDigest", "kind", "leaseId", "orgId", "serverId"]);
+});
