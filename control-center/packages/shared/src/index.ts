@@ -16,6 +16,7 @@ export * from "./agentKeys.js";
 export * from "./agentProtocol.js";
 export * from "./ownerAuthorization.js";
 export * from "./billing.js";
+export * from "./authority.js";
 // THE REVIEW GATE IS NOT HERE ANY MORE.
 //
 // Its policy, its store and its evaluator moved into `apps/review-gate`, which is a separate process
