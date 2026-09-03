@@ -1,7 +1,8 @@
 # Review gate (Option B) — build state
 
 **Date:** 2026-09-02
-**Disposition:** **ENGINEERING COMPLETE FOR THIS SCOPE — REVIEW READY.** All nine build phases landed.
+**Disposition:** **ENGINEERING COMPLETE FOR THIS SCOPE — IN REVIEW.** Nine build phases landed; round 1
+of independent implementation review returned NO-GO and is remediated.
 **Design:** `REVIEW_GATE_OPTION_B_DESIGN.md` v7, after six design reviews.
 **Branch:** `feat/review-gate-20260902`. **Production mutations: 0. Credentials created: 0.**
 
@@ -35,8 +36,9 @@ configuration that it correctly refused.
 | 7 | **Mongo store + conformance suite** — the same assertions run against both implementations |
 | 8 | **Attestation service** — gate-computed `actionDigest`, per-kind payload validation, reserve/bind/acquire/redeem |
 | 9 | **Attestation routes + operator CLI**; `main()` wired to the store |
+| 10 | **Round-1 review remediation** — see below. Two CRITICALs, five MAJORs, one MINOR |
 
-**151 tests: 150 pass, 1 visible skip.** Typecheck clean across all five workspaces. `packages/shared`
+**158 tests: 157 pass, 1 visible skip.** Typecheck clean across all five workspaces. `packages/shared`
 79 (1 pre-existing skip); `apps/agent` 64.
 
 Counts are not monotonic across phases: phase 5 replaced ~60 service tests with 31, because several old
@@ -48,7 +50,7 @@ attacks are unexpressible on the new surface. The originals are in git history.
 
 | check | result |
 | --- | --- |
-| `npm test` in `apps/review-gate` | **PASS** — 151, 150 pass, 1 skip |
+| `npm test` in `apps/review-gate` | **PASS** — 158, 157 pass, 1 skip |
 | `npm test` in `packages/shared` | **PASS** — 79, 1 pre-existing skip |
 | `npm test` in `apps/agent` | **PASS** — 64, 5 pre-existing skips |
 | `tsc --noEmit` × 5 workspaces | **PASS** |
@@ -78,6 +80,25 @@ attacks are unexpressible on the new surface. The originals are in git history.
 
 ---
 
+## What round 1 of implementation review found
+
+Both CRITICALs were the same species: **a guard that was real, defeated by a door standing open beside
+it.** That is the shape this workstream keeps producing.
+
+| | finding | what it means |
+| --- | --- | --- |
+| **C2** | `AuthenticatedPrincipal.of` was **public** and took a caller-built object, supplying the private symbol itself | Any module could mint an owner. I had put a runtime guard on the constructor after my own test caught the erased TypeScript one — then handed out what the guard protected, through a factory beside it. **And my tests used that route**, which is why the suite was silent: not by accident, but because the tests took the forging path as their normal way of obtaining authority. |
+| **C1** | Rotation did not invalidate work in flight | The epoch was compared only with the epoch stored in the **lease**, so a request authenticated at epoch 1 holding a lease stamped at epoch 1 still matched after a rotation to epoch 2. My operator comment asserted the opposite. |
+| M3 | The store still had the round-8 primitive under another name | `applyAction` took `expectedState`/`nextState` plus participation, claimant and claim-release, so a holder could request any graph-legal change while choosing the audit identity. Checking the graph does not make something a named operation. |
+| M4 | The expiry sweep was **dead code** | Correct behaviour, called by nothing outside tests. An expired bound lease stayed `RESERVED_BOUND` for ever and never became reconcilable. A correct function nothing invokes is indistinguishable from an absent one. |
+| M5 | Two specified operations were **missing entirely** | `renew`, and minting a further attestation from released content. |
+| M6 | Principal change and audit entry were two writes | A crash between them left a principal changed with no record of who changed it. |
+| M7 | The in-memory store moved the candidate **before** validating | "Never awaiting" prevents interleaving; it does not roll back. A real divergence from Mongo the shared conformance suite was not covering. |
+| MINOR | `reserve` returned the **requested** lease expiry | The store clamps it to the attestation, so the caller got a false validity window. |
+
+All are closed. The conformance suite now performs a real rotation mid-flight rather than hand-supplying
+a mismatched epoch — **the old test would have passed against the broken code.**
+
 ## Defects my own tests caught
 
 For ten rounds the reviewer found this class of thing and the suite did not.
@@ -102,6 +123,17 @@ For ten rounds the reviewer found this class of thing and the suite did not.
 | MINOR | Rollback targets are bound but their payload semantics are only as good as the change-set digest. |
 
 ---
+
+## What the suite still cannot tell you
+
+Round 1 is worth reading as evidence about the suite, not just the code. Three of its findings were
+things a test could have caught and did not:
+
+- the forging path, because the tests used it;
+- the dead sweep, because nothing asserted it was driven;
+- the in-memory/Mongo divergence, because the shared suite did not cover partial-failure ordering.
+
+A green run here means the assertions hold. It has never meant the assertions are the right ones.
 
 ## Continuation
 
