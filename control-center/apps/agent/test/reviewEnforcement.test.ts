@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuthorization, privilegedActionDigest, privilegedSubPayload, readReviewAuthorization } from "@control-center/shared";
 import { agentConfigSchema } from "../src/config.js";
@@ -15,6 +16,23 @@ process.env.NODE_ENV = "test";
 const { verifyTask } = await import("../src/agent.js");
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "review-enforcement-"));
+
+/**
+ * Read a TypeScript SOURCE file, from wherever this test happens to be running.
+ *
+ * Structural assertions below are about the source, and this suite runs from two places: `test/` under
+ * tsx, and `build-tests/test/` as compiled JavaScript — the latter so a sandbox that forbids child
+ * processes can still execute it. A path relative to `import.meta.url` is correct in exactly one of those.
+ */
+function source(relative: string): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let up = 0; up < 6; up++) {
+    const candidate = path.join(dir, "src", relative);
+    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, "utf8");
+    dir = path.dirname(dir);
+  }
+  throw new Error(`cannot locate src/${relative} from ${import.meta.url}`);
+}
 
 const cp = generateAgentKeyPairs();
 const owner = generateAgentKeyPairs();
@@ -371,8 +389,8 @@ test("layer 3 does not weaken layers 1 and 2", () => {
 // ── the wiring itself ──────────────────────────────────────────────────────────────────────────────
 
 test("acquisition is wired BEFORE the effect, and settlement after it", () => {
-  const source = fs.readFileSync(new URL("../src/agent.ts", import.meta.url), "utf8");
-  const body = source.slice(source.indexOf("async function executeTask"), source.indexOf("async function pollOnce"));
+  const text = source("agent.ts");
+  const body = text.slice(text.indexOf("async function executeTask"), text.indexOf("async function pollOnce"));
   const acquire = body.indexOf("acquireForEffect");
   const apply = body.indexOf("executeConfigurationDeployment");
   const handoff = body.indexOf("handoffUpgrade");

@@ -1,0 +1,15 @@
+{
+  // Emits src AND tests to plain JavaScript, so the suite can be executed with `node` alone.
+  //
+  // WHY THIS EXISTS. Two review rounds passed with nobody but the author having executed these tests. The
+  // review sandbox denies a process the right to spawn children: `node --test` spawns one per test file,
+  // and `tsx` spawns esbuild, so both die before any test body runs. Compiled output needs neither — the
+  // shell launches one plain `node` per file and nothing nests. See `npm run test:nospawn`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "build-tests",
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

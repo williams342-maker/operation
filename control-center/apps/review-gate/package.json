@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "test:nospawn": "sh run-tests-nospawn.sh",
     "test": "tsx --test test/*.test.ts",
     "operator": "node dist/operator.js",
     "pretest": "tsc -p tsconfig.test.json --noEmit"
