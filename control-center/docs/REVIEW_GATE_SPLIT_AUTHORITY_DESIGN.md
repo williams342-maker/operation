@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Revision:** v4, after design review rounds 1 (8, 4 HIGH), 2 (5, 3 HIGH) and 3 (4, 2 HIGH).
+**Revision:** v5, after design review rounds 1 (8, 4 HIGH), 2 (5, 3 HIGH), 3 (4, 2 HIGH) and 4 (4, 2 HIGH).
 Round 3: *"the central split-authority direction is now sound"* — what remained was turning two open
 security choices into exact, testable contracts. v4 makes both choices.
 **Status:** **DESIGN, FOR REVIEW BEFORE ANY CODE.** The owner chose option (b) from
@@ -52,6 +52,20 @@ security choices into exact, testable contracts. v4 makes both choices.
 | 2 | HIGH | acquire stamps an attempt identifier, "the exclusive capability the lease id is not" | generating a value does not make it exclusive. It must be **protected bearer credential material**: high entropy, verifier-only storage, excluded from projections/audit/logs/payloads, constant-time verification, single-attempt — §5 |
 | 3 | MED | a five-category inventory | the framework is right, the contents were not: both `schemaVersion` literals missing, and **`protected` misclassified as binder-selectable when the schema pins it to `false`** — the one thing I made worse — §6 |
 | 4 | MED | "migration rules are state-by-state" | said, not specified. v4 gives the table, and concludes there is **no in-place migration at all** — an immutable identity that can be rewritten was never immutable — §9 |
+
+### Round 4 — 4 findings, 2 HIGH
+
+| # | finding | what I had written | what is true |
+|---|---|---|---|
+| 1 | HIGH | verifier-only token storage **and** "a retry returns the same result" | **internally impossible.** If the first response is lost, a gate that kept only a verifier cannot reproduce the token. Acquire is now **single-delivery**: a committed retry returns `already_acquired` with no token, and a lost response is an `INDETERMINATE` attempt — §5 |
+| 2 | HIGH | chose the acquire-time binder check | **but left v3's bulk-invalidation requirement standing above it**, so §8 specified two incompatible protocols. My regression, introduced while fixing round 3. Deleted, and the chosen protocol rewritten as executable postconditions with a real conditional update and asserted matched/modified counts — §8 |
+| 3 | MED | acquire checks the binder's *present* enabled status | unsafe under **re-enable**: a principal disabled after bind and re-enabled is presently enabled, so the check accepts exactly the bindings disablement should invalidate. Now a monotonic **`incarnation`**, incremented on disable, never on rotation — §8 |
+| 4 | MED | "the audit lineage records the superseded v1 id" | a requirement with no contract. Now specified: field on the new record, owner-supplied, store-validated against the referenced record, immutable, identity-digest-covered, both mint paths — §9 |
+
+Round 4 also corrected §5 item 7: **rotation and disablement are not the same event.** v4 refused both
+extension and redeem for both, arguing only that "a disabled credential must not be usable" — which says
+nothing about rotation. After ordinary rotation, redeem is now **allowed**: the attempt token still
+proves the winning attempt, and refusing would manufacture an `INDETERMINATE` from a routine operation.
 
 ---
 
@@ -173,15 +187,33 @@ credential as one principal, so nothing there distinguishes the winner.
 
    - **cryptographically random, high entropy**, returned **only** to the winning acquire response;
    - the gate stores **a verifier (hash), never the token**, as it already does for principal credentials;
-   - **excluded from ordinary projections, audit detail, logs, signed payloads and reconciliation output**
-     — the lease id's mistake was being public, and repeating it here would waste the whole mechanism;
+   - **structurally confined, not merely excluded by a list.** An exclusion list is only as complete as
+     its author. The rule: **the token plaintext exists in exactly two places** — the local value inside
+     the acquire handler, and the single successful acquire response. It must never enter an
+     `AttestationRecord`, a generic operation result, an exception, a tracing or APM attribute, a
+     request/response body logger, an idempotency record, a metrics label, client durable storage, or a
+     diagnostic dump. The acquire response carries `Cache-Control: no-store` and travels only over
+     authenticated TLS. *(The lease id's mistake was being public; repeating it here would waste the
+     mechanism.)*
    - **verified in constant time**, alongside the current audience credential;
    - **single-attempt**: it cannot be regenerated, recovered or reissued. A lost token is an
      `INDETERMINATE` attempt requiring reconciliation, which is the honest outcome — the gate genuinely
      does not know whether the host changed;
-   - **idempotent acquire retry is explicit**: a retry must neither hand a winning token to a different
-     request, nor render an already-acquired attempt unusable. A retry from the same request identity
-     returns the same result; a different requester is refused, not issued a second token.
+   - **acquire is SINGLE-DELIVERY.** v4 promised that a retry from the same request identity returns the
+     same result, which is impossible alongside verifier-only storage: if the first response is lost, the
+     gate cannot reproduce a token it never kept. Round 4 caught the contradiction.
+
+     A retry of a **committed** acquire returns `already_acquired` **and no token**. Losing the original
+     response therefore loses the attempt, and it becomes `INDETERMINATE` for reconciliation. That is the
+     honest outcome: the gate cannot know whether the executor received the token and started.
+
+     The rejected alternative — storing the token recoverably — would trade the verifier-only property for
+     a replay convenience, and would need its own storage, encryption, retention, authorization and
+     deletion design.
+
+   - **"Same request identity" is concrete**: a required, high-entropy acquire idempotency key, bound to
+     the authenticated principal, the attestation, the lease, the action digest **and a hash of the whole
+     acquire request** — not the shared principal identity, which every process of that executor has.
 
    Acquire also records the executing principal and its credential epoch, for audit.
 2. **Extension requires**: state `EXECUTING`; that attempt identifier; current audience credential;
@@ -198,14 +230,23 @@ credential as one principal, so nothing there distinguishes the winner.
    part of the design**. "Repeat until attestation expiry" is available only as an explicit choice, never
    the default.
 6. **Redeem uses the attempt identity and execution deadline**, not binder-holder semantics.
-7. **Executor rotation or disablement during an attempt.** Both cause extension **and redeem** to refuse:
-   a disabled credential must not be usable, and `#credentialCurrent` already refuses a stale epoch. The
-   attempt then reaches its deadline and becomes `INDETERMINATE`, which routes to owner reconciliation
-   against the executor's durable journal — the path designed for exactly this uncertainty.
+7. **Executor rotation and disablement during an attempt are DIFFERENT, and v4 conflated them.**
 
-   **This is a deliberate availability cost, stated rather than discovered:** rotating or disabling an
-   executor mid-deployment converts that deployment into a reconciliation. The alternative — letting a
-   disabled credential redeem — would mean disablement does not disable.
+   | event | extension | redeem |
+   |---|---|---|
+   | ordinary **rotation** | **refused** | **allowed**, with the new current credential plus the attempt token |
+   | **disablement** | refused | refused |
+
+   **Rotation:** the executor is still a trusted principal; only its credential changed. Refusing to
+   record an outcome it already produced would manufacture an `INDETERMINATE` out of a routine operation,
+   for no gain — the attempt token still proves it is the winning attempt. Extension is refused because
+   extending is forward-looking authority, and the old credential cannot authenticate at all.
+
+   **Disablement:** the principal must not act. Both refuse, the attempt reaches its deadline and becomes
+   `INDETERMINATE` for owner reconciliation against the executor's durable journal.
+
+   *(v4 argued only that "a disabled credential must not be usable", which says nothing about rotation,
+   and then applied the disablement answer to both.)*
 
 Honest limit: an authenticated extension establishes *principal-level* liveness. Process-instance liveness
 is only established because acquire mints an attempt-specific capability; without step 1 the whole
@@ -305,14 +346,14 @@ binder would no longer produce that result, and v2's "enumerate and revoke" is n
 **Specified instead:**
 
 - **ordinary rotation** may preserve completed bindings (the availability trade above);
-- **binder disablement must atomically taint or invalidate all of that binder's non-`EXECUTING`
-  attestations**, in the same transaction as the disable;
-- **`EXECUTING` records must not be made `REVOKED`** — that would claim an effect was stopped which may
-  already have happened. Either leave them executing and mark them for incident reconciliation, or define
-  a distinct incident state that does not assert the effect stopped;
-- the disable operation, the affected-state rules, its audit event, and the store/index transaction
-  boundaries are specified **together**, not separately;
+- **`EXECUTING` records are never made `REVOKED`** — that would claim an effect was stopped which may
+  already have happened;
 - owner revocation remains linearizable against acquire (exists).
+
+*(v4 also carried a requirement that disablement "atomically taint or invalidate all of that binder's
+non-`EXECUTING` attestations" — directly contradicting the choice made below, which rejects bulk
+invalidation. Round 4 found the contradiction. It was mine: I added the choice and left the superseded
+requirement standing above it, so the section specified two incompatible protocols. Deleted.)*
 
 **CHOSEN: the acquire-time binder check.** Round 3 was right that leaving this open was itself the defect
 — atomic bulk invalidation and an acquire-time check are different state machines, transaction shapes,
@@ -321,24 +362,53 @@ audit semantics and indexes, and "the implementer decides" would have meant nobo
 The bulk-invalidation option is rejected: it has unbounded transaction size, write amplification and hot
 index contention, and it *duplicates a fact the principal row already holds canonically*.
 
-**The contract:**
+**The contract, as executable postconditions rather than description:**
 
-1. **Bind records `binderCredentialEpoch`** on the attestation — for audit and for enumerating what a
-   compromised binder touched, not as an acquire-time equality test (see 4).
-2. **Acquire transactionally CLAIMS the binder principal document** — a conditional *write*, following the
-   pattern `#credentialCurrent` already uses. **A snapshot read is not sufficient**: under Mongo snapshot
-   isolation a read takes no lock and creates no conflict, so a read-only status check would not serialize
-   against a concurrent disable. This is the same trap recorded in the main design's transaction-boundary
-   section, and it is the single most likely way to implement this wrongly.
+0. **Disable mutates ONLY the canonical principal row and its audit record.** It performs no bulk update
+   over attestations. Incident identification is *derived*, by querying `EXECUTING` records by
+   `bindingPrincipalId` — the store must index that — or by a separately specified bounded process. There
+   is no per-attempt incident flag written inside the disable transaction, because that is the unbounded
+   write v4 rejected in the same breath as requiring it.
+
+1. **Bind records `binderIncarnation`** and `binderCredentialEpoch` on the attestation. The epoch is for
+   audit and enumeration only. The incarnation is the acquire-time equality test (see 4).
+2. **Acquire conditionally WRITES the binder principal row and the attestation in one transaction.**
+
+   **A snapshot read is not sufficient**: under Mongo snapshot isolation a read takes no lock and creates
+   no conflict, so a read-only status check would not serialize against a concurrent disable. This is the
+   trap the main design already records, and it is the likeliest way to implement this wrongly.
+
+   **"Claims the document" is not a postcondition.** The required mutation is a conditional update of the
+   binder principal row **filtered on `{ disabledAt: null, incarnation: <recorded> }`**, writing a value
+   that genuinely changes — `lastAcquireAt` — so it cannot be optimised into a no-op. Its
+   **matched/modified counts are the decision**: matched 0 means the binder was disabled or re-incarnated
+   and acquire refuses. Both counts must be asserted by tests, not inferred.
+
+   Whichever write to the principal row commits first wins, which is the entire point of writing rather
+   than reading it.
 3. **Serialization:** either acquire commits first or disablement does.
-   - acquire wins → disablement leaves the attempt `EXECUTING` and **flags it for incident
-     reconciliation**; it must not be marked `REVOKED`, which would claim an effect stopped that may
-     already have happened;
-   - disablement wins → acquire refuses.
-4. **Disabled status is checked; the epoch is NOT compared.** This is the subtle part. A single epoch
-   equality test would also invalidate on ordinary *rotation*, contradicting the policy above that
-   rotation preserves completed bindings. Acquire therefore requires the binder to be **enabled**, and
-   says nothing about which epoch it is now on.
+   - **acquire wins** → the attempt simply remains `EXECUTING`. Disablement writes nothing to it. The
+     incident responder finds it by querying `EXECUTING` records for that `bindingPrincipalId`;
+   - **disablement wins** → acquire's conditional update matches nothing and acquire refuses.
+4. **A monotonic `incarnation` is compared — not the credential epoch, and not merely present status.**
+
+   Two wrong answers, and why:
+
+   - **comparing the credential epoch** would invalidate on ordinary *rotation*, contradicting the policy
+     that rotation preserves completed bindings;
+   - **checking only present enabled/disabled status** is unsafe under **re-enable**. A principal disabled
+     after bind and later re-enabled is *presently enabled*, so a status-only check would accept exactly
+     the bindings disablement was meant to invalidate. This was my Q3 in round 3 and the concern was
+     right.
+
+   So: principals carry a **monotonic `incarnation`**, incremented **on disable** and never on rotation.
+   Bind records it; acquire requires equality. Disable-then-re-enable therefore invalidates prior
+   bindings, while rotation leaves them alone — which is precisely the policy.
+
+   *The reviewer offered a simpler option — make disabling a principal id permanent, so re-enabling means
+   provisioning a new id. I did not take it because it silently removes the `enable` operation
+   `operator.ts` already implements, and a design that breaks an existing tool without saying so is the
+   same class of error as the contradiction above. One integer buys keeping the operation.*
 
 **Executor disablement or rotation during `EXECUTING`** — §5 previously pointed here, and this section
 only covered the binder. Resolved there instead, since it is a property of the attempt.
@@ -380,8 +450,19 @@ identity-schema field, so nothing can tell a v1 record from a v2 one. Specified:
   | `RESERVED_BOUND`, `EXECUTING`, terminal | **never identity-rewritten**, under any authority |
 
   **Migration never edits a record.** Where a replacement is wanted, the owner mints a **new v2
-  attestation**, and the audit lineage records the superseded v1 id on the new record. The v1 record keeps
-  its v1 digest semantics and remains readable forever.
+  attestation**. The v1 record keeps its v1 digest semantics and remains readable forever.
+
+  **The lineage contract** — v4 required lineage without saying what it is:
+
+  - `supersedesAttestationId` is a **field on the new v2 attestation**, not a side audit record, so it
+    cannot drift from the thing it describes;
+  - it is **owner-supplied at mint** and **store-validated**: the referenced record must exist, and its
+    `candidateId`, `contentDigest`, `orgId` and `serverId` must match the new attestation's;
+  - it is **immutable and covered by `attestationIdentityDigest`**, by the same argument that puts
+    `bindingPrincipalId` there — a replacement that could be re-pointed is not a lineage;
+  - it is **optional** (most attestations supersede nothing) but, once set, never changed;
+  - it is available on **both mint paths**, and appears in the field inventory (§6, category 3) and the
+    surfaces list (§10).
 
   This means there is no in-place migration path at all, which is the point: an immutable identity that
   can be rewritten was never immutable.
@@ -441,17 +522,17 @@ monotonicity property the design assumes and the code does not provide, and §5 
 
 **Required:** deadlines move only later, for both lease renewal and execution extension.
 
-## 14. Questions for review round 4
+## 14. Questions for review round 5
 
-1. §5 — is the attempt token now specified as real credential material, or is there still a path by which
-   it leaks into something readable? I have excluded projections, audit detail, logs, signed payloads and
-   reconciliation output; that list is only as good as its completeness.
-2. §5 item 7 — executor disablement or rotation mid-attempt refuses **both** extension and redeem, sending
-   the attempt to `INDETERMINATE`. I think that is right (a disabled credential must not be usable) and I
-   have stated the availability cost. Is refusing *redeem* too strong, given redeem only records an
-   outcome the executor already produced?
-3. §8 item 4 — checking **disabled status but not epoch** is what keeps rotation non-invalidating. Is that
-   distinction robust, or does it need a separate explicit "disabledAt" comparison to be safe against a
-   principal that is disabled and re-enabled?
-4. §9 — "no in-place migration at all; mint a new v2 attestation with lineage" — too strict?
-5. Anything made worse in v4 while fixing round 3?
+1. §8 — the conditional update filters on `{ disabledAt: null, incarnation: <recorded> }` and writes
+   `lastAcquireAt` so it cannot be optimised away. Is writing a timestamp on the *principal* row per
+   acquire acceptable contention-wise, or does it want a dedicated counter document?
+2. §8 item 4 — I chose the monotonic `incarnation` over your "simplest" option of permanent disablement,
+   because permanence silently removes the `enable` operation `operator.ts` implements. Is that the right
+   trade, or is preserving `enable` not worth a new monotonic field?
+3. §5 — single-delivery acquire means a lost response costs a deployment. Is that acceptable, or does it
+   need a bounded pre-acquire handshake so the token is only minted once the executor is known to be
+   listening?
+4. §5 item 7 — allowing redeem after rotation but not after disablement: right line?
+5. Anything made worse in v5 while fixing round 4? The last two rounds each found one, and both were
+   superseded text I left standing next to its replacement.
