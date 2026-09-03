@@ -1,11 +1,18 @@
 import { signWithAgentKey, verifyAgentSignature } from "./agentKeys.js";
-import { payloadDigest, isTaskExpired, type TaskEnvelope, type OwnerAuthorization } from "./tasks.js";
+import { payloadDigest, isTaskExpired, taskTypeClassification, type TaskEnvelope, type OwnerAuthorization } from "./tasks.js";
 
-// Privileged task types require owner authorization (a state-changing managed-server action). Read-only
-// collection/inspection tasks do not.
-export const privilegedTaskTypes = ["configuration.apply", "configuration.rollback", "agent.upgrade"] as const;
+// Privileged task types require owner authorization (a state-changing managed-server action) and, on an
+// activated executor, an acquired review attestation. Read-only collection/inspection tasks do not.
+//
+// DERIVED, not maintained. This used to be a second hand-written list beside `taskTypes`, which an
+// independent review showed was fail-open: a new mutating type added to one list and missing from the
+// other skipped both authorization layers silently. There is now one table and this reads it.
+export const privilegedTaskTypes = Object.entries(taskTypeClassification)
+  .filter(([, classification]) => classification === "privileged")
+  .map(([type]) => type) as readonly string[];
+
 export function isPrivilegedTaskType(type: string): boolean {
-  return (privilegedTaskTypes as readonly string[]).includes(type);
+  return (taskTypeClassification as Record<string, string | undefined>)[type] === "privileged";
 }
 
 // Digest of the privileged ACTION — the payload EXCLUDING the ownerAuthorization field itself (so the

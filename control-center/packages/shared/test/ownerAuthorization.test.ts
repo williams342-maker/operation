@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { authorizePrivilegedTask, signOwnerAuthorization, privilegedActionDigest, isPrivilegedTaskType } from "../src/ownerAuthorization.js";
+import { authorizePrivilegedTask, signOwnerAuthorization, privilegedActionDigest, isPrivilegedTaskType, privilegedTaskTypes } from "../src/ownerAuthorization.js";
 import { generateAgentKeyPairs } from "../src/agentKeys.js";
-import { payloadDigest, type TaskEnvelope, type OwnerAuthorization } from "../src/tasks.js";
+import { payloadDigest, taskTypes, taskTypeClassification, taskEnvelopeSchema, type TaskEnvelope, type OwnerAuthorization } from "../src/tasks.js";
 
 // Disposable dev owner keypair (Ed25519). The production owner private key is never handled in-repo.
 const owner = generateAgentKeyPairs();
@@ -55,4 +55,45 @@ test("substitution, replay, expiry, and key-version mismatch all fail closed", (
   assert.equal(reason(authorizePrivilegedTask({ envelope: env, payload, ownerAuthorization: otherAction, ownerPublicKey, verifyEnvelope: () => true, now: NOW })), "owner-authorization-invalid");
   // (8a) key-version mismatch (tamper keyVersion after signing) → binding breaks → invalid
   assert.equal(reason(authorizePrivilegedTask({ envelope: env, payload, ownerAuthorization: { ...oa, keyVersion: "owner-v2" }, ownerPublicKey, verifyEnvelope: () => true, now: NOW })), "owner-authorization-invalid");
+});
+
+// ── one table, because two lists drift ─────────────────────────────────────────────────────────────
+
+test("a task type cannot exist without an authorization classification", () => {
+  // An independent review found that `taskTypes` and `privilegedTaskTypes` were maintained separately,
+  // and that the drift was fail-OPEN: a new mutating type added to the first and forgotten in the second
+  // skipped BOTH the owner signature and the review gate, silently, because "not privileged" and "not yet
+  // classified" were the same answer.
+  assert.deepEqual([...taskTypes].sort(), Object.keys(taskTypeClassification).sort());
+  for (const type of taskTypes) {
+    assert.ok(["read", "privileged"].includes(taskTypeClassification[type]),
+      `${type} has no authorization classification`);
+  }
+});
+
+test("isPrivilegedTaskType is DERIVED from that table, not a second list", () => {
+  for (const [type, classification] of Object.entries(taskTypeClassification)) {
+    assert.equal(isPrivilegedTaskType(type), classification === "privileged", type);
+  }
+  assert.deepEqual([...privilegedTaskTypes].sort(),
+    Object.entries(taskTypeClassification).filter(([, c]) => c === "privileged").map(([t]) => t).sort());
+  // The three that change a managed host, and nothing else.
+  assert.deepEqual([...privilegedTaskTypes].sort(),
+    ["agent.upgrade", "configuration.apply", "configuration.rollback"]);
+});
+
+test("an UNCLASSIFIED task type is refused at the protocol boundary", () => {
+  // The remaining way to add a mutating effect without classifying it is to invent a type that is in
+  // neither. The envelope schema rejects it, so it never reaches an executor at all.
+  for (const invented of ["configuration.purge", "host.exec", "agent.downgrade", ""]) {
+    assert.equal(isPrivilegedTaskType(invented), false, "unclassified is not privileged...");
+    const parsed = taskEnvelopeSchema.safeParse({
+      protocolVersion: "task-v1", taskId: "t-1", taskType: invented, orgId: "o", serverId: "s",
+      agentId: "a", issuedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      nonce: "nonce-nonce-nonce", payloadDigest: "a".repeat(64), signingKeyVersion: "cp-ed25519-v1",
+      signature: "x".repeat(64),
+    });
+    // ...so it had better not be dispatchable either.
+    assert.equal(parsed.success, false, `${invented} must not parse as a task envelope`);
+  }
 });

@@ -13,9 +13,6 @@ import type { CandidateRecord } from "../src/store.js";
 import type { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { castOf, type Person } from "./principals.js";
 import { configurationChangeDigest } from "@control-center/shared";
-import { agentConfigSchema } from "../../agent/src/config.js";
-import { writeEnforcement } from "../../agent/src/reviewEnforcement.js";
-import { ExecutionJournal } from "../../agent/src/executionJournal.js";
 
 // THE EFFECT POINT, driven through `executeTask` itself.
 //
@@ -33,8 +30,24 @@ import { ExecutionJournal } from "../../agent/src/executionJournal.js";
 // signature, a real task envelope, a real owner signature, a real gate on a socket, and a durable
 // ENFORCING record on disk. Nothing about enforcement is passed in; it has to be found.
 
+// THE PROCESS'S state directory, established BEFORE the agent module loads.
+//
+// `configPath` in the agent's config module is a constant resolved once at import from this variable, and
+// the enforcement record's location is derived from it. That is the round-2 fix: the location is a
+// property of the process, so no argument to `executeTask` can point it somewhere else. Setting it here
+// is therefore the only way a test can activate this executor — which is exactly the property under test.
 process.env.NODE_ENV = "test";
+const PROCESS_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "effect-point-home-"));
+process.env.CONTROL_CENTER_AGENT_CONFIG = path.join(PROCESS_HOME, "agent.json");
+const PROCESS_STATE_DIR = path.join(PROCESS_HOME, "agent-state");
+
+// EVERY agent import is dynamic, and that is load-bearing rather than stylistic: a static import is
+// hoisted above the assignment above it, so the agent config module would resolve its path before this
+// test could set it — and the executor would look for its record somewhere else entirely.
 const { executeTask } = await import("../../agent/src/agent.js");
+const { writeEnforcement } = await import("../../agent/src/reviewEnforcement.js");
+const { agentConfigSchema } = await import("../../agent/src/config.js");
+const { ExecutionJournal } = await import("../../agent/src/executionJournal.js");
 
 const oid = (c: string) => c.repeat(40).slice(0, 40);
 const dig = (c: string) => c.repeat(64).slice(0, 64);
@@ -118,7 +131,7 @@ const owner = generateAgentKeyPairs();
  * Everything an executor meets at dispatch: a gate holding a bound attestation, a stub control-center to
  * acknowledge to, a durable enforcement record, and a signed task carrying the reviewed deployment.
  */
-async function estate(options: { enforcing: boolean; stateDir?: string } = { enforcing: true }) {
+async function estate(options: { enforcing: boolean } = { enforcing: true }) {
   const cast = await castOf(PEOPLE);
   const store = cast.store;
   let ids = 0;
@@ -150,21 +163,27 @@ async function estate(options: { enforcing: boolean; stateDir?: string } = { enf
   }).listen(0);
   await new Promise((resolve) => ccServer.once("listening", resolve));
 
-  const stateDir = options.stateDir ?? tmp();
-  if (options.enforcing) {
-    writeEnforcement(stateDir, { state: "ENFORCING", by: "owner", reason: "test activation" });
-  }
+  // One record, at the location the PROCESS derives. Toggled per test rather than relocated, because
+  // relocating it is precisely the bypass round 2 found.
+  fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
+  writeEnforcement(PROCESS_STATE_DIR, {
+    state: options.enforcing ? "ENFORCING" : "DISABLED",
+    by: "owner",
+    reason: options.enforcing ? "test activation" : "test deactivation",
+  });
 
+  // NOTE: no state directory here. There is no such field any more.
   const config = agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(ccServer.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: "a".repeat(64), keyProtocolVersion: "agent-v2",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
-    stateDir, reviewGate: { url: gateUrl, credential: cast.credentialFor("agent-1"), timeoutMs: 5000 },
+    reviewGate: { url: gateUrl, credential: cast.credentialFor("agent-1"), timeoutMs: 5000 },
   });
 
   return {
-    store, attestationId, leaseId, configurationDeployment, config, acks, stateDir,
-    journal: new ExecutionJournal(path.join(stateDir, "execution-journal")),
+    store, attestationId, leaseId, configurationDeployment, config, acks,
+    stateDir: PROCESS_STATE_DIR,
+    journal: new ExecutionJournal(path.join(PROCESS_STATE_DIR, "execution-journal")),
     state: async () => (await store.loadAttestation(attestationId))!.state,
     close: async () => {
       await new Promise((resolve) => gateServer.close(resolve));
@@ -267,6 +286,23 @@ test("an ENFORCING executor with an unreachable gate deploys nothing", async (t)
   assert.equal(await world.state(), "RESERVED_BOUND");
   assert.equal(world.journal.list().length, 0);
   assert.ok(world.acks.some((ack) => ack.event === "failed"));
+});
+
+test("a config naming a different state directory cannot downgrade enforcement", async (t) => {
+  const world = await estate({ enforcing: true });
+  t.after(() => world.close());
+
+  // ROUND 2's DEFECT, as a test. The executor's real record says ENFORCING. This caller hands over a
+  // config that names an empty directory instead — the previous version read the location from exactly
+  // there and reported itself advisory, applying the task with no gate involvement at all.
+  const elsewhere = tmp();
+  const doctored = { ...world.config, stateDir: elsewhere } as typeof world.config;
+  await runExecutor(doctored, task(world.configurationDeployment));
+
+  assert.equal(await world.state(), "CONSUMED", "enforcement must have applied regardless of the config");
+  assert.equal(world.journal.list().length, 1, "the claim was written to the PROCESS's journal");
+  assert.equal(fs.existsSync(path.join(elsewhere, "execution-journal")), false,
+    "nothing was written where the caller pointed");
 });
 
 test("a DISABLED executor is unchanged — the gate is never consulted", async (t) => {

@@ -2,7 +2,7 @@
 import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, isPrivilegedTaskType, authorizePrivilegedTask, privilegedSubPayload, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
-import { loadConfig, saveConfig, defaultStateDir, type AgentConfig } from "./config.js";
+import { loadConfig, saveConfig, stateDir, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
 import { executeConfigurationDeployment } from "./configurationDeployment.js";
@@ -51,20 +51,25 @@ export type ReviewEnforcement =
   | { enforcing: false };
 
 /**
- * Layer 3, resolved from DURABLE STATE rather than from configuration alone.
+ * Layer 3, resolved from DURABLE STATE at a location this function's caller cannot choose.
  *
- * `resolveEnforcement` THROWS when this executor is ENFORCING but has no usable gate configuration, and
- * that throw is deliberately not caught here. An executor that has been activated must fail loudly rather
- * than run looking healthy with enforcement quietly off — configuration loss must not be a bypass.
+ * TWO INPUTS, AND ONLY ONE OF THEM IS AN ARGUMENT. *Whether* this executor enforces comes from the record
+ * at `stateDir()`, which is derived from the process's own configuration path — the previous version read
+ * it from `config.stateDir`, and an independent review showed that let any caller of `executeTask` hand
+ * over a config naming an empty directory and be told it was advisory. *Where the gate is* still comes
+ * from the config, and that is deliberate: substituting or removing it fails CLOSED, because an executor
+ * whose record says ENFORCING and whose gate configuration is unusable refuses to run at all.
+ *
+ * `resolveEnforcement` throws for exactly that case, and the throw is not caught here.
  */
 export function reviewEnforcement(config: AgentConfig): ReviewEnforcement {
-  const stateDir = config.stateDir || defaultStateDir();
-  const decision = resolveEnforcement({ stateDir, gate: config.reviewGate });
+  const directory = stateDir();
+  const decision = resolveEnforcement({ stateDir: directory, gate: config.reviewGate });
   if (!decision.enforcing) return { enforcing: false };
   return {
     enforcing: true,
     gate: new ReviewGateClient(decision.gate),
-    journal: new ExecutionJournal(path.join(stateDir, "execution-journal")),
+    journal: new ExecutionJournal(path.join(directory, "execution-journal")),
   };
 }
 
@@ -109,17 +114,23 @@ async function acknowledge(config: AgentConfig, taskId: string, event: "claimed"
 }
 
 /**
- * ENFORCEMENT IS RESOLVED HERE, from durable state, and is NOT a parameter.
+ * ENFORCEMENT IS RESOLVED HERE, from a record no argument can point elsewhere.
  *
- * An independent review found the previous shape was the defect: enforcement arrived as an optional
- * argument that defaulted to advisory, so any caller of this exported function — a test, a future CLI, a
- * refactor that dropped the argument — silently bypassed the gate on a host whose durable record said
- * ENFORCING. The claimed property was "an activated executor cannot apply a privileged task without
- * taking execution from the gate"; the mechanism only guaranteed that `pollOnce` remembered to pass it.
- * That is caller discipline wearing the costume of an invariant, and it is the same mistake this
- * workstream has now made in five different disguises.
+ * This took two review rounds to get right, and the two failures are worth keeping side by side because
+ * they are the same mistake at different depths:
  *
- * There is no argument to omit. The durable record is the only input.
+ *   round 1 — enforcement arrived as an optional argument defaulting to advisory, so any caller that
+ *             omitted it bypassed the gate on an ENFORCING host.
+ *   round 2 — the argument was gone, but the record's LOCATION still came from the caller's config, so
+ *             `executeTask({...config, stateDir: emptyDir}, task)` was told it was advisory. Removing the
+ *             argument had moved the caller-controlled input, not removed it.
+ *
+ * Both times my description said "unbypassable" and the mechanism said "unbypassable by callers who
+ * follow the convention". The location is now derived from the process (see `stateDir()` in config.ts).
+ *
+ * The honest boundary: this resists a caller that omits or substitutes configuration. It does not resist
+ * arbitrary code in this process, which can call the deployment functions directly, nor write access to
+ * the host. Activation resists a compromised control-center, not a compromised host.
  */
 async function executeTask(config: AgentConfig, task: ClaimedTask) {
   const enforcement = reviewEnforcement(config);
