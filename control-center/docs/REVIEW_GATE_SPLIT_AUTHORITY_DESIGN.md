@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Revision:** v5, after design review rounds 1 (8, 4 HIGH), 2 (5, 3 HIGH), 3 (4, 2 HIGH) and 4 (4, 2 HIGH).
+**Revision:** v6, after design review rounds 1 (8, 4 HIGH), 2 (5, 3 HIGH), 3 (4, 2 HIGH), 4 (4, 2 HIGH)
+and 5 (2, 1 HIGH).
 Round 3: *"the central split-authority direction is now sound"* — what remained was turning two open
 security choices into exact, testable contracts. v4 makes both choices.
 **Status:** **DESIGN, FOR REVIEW BEFORE ANY CODE.** The owner chose option (b) from
@@ -66,6 +67,17 @@ Round 4 also corrected §5 item 7: **rotation and disablement are not the same e
 extension and redeem for both, arguing only that "a disabled credential must not be usable" — which says
 nothing about rotation. After ordinary rotation, redeem is now **allowed**: the attempt token still
 proves the winning attempt, and refusing would manufacture an `INDETERMINATE` from a routine operation.
+
+### Round 5 — 2 findings, 1 HIGH. *"The next revision can be small."*
+
+| # | finding | what I had written | what is true |
+|---|---|---|---|
+| 1 | HIGH | rotation refuses extension (table), extension needs "the current audience credential" (predicate) | **the two disagreed.** After a rotation the *new* credential IS current and the token is still valid, so the stated predicate would have **permitted** extension. Two conforming implementations could reach opposite outcomes. Now enforced by `acting.credentialEpoch === executingCredentialEpoch` — §5 item 2 |
+| 2 | MED | acquire writes `lastAcquireAt` so the update "cannot be optimised into a no-op" | **not guaranteed.** Two acquisitions can read the same clock, a fixed test clock reproduces it, clock regression rewrites it — and MongoDB reports `matchedCount: 1, modifiedCount: 0` when `$set` writes the existing value. Now `$inc: { acquireFence: 1 }` — §8 item 2 |
+
+Round 5 confirmed the earlier regressions were gone: no bulk-invalidation contradiction, no lineage
+ambiguity. The pattern held anyway in a narrower form — a *table* and a *predicate* that disagreed, which
+is the same failure as superseded text left beside its replacement, one level down.
 
 ---
 
@@ -215,9 +227,22 @@ credential as one principal, so nothing there distinguishes the winner.
      the authenticated principal, the attestation, the lease, the action digest **and a hash of the whole
      acquire request** — not the shared principal identity, which every process of that executor has.
 
-   Acquire also records the executing principal and its credential epoch, for audit.
-2. **Extension requires**: state `EXECUTING`; that attempt identifier; current audience credential;
-   current target provisioning; live attestation; released claim still authorizable.
+   Acquire also records the executing principal and **`executingCredentialEpoch`**. That epoch is an
+   **enforced** field, not an audit note — item 2 compares against it, and calling it "for audit" is
+   exactly how v5 ended up with a table and a predicate that disagreed.
+2. **Extension requires**: state `EXECUTING`; that attempt token; **`acting.credentialEpoch ===
+   executingCredentialEpoch`** (the epoch recorded at acquire); current target provisioning; live
+   attestation; released claim still authorizable.
+
+   **The epoch equality is what enforces "rotation refuses extension".** v5 said extension needs "the
+   current audience credential", and then claimed in the table below that rotation refuses it — but after
+   a rotation the *new* credential **is** current and the token is still valid, so the stated predicate
+   would have *permitted* extension. Recording the acquiring epoch "for audit" enforces nothing. Round 5
+   caught that two conforming implementations could reach opposite authorization outcomes from the same
+   document.
+
+   **Redeem deliberately does NOT require this equality** — it requires the current credential plus the
+   attempt token. That asymmetry is the whole content of the rotation row in the table at item 7.
 3. **It must occur before the current execution deadline** — an expired attempt does not extend, it
    reconciles.
 4. **Deadlines are monotonic.** An extension may only move the deadline later. (§14.2: the existing
@@ -234,13 +259,15 @@ credential as one principal, so nothing there distinguishes the winner.
 
    | event | extension | redeem |
    |---|---|---|
-   | ordinary **rotation** | **refused** | **allowed**, with the new current credential plus the attempt token |
+   | ordinary **rotation** | **refused** — `acting.credentialEpoch !== executingCredentialEpoch` | **allowed**, with the new current credential plus the attempt token |
    | **disablement** | refused | refused |
 
    **Rotation:** the executor is still a trusted principal; only its credential changed. Refusing to
    record an outcome it already produced would manufacture an `INDETERMINATE` out of a routine operation,
    for no gain — the attempt token still proves it is the winning attempt. Extension is refused because
-   extending is forward-looking authority, and the old credential cannot authenticate at all.
+   extending is forward-looking authority, and is enforced by the epoch equality in item 2 — **not** by
+   "the old credential cannot authenticate", which was v5's reasoning and is beside the point: the party
+   asking for an extension after a rotation holds the *new* credential, which authenticates fine.
 
    **Disablement:** the principal must not act. Both refuse, the attempt reaches its deadline and becomes
    `INDETERMINATE` for owner reconciliation against the executor's durable journal.
@@ -379,10 +406,22 @@ index contention, and it *duplicates a fact the principal row already holds cano
    trap the main design already records, and it is the likeliest way to implement this wrongly.
 
    **"Claims the document" is not a postcondition.** The required mutation is a conditional update of the
-   binder principal row **filtered on `{ disabledAt: null, incarnation: <recorded> }`**, writing a value
-   that genuinely changes — `lastAcquireAt` — so it cannot be optimised into a no-op. Its
-   **matched/modified counts are the decision**: matched 0 means the binder was disabled or re-incarnated
-   and acquire refuses. Both counts must be asserted by tests, not inferred.
+   binder principal row **filtered on `{ disabledAt: null, incarnation: <recorded> }`**, applying
+   **`$inc: { acquireFence: 1 }`**. Its **matched/modified counts are the decision**: matched 0 means the
+   binder was disabled or re-incarnated, and acquire refuses. Both counts must be asserted by tests, not
+   inferred.
+
+   **It must be `$inc`, not a timestamp.** v5 specified `lastAcquireAt` "so it cannot be optimised into a
+   no-op", which is not guaranteed: two acquisitions can read the same clock value, a supplied or fixed
+   test clock reproduces one exactly, and clock regression can rewrite an existing value — and MongoDB
+   reports `matchedCount: 1, modifiedCount: 0` when `$set` writes the value already there. A monotonic
+   counter always modifies. `lastAcquireAt` may be written alongside it for observability, but it is not
+   the conflict primitive.
+
+   **And it must be on the canonical principal row, not a dedicated counter document.** Serialization
+   against disablement only works if both operations contend on the *same* authoritative write target; a
+   separate document moves the hot spot without creating the conflict, unless disablement is also made to
+   write it — which is strictly more machinery for the same result.
 
    Whichever write to the principal row commits first wins, which is the entire point of writing rather
    than reading it.
@@ -522,17 +561,21 @@ monotonicity property the design assumes and the code does not provide, and §5 
 
 **Required:** deadlines move only later, for both lease renewal and execution extension.
 
-## 14. Questions for review round 5
+## 14. Questions for review round 6
 
-1. §8 — the conditional update filters on `{ disabledAt: null, incarnation: <recorded> }` and writes
-   `lastAcquireAt` so it cannot be optimised away. Is writing a timestamp on the *principal* row per
-   acquire acceptable contention-wise, or does it want a dedicated counter document?
-2. §8 item 4 — I chose the monotonic `incarnation` over your "simplest" option of permanent disablement,
-   because permanence silently removes the `enable` operation `operator.ts` implements. Is that the right
-   trade, or is preserving `enable` not worth a new monotonic field?
-3. §5 — single-delivery acquire means a lost response costs a deployment. Is that acceptable, or does it
-   need a bounded pre-acquire handshake so the token is only minted once the executor is known to be
-   listening?
-4. §5 item 7 — allowing redeem after rotation but not after disablement: right line?
-5. Anything made worse in v5 while fixing round 4? The last two rounds each found one, and both were
-   superseded text I left standing next to its replacement.
+Round 5 answered the four open ones: principal-row contention is fine provided the conflict primitive is a
+guaranteed-changing counter; the monotonic `incarnation` is the right trade and precisely preserves
+`enable`; single-delivery acquire is acceptable because a pre-acquire handshake cannot prove receipt of the
+eventual token response and so does not remove the indeterminate outcome; and redeem-after-rotation /
+refuse-after-disablement is the right line **once the epoch predicates are executable**, which v6 makes
+them.
+
+What remains open:
+
+1. Is there any remaining place where a **table, a matrix or a prose summary** states an outcome that the
+   **predicates** do not produce? That has now been the defect twice — bulk-invalidation text beside its
+   replacement, then the rotation row beside its predicate — and it is the failure mode I am least able to
+   catch in my own document, because both halves read as true separately.
+2. §5 item 2 — `executingCredentialEpoch` is now enforced rather than audit. Does anything else I labelled
+   "for audit" actually carry enforcement weight? `binderCredentialEpoch` is the other candidate.
+3. Anything made worse in v6.
