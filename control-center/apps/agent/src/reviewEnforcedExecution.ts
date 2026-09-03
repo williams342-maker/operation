@@ -40,14 +40,26 @@ const refuse = (code: string, detail?: string): EnforcementRefusal => ({ refused
 /**
  * Take the right to act, from the gate and then from this host.
  *
- * The digest is computed HERE, from the payload about to be applied, with the same function layer 2
- * signs — so the gate is comparing what will actually happen against what was reviewed, rather than
- * against a value the control-center asserted.
+ * WHICH OBJECT GETS DIGESTED, because the first version of this file got it wrong and every test I wrote
+ * agreed with me. `payload` here must be the PRIVILEGED SUB-PAYLOAD — `taskPayload.configurationDeployment`
+ * or `taskPayload.agentUpgrade` — not the task payload that wraps it. That is the object the gate
+ * validated against the reviewed subject and digested at bind, and it is the object that carries
+ * `reviewAuthorization`. Handing this function the outer task payload produces a digest the gate has
+ * never seen and a reference it cannot find, so an activated executor refuses every privileged task.
+ * It fails closed, so it is not an opening — but it makes enforcement unusable, which is worse than it
+ * sounds: the way that gets "fixed" in a hurry is by turning enforcement off.
+ *
+ * NOTE A REAL ASYMMETRY, flagged rather than smoothed over: layer 2 signs
+ * `privilegedActionDigest(taskPayload)` while the gate binds `privilegedActionDigest(subPayload)`. Two
+ * different scopes for one action. Both are computed, never asserted, and neither is weakened by the
+ * other — but whether they should be the same scope is a question for the next review, not something to
+ * decide by picking whichever makes the code shorter.
  */
 export async function acquireForEffect(input: {
   gate: ReviewGateClient;
-  journal: ExecutionJournal;
+  /** The PRIVILEGED SUB-PAYLOAD the gate bound — not the task payload. See above. */
   payload: unknown;
+  journal: ExecutionJournal;
   taskType: string;
   orgId: string;
   serverId: string;

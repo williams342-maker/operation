@@ -25,12 +25,50 @@ export const enforcementRecordSchema = z.object({
     by: z.string().min(1).max(200),
     reason: z.string().min(1).max(2000),
   })).min(1),
-}).strict();
+}).strict().superRefine((record, context) => {
+  // THE TWO MUST AGREE. An independent review found that `state` and `history` were validated
+  // separately while only `state` was ever read — so a record saying `state: "DISABLED"` with a newest
+  // history entry of `ENFORCING` passed the schema and resolved advisory. That is a *semantically*
+  // corrupt record slipping through a check that only ever caught *syntactically* corrupt ones, which is
+  // the difference between "a corrupted record throws" as a description and as a mechanism.
+  const newest = record.history[record.history.length - 1];
+  if (newest.state !== record.state) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["state"],
+      message: `state "${record.state}" contradicts the newest history entry "${newest.state}"`,
+    });
+  }
+});
 export type EnforcementRecord = z.infer<typeof enforcementRecordSchema>;
 
+/**
+ * Loopback, where "no TLS" means "no network", not "plaintext on the wire".
+ *
+ * Kept narrow on purpose: a hostname that merely *resolves* to loopback does not qualify, because
+ * resolution is exactly what an attacker on the path controls.
+ */
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
 export const gateConfigSchema = z.object({
-  /** The gate's base URL. Private network; this is not a public service. */
-  url: z.string().url(),
+  /**
+   * The gate's base URL. Private network; this is not a public service — but "private network" is a
+   * deployment intention, not a property of the connection.
+   *
+   * TLS IS REQUIRED. An independent review pointed out that any syntactically valid URL counted as usable
+   * configuration, including `http://`: the executor would send its bearer credential in plaintext, and
+   * would accept `200 {"ok":true}` from whoever answered. The client fails closed on transport errors and
+   * on negative bodies, and that is worth nothing if it cannot tell who produced the positive one.
+   *
+   * This is the minimal fix, and it is NOT full authentication of the gate: TLS with the host's default
+   * trust store stops a plaintext spoof and credential capture, but a certificate from any trusted CA for
+   * that name still satisfies it. Pinning the gate's certificate or key is the real answer and belongs in
+   * the activation design, where the per-executor credential is issued.
+   */
+  url: z.string().url().refine((value) => {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || (parsed.protocol === "http:" && LOOPBACK.has(parsed.hostname));
+  }, "the review gate URL must be https (http is allowed only for loopback)"),
   /** The executor's OWN credential, distinct from its transport keys. */
   credential: z.string().min(1),
   /** Milliseconds. A gate that does not answer promptly is a gate that is unreachable. */

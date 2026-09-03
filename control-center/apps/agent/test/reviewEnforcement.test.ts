@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuthorization, privilegedActionDigest } from "@control-center/shared";
+import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuthorization, privilegedActionDigest, privilegedSubPayload, readReviewAuthorization } from "@control-center/shared";
 import { agentConfigSchema } from "../src/config.js";
 import { readEnforcement, writeEnforcement, resolveEnforcement } from "../src/reviewEnforcement.js";
 import { ExecutionJournal } from "../src/executionJournal.js";
@@ -20,10 +20,25 @@ const cp = generateAgentKeyPairs();
 const owner = generateAgentKeyPairs();
 const baseConfig = agentConfigSchema.parse({ controlCenterUrl: "https://cc.test", agentId: "agent-1", agentSecret: "unused-legacy-secret", keyProtocolVersion: "agent-v2", controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey });
 
-/** A fully valid layer-1 + layer-2 privileged task; layer 3 varies. */
-function privilegedTask(review?: { attestationId: string; leaseId: string }, ownerAuth: "valid" | "forged" = "valid") {
-  const core = { projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment: { planId: "plan-1" } };
-  const payload = review ? { ...core, reviewAuthorization: review } : core;
+/**
+ * A fully valid layer-1 + layer-2 privileged task; layer 3 varies.
+ *
+ * WHERE THE REFERENCE GOES. Inside `configurationDeployment`, because that is where
+ * `configurationDeploymentPayloadSchema` puts it — `taskPayloadSchema` is `.strict()` and has no such
+ * field. An earlier version of this fixture put it at the top of the task payload, which made the tests
+ * agree with a defect: the executor read it from there too, so nothing failed here while an activated
+ * executor would have refused every privileged task in production. `wrongLevel` below pins that.
+ */
+function privilegedTask(
+  review?: { attestationId: string; leaseId: string },
+  ownerAuth: "valid" | "forged" = "valid",
+  wrongLevel = false,
+) {
+  const deployment = review && !wrongLevel
+    ? { planId: "plan-1", reviewAuthorization: review }
+    : { planId: "plan-1" };
+  const core = { projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment: deployment };
+  const payload = review && wrongLevel ? { ...core, reviewAuthorization: review } : core;
   const nonce = "owner-nonce-1"; const keyVersion = "owner-v1"; const expiresAt = new Date(Date.now() + 3600_000).toISOString();
   // The owner signs the action digest, which EXCLUDES ownerAuthorization but includes reviewAuthorization.
   const signature = signOwnerAuthorization(ownerAuth === "forged" ? generateAgentKeyPairs().signingPrivateKey : owner.signingPrivateKey, { taskType: "configuration.apply", orgId: "org-1", serverId: "server-1", actionDigest: privilegedActionDigest(payload), expiresAt, nonce, keyVersion });
@@ -71,6 +86,43 @@ test("a CORRUPTED enforcement record throws — it is never read as DISABLED", (
   assert.throws(() => readEnforcement(dir), /unreadable/);
   fs.writeFileSync(path.join(dir, "review-enforcement.json"), "not json at all");
   assert.throws(() => readEnforcement(dir));
+});
+
+test("a record whose state CONTRADICTS its history throws", () => {
+  const dir = tmp();
+  writeEnforcement(dir, { state: "ENFORCING", by: "owner", reason: "activated" });
+  // Semantically corrupt rather than syntactically corrupt: every field is well-formed and the newest
+  // history entry says ENFORCING, but the top-level state — the only value that was ever read — says
+  // DISABLED. An independent review found this passed the schema and resolved advisory, which is the
+  // difference between "a corrupted record throws" as a description and as a mechanism.
+  fs.writeFileSync(path.join(dir, "review-enforcement.json"), JSON.stringify({
+    state: "DISABLED",
+    history: [{ state: "ENFORCING", at: "2026-09-02T00:00:00.000Z", by: "owner", reason: "activated" }],
+  }));
+  assert.throws(() => readEnforcement(dir), /unreadable/);
+  assert.throws(() => resolveEnforcement({ stateDir: dir, gate: { url: "https://gate.test", credential: "c" } }));
+
+  // The other direction too: claiming ENFORCING over a history that ends DISABLED is equally inconsistent.
+  fs.writeFileSync(path.join(dir, "review-enforcement.json"), JSON.stringify({
+    state: "ENFORCING",
+    history: [{ state: "DISABLED", at: "2026-09-02T00:00:00.000Z", by: "owner", reason: "rolled back" }],
+  }));
+  assert.throws(() => readEnforcement(dir), /unreadable/);
+});
+
+test("a plaintext gate URL is not usable configuration", () => {
+  const dir = tmp();
+  writeEnforcement(dir, { state: "ENFORCING", by: "owner", reason: "activated" });
+  // The executor sends its bearer credential to this URL and treats a 200 as permission. Over http that
+  // hands the credential to anyone on the path and accepts a spoofed positive answer, so the client's
+  // fail-closed behaviour on transport errors buys nothing.
+  for (const url of ["http://gate.internal", "http://10.0.0.5:8080", "http://gate.internal.corp/path"]) {
+    assert.throws(() => resolveEnforcement({ stateDir: dir, gate: { url, credential: "c" } }), /refuses to start/);
+  }
+  assert.equal(resolveEnforcement({ stateDir: dir, gate: { url: "https://gate.internal", credential: "c" } }).enforcing, true);
+  // Loopback is exempt because there "no TLS" means "no network" — and it is what the contract tests use.
+  assert.equal(resolveEnforcement({ stateDir: dir, gate: { url: "http://127.0.0.1:4000", credential: "c" } }).enforcing, true);
+  assert.equal(resolveEnforcement({ stateDir: dir, gate: { url: "http://localhost:4000", credential: "c" } }).enforcing, true);
 });
 
 test("an ENFORCING executor with no usable gate configuration REFUSES TO START", () => {
@@ -279,6 +331,34 @@ test("ENFORCING requires the payload to name an attestation; ADVISORY is unchang
   // Enforcing: the reference is required before the executor will even attempt acquisition.
   assert.throws(() => verifyTask(baseConfig, privilegedTask() as never, true), /review-authorization-missing/);
   verifyTask(baseConfig, privilegedTask(REVIEW) as never, true);
+});
+
+test("a reference at the WRONG LEVEL is not a reference", () => {
+  // The task payload carries `reviewAuthorization` at its top level instead of inside the deployment.
+  // This is the exact shape of a defect an independent review round turned up: it must not satisfy
+  // layer 3, or the executor and the gate would disagree about what was authorized.
+  assert.throws(
+    () => verifyTask(baseConfig, privilegedTask(REVIEW, "valid", true) as never, true),
+    /review-authorization-missing/,
+  );
+});
+
+test("privilegedSubPayload finds the payload the gate bound, and nothing else", () => {
+  const upgrade = { upgradeId: "u-1", reviewAuthorization: REVIEW };
+  const deploy = { planId: "plan-1", reviewAuthorization: REVIEW };
+  const payload = { configurationDeployment: deploy, agentUpgrade: upgrade, reviewAuthorization: { attestationId: "decoy", leaseId: "decoy" } };
+  assert.deepEqual(privilegedSubPayload("configuration.apply", payload), deploy);
+  assert.deepEqual(privilegedSubPayload("configuration.rollback", payload), deploy);
+  assert.deepEqual(privilegedSubPayload("agent.upgrade", payload), upgrade);
+  // A task type nobody wired here yields nothing, so an enforcing executor refuses it rather than
+  // applying it unauthorized. That is the safe direction for a type added later.
+  assert.equal(privilegedSubPayload("configuration.something.new", payload), undefined);
+  assert.equal(privilegedSubPayload("collect.system", payload), undefined);
+  // readReviewAuthorization reads whatever object it is handed — it has no way to know it was given
+  // the wrong one. That is precisely why the pairing matters: the sub-payload yields the real reference,
+  // and reading the wrapper yields the decoy. The defect was a caller passing the wrapper.
+  assert.equal(readReviewAuthorization(privilegedSubPayload("configuration.apply", payload))?.attestationId, REVIEW.attestationId);
+  assert.equal(readReviewAuthorization(payload)?.attestationId, "decoy");
 });
 
 test("layer 3 does not weaken layers 1 and 2", () => {

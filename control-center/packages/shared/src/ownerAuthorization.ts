@@ -83,13 +83,33 @@ export function authorizePrivilegedTask(input: { envelope: TaskEnvelope; payload
   }, oa.signature);
   if (!ok) return { authorized: false, reason: "owner-authorization-invalid" };
   if (input.requireReviewAuthorization) {
-    const reference = readReviewAuthorization(input.payload);
+    // Read from the PRIVILEGED SUB-PAYLOAD, which is where the schema puts it — not from the task payload
+    // that wraps it. Getting this wrong here refuses every privileged task on an activated executor.
+    const reference = readReviewAuthorization(privilegedSubPayload(input.envelope.taskType, input.payload));
     if (!reference) return { authorized: false, reason: "review-authorization-missing" };
   }
   return { authorized: true };
 }
 
-/** The layer-3 reference carried inside the payload, or null if it is absent or malformed. */
+/**
+ * Where the privileged payload for a task type lives, and the ONLY place that knows it.
+ *
+ * `reviewAuthorization` sits inside `configurationDeploymentPayloadSchema` and
+ * `agentUpgradeManifestSchema`, not at the top of `taskPayloadSchema` — which is `.strict()` and has no
+ * such field. Two separate places had independently reimplemented "find the privileged payload", and both
+ * got it wrong in the same way, which is what this function exists to make impossible.
+ *
+ * An unknown task type returns undefined, so a new privileged type that nobody wired here is REFUSED by
+ * an enforcing executor rather than applied unauthorized.
+ */
+export function privilegedSubPayload(taskType: string, payload: unknown): unknown {
+  const candidate = payload as { configurationDeployment?: unknown; agentUpgrade?: unknown } | null | undefined;
+  if (taskType === "configuration.apply" || taskType === "configuration.rollback") return candidate?.configurationDeployment;
+  if (taskType === "agent.upgrade") return candidate?.agentUpgrade;
+  return undefined;
+}
+
+/** The layer-3 reference carried inside the privileged payload, or null if absent or malformed. */
 export function readReviewAuthorization(payload: unknown): ReviewAuthorizationRef | null {
   const candidate = (payload as { reviewAuthorization?: unknown } | null)?.reviewAuthorization;
   if (!candidate || typeof candidate !== "object") return null;

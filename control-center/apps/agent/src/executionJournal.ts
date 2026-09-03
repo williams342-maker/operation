@@ -144,7 +144,10 @@ export class ExecutionJournal {
   list(): JournalEntry[] {
     if (!fs.existsSync(this.#dir)) return [];
     return fs.readdirSync(this.#dir)
-      .filter((name) => name.endsWith(".json"))
+      // Filtered on the digest shape, not on the extension. `read` validates the same pattern and THROWS
+      // for anything else, so a single stray file in this directory would otherwise take out the
+      // reconciliation tool — at exactly the moment an operator needs it.
+      .filter((name) => /^[a-f0-9]{64}\.json$/.test(name))
       .map((name) => this.read(path.basename(name, ".json")))
       .filter((entry): entry is JournalEntry => entry !== null);
   }

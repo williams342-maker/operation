@@ -1,5 +1,5 @@
 ﻿import os from "node:os";
-import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, isPrivilegedTaskType, authorizePrivilegedTask, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
+import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, isPrivilegedTaskType, authorizePrivilegedTask, privilegedSubPayload, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, saveConfig, defaultStateDir, type AgentConfig } from "./config.js";
@@ -50,8 +50,6 @@ export type ReviewEnforcement =
   | { enforcing: true; gate: ReviewGateClient; journal: ExecutionJournal }
   | { enforcing: false };
 
-const ADVISORY: ReviewEnforcement = { enforcing: false };
-
 /**
  * Layer 3, resolved from DURABLE STATE rather than from configuration alone.
  *
@@ -62,7 +60,7 @@ const ADVISORY: ReviewEnforcement = { enforcing: false };
 export function reviewEnforcement(config: AgentConfig): ReviewEnforcement {
   const stateDir = config.stateDir || defaultStateDir();
   const decision = resolveEnforcement({ stateDir, gate: config.reviewGate });
-  if (!decision.enforcing) return ADVISORY;
+  if (!decision.enforcing) return { enforcing: false };
   return {
     enforcing: true,
     gate: new ReviewGateClient(decision.gate),
@@ -110,7 +108,21 @@ async function acknowledge(config: AgentConfig, taskId: string, event: "claimed"
   return signedPost(config, "/api/agent/tasks/ack", { taskId, event, result, message });
 }
 
-async function executeTask(config: AgentConfig, task: ClaimedTask, enforcement: ReviewEnforcement = ADVISORY) {
+/**
+ * ENFORCEMENT IS RESOLVED HERE, from durable state, and is NOT a parameter.
+ *
+ * An independent review found the previous shape was the defect: enforcement arrived as an optional
+ * argument that defaulted to advisory, so any caller of this exported function — a test, a future CLI, a
+ * refactor that dropped the argument — silently bypassed the gate on a host whose durable record said
+ * ENFORCING. The claimed property was "an activated executor cannot apply a privileged task without
+ * taking execution from the gate"; the mechanism only guaranteed that `pollOnce` remembered to pass it.
+ * That is caller discipline wearing the costume of an invariant, and it is the same mistake this
+ * workstream has now made in five different disguises.
+ *
+ * There is no argument to omit. The durable record is the only input.
+ */
+async function executeTask(config: AgentConfig, task: ClaimedTask) {
+  const enforcement = reviewEnforcement(config);
   verifyTask(config, task, enforcement.enforcing);
   const { envelope, payload } = task;
   await acknowledge(config, envelope.taskId, "claimed").catch(() => undefined);
@@ -122,7 +134,9 @@ async function executeTask(config: AgentConfig, task: ClaimedTask, enforcement: 
   let acquired: Acquired | undefined;
   if (enforcement.enforcing && isPrivilegedTaskType(envelope.taskType)) {
     const outcome = await acquireForEffect({
-      gate: enforcement.gate, journal: enforcement.journal, payload,
+      gate: enforcement.gate, journal: enforcement.journal,
+      // The SUB-PAYLOAD, which is what the gate bound. See acquireForEffect.
+      payload: privilegedSubPayload(envelope.taskType, payload),
       taskType: envelope.taskType, orgId: envelope.orgId, serverId: envelope.serverId,
       at: new Date().toISOString(),
     });
@@ -204,10 +218,10 @@ async function executeTask(config: AgentConfig, task: ClaimedTask, enforcement: 
 
 async function pollOnce() {
   const config = await maybeEnroll();
-  // Re-read every poll, from the durable record, so activating enforcement takes effect without a restart
-  // — and so an executor whose gate configuration has gone missing stops claiming tasks immediately. This
-  // throws for that case, which aborts the poll before any task is executed.
-  const enforcement = reviewEnforcement(config);
+  // Resolved here too, BEFORE any task is claimed, so an executor whose gate configuration has gone
+  // missing stops the poll rather than failing task by task. `executeTask` resolves it again for itself
+  // and does not take it from here — that argument was the defect an independent review found.
+  reviewEnforcement(config);
   await reportUpdaterResults(config);
   const initial = {
     heartbeat: { collectedAt: new Date().toISOString(), agentVersion: config.agentVersion, protocolVersion: config.protocolVersion, packageType: config.packageType, releaseChannel: config.releaseChannel, binarySha256: config.binarySha256, capabilities: [...advertisedCapabilities] },
@@ -220,7 +234,7 @@ async function pollOnce() {
   writeUpdaterHeartbeat(config, Boolean(initial.discovery));
   for (const task of response.tasks || []) {
     try {
-      await executeTask(config, task, enforcement);
+      await executeTask(config, task);
     } catch (error) {
       const taskId = task?.envelope?.taskId;
       if (taskId) {
