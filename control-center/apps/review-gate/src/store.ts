@@ -29,6 +29,15 @@ export type CandidateRecord = {
   supersededAt?: string;
   remediates?: readonly string[];
   inherited?: ReadonlyArray<FindingOccurrence>;
+  /**
+   * The reviewer who claimed this review.
+   *
+   * Recorded SEPARATELY from participation, because claiming must grant no role -- an earlier design
+   * wrote a requester row for whoever performed the move, and a stranger used that to self-enrol,
+   * cancel the candidate and supersede it, entirely through legal moves. This field lets the verdict
+   * require the recorded claimant without that move conferring anything.
+   */
+  claimedByPrincipalId?: string;
   participants: Participant[];
   occurrences: TransitionOccurrence[];
   verdicts: StoredVerdict[];
@@ -161,6 +170,8 @@ export interface ReviewGateStore {
     nextState: ReviewState;
     occurrence: TransitionOccurrence;
     addParticipant?: Participant;
+    /** Set by claim-review. Records the claimant WITHOUT granting a role. */
+    claimedByPrincipalId?: string;
     /** Set when the move releases the content claim (cancel / expire). */
     releaseClaim?: boolean;
     idempotency: IdempotencyKey;
