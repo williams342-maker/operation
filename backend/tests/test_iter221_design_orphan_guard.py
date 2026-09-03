@@ -137,8 +137,15 @@ def test_purge_orphans_endpoint(cleanup):
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] is True
-    assert body["deleted"] == 1
+    # `deleted` is a count over the WHOLE collection, not just this test's fixtures, so an exact
+    # value silently assumes nothing else seeded an orphan. test_community_designs_seed installs 10
+    # seed designs that match the orphan query, which made this read `assert 11 == 1`. The content of
+    # the assertion is below: THIS orphan went, and the verified/organic rows stayed.
+    # test_status_reports_orphan_count in this same file already uses `>= 1` for the same reason.
+    assert body["deleted"] >= 1
     assert "iter221-orphan" in body["slugs"]
+    assert "iter221-verified" not in body["slugs"]
+    assert "iter221-organic" not in body["slugs"]
     # Verified + organic survive
     r2 = requests.get(f"{API}/community/files?limit=80", timeout=10)
     items = r2.json() if isinstance(r2.json(), list) else r2.json().get("items", [])

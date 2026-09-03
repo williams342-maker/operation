@@ -88,11 +88,7 @@
 # the rotation refill logic is wrong or the test's expectation is stale needs someone who knows the
 # homepage rotation rules. Listed so it is visible rather than lost among 161 recoveries.
 tests.test_admin_seo_shipping.TestCheckout::test_create_session_returns_shape
-tests.test_community_designs_seed.TestCommunityDesignsSeedAdmin::test_install_fixture_idempotent_and_preserves_downloads
-tests.test_community_designs_seed.TestCommunityDesignsSeedAdmin::test_status_counts
 tests.test_community_designs_seed.TestCommunityFilesPublic::test_list_returns_seeded_designs
-tests.test_community_designs_seed.TestFeaturedSeedRegression::test_featured_seed_status
-tests.test_community_designs_seed.TestPurgeRegression::test_purge_then_reinstall_round_trip
 tests.test_contrast_lint::test_contrast_lint_passes
 tests.test_digital_downloads_marketplace::test_summary_counts_only_safe_active_digital
 tests.test_email_provider_audit::test_audit_returns_expected_schema_and_logic
