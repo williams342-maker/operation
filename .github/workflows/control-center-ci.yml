@@ -85,9 +85,9 @@ jobs:
       # PRIVILEGED_FS and DOCKER_DEPLOYMENT are intentionally NOT set. That absence is the point of this
       # job; setting them would make it a duplicate of `verify` and delete the coverage it exists for.
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # agent 64 + api 133 + shared 79 = 276, with exactly 3 skips: the docker-deployment test and two
+      # agent 90 + api 133 + shared 82 = 305, with exactly 3 skips: the docker-deployment test and two
       # privileged linuxDiscovery tests. Both numbers must move together when tests are added.
-      CI_EXPECTED_TESTS: "276"
+      CI_EXPECTED_TESTS: "305"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -143,11 +143,15 @@ jobs:
       CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
       CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
-      # Linux TAP inventory: agent 64 + API 108 + shared 79 + web 34 = 285.
-      # (agent-v2 asymmetric protocol + hardening + staging-exercise tests, all additive; 0 skips.)
-      # api +10: buildIdentity now covers fail-closed behaviour and the measured runtime digest.
-      CI_EXPECTED_TEST_SUITES: "agent=64,api=133,shared=79,web=34"
-      CI_EXPECTED_TESTS: "310"
+      # Linux TAP inventory: agent 90 + api 133 + shared 82 + web 34 = 339, 0 skips. Measured on the
+      # candidate, not derived. The line this replaces read "agent 64 + API 108 + shared 79 + web 34
+      # = 285" while the gate below already required api=133 and 310, so that comment had been stale
+      # since the buildIdentity work; do not read it as history.
+      # agent +26: reviewEnforcement. shared +3: task-type authorization classification.
+      # The review-gate suite (174) runs under `npm test` but is deliberately NOT counted here: it
+      # carries one documented skip (Mongo conformance needs a replica set) and this gate forbids skips.
+      CI_EXPECTED_TEST_SUITES: "agent=90,api=133,shared=82,web=34"
+      CI_EXPECTED_TESTS: "339"
     steps:
       - uses: actions/checkout@v6
       - name: Scan tracked repository content with Gitleaks 8.30.1
