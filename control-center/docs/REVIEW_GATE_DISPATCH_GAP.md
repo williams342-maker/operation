@@ -2,9 +2,10 @@
 
 **Date:** 2026-09-02
 **Author:** Claude
-**Status:** **FINDING — needs independent confirmation before it is acted on.** It contradicts a design
-that already holds a GO, and my record in this workstream is claims that outrun the mechanism. Verify it
-before believing it.
+**Status:** **CONFIRMED by independent review, 2026-09-02.** Four corrections came back with the
+confirmation — two factual errors in my argument and two places where my scope statement was too generous
+to myself. All four are applied below and marked, because the corrections are more instructive than the
+finding.
 
 ---
 
@@ -41,8 +42,13 @@ redeem.
 
 - **bind requires the final payload.** The gate validates it against the reviewed subject and computes
   `actionDigest` from it.
-- **The owner signs `actionDigest`,** which is fixed at bind and covers `reviewAuthorization`
-  (`privilegedActionDigest` excludes only `ownerAuthorization`).
+- **The owner signs a digest of the final OUTER payload**, which contains the bound sub-payload and its
+  review ids. *(Corrected: I first wrote "the owner signs the `actionDigest` fixed at bind". Not true —
+  the gate binds `privilegedActionDigest(subPayload)` while layer 2 signs
+  `privilegedActionDigest(outerTaskPayload)`. That asymmetry is the one already documented in
+  `reviewEnforcedExecution.ts`. It does not weaken the argument, because **both** scopes contain the
+  `reviewAuthorization` ids, so neither can be finalised before reservation — but the sentence was
+  wrong.)*
 - **The only channel that delivers a payload to an executor is the signed task dispatch** — which is
   step 5, *after* bind and sign.
 
@@ -55,11 +61,21 @@ ordering.
 
 ## Why every suite is green anyway
 
-The gate's tests drive `reserve` and `bind` directly as `agent-1`, because a test can authenticate as
-anyone. **No component can.** My own `executorEffectPoint.test.ts` does the same in its setup, then calls
-`executeTask` — so it faithfully measures the executor's half of a protocol whose other half has no
-implementation. Every test is honest about what it tests; none of them tests that the sequence can be
-*produced*.
+The gate's tests drive `reserve` and `bind` directly as `agent-1`. My own `executorEffectPoint.test.ts`
+does the same in its setup, then calls `executeTask` — so it faithfully measures the executor's half of a
+protocol whose other half has no implementation.
+
+*(Corrected: I first wrote "no component can authenticate as `agent-1`". Too broad — **the agent does
+exactly that**, every time it acquires. The precise statement is:*
+
+> *No existing component authenticates as the executor to perform reserve and bind **at a point when it
+> possesses the prospective payload**.*
+
+*The distinction matters, because it locates the gap in the ORDERING and the missing client methods rather
+than in identity. The agent's `ReviewGateClient` implements only `acquire` and `redeem`; the gate's
+`/reserve` and `/bind` routes exist and have no caller anywhere in the repository.)*
+
+Every test is honest about what it tests; none tests that the sequence can be *produced*.
 
 Restated as the pattern this workstream keeps hitting: the tests confirm each step in isolation, and the
 thing that does not work is the composition.
@@ -71,12 +87,16 @@ thing that does not work is the composition.
    decorative-review failure the design names in `reviewGateClient.ts`. It also breaks execution: the
    executor is a different principal, and `acquire` by a non-holder is refused `not_lease_holder`
    (verified).
-2. **The owner signs before bind.** Impossible. The digest is fixed at bind and covers ids that do not
-   exist until reserve.
+2. **The owner signs before bind.** Impossible under the present schemas: `leaseId` does not exist until
+   reserve, and it sits inside the payload the owner signs.
 3. **The agent binds at poll time against an unsigned proposal, then the owner signs, then a second
-   dispatch delivers the signed task.** This is coherent and is probably the answer, but **it does not
-   exist** — it needs new endpoints on both sides, and it puts an offline human signature inside every
-   deployment's critical path.
+   dispatch delivers the signed task.** Coherent, faithful to the current single-holder design, and
+   **absent** — it needs a proposal/preparation protocol, reserve/bind support in the agent's client, and
+   a completion/signing/dispatch phase.
+
+   *(Noted here because I got it wrong further down: the offline human signature sits in every
+   deployment's critical path under **all three** options, since layer 2 is unchanged in all of them. It
+   is not a cost specific to this one, and I should not have used it to argue against it.)*
 
 ## What this does NOT change
 
@@ -84,8 +104,31 @@ thing that does not work is the composition.
   correctly; it is the thing that would have to be *fed* that is missing.
 - Nothing is at risk in production. Every executor is `DISABLED`, and a `DISABLED` executor behaves
   exactly as before. **The gap is a reason activation cannot be switched on, not a vulnerability.**
-- The gate service's GO stands for its built scope. The gap is in the *composition*, which no candidate
-  has claimed.
+- The gate service's **implementation** GO stands narrowly: its code correctly implements the local
+  contract it states.
+
+  *(Corrected, and this is the one I got wrong in my own favour. I originally wrote that the gate's GO
+  stands because "the gap is in the composition, which no candidate has claimed". The reviewer's answer:
+  the **design** GO does not stand unchanged. §2.6 explicitly claims the sequence is executable and
+  non-circular and calls reserve/bind executor operations — this finding falsifies those composition
+  claims directly. Describing the whole gate deliverable as GO without a blocking qualification is too
+  generous. The build state now carries that qualification.)*
+
+## The test that should have caught this, and should gate activation
+
+A **public-interface choreography test**, which by construction cannot be written as a passing test today —
+that is exactly the defect:
+
+1. start from a released candidate and an owner-minted attestation;
+2. use **only** the APIs and clients the control-center and agent actually expose;
+3. produce a real configuration or upgrade task through the normal workflow;
+4. poll it through the real agent protocol;
+5. require an **ENFORCING** agent to acquire and execute it;
+6. **forbid** direct calls to `AttestationService`, direct store mutation, and authenticating as an
+   arbitrary principal.
+
+Rule 6 is the whole point: every existing test violates it in setup, which is why they are green. After
+the protocol is fixed, this test should be the gate on activation — not a checklist item, the test.
 
 ## What I am NOT doing
 
@@ -107,5 +150,28 @@ Where should reserve and bind happen, given that the signer is offline?
 - **(c) Batch or standing authorizations** — the owner signs a class of deployments in advance. Largest
   change to the trust model; needs its own design round.
 
-I have a view — (b), because (a) makes the gate a deployment bottleneck an on-call engineer will demand be
-switched off, which is how enforcement dies. But this is a trust-model decision and it is not mine.
+I had a view — (b) — **and my stated reason for it was false.** I wrote that (b) removes the offline human
+signature from every deployment's critical path. It does not: under layer 2 unchanged, the owner must
+still sign after the lease ids exist and the final outer payload is formed. Whatever (b) is worth, it is
+not worth that.
+
+**What the reviewer confirmed about (b), stated properly.** It is the smallest practical shape, and it is
+not inherently a collapse of layer 3 — provided the split is explicit rather than an ad-hoc loosening of
+"lease holder":
+
+- two separate authorities, `bindingPrincipalId` and `audiencePrincipalId`, named as such;
+- the provisioning principal may prepare only a payload matching released, reviewed content;
+- it **cannot** acquire or redeem;
+- the executor remains the fixed execution audience and is the only thing that can cross the host effect
+  point;
+- the offline owner signature remains independently required.
+
+The authority actually added is **availability and allocation** — a provisioner can reserve, bind, exhaust
+or strand attestations. It must not gain authority to forge reviewed content or to execute it. That is a
+real and bounded cost, and it is the honest way to describe the trade.
+
+**Removing the human from the path is a separate, larger change** — it needs a layer-2 decision such as
+scoped standing or batch owner authorization, and it should not be smuggled in as a side effect of fixing
+the ordering.
+
+The decision remains the owner's.
