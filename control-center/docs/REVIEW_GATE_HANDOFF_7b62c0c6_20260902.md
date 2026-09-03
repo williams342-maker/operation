@@ -33,9 +33,26 @@ agent test file in-process worked: **90 tests, 79 passed, 5 skipped, 6 blocked**
 `safeExec.test.ts`, whose bodies themselves spawn child processes the sandbox denies. **The 26
 enforcement-focused tests passed independently.** Agent, review-gate and shared typechecks passed.
 `executorEffectPoint.test.ts` could not be executed there — `tsx`/esbuild itself hit `spawn EPERM` — so
-**its results remain author-reported**, though static inspection found it properly structured and
-non-vacuous. The §F table below is therefore still partly my assertion, and is left as written rather than
-revised to look better than it was verified to be.
+its results were author-reported, though static inspection found it properly structured and non-vacuous.
+
+**RESOLVED AFTERWARDS, at `536ff58c`.** The blocker was structural rather than incidental: the sandbox
+forbids a process from spawning children, and `node --test` spawns one per test file while `tsx` spawns
+esbuild. `npm run test:nospawn` compiles src and tests to plain JavaScript and has the *shell* launch one
+`node` per file, so nothing nests. An independent party then executed:
+
+| suite | result | against my claim |
+|---|---|---|
+| `apps/review-gate` (all 12 files) | **174 tests, 173 pass, 0 fail, 1 skip** | exact match |
+| — of which `executorEffectPoint` | **7 tests, 7 passed** | **first independent execution** |
+| `apps/agent` (all 14 files) | 90 tests, 79 pass, **6 fail**, 5 skip | the 6 are `safeExec.test.js`, whose own bodies spawn child processes the sandbox denies |
+
+The agent's six are an artefact of the sandbox, not of the candidate, and the runner reports them as
+failures rather than hiding them — which is the correct behaviour for a harness that cannot tell a denied
+spawn from a broken test.
+
+The same review found **four defects in the harness itself**, three of them in the round that executed it,
+all of the same shape: a test harness that could look green having verified nothing. They are listed in
+`run-tests-nospawn.sh` and each is now guarded and proved by a planted canary rather than by inspection.
 
 ---
 
