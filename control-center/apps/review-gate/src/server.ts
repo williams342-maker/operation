@@ -1,8 +1,10 @@
 import express from "express";
 import helmet from "helmet";
+import { MongoClient } from "mongodb";
 import { ADVISORY_NOTICE, buildRouter } from "./routes.js";
 import { AttestationService } from "./attestationService.js";
 import { ReviewGateService } from "./service.js";
+import { MongoReviewGateStore, ensureIndexes } from "./mongoStore.js";
 import type { ReviewGateStore } from "./store.js";
 
 // The process entry point, and THE ONLY PLACE A STORE IS CONSTRUCTED.
@@ -63,17 +65,41 @@ export function buildApp(store: ReviewGateStore): express.Express {
 /**
  * Start the process.
  *
- * NOT CALLED BY ANY TEST and not wired to any deployment. The Mongo store this needs is the next build
- * phase; until then this function exists to be read and to fail loudly rather than to run.
+ * The store is constructed HERE and nowhere else. It is never accepted from a caller and never handed
+ * back: the service keeps it in a runtime-private field. For ten review rounds it was injectable, and
+ * every attempt to make that safe relocated the reachable primitive instead of removing it.
+ *
+ * NOT EXERCISED. This has never been run against a live replica set, because none was available where it
+ * was written. The Mongo store it depends on is typechecked and unverified — see
+ * `test/mongoStore.test.ts`, which runs the same conformance suite the in-memory reference passes and
+ * skips loudly until REVIEW_GATE_TEST_MONGO_URL points at a replica set.
  */
 export async function main(): Promise<void> {
   const config = readConfig(process.env);
-  console.log(`[review-gate] ${ADVISORY_NOTICE}`);
-  throw new Error(
-    "the Mongo store is not implemented yet; this service does not start. See " +
-    "docs/REVIEW_GATE_OPTION_B_DESIGN.md §8.3 for the transaction boundaries it must satisfy. " +
-    `(configured for ${config.dbName} on ${config.bind}:${config.port})`,
-  );
+  const client = new MongoClient(config.mongoUrl);
+  await client.connect();
+  const store = new MongoReviewGateStore(client, config.dbName);
+  // Indexes are the ones that ENFORCE invariants — content-claim uniqueness, evidence replay, principal
+  // identity. Creating them at start means the service refuses to run against a database that cannot
+  // hold its guarantees, rather than discovering that on the first concurrent write.
+  await ensureIndexes(store.database);
+
+  const app = buildApp(store);
+  await new Promise<void>((resolve) => {
+    const server = app.listen(config.port, config.bind, () => {
+      // The advisory sentence is logged at every start, deliberately. It is the honest description of
+      // what this process currently is, and it stays until the enforcement point ships.
+      console.log(`[review-gate] listening on ${config.bind}:${config.port}`);
+      console.log(`[review-gate] ${ADVISORY_NOTICE}`);
+      resolve();
+    });
+    const shutdown = (signal: string) => {
+      console.log(`[review-gate] ${signal}: closing`);
+      server.close(() => { void client.close().then(() => process.exit(0)); });
+    };
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
+  });
 }
 
 if (process.argv[1] && process.argv[1].endsWith("server.js")) {
