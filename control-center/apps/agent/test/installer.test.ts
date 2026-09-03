@@ -8,7 +8,25 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { enrollmentEnv, enrollmentInstallCommand } from "@control-center/shared";
 
-const installer = fileURLToPath(new URL("../../web/public/install.sh", import.meta.url));
+/**
+ * Locate a repository file from wherever this test is running.
+ *
+ * This suite runs from two places: `test/` under tsx, and `build-tests/test/` as compiled JavaScript —
+ * the latter so a sandbox that forbids child processes can still execute it (see run-tests-nospawn.sh).
+ * A fixed number of `..` segments is correct in exactly one of those, so the path is searched for
+ * instead. It still throws when the file genuinely does not exist, which is the case worth failing on.
+ */
+function repositoryFile(relative: string): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let up = 0; up < 8; up++) {
+    const candidate = path.join(dir, relative);
+    if (fs.existsSync(candidate)) return candidate;
+    dir = path.dirname(dir);
+  }
+  throw new Error(`cannot locate ${relative} from ${import.meta.url}`);
+}
+
+const installer = repositoryFile("control-center/apps/web/public/install.sh");
 
 test("installer provisions and verifies the systemd agent", () => {
   const source = fs.readFileSync(installer, "utf8");
@@ -32,7 +50,7 @@ test("installer provisions and verifies the systemd agent", () => {
   assert.match(source, /agent enrolled successfully/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .*agent\.json/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .* >"\$CONFIG_DIR\/enrollment\.env"/, "installer must remove the plaintext enrollment token after successful use");
-  const webConfig = fs.readFileSync(fileURLToPath(new URL("../../../deploy/nginx/web.conf", import.meta.url)), "utf8");
+  const webConfig = fs.readFileSync(repositoryFile("control-center/deploy/nginx/web.conf"), "utf8");
   assert.match(webConfig, /location = \/install\.sh/);
   assert.match(webConfig, /default_type text\/x-shellscript/);
 });

@@ -1,5 +1,8 @@
 ﻿node_modules/
 dist/
+# Compiled test output, for executing the suite without a child-process spawn.
+# See apps/*/run-tests-nospawn.sh.
+build-tests/
 *.local.json
 .env
 .env.*

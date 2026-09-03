@@ -7,7 +7,38 @@ import { agentUpgradeManifestSchema } from "./agentUpgrades.js";
 
 export const taskProtocolVersion = "task-v1";
 export const taskStates = ["queued", "claimed", "running", "succeeded", "failed", "expired", "cancelled"] as const;
-export const taskTypes = ["collect.system", "inspect.docker", "inspect.compose", "inspect.git", "check.http", "check.mongo", "collect.telemetry", "configuration.apply", "configuration.rollback", "agent.upgrade"] as const;
+/**
+ * Every task type, WITH its authorization class. One table, because two lists drift.
+ *
+ * An independent review found the drift was fail-OPEN: `taskTypes` and `privilegedTaskTypes` were
+ * maintained separately, so a developer adding a new mutating type to the first and forgetting the second
+ * got a task that skipped BOTH the owner signature and the review gate — and nothing failed, because
+ * "not privileged" is indistinguishable from "not yet classified" when the classification is a second
+ * list you can forget to edit.
+ *
+ * Here a type does not exist until it is classified. Omitting an entry does not produce an unprivileged
+ * task; it produces a task type the envelope schema rejects.
+ *
+ * `privileged` means: it changes a managed host, so it requires the owner's offline signature (layer 2)
+ * and, on an activated executor, an acquired review attestation (layer 3). `read` means it collects or
+ * inspects and changes nothing. When in doubt the answer is `privileged` — the cost of being wrong that
+ * way is an authorization step nobody needed, and the cost of being wrong the other way is this finding.
+ */
+export const taskTypeClassification = {
+  "collect.system": "read",
+  "inspect.docker": "read",
+  "inspect.compose": "read",
+  "inspect.git": "read",
+  "check.http": "read",
+  "check.mongo": "read",
+  "collect.telemetry": "read",
+  "configuration.apply": "privileged",
+  "configuration.rollback": "privileged",
+  "agent.upgrade": "privileged",
+} as const satisfies Record<string, "read" | "privileged">;
+
+export const taskTypes = Object.keys(taskTypeClassification) as unknown as
+  readonly (keyof typeof taskTypeClassification)[] & [string, ...string[]];
 
 // Owner authorization: an offline-owner Ed25519 signature carried alongside a privileged task. This is
 // the SECOND, independent trust layer — separate from the control-plane transport/envelope key — and is
