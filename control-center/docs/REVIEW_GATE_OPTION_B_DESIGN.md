@@ -49,10 +49,13 @@ written against the actual schema.
 
 ## 1. The one-sentence honest status
 
-**The enforcement point is now wired, and every executor is DISABLED, so this gate is still ADVISORY in
-practice.** The executor code path in §2.6 exists and is tested; no executor has been activated, and
-activation is an owner action that has not been taken. An executor whose durable record says `DISABLED`
-behaves exactly as it did before this change.
+**The enforcement point is wired and reviewed, and every executor is DISABLED, so this gate is still
+ADVISORY in practice.** The executor code path in §2.6 exists, is tested, and holds a **GO** (candidate
+W3, `7b62c0c6`, after two NO-GOs whose findings are recorded in `REVIEW_GATE_HANDOFF_INDEX.md`). No
+executor has been activated; activation is an owner action that has not been taken. An executor whose
+durable record says `DISABLED` behaves exactly as it did before this change.
+
+**Wired is not enforcing**, and the distinction is the whole of the third column below.
 
 What changed, precisely:
 

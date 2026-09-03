@@ -55,11 +55,21 @@ const configPath = process.env.CONTROL_CENTER_AGENT_CONFIG || path.resolve(proce
  * a function of nothing rather than a config field — the previous shape let any caller of `executeTask`
  * choose which durable record was authoritative, which is not a boundary at all.
  *
- * WHAT THIS DOES AND DOES NOT DEFEND, stated exactly. It defends against a caller that omits,
- * misconfigures, or substitutes configuration. It does NOT defend against arbitrary code running inside
- * this process, which can call the deployment functions directly and never reach the executor at all;
- * nor against write access to the host, which can edit the record or the config file. Activation resists
- * a compromised control-center. It does not resist a compromised host.
+ * WHAT THIS DOES AND DOES NOT DEFEND, stated exactly — and the wording here has been tightened once
+ * already, because "resists configuration substitution" was itself an overclaim.
+ *
+ * It resists substitution of the parsed `AgentConfig` OBJECT after process initialization: no caller of
+ * `executeTask`, however it builds its argument, can move the record that decides whether this executor
+ * enforces.
+ *
+ * It does NOT resist a different process ENVIRONMENT. Launching the agent with
+ * `CONTROL_CENTER_AGENT_CONFIG` pointing elsewhere selects a different config file and, with it, a
+ * different state directory — where an absent record reads as DISABLED. Nor does it resist arbitrary code
+ * inside this process, which can call the deployment functions directly and never reach the executor at
+ * all, nor write access to the host, which can edit the record or the config file.
+ *
+ * All three of those require host control. Activation resists a compromised control-center. It does not
+ * resist a compromised host, and nothing in this file should be read as claiming otherwise.
  *
  * Beside the configuration file rather than under the working directory, because a service's working
  * directory is an accident of how it was started.

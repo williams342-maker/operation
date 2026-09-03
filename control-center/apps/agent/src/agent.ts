@@ -128,9 +128,12 @@ async function acknowledge(config: AgentConfig, taskId: string, event: "claimed"
  * Both times my description said "unbypassable" and the mechanism said "unbypassable by callers who
  * follow the convention". The location is now derived from the process (see `stateDir()` in config.ts).
  *
- * The honest boundary: this resists a caller that omits or substitutes configuration. It does not resist
- * arbitrary code in this process, which can call the deployment functions directly, nor write access to
- * the host. Activation resists a compromised control-center, not a compromised host.
+ * The honest boundary, stated as precisely as I can manage after being caught loosening it three times:
+ * this resists a caller that omits or substitutes the parsed `AgentConfig` after process initialization.
+ * It does not resist a different process environment (a launch pointing `CONTROL_CENTER_AGENT_CONFIG`
+ * elsewhere selects a different record), arbitrary code in this process, or write access to the host —
+ * all of which require host control. Activation resists a compromised control-center, not a compromised
+ * host. See `stateDir()` in config.ts for the full statement.
  */
 async function executeTask(config: AgentConfig, task: ClaimedTask) {
   const enforcement = reviewEnforcement(config);

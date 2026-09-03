@@ -5,6 +5,40 @@
 **Receiving reviewer:** Codex, or any reviewer with no prior participation.
 **Round:** 3. **W1 (`8d675d99`) NO-GO. W2 (`0e49e9f1`) NO-GO.** Both handoffs preserved unedited.
 
+---
+
+## VERDICT: GO (2026-09-02, independent review)
+
+No release-blocking defects. One **LOW** finding, fixed inline on this GO per the certification-round
+policy (functional findings get a full round; prose findings are corrected in place):
+
+> "Resists configuration substitution" still overclaimed. The mechanism resists substitution of the parsed
+> `AgentConfig` **after process initialization**. A process launched with `CONTROL_CENTER_AGENT_CONFIG`
+> pointing elsewhere selects a different config file *and* a different state directory, where an absent
+> record reads as `DISABLED`. Not a blocker: that requires host control, which §B already excludes.
+
+The wording in `config.ts::stateDir` and `agent.ts::executeTask` is now exact about which substitution is
+resisted. **No behaviour changed**; suites re-run unchanged (shared 82, review-gate 174, agent 90, 0
+failures).
+
+**What the reviewer independently confirmed:** no post-load mutation path for `configPath`; a wrong or
+missing `reviewGate` on an enforcing executor fails closed; the three privileged classifications are
+unchanged and no `taskTypes` consumer breaks under `Object.keys` derivation; every agent import in the
+effect-point test is dynamic and follows the environment assignment; **the substitution regression test is
+not vacuous** (advisory execution would fail two assertions); and no reason to defend direct calls to the
+deployment functions or host write access within the stated boundary.
+
+**Exactly what was independently EXECUTED, stated because it is less than the table in §F.** Running each
+agent test file in-process worked: **90 tests, 79 passed, 5 skipped, 6 blocked** — the 6 all in
+`safeExec.test.ts`, whose bodies themselves spawn child processes the sandbox denies. **The 26
+enforcement-focused tests passed independently.** Agent, review-gate and shared typechecks passed.
+`executorEffectPoint.test.ts` could not be executed there — `tsx`/esbuild itself hit `spawn EPERM` — so
+**its results remain author-reported**, though static inspection found it properly structured and
+non-vacuous. The §F table below is therefore still partly my assertion, and is left as written rather than
+revised to look better than it was verified to be.
+
+---
+
 > Three rounds, six defects, and the shape has not changed once: **my description claims a boundary the
 > mechanism does not have.** Round 2's finding was the same defect as round 1, one level deeper — I
 > removed the caller-supplied *argument* and left the caller-supplied *location*. Assume the same thing
@@ -28,13 +62,21 @@
 This is now in the code rather than claimed around it, because three rounds of claiming it loosely is
 enough:
 
-> Enforcement resists a caller that **omits, misconfigures, or substitutes configuration**. It does **not**
-> resist arbitrary code in this process, which can call the deployment functions directly and never reach
-> the executor. It does **not** resist write access to the host, which can edit the record or the config
-> file. **Activation resists a compromised control-center. It does not resist a compromised host.**
+> Enforcement resists a caller that omits, misconfigures, or substitutes **the parsed `AgentConfig`, after
+> process initialization**. It does **not** resist a different process ENVIRONMENT — a launch pointing
+> `CONTROL_CENTER_AGENT_CONFIG` elsewhere selects a different config file and with it a different state
+> directory, where an absent record reads as `DISABLED`. It does **not** resist arbitrary code in this
+> process, which can call the deployment functions directly and never reach the executor. It does **not**
+> resist write access to the host. All three require host control. **Activation resists a compromised
+> control-center. It does not resist a compromised host.**
 
-If a reviewer thinks the second and third sentences should be defended rather than documented, say so —
-that is a design decision, and I would rather be told than assume the disclosure is sufficient.
+The first sentence was originally "substitutes configuration", which the round-3 reviewer flagged as still
+overclaiming — the environment case is a substitution too. That is the fourth time in this workstream a
+sentence of mine has been broader than the mechanism behind it, and it is the reason the wording is now
+this laboured.
+
+The reviewer found no reason to DEFEND the excluded cases rather than document them, within this design
+boundary.
 
 ## C. Candidate identity
 

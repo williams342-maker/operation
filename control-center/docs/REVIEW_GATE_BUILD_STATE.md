@@ -11,10 +11,10 @@ items in §Open below**, which the reviewer excluded explicitly.
 
 ## The honest status, first
 
-**This gate is ADVISORY in practice.** The enforcement point (design §2) is now wired into the executor —
-candidate W1, `8d675d99`, review ready and NOT yet reviewed — but every executor is `DISABLED`, and
-activation is an owner decision that has not been taken. A `DISABLED` executor behaves exactly as it did
-before the wiring, so the gate still prevents nothing today. That sentence is in the README, in
+**This gate is ADVISORY in practice.** The enforcement point (design §2) is wired into the executor and
+that wiring holds a **GO** (candidate W3, `7b62c0c6`, after two NO-GOs) — but every executor is
+`DISABLED`, and activation is an owner decision that has not been taken. A `DISABLED` executor behaves
+exactly as it did before the wiring, so the gate still prevents nothing today. **Wired is not enforcing.** That sentence is in the README, in
 `/healthz`, in the startup log, and here, and it stays until an executor is activated and that activation
 is reviewed.
 
@@ -165,9 +165,10 @@ The reviewer stated these remain outside the GO and are not implicitly validated
 | --- | --- |
 | **CRITICAL (partial)** | Test evidence is separation of duties, **not provenance**. A CI identity is an authenticated caller making an assertion. Owner authority — key material. |
 | **MAJOR** | The Mongo store is unverified. Everything the durable path guarantees rests on code that has not run. |
-| **MAJOR** | ~~The enforcement point is not wired.~~ **Built in W1 (`8d675d99`), not yet reviewed.** Still advisory in practice: activation is an owner decision and no executor is activated. |
-| **MAJOR** | ~~The executor needs a durable local claim on `actionDigest`.~~ **Built in W1** as `apps/agent/src/executionJournal.ts`, which lets the filesystem decide the race (`flag: "wx"`) rather than a read-then-write. Not yet reviewed. |
-| **MAJOR (new, W1)** | A **deleted** enforcement record still reads as `DISABLED`, so root on a host defeats activation. A corrupted record throws and a missing gate config refuses startup, but absence is indistinguishable from never-activated. The fix is not local — it needs a signed bootstrap, or the gate refusing to answer an executor it believes is enforcing. |
+| ~~MAJOR~~ **CLOSED** | ~~The enforcement point is not wired.~~ Wired and **GO** at W3 (`7b62c0c6`). Still advisory in practice: activation is an owner decision and no executor is activated. |
+| ~~MAJOR~~ **CLOSED** | ~~The executor needs a durable local claim on `actionDigest`.~~ `apps/agent/src/executionJournal.ts` — the filesystem decides the race (`flag: "wx"`) rather than a read-then-write. Independently confirmed at review. |
+| **MAJOR (open, from W1)** | A **deleted** enforcement record reads as `DISABLED`, so host write access defeats activation — as does launching the agent with `CONTROL_CENTER_AGENT_CONFIG` pointing elsewhere. Both are inside the disclosed boundary (*activation resists a compromised control-center, not a compromised host*), and the reviewer found no reason to defend rather than document them. Closing this needs a signed bootstrap, or the gate refusing an executor it believes is enforcing. |
+| **MAJOR (open, from W3)** | `executorEffectPoint.test.ts` — the only test that measures the wiring end to end — **has never been executed by an independent party.** The review sandbox denied `tsx`/esbuild its own child process. Its results are author-reported; static inspection found it non-vacuous. |
 | MINOR | Rollback targets are bound but their payload semantics are only as good as the change-set digest. |
 
 ---

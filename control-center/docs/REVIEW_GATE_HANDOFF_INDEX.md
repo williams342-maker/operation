@@ -10,10 +10,13 @@ rounds on this one, and four implementation rounds). That GO is scoped: it does 
 or the unverified Mongo store.
 
 Two of the things it excluded — **the unwired enforcement point and the executor durable claim** — are now
-built as a separate candidate. **W1 (`8d675d99`) and W2 (`0e49e9f1`) were both NO-GO**; **W3
-(`7b62c0c6`) is the current remediation and is REVIEW READY**
-(`REVIEW_GATE_HANDOFF_7b62c0c6_20260902.md`). All leave every executor `DISABLED`, so the gate remains
-advisory in practice until an owner activates one.
+built as a separate candidate. **W1 (`8d675d99`) and W2 (`0e49e9f1`) were NO-GO; W3 (`7b62c0c6`) holds a
+GO** (`REVIEW_GATE_HANDOFF_7b62c0c6_20260902.md`), with one LOW wording finding fixed inline per the
+certification-round policy.
+
+**The gate is still ADVISORY in practice, and that is not a technicality.** Every executor is `DISABLED`.
+The wiring exists and is reviewed; nothing is enforcing, because activation is an owner decision that has
+not been taken and requires a per-executor gate credential I am not authorized to create.
 
 **Previously:** ENGINEERING IN PROGRESS — Option B. The owner chose option B: the gate is a
 separate service with its own database. The design went through SIX review rounds before any code was
@@ -58,7 +61,7 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | --- | --- | --- | --- | --- |
 | W1 | `8d675d99` / wiring at `12049b9b` | `REVIEW_GATE_HANDOFF_8d675d99_20260902.md` | **NO-GO** | 2 CRITICAL — enforcement was an optional argument to `executeTask` defaulting to advisory, so any caller omitting it bypassed the gate on an ENFORCING host; and the executor digested the TASK payload while the gate binds the SUB-payload, so an activated executor would have refused every privileged task. 2 MAJOR — `state` and `history` could contradict each other and only `state` was read; a plaintext `http://` gate URL counted as usable configuration |
 | W2 | `0e49e9f1` | `REVIEW_GATE_HANDOFF_0e49e9f1_20260902.md` | **NO-GO** | 1 CRITICAL — removing the enforcement argument fixed *omission* but not *substitution*: the record's LOCATION still came from `config.stateDir`, so a caller could hand over a config naming an empty directory and be told it was advisory. 1 MAJOR — `taskTypes` and `privilegedTaskTypes` were two hand-maintained lists whose drift was fail-OPEN |
-| W3 | `7b62c0c6` | `REVIEW_GATE_HANDOFF_7b62c0c6_20260902.md` | **not yet reviewed** | — |
+| W3 | `7b62c0c6` | `REVIEW_GATE_HANDOFF_7b62c0c6_20260902.md` | **GO** | 1 LOW — "resists configuration substitution" still overclaimed: it resists substitution of the parsed `AgentConfig` after process initialization, but a launch pointing `CONTROL_CENTER_AGENT_CONFIG` elsewhere selects a different record. Requires host control, which the stated boundary already excludes. **Fixed inline; the GO stands** |
 
 This lineage is remediation of the gate's own central weakness — that nothing consulted it — which by
 policy makes it the highest-risk code in the workstream and deserves *more* suspicion than the thing it
