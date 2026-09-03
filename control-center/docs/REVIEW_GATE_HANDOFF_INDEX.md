@@ -4,9 +4,13 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** **BLOCKED — OWNER ACTION REQUIRED.** Candidate K received NO-GO in round 10, and
-the reviewer stated plainly that incremental patching should stop pending a trust-boundary redesign. See
-`REVIEW_GATE_TRUST_BOUNDARY_DECISION.md` for the decision required.
+**Current disposition:** **ENGINEERING IN PROGRESS — Option B.** The owner chose option B: the gate is a
+separate service with its own database. The design went through SIX review rounds before any code was
+written (`REVIEW_GATE_OPTION_B_DESIGN.md` v7), and six build phases have landed. Current build state and
+what remains: `REVIEW_GATE_BUILD_STATE.md`.
+
+Candidates A-K and their ten NO-GOs are the *previous* design, retained below as the record of why option
+B was chosen. That policy now lives in `apps/review-gate`; it has been deleted from `packages/shared`.
 
 **Owner action: TWO ITEMS OPEN**, both in §I of the current candidate handoff — (1) test provenance needs
 key material for an attestation scheme; (2) whether application code holding the service is trusted, which
