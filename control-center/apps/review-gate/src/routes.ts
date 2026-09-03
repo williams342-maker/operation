@@ -2,6 +2,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import { reviewActions, type ReviewAction } from "./actions.js";
 import { authenticate, type AuthenticatedPrincipal } from "./auth.js";
+import type { AttestationResult, AttestationService } from "./attestationService.js";
 import type { ReviewGateService, ServiceResult } from "./service.js";
 import type { ReviewGateStore } from "./store.js";
 
@@ -57,9 +58,18 @@ function send(res: Response, result: ServiceResult): void {
   res.status(statusFor(result.code)).json({ ok: false, code: result.code, message: result.message });
 }
 
+function sendAttestation(res: Response, result: AttestationResult): void {
+  if (result.ok) {
+    res.status(200).json({ ok: true, ...(result.value as object ?? {}) });
+    return;
+  }
+  res.status(statusFor(result.code)).json({ ok: false, code: result.code, message: result.message });
+}
+
 export type RouteDependencies = {
   store: ReviewGateStore;
   service: ReviewGateService;
+  attestations: AttestationService;
 };
 
 export function buildRouter(deps: RouteDependencies): Router {
@@ -208,6 +218,118 @@ export function buildRouter(deps: RouteDependencies): Router {
           occurrenceId: f.occurrenceId, label: f.label, severity: f.severity,
         })),
       });
+    });
+  });
+
+  // ── attestations: layer 3 ─────────────────────────────────────────────────────────────────────
+
+  router.post("/candidates/:id/owner-decision", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const key = requireIdempotency(req, res);
+      if (!key) return;
+      const body = z.object({
+        attestations: z.array(z.object({
+          kind: z.string().min(1).max(80),
+          orgId: z.string().min(1).max(200),
+          serverId: z.string().min(1).max(200),
+          audiencePrincipalId: z.string().min(1).max(200),
+          expiresAt: z.string().datetime(),
+        })).min(1).max(50),
+      }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.recordOwnerDecision(principal, {
+        candidateId: req.params.id,
+        idempotencyKey: key,
+        attestations: body.data.attestations as never,
+      }));
+    });
+  });
+
+  router.post("/attestations/:id/reserve", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({ leaseSeconds: z.number().int().positive().max(3600) })
+        .safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.reserve(principal, {
+        attestationId: req.params.id, leaseSeconds: body.data.leaseSeconds,
+      }));
+    });
+  });
+
+  router.post("/attestations/:id/bind", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({ leaseId: z.string().min(1).max(200), payload: z.unknown() })
+        .safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.bind(principal, {
+        attestationId: req.params.id, leaseId: body.data.leaseId, payload: body.data.payload,
+      }));
+    });
+  });
+
+  // ACQUIRE IS A MUTATION, NOT A QUERY, and that is the whole point: an executor that merely ASKS
+  // whether it may act, and then acts, is a check/use race. Exactly one caller leaves this route
+  // having taken execution, and it happens before any host is touched.
+  router.post("/attestations/:id/acquire", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({
+        leaseId: z.string().min(1).max(200),
+        actionDigest: z.string().regex(/^[a-f0-9]{64}$/),
+        orgId: z.string().min(1).max(200),
+        serverId: z.string().min(1).max(200),
+        kind: z.string().min(1).max(80),
+      }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.acquire(principal, {
+        attestationId: req.params.id, ...body.data, kind: body.data.kind as never,
+      }));
+    });
+  });
+
+  router.post("/attestations/:id/redeem", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({ leaseId: z.string().min(1).max(200) }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.redeem(principal, {
+        attestationId: req.params.id, leaseId: body.data.leaseId,
+      }));
+    });
+  });
+
+  router.post("/attestations/:id/revoke", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({ reason: z.string().min(1).max(2000) }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.revoke(principal, {
+        attestationId: req.params.id, reason: body.data.reason,
+      }));
+    });
+  });
+
+  router.post("/attestations/:id/resolve-indeterminate", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      sendAttestation(res, await deps.attestations.resolveIndeterminate(principal, {
+        attestationId: req.params.id,
+        reconciliation: (req.body ?? {}).reconciliation,
+      }));
     });
   });
 

@@ -1,6 +1,7 @@
 import express from "express";
 import helmet from "helmet";
 import { ADVISORY_NOTICE, buildRouter } from "./routes.js";
+import { AttestationService } from "./attestationService.js";
 import { ReviewGateService } from "./service.js";
 import type { ReviewGateStore } from "./store.js";
 
@@ -45,7 +46,11 @@ export function buildApp(store: ReviewGateStore): express.Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(buildRouter({ store, service: new ReviewGateService(store) }));
+  app.use(buildRouter({
+    store,
+    service: new ReviewGateService(store),
+    attestations: new AttestationService(store),
+  }));
   // Anything unhandled is a refusal, not a stack trace: an error path that leaks internals is a data
   // path. The detail goes to the gate's own logs.
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
