@@ -42,6 +42,19 @@ function binding(over: Partial<CandidateBinding> = {}): CandidateBinding {
  */
 function storeWithPrincipals(people: Array<{ credential: string } & Partial<Principal>>) {
   const store = new InMemoryReviewGateStore();
+  // Seeded into the REAL store as well, because credential-sensitive operations now re-read the current
+  // principal by id inside their transaction -- overriding only the credential lookup is no longer enough.
+  for (const person of people) {
+    store.seedPrincipal({
+      principalId: person.principalId ?? "someone",
+      displayName: person.principalId ?? "someone",
+      roles: person.roles ?? [],
+      reviewerClasses: person.reviewerClasses ?? [],
+      credentialEpoch: 1,
+      createdAt: "2026-09-02T00:00:00.000Z",
+      ...(person.disabledAt ? { disabledAt: person.disabledAt } : {}),
+    }, person.credential);
+  }
   const rows = people.map((p) => ({
     index: credentialIndex(p.credential),
     principal: {

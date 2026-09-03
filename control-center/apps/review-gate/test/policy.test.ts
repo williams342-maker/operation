@@ -68,6 +68,8 @@ function verdict(over: Partial<Verdict> = {}): Verdict {
     reviewerIdentity: "codex",
     verdict: "GO",
     findings: [],
+    // `resolves` is how a reviewer discharges an earlier finding. Empty is the ordinary case.
+    resolves: [],
     submittedAt: "2026-09-02T01:00:00.000Z",
     ...over,
   };
@@ -455,7 +457,7 @@ test("M2: artifact and manifest binding are mandatory, so identity covers what w
   for (const missing of ["artifactDigest", "manifestDigest"] as const) {
     const incomplete = { ...binding() } as Record<string, unknown>;
     delete incomplete[missing];
-    assert.throws(() => candidateBindingSchema.parse(incomplete), undefined,
+    assert.throws(() => candidateBindingSchema.parse(incomplete), /./,
       `${missing} must be required; an unbound artifact can carry a reviewed identity`);
   }
 });

@@ -92,6 +92,15 @@ export class AuthenticatedPrincipal {
     if (key !== PRINCIPAL_KEY) {
       throw new Error("AuthenticatedPrincipal cannot be constructed; it is issued by authenticate()");
     }
+    // FROZEN, because `readonly` is erased. An independent review found that closing the construction
+    // and factory routes still left the OBJECT mutable: any code holding a legitimately authenticated
+    // principal could assign `roles = ["owner"]` and `hasRole("owner")` would then succeed. The defect
+    // had moved from construction to mutation, which is precisely the "have I moved it rather than
+    // closed it" question I had asked the reviewer to check.
+    //
+    // The arrays are frozen at construction; this freezes the object that holds them, so neither the
+    // fields nor their contents can be reassigned.
+    Object.freeze(this);
   }
 
   /**
@@ -118,6 +127,11 @@ export class AuthenticatedPrincipal {
       principal.credentialEpoch,
       Object.freeze([...(principal.audienceFor ?? [])]),
     );
+  }
+
+  /** True if this object is the frozen, module-issued shape. Cheap to assert, and asserted in tests. */
+  static isIssued(value: unknown): value is AuthenticatedPrincipal {
+    return value instanceof AuthenticatedPrincipal && Object.isFrozen(value);
   }
 
   hasRole(role: string): boolean {

@@ -96,6 +96,7 @@ export class AttestationService {
     const now = this.#clock();
 
     const result = await this.#store.recordOwnerDecision({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       candidateId: input.candidateId,
       expectedState: "GO",
       occurrence: {
@@ -195,14 +196,15 @@ export class AttestationService {
     const lease = {
       leaseId: this.#ids(),
       holderPrincipalId: principal.principalId,
-      // The epoch at reserve. Rotation after this point invalidates the lease rather than silently
-      // permitting work that was authorized to a credential that no longer exists.
+      // The epoch AT RESERVE, stamped into the lease. The store additionally re-reads the CURRENT
+      // principal on every later step, so a rotation after this point invalidates the lease rather than
+      // silently permitting work authorized to a credential that no longer exists.
       credentialEpoch: principal.credentialEpoch,
       expiresAt: new Date(Date.parse(now) + seconds * 1000).toISOString(),
     };
     const result = await this.#store.reserveAttestation({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
-      actingPrincipalId: principal.principalId,
       lease,
       now,
       requireClaim: {
@@ -262,10 +264,9 @@ export class AttestationService {
     // recurse. Computed here, never supplied.
     const actionDigest = privilegedActionDigest(input.payload);
     const result = await this.#store.bindAttestation({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
-      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
-      credentialEpoch: principal.credentialEpoch,
       actionDigest,
       now: this.#clock(),
     });
@@ -286,10 +287,9 @@ export class AttestationService {
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
     const result = await this.#store.acquireAttestation({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
-      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
-      credentialEpoch: principal.credentialEpoch,
       actionDigest: input.actionDigest,
       orgId: input.orgId,
       serverId: input.serverId,
@@ -311,10 +311,9 @@ export class AttestationService {
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
     const result = await this.#store.redeemAttestation({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
-      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
-      credentialEpoch: principal.credentialEpoch,
       now: this.#clock(),
       requireClaim: {
         contentDigest: record.contentDigest,
@@ -334,10 +333,9 @@ export class AttestationService {
     const seconds = Math.min(Math.max(1, Math.floor(input.leaseSeconds)), LEASE_MAX_SECONDS);
     const now = this.#clock();
     const result = await this.#store.renewLease({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
-      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
-      credentialEpoch: principal.credentialEpoch,
       requestedExpiresAt: new Date(Date.parse(now) + seconds * 1000).toISOString(),
       now,
     });
@@ -374,6 +372,7 @@ export class AttestationService {
     const checked = await this.#checkKinds(record, input.attestations, principal.principalId);
     if (!checked.ok) return checked;
     const result = await this.#store.mintAttestations({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       candidateId: input.candidateId,
       attestations: (checked.value as { minted: AttestationRecord[] }).minted,
       idempotency: this.#idem(principal, "mint-further", input.idempotencyKey, input),
@@ -390,6 +389,7 @@ export class AttestationService {
       return no("role_required", "only the owner may revoke an attestation");
     }
     const result = await this.#store.revokeAttestation({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
       reason: input.reason,
       now: this.#clock(),
@@ -423,6 +423,7 @@ export class AttestationService {
     const decision = evaluateReconciliation({ kind: record.kind, reconciliation });
     if (!decision.ok) return no(decision.code, decision.message);
     const result = await this.#store.resolveIndeterminate({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
       reconciliation,
       nextState: reconciliation.outcome === "APPLIED" ? "CONSUMED" : "ABORTED",

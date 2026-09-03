@@ -114,6 +114,23 @@ export type Principal = {
   disabledAt?: string;
 };
 
+/**
+ * Who is acting, and the epoch their credential had when they authenticated.
+ *
+ * EVERY authenticated mutation carries this, not just the lease operations. An independent review found
+ * revalidation had been added to reserve/bind/acquire/redeem/renew and to nothing else, so an owner or
+ * reviewer request authenticated before a rotation or a disablement could still commit afterwards. The
+ * design's rule is general: no operation using an old credential commits after rotation commits.
+ *
+ * It also removes the caller's freedom to choose an audit identity. `applyAction` used to take
+ * `actorIdentity` separately, so the store contract permitted recording the occurrence, the
+ * participation row and the claimant under a name unrelated to whoever was acting.
+ */
+export type Acting = {
+  principalId: string;
+  credentialEpoch: number;
+};
+
 /** What every store method returns: applied, or refused with a reason the caller can act on. */
 export type Applied<T = undefined> =
   | { applied: true; value: T }
@@ -141,6 +158,7 @@ export interface ReviewGateStore {
 
   /** Claim the content and insert the candidate, or neither. */
   registerCandidate(input: {
+    acting: Acting;
     record: CandidateRecord;
     idempotency: IdempotencyKey;
   }): Promise<Applied<{ candidateId: string }>>;
@@ -153,6 +171,7 @@ export interface ReviewGateStore {
    * because the differing digest is exactly what makes it a successor.
    */
   createSuccessor(input: {
+    acting: Acting;
     predecessorId: string;
     /** Must arrive at BUILT with no history, exactly like a registration. */
     successor: CandidateRecord;
@@ -162,6 +181,7 @@ export interface ReviewGateStore {
   }): Promise<Applied<{ candidateId: string }>>;
 
   recordEvidence(input: {
+    acting: Acting;
     evidence: EvidenceRecord;
     idempotency: IdempotencyKey;
   }): Promise<Applied<undefined>>;
@@ -179,10 +199,9 @@ export interface ReviewGateStore {
    * "put this candidate in that state".
    */
   applyAction(input: {
+    acting: Acting;
     candidateId: string;
     action: ReviewAction;
-    /** Recorded as the actor, and used for the participation row the action derives. */
-    actorIdentity: string;
     billingClass: string;
     at: string;
     occurrenceId: string;
@@ -191,6 +210,7 @@ export interface ReviewGateStore {
 
   /** The verdict, its finding occurrences, and the claim disposition it implies, together or not at all. */
   applyVerdict(input: {
+    acting: Acting;
     candidateId: string;
     expectedState: ReviewState;
     nextState: ReviewState;
@@ -212,6 +232,7 @@ export interface ReviewGateStore {
    * No payload and no actionDigest here. Binding those at mint is what made an earlier revision circular.
    */
   recordOwnerDecision(input: {
+    acting: Acting;
     candidateId: string;
     expectedState: ReviewState;
     occurrence: TransitionOccurrence;
@@ -232,15 +253,23 @@ export interface ReviewGateStore {
    * same transaction as the mutation.
    */
   /** Mint further attestations from content that is already RELEASED. */
+  /**
+   * Mint further attestations from content that is already RELEASED.
+   *
+   * The store checks that precondition itself. It used to validate only that the attestations were
+   * unbound and trust the service's earlier read — a named operation that does not enforce its own
+   * documented postcondition is a comment, not a contract.
+   */
   mintAttestations(input: {
+    acting: Acting;
     candidateId: string;
     attestations: readonly AttestationRecord[];
     idempotency: IdempotencyKey;
   }): Promise<Applied<{ attestationIds: string[] }>>;
 
   reserveAttestation(input: {
+    acting: Acting;
     attestationId: string;
-    actingPrincipalId: string;
     lease: Lease;
     now: string;
     /** Checked inside the transaction: RELEASED and released by this attestation's candidate. */
@@ -249,10 +278,9 @@ export interface ReviewGateStore {
 
   /** Write the validated payload's digest exactly once. Never re-bound. */
   bindAttestation(input: {
+    acting: Acting;
     attestationId: string;
-    actingPrincipalId: string;
     leaseId: string;
-    credentialEpoch: number;
     actionDigest: string;
     now: string;
   }): Promise<Applied<undefined>>;
@@ -264,10 +292,9 @@ export interface ReviewGateStore {
    * then acts on is a check/use race by construction.
    */
   acquireAttestation(input: {
+    acting: Acting;
     attestationId: string;
-    actingPrincipalId: string;
     leaseId: string;
-    credentialEpoch: number;
     actionDigest: string;
     orgId: string;
     serverId: string;
@@ -277,30 +304,30 @@ export interface ReviewGateStore {
   }): Promise<Applied<undefined>>;
 
   redeemAttestation(input: {
+    acting: Acting;
     attestationId: string;
-    actingPrincipalId: string;
     leaseId: string;
-    credentialEpoch: number;
     now: string;
     requireClaim: { contentDigest: string; releasedByCandidateId: string };
   }): Promise<Applied<undefined>>;
 
   renewLease(input: {
+    acting: Acting;
     attestationId: string;
-    actingPrincipalId: string;
     leaseId: string;
-    credentialEpoch: number;
     requestedExpiresAt: string;
     now: string;
   }): Promise<Applied<{ expiresAt: string }>>;
 
   revokeAttestation(input: {
+    acting: Acting;
     attestationId: string;
     reason: string;
     now: string;
   }): Promise<Applied<undefined>>;
 
   resolveIndeterminate(input: {
+    acting: Acting;
     attestationId: string;
     reconciliation: Reconciliation;
     nextState: Extract<AttestationState, "CONSUMED" | "ABORTED">;

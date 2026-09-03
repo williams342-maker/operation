@@ -140,6 +140,7 @@ export class ReviewGateService {
     }
     const now = this.#clock();
     const result = await this.#store.registerCandidate({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       record: {
         candidateId: input.candidateId,
         digest: candidateDigest(binding),
@@ -213,6 +214,7 @@ export class ReviewGateService {
 
     const now = this.#clock();
     const result = await this.#store.createSuccessor({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       predecessorId: input.supersedes,
       successor: {
         candidateId: input.candidateId,
@@ -270,6 +272,7 @@ export class ReviewGateService {
       return fail("evidence_actor_is_author", "the author of a candidate cannot record its test evidence");
     }
     const result = await this.#store.recordEvidence({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       evidence: {
         evidenceId: input.evidenceId,
         candidateId: intent.candidateId,
@@ -334,9 +337,9 @@ export class ReviewGateService {
     // one is the round-8 primitive under another name -- a holder could request any graph-legal change
     // while also choosing the audit identity and whether to release the content claim.
     const result = await this.#store.applyAction({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       candidateId: intent.candidateId,
       action: input.action,
-      actorIdentity: principal.principalId,
       billingClass: intent.billingClass,
       at: now,
       occurrenceId: this.#ids(),
@@ -491,6 +494,7 @@ export class ReviewGateService {
       at: now,
     };
     const result = await this.#store.applyVerdict({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       candidateId: intent.candidateId,
       expectedState: record.state,
       nextState: to,

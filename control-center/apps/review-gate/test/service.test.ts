@@ -91,7 +91,10 @@ async function evidenced(svc: ReviewGateService, who: Who, id: string, b: Candid
   assert.equal(result.ok, true, JSON.stringify(result));
 }
 
-async function act(svc: ReviewGateService, who: Who, actor: string, id: string, action: string, cls = INTERNAL) {
+type BillingClass = typeof INTERNAL | typeof REVIEW;
+
+async function act(svc: ReviewGateService, who: Who, actor: string, id: string, action: string,
+  cls: BillingClass = INTERNAL) {
   return svc.performAction(who(actor), {
     candidateId: id, idempotencyKey: key(), billingClass: cls, action: action as never,
   });
