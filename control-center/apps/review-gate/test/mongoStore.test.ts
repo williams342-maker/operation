@@ -40,6 +40,12 @@ if (!url) {
     await ensureIndexes(store.database);
     return {
       store,
+      seedPrincipal: async (principal) => {
+        await client.db(dbName).collection("principals").replaceOne(
+          { principalId: principal.principalId },
+          { ...principal, credentialIndex: "index-for-" + principal.principalId },
+          { upsert: true });
+      },
       dispose: async () => {
         await client.db(dbName).dropDatabase();
         await client.close();

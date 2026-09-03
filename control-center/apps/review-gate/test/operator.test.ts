@@ -16,7 +16,18 @@ type Row = Principal & { credentialIndex: string };
 function fakeDb() {
   const principals: Row[] = [];
   const auditLog: Array<Record<string, unknown>> = [];
+  // A stand-in session. The operator now wraps each principal change and its audit entry in ONE
+  // transaction -- an independent review found they were two separate writes, so a crash between them
+  // left a principal changed with no record of who changed it. This fake runs the callback and lets a
+  // throw propagate, which is the behaviour the code depends on.
+  const client = {
+    startSession: () => ({
+      withTransaction: async (work: () => Promise<void>) => { await work(); },
+      endSession: async () => {},
+    }),
+  };
   const db = {
+    client,
     collection(name: string) {
       if (name === "principalAudit") {
         return { insertOne: async (entry: Record<string, unknown>) => { auditLog.push(entry); } };

@@ -1,4 +1,4 @@
-import { MongoClient, type Db } from "mongodb";
+import { MongoClient, type ClientSession, type Db } from "mongodb";
 import { credentialIndex, generateCredential, hashCredential } from "./auth.js";
 import { ensureIndexes } from "./mongoStore.js";
 import { readConfig } from "./server.js";
@@ -29,8 +29,29 @@ export type AuditEntry = {
   detail?: string;
 };
 
-async function audit(db: Db, entry: AuditEntry): Promise<void> {
-  await db.collection<AuditEntry>("principalAudit").insertOne(entry);
+async function audit(db: Db, entry: AuditEntry, session?: ClientSession): Promise<void> {
+  await db.collection<AuditEntry>("principalAudit").insertOne(entry, { session });
+}
+
+/**
+ * One transaction over the principal change and its audit entry.
+ *
+ * An independent review found these were two separate writes, so a crash between them left a principal
+ * changed with no record of who changed it -- which contradicts the design postcondition of "both, or
+ * neither", and is exactly the gap that matters when someone is trying to work out what happened.
+ */
+async function inTransaction<T>(
+  db: Db, work: (session: ClientSession) => Promise<T>,
+): Promise<T> {
+  const client = (db as unknown as { client: MongoClient }).client;
+  const session = client.startSession();
+  try {
+    let result!: T;
+    await session.withTransaction(async () => { result = await work(session); });
+    return result;
+  } finally {
+    await session.endSession();
+  }
 }
 
 /** Who ran the command. Recorded, not trusted: the audit says what the shell said. */
@@ -46,21 +67,23 @@ export async function provision(db: Db, args: ProvisionArgs): Promise<{ credenti
   }
   const credential = generateCredential();
   const now = new Date().toISOString();
-  await principals.insertOne({
-    principalId: args.principalId,
-    displayName: args.displayName,
-    credentialHash: hashCredential(credential),
-    credentialIndex: credentialIndex(credential),
-    roles: args.roles,
-    reviewerClasses: args.reviewerClasses,
-    ...(args.audienceFor.length ? { audienceFor: args.audienceFor } : {}),
-    // Starts at 1 and only ever increases. A timestamp cannot serve here: two rotations inside one clock
-    // tick are indistinguishable, and clock adjustment moves one backwards.
-    credentialEpoch: 1,
-    createdAt: now,
-  } as never);
-  await audit(db, { at: now, action: "provision", principalId: args.principalId,
-    by: operatorIdentity(), detail: `roles=${args.roles.join(",")}` });
+  await inTransaction(db, async (session) => {
+    await principals.insertOne({
+      principalId: args.principalId,
+      displayName: args.displayName,
+      credentialHash: hashCredential(credential),
+      credentialIndex: credentialIndex(credential),
+      roles: args.roles,
+      reviewerClasses: args.reviewerClasses,
+      ...(args.audienceFor.length ? { audienceFor: args.audienceFor } : {}),
+      // Starts at 1 and only ever increases. A timestamp cannot serve here: two rotations inside one
+      // clock tick are indistinguishable, and clock adjustment moves one backwards.
+      credentialEpoch: 1,
+      createdAt: now,
+    } as never, { session });
+    await audit(db, { at: now, action: "provision", principalId: args.principalId,
+      by: operatorIdentity(), detail: `roles=${args.roles.join(",")}` }, session);
+  });
   return { credential };
 }
 
@@ -72,19 +95,22 @@ export async function rotate(db: Db, principalId: string): Promise<{ credential:
   const now = new Date().toISOString();
   // The epoch increments IN THE SAME UPDATE as the new hash, so a request authenticated against the old
   // credential cannot commit against a lease stamped before the rotation.
-  const update = await principals.updateOne(
-    { principalId, credentialEpoch: existing.credentialEpoch },
-    {
-      $set: {
-        credentialHash: hashCredential(credential),
-        credentialIndex: credentialIndex(credential),
-        credentialRotatedAt: now,
-      },
-      $inc: { credentialEpoch: 1 },
-    } as never,
-  );
-  if (update.modifiedCount !== 1) throw new Error("the principal changed during rotation; try again");
-  await audit(db, { at: now, action: "rotate", principalId, by: operatorIdentity() });
+  await inTransaction(db, async (session) => {
+    const update = await principals.updateOne(
+      { principalId, credentialEpoch: existing.credentialEpoch },
+      {
+        $set: {
+          credentialHash: hashCredential(credential),
+          credentialIndex: credentialIndex(credential),
+          credentialRotatedAt: now,
+        },
+        $inc: { credentialEpoch: 1 },
+      } as never,
+      { session },
+    );
+    if (update.modifiedCount !== 1) throw new Error("the principal changed during rotation; try again");
+    await audit(db, { at: now, action: "rotate", principalId, by: operatorIdentity() }, session);
+  });
   return { credential };
 }
 
@@ -93,12 +119,15 @@ export async function disable(db: Db, principalId: string): Promise<void> {
   const now = new Date().toISOString();
   // Disabling also bumps the epoch: outstanding leases stamped with the old one stop matching, so work
   // in flight is invalidated rather than left to finish under a revoked identity.
-  const update = await principals.updateOne(
-    { principalId },
-    { $set: { disabledAt: now }, $inc: { credentialEpoch: 1 } } as never,
-  );
-  if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);
-  await audit(db, { at: now, action: "disable", principalId, by: operatorIdentity() });
+  await inTransaction(db, async (session) => {
+    const update = await principals.updateOne(
+      { principalId },
+      { $set: { disabledAt: now }, $inc: { credentialEpoch: 1 } } as never,
+      { session },
+    );
+    if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);
+    await audit(db, { at: now, action: "disable", principalId, by: operatorIdentity() }, session);
+  });
 }
 
 const USAGE = `

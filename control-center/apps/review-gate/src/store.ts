@@ -1,3 +1,4 @@
+import type { ReviewAction } from "./actions.js";
 import type { CandidateBinding, Participant, ReviewState } from "./policy.js";
 import type { AttestationKind, AttestationRecord, AttestationState, Lease, Reconciliation }
   from "./attestation.js";
@@ -134,6 +135,7 @@ export interface ReviewGateStore {
   loadClaim(contentDigest: string): Promise<ContentClaim | null>;
   loadAttestation(attestationId: string): Promise<AttestationRecord | null>;
   loadPrincipalByCredentialHash(hash: string): Promise<Principal | null>;
+  loadPrincipalById(principalId: string): Promise<Principal | null>;
 
   // ── candidate lifecycle ─────────────────────────────────────────────────────────────────────────
 
@@ -152,6 +154,7 @@ export interface ReviewGateStore {
    */
   createSuccessor(input: {
     predecessorId: string;
+    /** Must arrive at BUILT with no history, exactly like a registration. */
     successor: CandidateRecord;
     inherited: readonly FindingOccurrence[];
     at: string;
@@ -163,17 +166,26 @@ export interface ReviewGateStore {
     idempotency: IdempotencyKey;
   }): Promise<Applied<undefined>>;
 
-  /** One named lifecycle move, with its occurrence and any participation row it necessarily creates. */
+  /**
+   * One NAMED lifecycle action. The store derives the transition, the participation row, the claimant
+   * record and the claim release from the action itself.
+   *
+   * IT USED TO TAKE `expectedState` AND `nextState`, and an independent review was right that this was
+   * the round-8 primitive under another name: a holder could request any graph-legal state change while
+   * also choosing the audit identity, the participation row, the claimant assignment and whether to
+   * release the content claim. Checking the transition graph does not make something a named operation.
+   *
+   * Now the ONLY thing a caller supplies is which action, from ACTIONS. There is no argument that means
+   * "put this candidate in that state".
+   */
   applyAction(input: {
     candidateId: string;
-    expectedState: ReviewState;
-    nextState: ReviewState;
-    occurrence: TransitionOccurrence;
-    addParticipant?: Participant;
-    /** Set by claim-review. Records the claimant WITHOUT granting a role. */
-    claimedByPrincipalId?: string;
-    /** Set when the move releases the content claim (cancel / expire). */
-    releaseClaim?: boolean;
+    action: ReviewAction;
+    /** Recorded as the actor, and used for the participation row the action derives. */
+    actorIdentity: string;
+    billingClass: string;
+    at: string;
+    occurrenceId: string;
     idempotency: IdempotencyKey;
   }): Promise<Applied<undefined>>;
 
@@ -209,8 +221,26 @@ export interface ReviewGateStore {
     idempotency: IdempotencyKey;
   }): Promise<Applied<{ attestationIds: string[] }>>;
 
+  /**
+   * Every credential-sensitive method takes the ACTING PRINCIPAL'S ID, not just an epoch the caller
+   * captured at authentication time.
+   *
+   * An independent review found that comparing the supplied epoch only with the epoch stored in the
+   * lease let a request authenticated before a rotation commit after it: lease epoch 1 equals supplied
+   * epoch 1, and the rotation to epoch 2 was never consulted. The design rule is that no operation using
+   * the old credential may commit after rotation commits, so the CURRENT principal is read inside the
+   * same transaction as the mutation.
+   */
+  /** Mint further attestations from content that is already RELEASED. */
+  mintAttestations(input: {
+    candidateId: string;
+    attestations: readonly AttestationRecord[];
+    idempotency: IdempotencyKey;
+  }): Promise<Applied<{ attestationIds: string[] }>>;
+
   reserveAttestation(input: {
     attestationId: string;
+    actingPrincipalId: string;
     lease: Lease;
     now: string;
     /** Checked inside the transaction: RELEASED and released by this attestation's candidate. */
@@ -220,6 +250,7 @@ export interface ReviewGateStore {
   /** Write the validated payload's digest exactly once. Never re-bound. */
   bindAttestation(input: {
     attestationId: string;
+    actingPrincipalId: string;
     leaseId: string;
     credentialEpoch: number;
     actionDigest: string;
@@ -234,6 +265,7 @@ export interface ReviewGateStore {
    */
   acquireAttestation(input: {
     attestationId: string;
+    actingPrincipalId: string;
     leaseId: string;
     credentialEpoch: number;
     actionDigest: string;
@@ -246,6 +278,7 @@ export interface ReviewGateStore {
 
   redeemAttestation(input: {
     attestationId: string;
+    actingPrincipalId: string;
     leaseId: string;
     credentialEpoch: number;
     now: string;
@@ -254,6 +287,7 @@ export interface ReviewGateStore {
 
   renewLease(input: {
     attestationId: string;
+    actingPrincipalId: string;
     leaseId: string;
     credentialEpoch: number;
     requestedExpiresAt: string;

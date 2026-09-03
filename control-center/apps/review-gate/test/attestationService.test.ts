@@ -2,34 +2,30 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { configurationChangeDigest, privilegedActionDigest } from "@control-center/shared";
 import { AttestationService, validatePayload } from "../src/attestationService.js";
-import { AuthenticatedPrincipal } from "../src/auth.js";
-import { InMemoryReviewGateStore } from "../src/memoryStore.js";
+import type { AuthenticatedPrincipal } from "../src/auth.js";
+import type { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { contentDigest, candidateDigest, type CandidateBinding, type CandidateSubject }
   from "../src/policy.js";
-import type { CandidateRecord, Principal } from "../src/store.js";
+import type { CandidateRecord } from "../src/store.js";
+import { castOf, type Person } from "./principals.js";
 
 const oid = (c: string) => c.repeat(40).slice(0, 40);
 const dig = (c: string) => c.repeat(64).slice(0, 64);
 
-const PEOPLE: Record<string, Partial<Principal>> = {
-  owner: { principalId: "owner", roles: ["owner"] },
-  claude: { principalId: "claude", roles: ["author"] },
-  "agent-1": {
-    principalId: "agent-1", roles: ["executor"],
-    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
-  },
-  "agent-2": {
-    principalId: "agent-2", roles: ["executor"],
-    audienceFor: [{ orgId: "org-1", serverId: "server-2" }],
-  },
-};
-
-const who = (name: string, epoch = 1): AuthenticatedPrincipal =>
-  AuthenticatedPrincipal.of({
-    displayName: name, credentialHash: "", credentialEpoch: epoch,
-    createdAt: "2026-09-02T00:00:00.000Z",
-    principalId: name, roles: [], reviewerClasses: [], ...(PEOPLE[name] ?? {}),
-  } as Principal);
+/**
+ * The cast, provisioned with real credentials and resolved through `authenticate`.
+ *
+ * "agent-1-rotated" exists because a test needs an executor whose CURRENT epoch is 2 while holding a
+ * lease stamped at 1 — the rotation race an independent review found. A test cannot construct that by
+ * asserting an epoch, because principals are now read from the store.
+ */
+const PEOPLE: Person[] = [
+  { principalId: "owner", roles: ["owner"] },
+  { principalId: "claude", roles: ["author"] },
+  { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
+  { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
+];
 
 /** The mutation set a candidate is reviewed against. */
 const MUTATIONS = [
@@ -93,20 +89,21 @@ let counter = 0;
 const idem = (principalId = "owner") =>
   ({ principalId, scope: "t", key: `k-${counter++}`, requestHash: "h" });
 
-/** Walk a candidate to GO through the store, so an owner decision is legal. */
+/** Walk a candidate to GO by NAMED ACTIONS, so an owner decision is legal. */
 async function atGo(store: InMemoryReviewGateStore, id: string, b: CandidateBinding) {
   await store.registerCandidate({ record: record(id, b), idempotency: idem("claude") });
   const at = "2026-09-02T01:00:00.000Z";
-  for (const [from, to] of [["BUILT", "TESTED"], ["TESTED", "FROZEN"],
-    ["FROZEN", "REVIEW_REQUESTED"], ["REVIEW_REQUESTED", "REVIEW_IN_PROGRESS"]] as const) {
-    await store.applyAction({
-      candidateId: id, expectedState: from, nextState: to,
-      occurrence: { occurrenceId: `w-${to}`, from, to, actorIdentity: "claude",
-        billingClass: "INTERNAL_QA_TEST", at },
+  const steps = ["submit-tests", "freeze", "request-review", "claim-review"] as const;
+  for (const action of steps) {
+    const moved = await store.applyAction({
+      candidateId: id, action,
+      actorIdentity: action === "claim-review" ? "codex" : "claude",
+      billingClass: "INTERNAL_QA_TEST", at, occurrenceId: `w-${action}`,
       idempotency: idem("claude"),
     });
+    assert.equal(moved.applied, true, `${action}: ${JSON.stringify(moved)}`);
   }
-  await store.applyVerdict({
+  const go = await store.applyVerdict({
     candidateId: id, expectedState: "REVIEW_IN_PROGRESS", nextState: "GO",
     occurrence: { occurrenceId: "w-GO", from: "REVIEW_IN_PROGRESS", to: "GO",
       actorIdentity: "codex", billingClass: "INTERNAL_REVIEW", at },
@@ -115,16 +112,17 @@ async function atGo(store: InMemoryReviewGateStore, id: string, b: CandidateBind
     addParticipant: { identity: "codex", role: "reviewer", at },
     idempotency: idem("codex"),
   });
+  assert.equal(go.applied, true, JSON.stringify(go));
 }
-
-function build() {
-  const store = new InMemoryReviewGateStore();
+async function build() {
+  const cast = await castOf(PEOPLE);
+  const store = cast.store;
   let ids = 0;
   const svc = new AttestationService(store, {
     clock: () => "2026-09-02T02:00:00.000Z",
     ids: () => `id-${ids++}`,
   });
-  return { store, svc };
+  return { store, svc, who: cast.who };
 }
 
 const configPayload = (over: Record<string, unknown> = {}) => ({
@@ -158,7 +156,7 @@ const configPayload = (over: Record<string, unknown> = {}) => ({
 // ── minting ──────────────────────────────────────────────────────────────────────────────────────────
 
 test("only the owner may accept a review outcome", async () => {
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   const b = binding({ subject: configSubject() });
   await atGo(store, "c1", b);
   const result = await svc.recordOwnerDecision(who("claude"), {
@@ -172,7 +170,7 @@ test("only the owner may accept a review outcome", async () => {
 test("a code candidate cannot authorize a configuration change", async () => {
   // The discriminant is part of contentDigest, so this is refused on identity rather than on a naming
   // convention.
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   await atGo(store, "c1", binding());   // subject.kind === "code"
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
@@ -183,7 +181,7 @@ test("a code candidate cannot authorize a configuration change", async () => {
 });
 
 test("minted attestations are UNBOUND — no payload, no actionDigest", async () => {
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   await atGo(store, "c1", binding({ subject: configSubject() }));
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
@@ -199,7 +197,7 @@ test("minted attestations are UNBOUND — no payload, no actionDigest", async ()
 });
 
 test("a rollback attestation requires the candidate to name what it restores", async () => {
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   await atGo(store, "c1", binding({ subject: configSubject() }));   // no rollbackTarget
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
@@ -210,7 +208,7 @@ test("a rollback attestation requires the candidate to name what it restores", a
 });
 
 test("a rollback target that was never released is refused", async () => {
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   await atGo(store, "c1", binding({
     subject: configSubject({ rollbackTarget: { candidateId: "never", contentDigest: dig("f") } }),
   }));
@@ -279,7 +277,7 @@ test("agent upgrade binds the bytes that will be installed", () => {
 // ── reserve, bind, acquire, redeem ───────────────────────────────────────────────────────────────────
 
 async function minted(kind: "configuration.apply" = "configuration.apply") {
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   await atGo(store, "c1", binding({ subject: configSubject() }));
   const decision = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
@@ -288,18 +286,18 @@ async function minted(kind: "configuration.apply" = "configuration.apply") {
   });
   assert.equal(decision.ok, true, JSON.stringify(decision));
   const [attestationId] = (decision.value as { attestationIds: string[] }).attestationIds;
-  return { store, svc, attestationId };
+  return { store, svc, attestationId, who };
 }
 
 test("only the named executor may reserve", async () => {
-  const { svc, attestationId } = await minted();
+  const { svc, attestationId, who } = await minted();
   const wrong = await svc.reserve(who("agent-2"), { attestationId, leaseSeconds: 60 });
   assert.equal((wrong as { code: string }).code, "wrong_audience");
   assert.equal((await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 })).ok, true);
 });
 
 test("an executor cannot act on a target it was not provisioned for", async () => {
-  const { store, svc } = build();
+  const { store, svc, who } = await build();
   await atGo(store, "c1", binding({ subject: configSubject() }));
   const decision = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
@@ -312,7 +310,7 @@ test("an executor cannot act on a target it was not provisioned for", async () =
 });
 
 test("the gate computes actionDigest; it never accepts one", async () => {
-  const { store, svc, attestationId } = await minted();
+  const { store, svc, attestationId, who } = await minted();
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
@@ -325,7 +323,7 @@ test("the gate computes actionDigest; it never accepts one", async () => {
 });
 
 test("the payload must name this attestation and lease", async () => {
-  const { svc, attestationId } = await minted();
+  const { svc, attestationId, who } = await minted();
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
   const result = await svc.bind(who("agent-1"), {
@@ -336,7 +334,7 @@ test("the payload must name this attestation and lease", async () => {
 });
 
 test("a payload with no reviewAuthorization cannot be bound", async () => {
-  const { svc, attestationId } = await minted();
+  const { svc, attestationId, who } = await minted();
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
   const payload = configPayload();
@@ -347,7 +345,7 @@ test("a payload with no reviewAuthorization cannot be bound", async () => {
 });
 
 test("acquisition wins for exactly one caller, before any host mutation", async () => {
-  const { svc, attestationId } = await minted();
+  const { svc, attestationId, who } = await minted();
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
@@ -361,18 +359,30 @@ test("acquisition wins for exactly one caller, before any host mutation", async 
   assert.equal((await svc.redeem(who("agent-1"), { attestationId, leaseId })).ok, true);
 });
 
-test("a rotated credential invalidates a lease in flight", async () => {
-  const { svc, attestationId } = await minted();
-  const reservation = await svc.reserve(who("agent-1", 1), { attestationId, leaseSeconds: 60 });
+test("a rotation after authentication invalidates a lease in flight", async () => {
+  // The race an independent review found: the executor authenticates at epoch 1 and its lease records
+  // epoch 1, so comparing the supplied epoch ONLY with the lease let the request commit after the
+  // rotation. The store re-reads the principal, so the rotation wins.
+  const { store, svc, attestationId, who } = await minted();
+  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
+
+  // The operator rotates while the executor is mid-flight.
+  store.seedPrincipal({
+    principalId: "agent-1", displayName: "agent-1", roles: ["executor"], reviewerClasses: [],
+    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+    credentialEpoch: 2, createdAt: "2026-09-02T00:00:00.000Z",
+  }, "rotated-credential");
+
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
-  // The executor comes back after its credential was rotated.
-  const result = await svc.bind(who("agent-1", 2), { attestationId, leaseId, payload });
+  const result = await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  assert.equal(result.ok, false,
+    "an operation using the old credential must not commit after rotation commits");
   assert.equal((result as { code: string }).code, "credential_rotated");
 });
 
 test("a lease is bounded by the attestation it belongs to", async () => {
-  const { store, svc, attestationId } = await minted();
+  const { store, svc, attestationId, who } = await minted();
   // Asks for far longer than the cap and than the attestation's own validity.
   await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 * 60 * 24 });
   const lease = (await store.loadAttestation(attestationId))!.lease!;
@@ -383,7 +393,7 @@ test("a lease is bounded by the attestation it belongs to", async () => {
 // ── revocation and reconciliation ────────────────────────────────────────────────────────────────────
 
 test("only the owner may revoke, and not once execution is underway", async () => {
-  const { svc, attestationId } = await minted();
+  const { svc, attestationId, who } = await minted();
   assert.equal((await svc.revoke(who("agent-1"), { attestationId, reason: "x" }) as { code: string })
     .code, "role_required");
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
@@ -399,7 +409,7 @@ test("only the owner may revoke, and not once execution is underway", async () =
 });
 
 test("an owner asserting APPLIED is not evidence", async () => {
-  const { store, svc, attestationId } = await minted();
+  const { store, svc, attestationId, who } = await minted();
   // Drive it to INDETERMINATE the way the sweep would.
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
@@ -433,7 +443,7 @@ test("an owner asserting APPLIED is not evidence", async () => {
 });
 
 test("NOT_APPLIED terminates the attestation and it is never reopened", async () => {
-  const { store, svc, attestationId } = await minted();
+  const { store, svc, attestationId, who } = await minted();
   const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = reservation.value as { leaseId: string };
   await svc.bind(who("agent-1"), {

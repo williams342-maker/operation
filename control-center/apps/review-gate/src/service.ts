@@ -329,23 +329,17 @@ export class ReviewGateService {
     }
 
     const now = this.#clock();
+    // The store derives the transition, the participation row, the claimant record and the claim
+    // release from the ACTION. This service no longer passes a destination, because a port that accepts
+    // one is the round-8 primitive under another name -- a holder could request any graph-legal change
+    // while also choosing the audit identity and whether to release the content claim.
     const result = await this.#store.applyAction({
       candidateId: intent.candidateId,
-      expectedState: record.state,
-      nextState: rule.to,
-      occurrence: {
-        occurrenceId: this.#ids(),
-        from: record.state,
-        to: rule.to,
-        actorIdentity: principal.principalId,
-        billingClass: intent.billingClass,
-        at: now,
-      },
-      addParticipant: rule.grants
-        ? { identity: principal.principalId, role: rule.grants, at: now }
-        : undefined,
-      claimedByPrincipalId: rule.recordsClaim ? principal.principalId : undefined,
-      releaseClaim: rule.releasesClaim,
+      action: input.action,
+      actorIdentity: principal.principalId,
+      billingClass: intent.billingClass,
+      at: now,
+      occurrenceId: this.#ids(),
       idempotency: this.#idem(principal, `action:${input.action}`, input.idempotencyKey, input),
     });
     if (!result.applied) return fail(result.code, describe(result.code));

@@ -311,6 +311,49 @@ export function buildRouter(deps: RouteDependencies): Router {
     });
   });
 
+  router.post("/attestations/:id/renew", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({
+        leaseId: z.string().min(1).max(200),
+        leaseSeconds: z.number().int().positive().max(3600),
+      }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.renew(principal, {
+        attestationId: req.params.id, leaseId: body.data.leaseId,
+        leaseSeconds: body.data.leaseSeconds,
+      }));
+    });
+  });
+
+  // A further target, or a further protected action, for work whose review is already complete.
+  router.post("/candidates/:id/attestations", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const key = requireIdempotency(req, res);
+      if (!key) return;
+      const body = z.object({
+        attestations: z.array(z.object({
+          kind: z.string().min(1).max(80),
+          orgId: z.string().min(1).max(200),
+          serverId: z.string().min(1).max(200),
+          audiencePrincipalId: z.string().min(1).max(200),
+          expiresAt: z.string().datetime(),
+        })).min(1).max(50),
+      }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      sendAttestation(res, await deps.attestations.mintFurther(principal, {
+        candidateId: req.params.id,
+        idempotencyKey: key,
+        attestations: body.data.attestations as never,
+      }));
+    });
+  });
+
   router.post("/attestations/:id/revoke", async (req, res) => {
     await withPrincipal(req, res, async (principal) => {
       const body = z.object({ reason: z.string().min(1).max(2000) }).safeParse(req.body);

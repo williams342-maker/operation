@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { contentDigest, candidateDigest, type CandidateBinding } from "../src/policy.js";
 import type { AttestationRecord } from "../src/attestation.js";
-import type { CandidateRecord, IdempotencyKey, ReviewGateStore } from "../src/store.js";
+import type { CandidateRecord, IdempotencyKey, Principal, ReviewGateStore } from "../src/store.js";
 
 // The invariants a ReviewGateStore must satisfy, written once and run against every implementation.
 //
@@ -74,7 +74,19 @@ const attestation = (id: string, over: Partial<AttestationRecord> = {}): Attesta
   ...over,
 });
 
-export type StoreFactory = () => Promise<{ store: ReviewGateStore; dispose: () => Promise<void> }>;
+export type StoreFactory = () => Promise<{
+  store: ReviewGateStore;
+  /**
+   * Provision a principal the way the operator CLI would.
+   *
+   * The suite needs this because credential-sensitive operations re-read the CURRENT principal inside
+   * their transaction. An independent review found that comparing only against the epoch stored in the
+   * lease let a request authenticated before a rotation commit after it, so "does this principal still
+   * exist, and is its epoch still what the lease says" is now part of the contract each store must meet.
+   */
+  seedPrincipal: (principal: Principal) => Promise<void>;
+  dispose: () => Promise<void>;
+}>;
 
 /**
  * Run the contract against one implementation.
@@ -87,32 +99,41 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
   const idem = (principalId = "claude"): IdempotencyKey =>
     ({ principalId, scope: "conformance", key: `k-${counter++}`, requestHash: "h" });
 
+  const principal = (principalId: string, over: Partial<Principal> = {}): Principal => ({
+    principalId,
+    displayName: principalId,
+    credentialHash: "unused-by-these-tests",
+    roles: [],
+    reviewerClasses: [],
+    credentialEpoch: 1,
+    createdAt: "2026-09-02T00:00:00.000Z",
+    ...over,
+  });
+
   const withStore = async (
-    body: (store: ReviewGateStore) => Promise<void>,
+    body: (store: ReviewGateStore, seed: (p: Principal) => Promise<void>) => Promise<void>,
   ): Promise<void> => {
-    const { store, dispose } = await makeStore();
+    const { store, seedPrincipal, dispose } = await makeStore();
     try {
-      await body(store);
+      // The cast every case needs. Credential-sensitive store methods re-read these.
+      for (const id of ["claude", "codex", "owner", "agent-1"]) await seedPrincipal(principal(id));
+      await body(store, seedPrincipal);
     } finally {
       await dispose();
     }
   };
 
-  /** Walk to GO through legal moves. The store refuses jumps, which is the point of it. */
+  /** Walk to GO by NAMED ACTIONS. There is no way to ask the store for a destination. */
   async function walkToGo(store: ReviewGateStore, id: string) {
     const at = "2026-09-02T01:00:00.000Z";
-    const steps: Array<[string, string]> = [
-      ["BUILT", "TESTED"], ["TESTED", "FROZEN"], ["FROZEN", "REVIEW_REQUESTED"],
-      ["REVIEW_REQUESTED", "REVIEW_IN_PROGRESS"],
-    ];
-    for (const [from, to] of steps) {
+    const steps = ["submit-tests", "freeze", "request-review", "claim-review"] as const;
+    for (const action of steps) {
       const moved = await store.applyAction({
-        candidateId: id, expectedState: from as never, nextState: to as never,
-        occurrence: { occurrenceId: `w-${to}`, from: from as never, to: to as never,
-          actorIdentity: "claude", billingClass: "INTERNAL_QA_TEST", at },
+        candidateId: id, action, actorIdentity: action === "claim-review" ? "codex" : "claude",
+        billingClass: "INTERNAL_QA_TEST", at, occurrenceId: `w-${action}`,
         idempotency: idem(),
       });
-      assert.equal(moved.applied, true, `${from} -> ${to}: ${JSON.stringify(moved)}`);
+      assert.equal(moved.applied, true, `${action}: ${JSON.stringify(moved)}`);
     }
     const go = await store.applyVerdict({
       candidateId: id, expectedState: "REVIEW_IN_PROGRESS", nextState: "GO",
@@ -170,17 +191,36 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     });
   });
 
-  test(`${label}: an illegal jump is refused even when driven directly`, async () => {
+  test(`${label}: a destination cannot be requested at all`, async () => {
+    // The round-8 primitive, closed by SHAPE rather than by a check. There is no argument on this port
+    // meaning "put this candidate in that state" -- the action decides, and an action that is not legal
+    // from the current state is refused.
     await withStore(async (store) => {
       await store.registerCandidate({ record: record("direct"), idempotency: idem() });
       const jumped = await store.applyAction({
-        candidateId: "direct", expectedState: "BUILT", nextState: "READY_FOR_OWNER_DECISION",
-        occurrence: { occurrenceId: "x", from: "BUILT", to: "READY_FOR_OWNER_DECISION",
-          actorIdentity: "mallory", billingClass: "INTERNAL_QA_TEST", at: "2026-09-02T02:00:00.000Z" },
+        candidateId: "direct", action: "freeze", actorIdentity: "mallory",
+        billingClass: "INTERNAL_QA_TEST", at: "2026-09-02T02:00:00.000Z", occurrenceId: "x",
         idempotency: idem(),
       });
-      assert.equal(jumped.applied, false);
+      assert.equal(jumped.applied, false, "freeze is not legal from BUILT");
+      assert.equal((jumped as { code: string }).code, "illegal_transition");
       assert.equal((await store.loadCandidate("direct"))!.state, "BUILT");
+    });
+  });
+
+  test(`${label}: a successor must arrive at BUILT with no history`, async () => {
+    await withStore(async (store) => {
+      await store.registerCandidate({ record: record("p"), idempotency: idem() });
+      const forged = {
+        ...record("s", { candidateCommit: oid("d") }),
+        state: "READY_FOR_OWNER_DECISION" as const,
+      };
+      const result = await store.createSuccessor({
+        predecessorId: "p", successor: forged, inherited: [],
+        at: "2026-09-02T02:00:00.000Z", idempotency: idem(),
+      });
+      assert.equal(result.applied, false, "the successor door must not launder history either");
+      assert.equal((result as { code: string }).code, "record_not_initial");
     });
   });
 
@@ -200,10 +240,9 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     await withStore(async (store) => {
       await store.registerCandidate({ record: record("a"), idempotency: idem() });
       const cancel = await store.applyAction({
-        candidateId: "a", expectedState: "BUILT", nextState: "CANCELLED",
-        occurrence: { occurrenceId: "o1", from: "BUILT", to: "CANCELLED", actorIdentity: "claude",
-          billingClass: "INTERNAL_QA_TEST", at: "2026-09-02T01:00:00.000Z" },
-        releaseClaim: true, idempotency: idem(),
+        candidateId: "a", action: "cancel", actorIdentity: "claude",
+        billingClass: "INTERNAL_QA_TEST", at: "2026-09-02T01:00:00.000Z", occurrenceId: "o1",
+        idempotency: idem(),
       });
       assert.equal(cancel.applied, true, JSON.stringify(cancel));
       assert.equal(await store.loadClaim(record("a").contentDigest), null);
@@ -308,16 +347,18 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
   test(`${label}: reserve, bind, acquire, redeem — and a second acquire loses`, async () => {
     await withStore(async (store) => {
       const { claim } = await released(store, [attestation("at-1")]);
-      const lease = { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 3,
+      const lease = { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
         expiresAt: "2026-09-02T03:00:00.000Z" };
       const now = "2026-09-02T02:10:00.000Z";
       assert.equal((await store.reserveAttestation({
-        attestationId: "at-1", lease, now, requireClaim: claim })).applied, true);
+        attestationId: "at-1", actingPrincipalId: "agent-1", lease, now,
+        requireClaim: claim })).applied, true);
       assert.equal((await store.bindAttestation({
-        attestationId: "at-1", leaseId: "L1", credentialEpoch: 3,
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
         actionDigest: dig("7"), now })).applied, true);
       const acquire = {
-        attestationId: "at-1", leaseId: "L1", credentialEpoch: 3, actionDigest: dig("7"),
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
+        actionDigest: dig("7"),
         orgId: "org-1", serverId: "server-1", kind: "configuration.apply" as const, now,
         requireClaim: claim,
       };
@@ -325,25 +366,54 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       // The point of acquisition: a second delivery loses, and loses BEFORE it could mutate anything.
       assert.equal((await store.acquireAttestation(acquire)).applied, false);
       assert.equal((await store.redeemAttestation({
-        attestationId: "at-1", leaseId: "L1", credentialEpoch: 3, now,
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1, now,
         requireClaim: claim })).applied, true);
       assert.equal((await store.loadAttestation("at-1"))!.state, "CONSUMED");
     });
   });
 
-  test(`${label}: a rotated credential invalidates work in flight`, async () => {
-    await withStore(async (store) => {
+  test(`${label}: a rotation after authentication invalidates work in flight`, async () => {
+    // The attack an independent review found. The executor authenticates at epoch 1, reserves at epoch 1,
+    // and its lease records epoch 1 -- so comparing the supplied epoch ONLY with the lease let the
+    // request commit after the rotation. The store re-reads the principal, so the rotation wins.
+    await withStore(async (store, seed) => {
       const { claim } = await released(store, [attestation("at-1")]);
       const now = "2026-09-02T02:10:00.000Z";
-      await store.reserveAttestation({
-        attestationId: "at-1",
-        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 3,
+      const reserved = await store.reserveAttestation({
+        attestationId: "at-1", actingPrincipalId: "agent-1",
+        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
           expiresAt: "2026-09-02T03:00:00.000Z" },
         now, requireClaim: claim,
       });
+      assert.equal(reserved.applied, true, JSON.stringify(reserved));
+
+      // The operator rotates. The in-flight request still carries epoch 1, and so does its lease.
+      await seed(principal("agent-1", { credentialEpoch: 2 }));
+
       const bind = await store.bindAttestation({
-        attestationId: "at-1", leaseId: "L1", credentialEpoch: 4, actionDigest: dig("7"), now });
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
+        actionDigest: dig("7"), now });
+      assert.equal(bind.applied, false,
+        "an operation using the old credential must not commit after rotation commits");
       assert.equal((bind as { code: string }).code, "credential_rotated");
+    });
+  });
+
+  test(`${label}: a disabled principal cannot advance work in flight`, async () => {
+    await withStore(async (store, seed) => {
+      const { claim } = await released(store, [attestation("at-1")]);
+      const now = "2026-09-02T02:10:00.000Z";
+      await store.reserveAttestation({
+        attestationId: "at-1", actingPrincipalId: "agent-1",
+        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+          expiresAt: "2026-09-02T03:00:00.000Z" },
+        now, requireClaim: claim,
+      });
+      await seed(principal("agent-1", { disabledAt: "2026-09-02T02:15:00.000Z" }));
+      const bind = await store.bindAttestation({
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
+        actionDigest: dig("7"), now });
+      assert.equal((bind as { code: string }).code, "principal_disabled");
     });
   });
 
@@ -352,7 +422,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await released(store,
         [attestation("at-1", { expiresAt: "2026-09-02T03:00:00.000Z" })]);
       await store.reserveAttestation({
-        attestationId: "at-1",
+        attestationId: "at-1", actingPrincipalId: "agent-1",
         lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
           expiresAt: "2026-09-09T00:00:00.000Z" },
         now: "2026-09-02T02:10:00.000Z", requireClaim: claim,
@@ -372,16 +442,17 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const lease = { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
         expiresAt: "2026-09-02T02:30:00.000Z" };
       const now = "2026-09-02T02:10:00.000Z";
-      await store.reserveAttestation({ attestationId: "bound", lease, now, requireClaim: claim });
+      await store.reserveAttestation({ attestationId: "bound", actingPrincipalId: "agent-1", lease, now, requireClaim: claim });
       await store.bindAttestation({
-        attestationId: "bound", leaseId: "L1", credentialEpoch: 1, actionDigest: dig("7"), now });
+        attestationId: "bound", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
+        actionDigest: dig("7"), now });
 
       const swept = await store.sweepAttestations("2026-09-02T04:00:00.000Z");
       assert.deepEqual(swept.expired, ["unbound"], "nothing dispatched for it, so expiry is free");
       assert.deepEqual(swept.indeterminate, ["bound"], "a payload was named and may be in flight");
       assert.equal((await store.loadAttestation("bound"))!.state, "INDETERMINATE");
       const retry = await store.reserveAttestation({
-        attestationId: "bound", lease, now, requireClaim: claim });
+        attestationId: "bound", actingPrincipalId: "agent-1", lease, now, requireClaim: claim });
       assert.equal(retry.applied, false, "never back to a reservable state");
     });
   });
@@ -391,15 +462,17 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await released(store, [attestation("at-1")]);
       const now = "2026-09-02T02:10:00.000Z";
       await store.reserveAttestation({
-        attestationId: "at-1",
+        attestationId: "at-1", actingPrincipalId: "agent-1",
         lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
           expiresAt: "2026-09-02T03:00:00.000Z" },
         now, requireClaim: claim,
       });
       await store.bindAttestation({
-        attestationId: "at-1", leaseId: "L1", credentialEpoch: 1, actionDigest: dig("7"), now });
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
+        actionDigest: dig("7"), now });
       await store.acquireAttestation({
-        attestationId: "at-1", leaseId: "L1", credentialEpoch: 1, actionDigest: dig("7"),
+        attestationId: "at-1", actingPrincipalId: "agent-1", leaseId: "L1", credentialEpoch: 1,
+        actionDigest: dig("7"),
         orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now, requireClaim: claim });
       const revoke = await store.revokeAttestation({
         attestationId: "at-1", reason: "changed mind", now });

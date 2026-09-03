@@ -44,6 +44,43 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
   };
 }
 
+/**
+ * Drive the expiry sweep.
+ *
+ * WITHOUT THIS, THE SWEEP WAS DEAD CODE. An independent review found that `sweepAttestations` had the
+ * right behaviour and nothing called it outside tests — so an expired bound lease stayed RESERVED_BOUND
+ * for ever and an abandoned execution stayed EXECUTING, neither becoming reconcilable. Acquire and redeem
+ * correctly refuse an expired record, but the state transition the design promises simply never happened.
+ *
+ * Errors are logged and swallowed: a sweep that throws must not take the process down, and the next tick
+ * retries. Every transition it makes is a CAS, so a slow sweep overlapping the next one cannot double-apply.
+ */
+export function startExpirySweep(store: ReviewGateStore, options: {
+  intervalMs?: number;
+  now?: () => string;
+} = {}): { stop: () => void } {
+  const intervalMs = options.intervalMs ?? 30_000;
+  const now = options.now ?? (() => new Date().toISOString());
+  const timer = setInterval(() => {
+    void store.sweepAttestations(now()).then((swept) => {
+      if (swept.expired.length) {
+        console.log(`[review-gate] expired ${swept.expired.length} unbound attestation(s)`);
+      }
+      if (swept.indeterminate.length) {
+        // Worth a louder line: each of these now needs a human reconciliation before anything can
+        // proceed, which is the deliberate cost of refusing to guess whether a host changed.
+        console.warn(
+          `[review-gate] ${swept.indeterminate.length} attestation(s) became INDETERMINATE and require ` +
+          "owner reconciliation: " + swept.indeterminate.join(", "));
+      }
+    }).catch((error) => {
+      console.error("[review-gate] expiry sweep failed", error);
+    });
+  }, intervalMs);
+  timer.unref?.();
+  return { stop: () => clearInterval(timer) };
+}
+
 export function buildApp(store: ReviewGateStore): express.Express {
   const app = express();
   app.disable("x-powered-by");
@@ -85,6 +122,7 @@ export async function main(): Promise<void> {
   await ensureIndexes(store.database);
 
   const app = buildApp(store);
+  const sweep = startExpirySweep(store);
   await new Promise<void>((resolve) => {
     const server = app.listen(config.port, config.bind, () => {
       // The advisory sentence is logged at every start, deliberately. It is the honest description of
@@ -95,6 +133,7 @@ export async function main(): Promise<void> {
     });
     const shutdown = (signal: string) => {
       console.log(`[review-gate] ${signal}: closing`);
+      sweep.stop();
       server.close(() => { void client.close().then(() => process.exit(0)); });
     };
     process.on("SIGTERM", () => shutdown("SIGTERM"));

@@ -94,8 +94,22 @@ export class AuthenticatedPrincipal {
     }
   }
 
-  /** @internal Not exported from anywhere a route can reach it as a value. */
-  static of(principal: Principal): AuthenticatedPrincipal {
+  /**
+   * INTERNAL. The key is required for the same reason the constructor demands one, and for a reason the
+   * constructor guard alone did not cover.
+   *
+   * An independent review found that this factory was public and took an ordinary caller-built
+   * `Principal`, supplying the private symbol itself — so any module importing AuthenticatedPrincipal
+   * could mint an owner, a reviewer holding any class, or an executor. The constructor guard was real and
+   * the factory defeated it. My own tests used exactly that route, which is why the suite did not notice.
+   *
+   * Only `authenticate()` holds the key, so the only way to obtain a principal is a credential the
+   * gate's own database recognises.
+   */
+  static of(key: symbol, principal: Principal): AuthenticatedPrincipal {
+    if (key !== PRINCIPAL_KEY) {
+      throw new Error("AuthenticatedPrincipal.of is internal; principals come from authenticate()");
+    }
     return new AuthenticatedPrincipal(
       PRINCIPAL_KEY,
       principal.principalId,
@@ -141,7 +155,7 @@ export async function authenticate(
     return { ok: false, code: "unknown_credential" };
   }
   if (principal.disabledAt) return { ok: false, code: "principal_disabled" };
-  return { ok: true, principal: AuthenticatedPrincipal.of(principal) };
+  return { ok: true, principal: AuthenticatedPrincipal.of(PRINCIPAL_KEY, principal) };
 }
 
 function parseBearer(header: string | undefined): string | null {

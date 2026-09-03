@@ -1,10 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AuthenticatedPrincipal } from "../src/auth.js";
-import { InMemoryReviewGateStore } from "../src/memoryStore.js";
+import type { AuthenticatedPrincipal } from "../src/auth.js";
 import { candidateDigest, type CandidateBinding } from "../src/policy.js";
 import { ReviewGateService, isCustomerBillable, nonBillableClasses } from "../src/service.js";
-import type { Principal } from "../src/store.js";
+import { castOf, type Person } from "./principals.js";
 
 // Every test here encodes a defect an independent reviewer found across ten rounds against the previous
 // design, plus the design rounds against this one. They are written as the attack, not the happy path.
@@ -13,31 +12,23 @@ const oid = (c: string) => c.repeat(40).slice(0, 40);
 const dig = (c: string) => c.repeat(64).slice(0, 64);
 
 /**
- * Principals as the GATE holds them. A test cannot mint authority any more than a route can: it builds
- * the record an operator would have provisioned, and the gate turns it into a principal.
+ * The cast, as the GATE holds them.
+ *
+ * A test cannot mint authority any more than a route can. An independent review found that
+ * `AuthenticatedPrincipal.of` was public and took a caller-built object — so any module could mint an
+ * owner, and these tests used exactly that route, which is why the suite never noticed. Now each of them
+ * is provisioned with a real credential and resolved through `authenticate`.
  */
-const PEOPLE: Record<string, Partial<Principal>> = {
-  claude: { principalId: "claude", roles: ["author"], reviewerClasses: [] },
-  ci: { principalId: "ci", roles: ["ci"], reviewerClasses: [] },
-  codex: { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
-  dana: { principalId: "dana", roles: ["reviewer"], reviewerClasses: ["independent"] },
-  frank: { principalId: "frank", roles: ["reviewer"], reviewerClasses: [] },      // no class
-  mallory: { principalId: "mallory", roles: [], reviewerClasses: [] },            // a stranger
-  owner: { principalId: "owner", roles: ["owner"], reviewerClasses: [] },
-  erin: { principalId: "erin", roles: ["author", "reviewer"], reviewerClasses: ["independent"] },
-};
-
-const who = (name: keyof typeof PEOPLE | string): AuthenticatedPrincipal =>
-  AuthenticatedPrincipal.of({
-    displayName: name,
-    credentialHash: "",
-    credentialEpoch: 1,
-    createdAt: "2026-09-02T00:00:00.000Z",
-    principalId: name,
-    roles: [],
-    reviewerClasses: [],
-    ...(PEOPLE[name] ?? {}),
-  } as Principal);
+const PEOPLE: Person[] = [
+  { principalId: "claude", roles: ["author"] },
+  { principalId: "ci", roles: ["ci"] },
+  { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
+  { principalId: "dana", roles: ["reviewer"], reviewerClasses: ["independent"] },
+  { principalId: "frank", roles: ["reviewer"] },                 // a reviewer holding no class
+  { principalId: "mallory" },                                    // a stranger
+  { principalId: "owner", roles: ["owner"] },
+  { principalId: "erin", roles: ["author", "reviewer"], reviewerClasses: ["independent"] },
+];
 
 function binding(over: Partial<CandidateBinding> = {}): CandidateBinding {
   return {
@@ -68,19 +59,21 @@ let keys = 0;
 const key = () => `k-${keys++}`;
 let ids = 0;
 
-function build(clockValue = { now: "2026-09-02T02:00:00.000Z" }) {
-  const store = new InMemoryReviewGateStore();
-  const svc = new ReviewGateService(store, {
+async function build(clockValue = { now: "2026-09-02T02:00:00.000Z" }) {
+  const cast = await castOf(PEOPLE);
+  const svc = new ReviewGateService(cast.store, {
     clock: () => clockValue.now,
     ids: () => `id-${ids++}`,
   });
-  return { store, svc, clock: clockValue };
+  return { store: cast.store, svc, clock: clockValue, who: cast.who };
 }
 
 const INTERNAL = "INTERNAL_QA_TEST" as const;
 const REVIEW = "INTERNAL_REVIEW" as const;
 
-async function registered(svc: ReviewGateService, id = "c1", over: Partial<CandidateBinding> = {}) {
+type Who = (name: string) => AuthenticatedPrincipal;
+
+async function registered(svc: ReviewGateService, who: Who, id = "c1", over: Partial<CandidateBinding> = {}) {
   const b = binding(over);
   const result = await svc.createCandidate(who(b.authorIdentity), {
     candidateId: id, binding: b, idempotencyKey: key(),
@@ -89,7 +82,7 @@ async function registered(svc: ReviewGateService, id = "c1", over: Partial<Candi
   return b;
 }
 
-async function evidenced(svc: ReviewGateService, id: string, b: CandidateBinding) {
+async function evidenced(svc: ReviewGateService, who: Who, id: string, b: CandidateBinding) {
   const result = await svc.recordTestExecution(who("ci"), {
     candidateId: id, idempotencyKey: key(), billingClass: INTERNAL,
     evidenceId: `ev-${id}-${keys}`, resultDigest: b.testResultDigest,
@@ -98,19 +91,19 @@ async function evidenced(svc: ReviewGateService, id: string, b: CandidateBinding
   assert.equal(result.ok, true, JSON.stringify(result));
 }
 
-async function act(svc: ReviewGateService, actor: string, id: string, action: string, cls = INTERNAL) {
+async function act(svc: ReviewGateService, who: Who, actor: string, id: string, action: string, cls = INTERNAL) {
   return svc.performAction(who(actor), {
     candidateId: id, idempotencyKey: key(), billingClass: cls, action: action as never,
   });
 }
 
 /** Walk to REVIEW_IN_PROGRESS with codex as the claiming reviewer. */
-async function underReview(svc: ReviewGateService, id = "c1", over: Partial<CandidateBinding> = {}) {
-  const b = await registered(svc, id, over);
-  await evidenced(svc, id, b);
+async function underReview(svc: ReviewGateService, who: Who, id = "c1", over: Partial<CandidateBinding> = {}) {
+  const b = await registered(svc, who, id, over);
+  await evidenced(svc, who, id, b);
   for (const [actor, action] of [["ci", "submit-tests"], ["claude", "freeze"],
     ["claude", "request-review"], ["codex", "claim-review"]] as const) {
-    const r = await act(svc, actor, id, action, action === "claim-review" ? REVIEW : INTERNAL);
+    const r = await act(svc, who, actor, id, action, action === "claim-review" ? REVIEW : INTERNAL);
     assert.equal(r.ok, true, `${action}: ${JSON.stringify(r)}`);
   }
   return b;
@@ -136,8 +129,8 @@ test("there is no request shape that names a target state", () => {
   assert.equal(surface.includes("transition"), false, "a `transition(to)` surface reopens that door");
 });
 
-test("the service does not leak its store or its clock", () => {
-  const { svc, store } = build();
+test("the service does not leak its store or its clock", async () => {
+  const { svc, store } = await build();
   const reachable = svc as unknown as Record<string, unknown>;
   for (const name of ["store", "clock", "ids", "_store"]) {
     assert.equal(reachable[name], undefined, `${name} must not be reachable`);
@@ -149,7 +142,7 @@ test("the service does not leak its store or its clock", () => {
 });
 
 test("an author cannot register a candidate attributed to someone else", async () => {
-  const { svc } = build();
+  const { svc, who } = await build();
   const result = await svc.createCandidate(who("claude"), {
     candidateId: "x", binding: binding({ authorIdentity: "someone-else" }), idempotencyKey: key(),
   });
@@ -162,30 +155,30 @@ test("an author cannot register a candidate attributed to someone else", async (
 test("TESTED is refused when no test execution was ever recorded", async () => {
   // The digest in the binding is a well-formed hex string the author invented. Before evidence existed,
   // that was enough.
-  const { svc } = build();
-  await registered(svc, "c1");
-  const result = await act(svc, "ci", "c1", "submit-tests");
+  const { svc, who } = await build();
+  await registered(svc, who, "c1");
+  const result = await act(svc, who, "ci", "c1", "submit-tests");
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, "no_test_evidence");
 });
 
 test("evidence for a different digest does not test this candidate", async () => {
-  const { svc } = build();
-  await registered(svc, "c1");
+  const { svc, who } = await build();
+  await registered(svc, who, "c1");
   await svc.recordTestExecution(who("ci"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: INTERNAL,
     evidenceId: "ev-other", resultDigest: dig("9"),
     runnerIdentity: "github-actions", runReference: "actions/runs/1",
   });
-  const result = await act(svc, "ci", "c1", "submit-tests");
+  const result = await act(svc, who, "ci", "c1", "submit-tests");
   assert.equal((result as { code: string }).code, "no_test_evidence");
 });
 
 test("the author of a candidate cannot record its test evidence", async () => {
   // Separation of duties, and explicitly NOT provenance: a CI identity is still an authenticated caller
   // making an assertion. It forces a second party to make it.
-  const { svc } = build();
-  const b = await registered(svc, "c1");
+  const { svc, who } = await build();
+  const b = await registered(svc, who, "c1");
   const result = await svc.recordTestExecution(who("claude"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: INTERNAL,
     evidenceId: "ev-self", resultDigest: b.testResultDigest,
@@ -197,8 +190,8 @@ test("the author of a candidate cannot record its test evidence", async () => {
 });
 
 test("recording evidence requires the ci role even for a participant", async () => {
-  const { svc } = build();
-  const b = await registered(svc, "c1");
+  const { svc, who } = await build();
+  const b = await registered(svc, who, "c1");
   const result = await svc.recordTestExecution(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: INTERNAL,
     evidenceId: "ev-x", resultDigest: b.testResultDigest,
@@ -209,45 +202,45 @@ test("recording evidence requires the ci role even for a participant", async () 
 
 test("a retest cannot lean on evidence recorded before the remediation", async () => {
   const clock = { now: "2026-09-02T02:00:00.000Z" };
-  const { svc } = build(clock);
-  const b = await registered(svc, "c1");
-  await evidenced(svc, "c1", b);
-  assert.equal((await act(svc, "ci", "c1", "record-test-failure")).ok, true);
+  const { svc, who } = await build(clock);
+  const b = await registered(svc, who, "c1");
+  await evidenced(svc, who, "c1", b);
+  assert.equal((await act(svc, who, "ci", "c1", "record-test-failure")).ok, true);
   clock.now = "2026-09-02T03:00:00.000Z";
   // TEST_FAILED -> REMEDIATION_REQUIRED is not an action; drive the loop via the actions that exist.
-  const remediation = await act(svc, "claude", "c1", "begin-remediation");
+  const remediation = await act(svc, who, "claude", "c1", "begin-remediation");
   assert.equal(remediation.ok, false, "REMEDIATION_REQUIRED is reached by a verdict, not from TEST_FAILED");
 });
 
 // ── the stranger entry point ─────────────────────────────────────────────────────────────────────────
 
 test("a stranger cannot move somebody else's candidate", async () => {
-  const { svc } = build();
-  const b = await registered(svc, "c1");
-  await evidenced(svc, "c1", b);
-  await act(svc, "ci", "c1", "submit-tests");
-  const result = await act(svc, "mallory", "c1", "freeze");
+  const { svc, who } = await build();
+  const b = await registered(svc, who, "c1");
+  await evidenced(svc, who, "c1", b);
+  await act(svc, who, "ci", "c1", "submit-tests");
+  const result = await act(svc, who, "mallory", "c1", "freeze");
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, "actor_not_authorized");
 });
 
 test("only a reviewer holding the REQUESTED class may claim a review", async () => {
-  const { svc } = build();
-  const b = await registered(svc, "c1");
-  await evidenced(svc, "c1", b);
-  await act(svc, "ci", "c1", "submit-tests");
-  await act(svc, "claude", "c1", "freeze");
-  await act(svc, "claude", "c1", "request-review");
+  const { svc, who } = await build();
+  const b = await registered(svc, who, "c1");
+  await evidenced(svc, who, "c1", b);
+  await act(svc, who, "ci", "c1", "submit-tests");
+  await act(svc, who, "claude", "c1", "freeze");
+  await act(svc, who, "claude", "c1", "request-review");
   // frank is a reviewer, but holds no class. Before this check, anyone unconflicted could review.
-  const seized = await act(svc, "frank", "c1", "claim-review", REVIEW);
+  const seized = await act(svc, who, "frank", "c1", "claim-review", REVIEW);
   assert.equal(seized.ok, false);
   assert.equal((seized as { code: string }).code, "actor_not_authorized");
-  assert.equal((await act(svc, "codex", "c1", "claim-review", REVIEW)).ok, true);
+  assert.equal((await act(svc, who, "codex", "c1", "claim-review", REVIEW)).ok, true);
 });
 
 test("claiming a review grants no role, so it cannot be used to enrol", async () => {
-  const { store, svc } = build();
-  await underReview(svc, "c1");
+  const { store, svc, who } = await build();
+  await underReview(svc, who, "c1");
   const record = await store.loadCandidate("c1");
   assert.equal(record!.participants.some((p) => p.identity === "codex"), false,
     "a claim must not write a participation row");
@@ -255,14 +248,14 @@ test("claiming a review grants no role, so it cannot be used to enrol", async ()
 });
 
 test("the author cannot claim the review of their own candidate", async () => {
-  const { svc } = build();
-  const b = await registered(svc, "c1", { authorIdentity: "erin" });
-  await evidenced(svc, "c1", b);
-  await act(svc, "ci", "c1", "submit-tests");
-  await act(svc, "erin", "c1", "freeze");
-  await act(svc, "erin", "c1", "request-review");
+  const { svc, who } = await build();
+  const b = await registered(svc, who, "c1", { authorIdentity: "erin" });
+  await evidenced(svc, who, "c1", b);
+  await act(svc, who, "ci", "c1", "submit-tests");
+  await act(svc, who, "erin", "c1", "freeze");
+  await act(svc, who, "erin", "c1", "request-review");
   // erin holds the independent class AND authored it, so only the participation check can refuse her.
-  const result = await act(svc, "erin", "c1", "claim-review", REVIEW);
+  const result = await act(svc, who, "erin", "c1", "claim-review", REVIEW);
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, "actor_not_authorized");
 });
@@ -272,8 +265,8 @@ test("the author cannot claim the review of their own candidate", async () => {
 test("only the reviewer who CLAIMED the review may submit its verdict", async () => {
   // dana holds the class and has no conflicting participation, so class and independence both pass. The
   // claim is what stops her.
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("dana"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, { reviewerIdentity: "dana" }),
@@ -283,8 +276,8 @@ test("only the reviewer who CLAIMED the review may submit its verdict", async ()
 });
 
 test("a verdict naming someone else is refused", async () => {
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, { reviewerIdentity: "dana" }),
@@ -293,8 +286,8 @@ test("a verdict naming someone else is refused", async () => {
 });
 
 test("a verdict for a different candidate is refused", async () => {
-  const { svc } = build();
-  await underReview(svc, "c1");
+  const { svc, who } = await build();
+  await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(binding({ candidateCommit: oid("9") })),
@@ -303,8 +296,8 @@ test("a verdict for a different candidate is refused", async () => {
 });
 
 test("a genuine independent reviewer succeeds — the checks are not simply refusing everyone", async () => {
-  const { store, svc } = build();
-  const b = await underReview(svc, "c1");
+  const { store, svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW, verdict: verdict(b),
   });
@@ -313,8 +306,8 @@ test("a genuine independent reviewer succeeds — the checks are not simply refu
 });
 
 test("a rejection must say why", async () => {
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, { verdict: "NO_GO", findings: [] }),
@@ -323,13 +316,13 @@ test("a rejection must say why", async () => {
 });
 
 test("a verdict must be classed as review work, and review work is never customer-billable", async () => {
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const wrongClass = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: INTERNAL, verdict: verdict(b),
   });
   assert.equal((wrongClass as { code: string }).code, "billing_class_not_review");
-  const billed = await act(svc, "claude", "c1", "cancel", "CUSTOMER_VALUE_WORK" as never);
+  const billed = await act(svc, who, "claude", "c1", "cancel", "CUSTOMER_VALUE_WORK" as never);
   assert.equal((billed as { code: string }).code, "billing_class_not_internal");
 });
 
@@ -342,8 +335,8 @@ test("every internal class is non-billable, and the taxonomy is not vacuous", ()
 // ── findings ─────────────────────────────────────────────────────────────────────────────────────────
 
 test("findings survive the verdict that raised them, with gate-generated occurrence ids", async () => {
-  const { store, svc } = build();
-  const b = await underReview(svc, "c1");
+  const { store, svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, {
@@ -360,8 +353,8 @@ test("findings survive the verdict that raised them, with gate-generated occurre
 });
 
 test("a verdict cannot raise and discharge the same finding", async () => {
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, {
@@ -374,8 +367,8 @@ test("a verdict cannot raise and discharge the same finding", async () => {
 });
 
 test("a discharge cannot name a finding that is not outstanding", async () => {
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, { resolves: ["never-raised"] }),
@@ -386,8 +379,8 @@ test("a discharge cannot name a finding that is not outstanding", async () => {
 // ── rejected content ─────────────────────────────────────────────────────────────────────────────────
 
 test("rejected content cannot be re-registered under a fresh candidate id", async () => {
-  const { svc } = build();
-  const b = await underReview(svc, "c1");
+  const { svc, who } = await build();
+  const b = await underReview(svc, who, "c1");
   const rejected = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, {
@@ -403,8 +396,8 @@ test("rejected content cannot be re-registered under a fresh candidate id", asyn
 });
 
 test("two live candidates cannot carry the same work", async () => {
-  const { svc } = build();
-  await registered(svc, "c1");
+  const { svc, who } = await build();
+  await registered(svc, who, "c1");
   const twin = await svc.createCandidate(who("claude"), {
     candidateId: "c2", binding: binding(), idempotencyKey: key(),
   });
@@ -413,8 +406,8 @@ test("two live candidates cannot carry the same work", async () => {
 
 // ── successors ───────────────────────────────────────────────────────────────────────────────────────
 
-async function rejectedCandidate(svc: ReviewGateService, id: string) {
-  const b = await underReview(svc, id);
+async function rejectedCandidate(svc: ReviewGateService, who: Who, id: string) {
+  const b = await underReview(svc, who, id);
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: id, idempotencyKey: key(), billingClass: REVIEW,
     verdict: verdict(b, {
@@ -426,8 +419,8 @@ async function rejectedCandidate(svc: ReviewGateService, id: string) {
 }
 
 test("a successor changing only paperwork is not a remediation", async () => {
-  const { svc } = build();
-  await rejectedCandidate(svc, "c1");
+  const { svc, who } = await build();
+  await rejectedCandidate(svc, who, "c1");
   const result = await svc.createSuccessor(who("claude"), {
     candidateId: "c2", supersedes: "c1",
     binding: binding({ createdAt: "2026-09-02T09:00:00.000Z", occurrenceId: "different" }),
@@ -437,8 +430,8 @@ test("a successor changing only paperwork is not a remediation", async () => {
 });
 
 test("a successor must address every blocking finding it inherits", async () => {
-  const { svc } = build();
-  await rejectedCandidate(svc, "c1");
+  const { svc, who } = await build();
+  await rejectedCandidate(svc, who, "c1");
   const silent = await svc.createSuccessor(who("claude"), {
     candidateId: "c2", supersedes: "c1",
     binding: binding({ candidateCommit: oid("d"), candidateTree: oid("e") }),
@@ -449,8 +442,8 @@ test("a successor must address every blocking finding it inherits", async () => 
 });
 
 test("a reviewer is a participant but may not author the replacement", async () => {
-  const { svc } = build();
-  await rejectedCandidate(svc, "c1");
+  const { svc, who } = await build();
+  await rejectedCandidate(svc, who, "c1");
   const byReviewer = await svc.createSuccessor(who("codex"), {
     candidateId: "c2", supersedes: "c1",
     binding: binding({ authorIdentity: "codex", candidateCommit: oid("d") }),
@@ -460,8 +453,8 @@ test("a reviewer is a participant but may not author the replacement", async () 
 });
 
 test("a candidate still under review has nothing to supersede", async () => {
-  const { svc } = build();
-  await underReview(svc, "c1");
+  const { svc, who } = await build();
+  await underReview(svc, who, "c1");
   const premature = await svc.createSuccessor(who("claude"), {
     candidateId: "c2", supersedes: "c1",
     binding: binding({ candidateCommit: oid("d") }), idempotencyKey: key(),
@@ -470,8 +463,8 @@ test("a candidate still under review has nothing to supersede", async () => {
 });
 
 test("a genuine successor inherits the findings it must answer for", async () => {
-  const { store, svc } = build();
-  await rejectedCandidate(svc, "c1");
+  const { store, svc, who } = await build();
+  await rejectedCandidate(svc, who, "c1");
   const prior = await store.loadCandidate("c1");
   const outstanding = prior!.verdicts[0].findings.map((f) => f.occurrenceId);
   const result = await svc.createSuccessor(who("claude"), {
@@ -489,8 +482,8 @@ test("a genuine successor inherits the findings it must answer for", async () =>
 // ── malformed input ──────────────────────────────────────────────────────────────────────────────────
 
 test("malformed input is a closed decision, never an exception", async () => {
-  const { svc } = build();
-  await underReview(svc, "c1");
+  const { svc, who } = await build();
+  await underReview(svc, who, "c1");
   const result = await svc.submitVerdict(who("codex"), {
     candidateId: "c1", idempotencyKey: key(), billingClass: REVIEW, verdict: { nonsense: true },
   });
@@ -499,8 +492,8 @@ test("malformed input is a closed decision, never an exception", async () => {
 });
 
 test("an unknown action cannot be performed", async () => {
-  const { svc } = build();
-  await registered(svc, "c1");
-  const result = await act(svc, "claude", "c1", "become-approved");
+  const { svc, who } = await build();
+  await registered(svc, who, "c1");
+  const result = await act(svc, who, "claude", "c1", "become-approved");
   assert.equal(result.ok, false, "nothing is authorized by the absence of a rule");
 });

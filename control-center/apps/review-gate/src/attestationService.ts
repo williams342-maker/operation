@@ -90,11 +90,48 @@ export class AttestationService {
     if (record.state !== "GO") {
       return no("illegal_transition", `an owner decision is not legal from ${record.state}`);
     }
-    const subject = record.binding.subject as CandidateSubject;
+    const checked = await this.#checkKinds(record, input.attestations, principal.principalId);
+    if (!checked.ok) return checked;
+    const minted = (checked.value as { minted: AttestationRecord[] }).minted;
     const now = this.#clock();
 
+    const result = await this.#store.recordOwnerDecision({
+      candidateId: input.candidateId,
+      expectedState: "GO",
+      occurrence: {
+        occurrenceId: this.#ids(),
+        from: "GO",
+        to: "READY_FOR_OWNER_DECISION",
+        actorIdentity: principal.principalId,
+        billingClass: "INTERNAL_RELEASE_VERIFICATION",
+        at: now,
+      },
+      contentDigest: record.contentDigest,
+      attestations: minted,
+      at: now,
+      idempotency: this.#idem(principal, "owner-decision", input.idempotencyKey, input),
+    });
+    if (!result.applied) return no(result.code, result.code);
+    return yes({ attestationIds: result.value.attestationIds });
+  }
+
+  /**
+   * The kind, subject and rollback-target rules, shared by owner-decision and further minting.
+   *
+   * One implementation rather than two, because an independent review of the previous design found the
+   * same rule expressed differently in two places and only one of them enforced.
+   */
+  async #checkKinds(
+    record: { contentDigest: string; candidateId: string; binding: { subject: unknown;
+      targetEnvironmentClass: string } },
+    requests: ReadonlyArray<{ kind: AttestationKind; orgId: string; serverId: string;
+      audiencePrincipalId: string; expiresAt: string }>,
+    grantedBy: string,
+  ): Promise<AttestationResult> {
+    const subject = record.binding.subject as CandidateSubject;
+    const now = this.#clock();
     const minted: AttestationRecord[] = [];
-    for (const request of input.attestations) {
+    for (const request of requests) {
       if (!(attestationKinds as readonly string[]).includes(request.kind)) {
         return no("unknown_kind", `${request.kind} is not a protected action this gate attests`);
       }
@@ -129,32 +166,14 @@ export class AttestationService {
         targetEnvironmentClass: record.binding.targetEnvironmentClass,
         audiencePrincipalId: request.audiencePrincipalId,
         nonce: this.#ids(),
-        grantedByPrincipalId: principal.principalId,
+        grantedByPrincipalId: grantedBy,
         grantedAt: now,
         expiresAt: request.expiresAt,
         state: "PENDING",
         // NO actionDigest. Minting is unbound; binding supplies it.
       });
     }
-
-    const result = await this.#store.recordOwnerDecision({
-      candidateId: input.candidateId,
-      expectedState: "GO",
-      occurrence: {
-        occurrenceId: this.#ids(),
-        from: "GO",
-        to: "READY_FOR_OWNER_DECISION",
-        actorIdentity: principal.principalId,
-        billingClass: "INTERNAL_RELEASE_VERIFICATION",
-        at: now,
-      },
-      contentDigest: record.contentDigest,
-      attestations: minted,
-      at: now,
-      idempotency: this.#idem(principal, "owner-decision", input.idempotencyKey, input),
-    });
-    if (!result.applied) return no(result.code, result.code);
-    return yes({ attestationIds: result.value.attestationIds });
+    return yes({ minted });
   }
 
   // ── reserve ─────────────────────────────────────────────────────────────────────────────────────
@@ -183,6 +202,7 @@ export class AttestationService {
     };
     const result = await this.#store.reserveAttestation({
       attestationId: input.attestationId,
+      actingPrincipalId: principal.principalId,
       lease,
       now,
       requireClaim: {
@@ -191,7 +211,11 @@ export class AttestationService {
       },
     });
     if (!result.applied) return no(result.code, result.code);
-    return yes({ leaseId: lease.leaseId, expiresAt: lease.expiresAt });
+    // The CLAMPED expiry, read back from the store. Returning the requested one gave the caller a false
+    // validity window: the store bounds a lease to the attestation, so what was asked for is not what
+    // was granted.
+    const stored = await this.#store.loadAttestation(input.attestationId);
+    return yes({ leaseId: lease.leaseId, expiresAt: stored?.lease?.expiresAt ?? lease.expiresAt });
   }
 
   // ── bind: validate the payload, compute the digest ──────────────────────────────────────────────
@@ -239,6 +263,7 @@ export class AttestationService {
     const actionDigest = privilegedActionDigest(input.payload);
     const result = await this.#store.bindAttestation({
       attestationId: input.attestationId,
+      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
       credentialEpoch: principal.credentialEpoch,
       actionDigest,
@@ -262,6 +287,7 @@ export class AttestationService {
     if (!record) return no("unknown_attestation", "no such attestation");
     const result = await this.#store.acquireAttestation({
       attestationId: input.attestationId,
+      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
       credentialEpoch: principal.credentialEpoch,
       actionDigest: input.actionDigest,
@@ -286,6 +312,7 @@ export class AttestationService {
     if (!record) return no("unknown_attestation", "no such attestation");
     const result = await this.#store.redeemAttestation({
       attestationId: input.attestationId,
+      actingPrincipalId: principal.principalId,
       leaseId: input.leaseId,
       credentialEpoch: principal.credentialEpoch,
       now: this.#clock(),
@@ -296,6 +323,63 @@ export class AttestationService {
     });
     if (!result.applied) return no(result.code, result.code);
     return yes();
+  }
+
+  /** Extend a lease without changing its holder or reviving an expired one. */
+  async renew(principal: AuthenticatedPrincipal, input: {
+    attestationId: string;
+    leaseId: string;
+    leaseSeconds: number;
+  }): Promise<AttestationResult> {
+    const seconds = Math.min(Math.max(1, Math.floor(input.leaseSeconds)), LEASE_MAX_SECONDS);
+    const now = this.#clock();
+    const result = await this.#store.renewLease({
+      attestationId: input.attestationId,
+      actingPrincipalId: principal.principalId,
+      leaseId: input.leaseId,
+      credentialEpoch: principal.credentialEpoch,
+      requestedExpiresAt: new Date(Date.parse(now) + seconds * 1000).toISOString(),
+      now,
+    });
+    if (!result.applied) return no(result.code, result.code);
+    return yes({ expiresAt: result.value.expiresAt });
+  }
+
+  /**
+   * Mint a further attestation from content that is already RELEASED.
+   *
+   * A second target, or a second protected action, for work whose review is already complete. The same
+   * subject and rollback-target rules apply, and it is minted UNBOUND like any other.
+   */
+  async mintFurther(principal: AuthenticatedPrincipal, input: {
+    candidateId: string;
+    idempotencyKey: string;
+    attestations: ReadonlyArray<{
+      kind: AttestationKind;
+      orgId: string;
+      serverId: string;
+      audiencePrincipalId: string;
+      expiresAt: string;
+    }>;
+  }): Promise<AttestationResult> {
+    if (!principal.hasRole("owner")) {
+      return no("role_required", "only the owner may mint an attestation");
+    }
+    const record = await this.#store.loadCandidate(input.candidateId);
+    if (!record) return no("unknown_candidate", "no such candidate");
+    const claim = await this.#store.loadClaim(record.contentDigest);
+    if (claim?.disposition !== "RELEASED" || claim.releasedByCandidateId !== record.candidateId) {
+      return no("claim_not_released", "further attestations require content that is already released");
+    }
+    const checked = await this.#checkKinds(record, input.attestations, principal.principalId);
+    if (!checked.ok) return checked;
+    const result = await this.#store.mintAttestations({
+      candidateId: input.candidateId,
+      attestations: (checked.value as { minted: AttestationRecord[] }).minted,
+      idempotency: this.#idem(principal, "mint-further", input.idempotencyKey, input),
+    });
+    if (!result.applied) return no(result.code, result.code);
+    return yes({ attestationIds: result.value.attestationIds });
   }
 
   async revoke(principal: AuthenticatedPrincipal, input: {
