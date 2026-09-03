@@ -11,9 +11,12 @@ items in §Open below**, which the reviewer excluded explicitly.
 
 ## The honest status, first
 
-**This gate is ADVISORY.** It records and enforces the review lifecycle for callers that use it. It
-prevents nothing for a caller that does not, because the enforcement point (design §2) is not wired to
-the executors. That sentence is in the README, in `/healthz`, in the startup log, and here.
+**This gate is ADVISORY in practice.** The enforcement point (design §2) is now wired into the executor —
+candidate W1, `8d675d99`, review ready and NOT yet reviewed — but every executor is `DISABLED`, and
+activation is an owner decision that has not been taken. A `DISABLED` executor behaves exactly as it did
+before the wiring, so the gate still prevents nothing today. That sentence is in the README, in
+`/healthz`, in the startup log, and here, and it stays until an executor is activated and that activation
+is reviewed.
 
 **The Mongo store has never been executed.** No replica set was available. It is typechecked, and
 `test/mongoStore.test.ts` runs the *same conformance suite* the in-memory reference passes — skipping
@@ -162,8 +165,9 @@ The reviewer stated these remain outside the GO and are not implicitly validated
 | --- | --- |
 | **CRITICAL (partial)** | Test evidence is separation of duties, **not provenance**. A CI identity is an authenticated caller making an assertion. Owner authority — key material. |
 | **MAJOR** | The Mongo store is unverified. Everything the durable path guarantees rests on code that has not run. |
-| **MAJOR** | The enforcement point is not wired. Until then the gate is advisory. |
-| **MAJOR** | The executor needs a **durable** local claim on `actionDigest` before acting. The current agent's replay map is in-memory and does not survive a restart. |
+| **MAJOR** | ~~The enforcement point is not wired.~~ **Built in W1 (`8d675d99`), not yet reviewed.** Still advisory in practice: activation is an owner decision and no executor is activated. |
+| **MAJOR** | ~~The executor needs a durable local claim on `actionDigest`.~~ **Built in W1** as `apps/agent/src/executionJournal.ts`, which lets the filesystem decide the race (`flag: "wx"`) rather than a read-then-write. Not yet reviewed. |
+| **MAJOR (new, W1)** | A **deleted** enforcement record still reads as `DISABLED`, so root on a host defeats activation. A corrupted record throws and a missing gate config refuses startup, but absence is indistinguishable from never-activated. The fix is not local — it needs a signed bootstrap, or the gate refusing to answer an executor it believes is enforcing. |
 | MINOR | Rollback targets are bound but their payload semantics are only as good as the change-set digest. |
 
 ---

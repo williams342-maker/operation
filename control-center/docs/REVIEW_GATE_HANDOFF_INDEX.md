@@ -4,10 +4,15 @@
 release candidate cannot reach owner decision without an independent reviewer's verdict against a
 specific, immutable candidate identity.
 
-**Current disposition:** **GO for the built scope**, at implementation review round 5 with no findings
-— the first GO in this workstream, after ten NO-GOs on the previous design, six design-review rounds on
-this one, and four implementation rounds. The GO is scoped: it does not cover test provenance, the
-unverified Mongo store, the unwired enforcement point, or the executor durable claim.
+**Current disposition:** the gate service holds its **GO for the built scope** (implementation round 5,
+no findings — the first GO in this workstream, after ten NO-GOs on the previous design, six design-review
+rounds on this one, and four implementation rounds). That GO is scoped: it does not cover test provenance
+or the unverified Mongo store.
+
+Two of the things it excluded — **the unwired enforcement point and the executor durable claim** — are now
+built as a separate candidate, **W1 (`8d675d99`), REVIEW READY and not yet reviewed**
+(`REVIEW_GATE_HANDOFF_8d675d99_20260902.md`). W1 wires the executor and leaves every executor `DISABLED`,
+so the gate remains advisory in practice until an owner activates one.
 
 **Previously:** ENGINEERING IN PROGRESS — Option B. The owner chose option B: the gate is a
 separate service with its own database. The design went through SIX review rounds before any code was
@@ -17,10 +22,12 @@ what remains: `REVIEW_GATE_BUILD_STATE.md`.
 Candidates A-K and their ten NO-GOs are the *previous* design, retained below as the record of why option
 B was chosen. That policy now lives in `apps/review-gate`; it has been deleted from `packages/shared`.
 
-**Owner action: TWO ITEMS OPEN**, both in §I of the current candidate handoff — (1) test provenance needs
-key material for an attestation scheme; (2) whether application code holding the service is trusted, which
-decides whether authoritative mutation needs a separately deployed boundary. Everything else in this
-workstream continues without owner involvement.
+**Owner action: FOUR ITEMS OPEN.** On the gate service — (1) test provenance needs key material for an
+attestation scheme; (2) whether application code holding the service is trusted, which decides whether
+authoritative mutation needs a separately deployed boundary. On W1 — (3) activating an executor is an
+owner decision, because it means an unreachable gate stops deployments to that host; (4) each activated
+executor needs its own gate credential, and creating credentials is outside my authorization. Everything
+else in this workstream continues without owner involvement.
 
 This file exists because the per-round handoff was previously **overwritten in place**, which destroyed
 the reviewed text of earlier candidates. Each round's handoff is now its own file, and the text a reviewer
@@ -43,6 +50,18 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | I | `0ce56c85` / `c5b66c5f` | `REVIEW_GATE_HANDOFF_0ce56c85_20260902.md` | **NO-GO** | 2 CRITICAL — the package published `InMemoryReviewGateStore`, whose `create` took a caller-built state, so a record could be written straight into `READY_FOR_OWNER_DECISION`; findings could be laundered by a second, milder rejection |
 | J | `d7341739` / `1afc9c5b` | `REVIEW_GATE_HANDOFF_d7341739_20260902.md` | **NO-GO** | 2 CRITICAL — `private readonly store` is erased, so `(service as any).store` handed back the live store; `resolves` was an unordered tombstone that could pre-authorise deleting a finding not yet raised. **Plus a design judgement: the defect rate was not converging** |
 | K | `8e7ad8ba` / `aedd4f1e` | `REVIEW_GATE_HANDOFF_8e7ad8ba_20260902.md` | **NO-GO** | 2 CRITICAL — the service hands its write capability to the caller-supplied store, so a wrapper captures it; successor inheritance is a non-atomic snapshot. **And the design judgement: same shape, stop patching** |
+
+### Executor wiring — a separate lineage on top of the GO'd gate
+
+| # | candidate | handoff document | verdict | findings |
+| --- | --- | --- | --- | --- |
+| W1 | `8d675d99` / wiring at `12049b9b` | `REVIEW_GATE_HANDOFF_8d675d99_20260902.md` | **not yet reviewed** | — |
+
+W1 is remediation of the gate's own central weakness — that nothing consulted it — which by policy makes
+it the highest-risk code in the workstream and deserves *more* suspicion than the thing it fixes. Its §E
+lists what to attack, in order, including two weaknesses I am flagging rather than describing around: a
+*deleted* enforcement record still reads as `DISABLED`, and the structural test that every privileged
+effect sits downstream of acquisition would not catch an effect invoked through a helper.
 
 Retrieve any superseded handoff with:
 

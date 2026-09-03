@@ -12,9 +12,11 @@ import type { ReviewGateStore } from "./store.js";
 // request carries a credential in a header and an INTENT in the body, and the gate decides everything
 // else from its own records.
 //
-// ADVISORY UNTIL THE ENFORCEMENT POINT IS WIRED. This service records and enforces the review lifecycle
-// for callers that use it, and prevents nothing for a caller that does not. That sentence is required to
-// stay in /healthz until the executors consult the gate; it is the honest description of what exists.
+// ADVISORY UNTIL AN EXECUTOR IS ACTIVATED. The enforcement point is now wired (candidate W1), but every
+// executor is DISABLED and activation is an owner decision that has not been taken — so this service still
+// records and enforces the review lifecycle for callers that use it, and prevents nothing for a caller
+// that does not. The notice is required to stay in /healthz until an executor is actually enforcing; it is
+// the honest description of what exists, and "wired" is not "enforcing".
 
 export const ADVISORY_NOTICE =
   "ADVISORY: this gate records and enforces the review lifecycle for callers that use it. Until the " +
