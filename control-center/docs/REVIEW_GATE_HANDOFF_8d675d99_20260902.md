@@ -60,8 +60,9 @@ cd packages/shared  && npm test
 
 | | |
 | --- | --- |
-| **candidate commit** | `8d675d9955a93ce0fbff75bea1b9504f032f3f19` |
+| **code commit** | `8d675d9955a93ce0fbff75bea1b9504f032f3f19` — the reviewable code, frozen |
 | wiring commit | `12049b9b4bca39625cdea982458628b28520d7fe` |
+| **candidate commit** | the tip of `feat/review-gate-20260902` — this document is *in* the candidate, so no revision of it can name its own hash |
 | predecessor | `b19c8c62` (the gate service, **GO** at its round 5) |
 | supersedes | nothing — this is a new workstream on top of a GO'd base |
 
