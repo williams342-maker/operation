@@ -66,6 +66,8 @@ const attestation = (id: string, over: Partial<AttestationRecord> = {}): Attesta
   serverId: "server-1",
   targetEnvironmentClass: "staging",
   audiencePrincipalId: "agent-1",
+  bindingPrincipalId: "binder-1",
+  identitySchemaVersion: "v2",
   nonce: "n-1",
   grantedByPrincipalId: "owner",
   grantedAt: "2026-09-02T00:00:00.000Z",
@@ -125,7 +127,12 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     const { store, seedPrincipal, dispose } = await makeStore();
     try {
       // The cast every case needs. Credential-sensitive store methods re-read these.
-      for (const id of ["claude", "codex", "owner", "agent-1"]) await seedPrincipal(principal(id));
+      for (const id of ["claude", "codex", "owner"]) await seedPrincipal(principal(id));
+      // The audience must be provisioned for the target: `executionAuthority` re-reads the principal row
+      // inside the transaction, which is a check the store did not make before the split.
+      const scope = [{ orgId: "org-1", serverId: "server-1" }];
+      await seedPrincipal(principal("agent-1", { audienceFor: scope }));
+      await seedPrincipal(principal("binder-1", { audienceFor: scope }));
       await body(store, seedPrincipal);
     } finally {
       await dispose();
@@ -359,14 +366,14 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
   test(`${label}: reserve, bind, acquire, redeem — and a second acquire loses`, async () => {
     await withStore(async (store) => {
       const { claim } = await released(store, [attestation("at-1")]);
-      const lease = { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+      const lease = { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
         expiresAt: "2026-09-02T03:00:00.000Z" };
       const now = "2026-09-02T02:10:00.000Z";
       assert.equal((await store.reserveAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", lease, now,
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", lease, now,
         requireClaim: claim })).applied, true);
       assert.equal((await store.bindAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"), now })).applied, true);
       const acquire = {
         acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
@@ -392,18 +399,20 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await released(store, [attestation("at-1")]);
       const now = "2026-09-02T02:10:00.000Z";
       const reserved = await store.reserveAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
-        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1",
+        lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
           expiresAt: "2026-09-02T03:00:00.000Z" },
         now, requireClaim: claim,
       });
       assert.equal(reserved.applied, true, JSON.stringify(reserved));
 
-      // The operator rotates. The in-flight request still carries epoch 1, and so does its lease.
-      await seed(principal("agent-1", { credentialEpoch: 2 }));
+      // The operator rotates THE BINDER. Before the split this rotated the executor, because the
+      // executor held the lease; the binder holds it now, so the binder's rotation is what must stop a
+      // bind in flight. The scope is re-seeded with the row, since seeding replaces it wholesale.
+      await seed(principal("binder-1", { credentialEpoch: 2, audienceFor: [{ orgId: "org-1", serverId: "server-1" }] }));
 
       const bind = await store.bindAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"), now });
       assert.equal(bind.applied, false,
         "an operation using the old credential must not commit after rotation commits");
@@ -416,16 +425,51 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await released(store, [attestation("at-1")]);
       const now = "2026-09-02T02:10:00.000Z";
       await store.reserveAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
-        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1",
+        lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
           expiresAt: "2026-09-02T03:00:00.000Z" },
         now, requireClaim: claim,
       });
-      await seed(principal("agent-1", { disabledAt: "2026-09-02T02:15:00.000Z" }));
+      await seed(principal("binder-1", { disabledAt: "2026-09-02T02:15:00.000Z", audienceFor: [{ orgId: "org-1", serverId: "server-1" }] }));
       const bind = await store.bindAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"), now });
       assert.equal((bind as { code: string }).code, "principal_disabled");
+    });
+  });
+
+  test(`${label}: a legacy v1 attestation cannot be reserved, but stays readable and revocable`, async () => {
+    // The policy an earlier revision declared while giving it nothing to execute against: the record had
+    // no field that could distinguish a v1 from a v2, so "v1 is rejected by reserve" could not be
+    // enforced. Absence of `identitySchemaVersion` is that discriminator.
+    await withStore(async (store) => {
+      const legacy = attestation("at-v1");
+      delete (legacy as { identitySchemaVersion?: string }).identitySchemaVersion;
+      delete (legacy as { bindingPrincipalId?: string }).bindingPrincipalId;
+      const { claim } = await released(store, [legacy]);
+      const now = "2026-09-02T02:10:00.000Z";
+
+      const reserve = await store.reserveAttestation({
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-v1",
+        lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
+          expiresAt: "2026-09-02T03:00:00.000Z" },
+        now, requireClaim: claim,
+      });
+      assert.equal(reserve.applied, false, "a v1 record must not be reservable");
+      assert.equal((reserve as { code: string }).code, "legacy_identity_not_executable");
+
+      // Unchanged by the refusal: still PENDING, still no lease.
+      const after = (await store.loadAttestation("at-v1"))!;
+      assert.equal(after.state, "PENDING");
+      assert.equal(after.lease, undefined);
+
+      // A record that cannot execute is still provenance, and an operator must be able to retire it.
+      // It is never rewritten in place -- a replacement is a NEW v2 mint carrying supersedesAttestationId.
+      const revoked = await store.revokeAttestation({
+        acting: { principalId: "owner", credentialEpoch: 1 }, attestationId: "at-v1",
+        reason: "superseded", now });
+      assert.equal(revoked.applied, true, JSON.stringify(revoked));
+      assert.equal((await store.loadAttestation("at-v1"))!.state, "REVOKED");
     });
   });
 
@@ -434,8 +478,8 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await released(store,
         [attestation("at-1", { expiresAt: "2026-09-02T03:00:00.000Z" })]);
       await store.reserveAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
-        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1",
+        lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
           expiresAt: "2026-09-09T00:00:00.000Z" },
         now: "2026-09-02T02:10:00.000Z", requireClaim: claim,
       });
@@ -451,12 +495,12 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
         attestation("unbound", { expiresAt: "2026-09-02T02:30:00.000Z" }),
         attestation("bound", { expiresAt: "2026-09-02T02:30:00.000Z" }),
       ]);
-      const lease = { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+      const lease = { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
         expiresAt: "2026-09-02T02:30:00.000Z" };
       const now = "2026-09-02T02:10:00.000Z";
-      await store.reserveAttestation({ acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "bound", lease, now, requireClaim: claim });
+      await store.reserveAttestation({ acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "bound", lease, now, requireClaim: claim });
       await store.bindAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "bound", leaseId: "L1",
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "bound", leaseId: "L1",
         actionDigest: dig("7"), now });
 
       const swept = await store.sweepAttestations("2026-09-02T04:00:00.000Z");
@@ -464,7 +508,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       assert.deepEqual(swept.indeterminate, ["bound"], "a payload was named and may be in flight");
       assert.equal((await store.loadAttestation("bound"))!.state, "INDETERMINATE");
       const retry = await store.reserveAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "bound", lease, now, requireClaim: claim });
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "bound", lease, now, requireClaim: claim });
       assert.equal(retry.applied, false, "never back to a reservable state");
     });
   });
@@ -474,13 +518,13 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await released(store, [attestation("at-1")]);
       const now = "2026-09-02T02:10:00.000Z";
       await store.reserveAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
-        lease: { leaseId: "L1", holderPrincipalId: "agent-1", credentialEpoch: 1,
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1",
+        lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
           expiresAt: "2026-09-02T03:00:00.000Z" },
         now, requireClaim: claim,
       });
       await store.bindAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
+        acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"), now });
       await store.acquireAttestation({
         acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",

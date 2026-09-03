@@ -52,6 +52,7 @@ test("a rotation after authentication invalidates work in flight", async () => {
   // epoch 2 — the rotation was never consulted. The store re-reads the principal now.
   const cast = await castOf([
     { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "o", serverId: "s" }] },
+    { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "o", serverId: "s" }] },
   ]);
   const before = cast.who("agent-1");
   assert.equal(before.credentialEpoch, 1);
@@ -159,6 +160,7 @@ test("a lease can only be used by the principal that holds it", async () => {
     { principalId: "owner", roles: ["owner"] },
     { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
     { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
   ], store);
 
   const at = "2026-09-02T01:00:00.000Z";
@@ -199,13 +201,13 @@ test("a lease can only be used by the principal that holds it", async () => {
   const decision = await svc.recordOwnerDecision(cast.who("owner"), {
     candidateId: "c1", idempotencyKey: "od",
     attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal(decision.ok, true, JSON.stringify(decision));
   const [attestationId] = (decision as { value: { attestationIds: string[] } }).value.attestationIds;
 
   // agent-1 reserves. A REAL lease now exists.
-  const reserved = await svc.reserve(cast.who("agent-1"), { attestationId, leaseSeconds: 300 });
+  const reserved = await svc.reserve(cast.who("binder-1"), { attestationId, leaseSeconds: 300 });
   assert.equal(reserved.ok, true, JSON.stringify(reserved));
   const { leaseId } = (reserved as { value: { leaseId: string } }).value;
 
@@ -218,25 +220,31 @@ test("a lease can only be used by the principal that holds it", async () => {
   const claim = { contentDigest: candidateRecord("c1", { subject: b.subject }).contentDigest,
     releasedByCandidateId: "c1" };
   const digest = "a".repeat(64);
-  const refusal = async (name: string, promise: Promise<{ applied: boolean; code?: string }>) => {
+  // The expected code differs by half of the split, and that difference is the point. On the BINDING
+  // half the thief is not the lease holder. On the EXECUTION half the holder is deliberately not
+  // compared -- the binder holds the lease and the audience executes -- so the thief is stopped by not
+  // being the audience, which is a stronger statement than "not the holder".
+  const refusal = async (
+    name: string, expected: string, promise: Promise<{ applied: boolean; code?: string }>,
+  ) => {
     const result = await promise;
     assert.equal(result.applied, false, `${name} by a non-holder must be refused`);
-    assert.equal(result.code, "not_lease_holder",
-      `${name} must refuse for the HOLDER, not for some earlier reason`);
+    assert.equal(result.code, expected,
+      `${name} must refuse for the intended reason, not for some earlier one`);
   };
 
   // RESERVED_UNBOUND: bind and renew are both legal here for the holder.
-  await refusal("bind", store.bindAttestation({
+  await refusal("bind", "not_lease_holder", store.bindAttestation({
     acting: thief, attestationId, leaseId, actionDigest: digest, now: at }));
-  await refusal("renew", store.renewLease({
+  await refusal("renew", "not_lease_holder", store.renewLease({
     acting: thief, attestationId, leaseId,
     requestedExpiresAt: "2026-09-02T03:00:00.000Z", now: at }));
 
-  // The holder binds, so the attestation reaches RESERVED_BOUND and acquire becomes reachable.
+  // The BINDER binds, so the attestation reaches RESERVED_BOUND and acquire becomes reachable.
   const bound = await store.bindAttestation({
-    acting: acting("agent-1"), attestationId, leaseId, actionDigest: digest, now: at });
+    acting: acting("binder-1"), attestationId, leaseId, actionDigest: digest, now: at });
   assert.equal(bound.applied, true, JSON.stringify(bound));
-  await refusal("acquire", store.acquireAttestation({
+  await refusal("acquire", "wrong_audience", store.acquireAttestation({
     acting: thief, attestationId, leaseId, actionDigest: digest,
     orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim }));
 
@@ -245,7 +253,7 @@ test("a lease can only be used by the principal that holds it", async () => {
     acting: acting("agent-1"), attestationId, leaseId, actionDigest: digest,
     orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim });
   assert.equal(acquired.applied, true, JSON.stringify(acquired));
-  await refusal("redeem", store.redeemAttestation({
+  await refusal("redeem", "wrong_audience", store.redeemAttestation({
     acting: thief, attestationId, leaseId, now: at, requireClaim: claim }));
 
   // ...and the legitimate holder still completes, so the check is not simply refusing everyone.
