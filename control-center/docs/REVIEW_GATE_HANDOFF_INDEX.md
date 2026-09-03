@@ -10,9 +10,9 @@ rounds on this one, and four implementation rounds). That GO is scoped: it does 
 or the unverified Mongo store.
 
 Two of the things it excluded — **the unwired enforcement point and the executor durable claim** — are now
-built as a separate candidate, **W1 (`8d675d99`), REVIEW READY and not yet reviewed**
-(`REVIEW_GATE_HANDOFF_8d675d99_20260902.md`). W1 wires the executor and leaves every executor `DISABLED`,
-so the gate remains advisory in practice until an owner activates one.
+built as a separate candidate. **W1 (`8d675d99`) was NO-GO**; **W2 (`0e49e9f1`) is the remediation and is
+REVIEW READY** (`REVIEW_GATE_HANDOFF_0e49e9f1_20260902.md`). Both leave every executor `DISABLED`, so the
+gate remains advisory in practice until an owner activates one.
 
 **Previously:** ENGINEERING IN PROGRESS — Option B. The owner chose option B: the gate is a
 separate service with its own database. The design went through SIX review rounds before any code was
@@ -55,13 +55,23 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 
 | # | candidate | handoff document | verdict | findings |
 | --- | --- | --- | --- | --- |
-| W1 | `8d675d99` / wiring at `12049b9b` | `REVIEW_GATE_HANDOFF_8d675d99_20260902.md` | **not yet reviewed** | — |
+| W1 | `8d675d99` / wiring at `12049b9b` | `REVIEW_GATE_HANDOFF_8d675d99_20260902.md` | **NO-GO** | 2 CRITICAL — enforcement was an optional argument to `executeTask` defaulting to advisory, so any caller omitting it bypassed the gate on an ENFORCING host; and the executor digested the TASK payload while the gate binds the SUB-payload, so an activated executor would have refused every privileged task. 2 MAJOR — `state` and `history` could contradict each other and only `state` was read; a plaintext `http://` gate URL counted as usable configuration |
+| W2 | `0e49e9f1` | `REVIEW_GATE_HANDOFF_0e49e9f1_20260902.md` | **not yet reviewed** | — |
 
-W1 is remediation of the gate's own central weakness — that nothing consulted it — which by policy makes
-it the highest-risk code in the workstream and deserves *more* suspicion than the thing it fixes. Its §E
-lists what to attack, in order, including two weaknesses I am flagging rather than describing around: a
-*deleted* enforcement record still reads as `DISABLED`, and the structural test that every privileged
-effect sits downstream of acquisition would not catch an effect invoked through a helper.
+This lineage is remediation of the gate's own central weakness — that nothing consulted it — which by
+policy makes it the highest-risk code in the workstream and deserves *more* suspicion than the thing it
+fixes. Round 1 bore that out: three findings from the reviewer, and a fourth I found myself that the
+reviewer had not reached, which was the most consequential of the four.
+
+**The round-1 lesson, recorded because it is the eleventh instance of one pattern.** Both criticals
+survived a green suite for the same reason: every test drove a HELPER with arguments the test chose, so
+the tests agreed with my *description* of the wiring rather than measuring the wiring. The unit fixture
+even encoded the defect's own shape — `reviewAuthorization` at the top of the task payload — so the
+mistake was asserted as correct. W2 adds `executorEffectPoint.test.ts`, which calls `executeTask` itself
+with nothing about enforcement passed in.
+
+Still known and unfixed, flagged rather than described around: a *deleted* enforcement record reads as
+`DISABLED`, so root on a host defeats activation.
 
 Retrieve any superseded handoff with:
 
