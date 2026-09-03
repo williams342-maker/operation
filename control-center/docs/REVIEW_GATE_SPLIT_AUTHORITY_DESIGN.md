@@ -6,7 +6,17 @@
 and 5 (2, 1 HIGH).
 Round 3: *"the central split-authority direction is now sound"* — what remained was turning two open
 security choices into exact, testable contracts. v4 makes both choices.
-**Status:** **DESIGN, FOR REVIEW BEFORE ANY CODE.** The owner chose option (b) from
+**Status:** **APPROVED TO IMPLEMENT** at design review round 6 — 23 findings across six rounds, 12 HIGH.
+
+The candidate will be judged against `REVIEW_GATE_IMPLEMENTATION_CHECKLIST.md`, which is the reviewer's
+list rather than my reading of this document. Six rounds established that my reading is the unreliable
+part.
+
+**One blocker on certification, not on building:** the checklist requires the store conformance suite to
+pass against a **real Mongo replica set** — "a skipped Mongo conformance suite is not sufficient for
+candidate approval". This machine has neither a running Docker nor `mongod`. See §15.
+
+The owner chose option (b) from
 `REVIEW_GATE_DISPATCH_GAP.md`.
 
 > **Why a design round rather than building it.** The last three NO-GOs in this workstream were design
@@ -98,8 +108,8 @@ required to bind one before it can receive it.
 | **bind** | **binder**, as lease holder | §4 |
 | **renew, before acquire** | **binder**, as lease holder | §4 |
 | **renew, while `EXECUTING`** | **executor** | §5 — new, see below |
-| **acquire** | **executor** (audience) | §4 |
-| **redeem** | **executor** (audience) | §4 |
+| **acquire** | **executor** (audience) | §4 **and** §8 — the binder-incarnation check is part of its contract |
+| **redeem** | **executor** (audience) | §4 **and** §5 — the attempt token is part of its contract |
 | revoke | **owner** | role check, unchanged |
 | resolve indeterminate | **owner** | role check, unchanged (but see §8) |
 | expiry sweep | **system scheduler**, no principal | unchanged |
@@ -560,6 +570,22 @@ it. Not exploitable by an unauthorised party — it needs the lease holder's cre
 monotonicity property the design assumes and the code does not provide, and §5 above now depends on it.
 
 **Required:** deadlines move only later, for both lease renewal and execution extension.
+
+## 15. The one thing that now blocks certification
+
+The implementation checklist requires both stores to pass conformance, with Mongo results from a real
+replica set. The Mongo store has never been executed — it has been an open MAJOR since the gate's own GO —
+and this machine has no way to run one: Docker Desktop does not start, and there is no `mongod` installed.
+
+**This is an owner decision about footprint, not a technical choice I should make.** The options:
+
+- **install MongoDB** on this machine — system software the owner did not ask for;
+- **add `mongodb-memory-server` as a devDependency** — downloads a `mongod` binary into the project cache
+  at install time, which is the standard way to test Mongo transactions in CI, but it is a new dependency
+  in a repository that already has a documented dependency-exposure concern;
+- **run the conformance suite elsewhere** — a host that already has a replica set.
+
+Implementation does not wait on this. Certification does.
 
 ## 14. Questions for review round 6
 
