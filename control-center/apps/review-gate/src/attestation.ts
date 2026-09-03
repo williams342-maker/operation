@@ -42,6 +42,29 @@ export const KIND_SUBJECT: Readonly<Record<AttestationKind, "configuration.chang
     "agent.upgrade": "agent.upgrade",
   });
 
+/**
+ * The execution VERB each kind pins, or `null` where the payload carries no verb.
+ *
+ * Stated as data for the same reason as `KIND_SUBJECT`: "kind matches the payload" cannot be literal.
+ * Both configuration kinds map to ONE subject and ONE payload schema, and that schema admits
+ * `configuration.apply.v1` and `configuration.rollback.v1` alike — so subject checking and change-set
+ * digests, which both configuration kinds share, cannot tell an apply from a rollback.
+ *
+ * WITHOUT THIS, LAYER 3 DID NOT PIN WHICH OPERATION IS PERFORMED. A rollback payload bound cleanly to an
+ * apply attestation and the reverse: `validatePayload` never looked at `action`, and acquire's kind check
+ * compares the CALLER-SUPPLIED kind against the record, never against the bound payload. The gate claimed
+ * to bind "which reviewed change is applied" while leaving the verb free.
+ *
+ * `agent.upgrade` is `null` because its payload is an upgrade manifest with no verb to pin — the
+ * artifact digest and release manifest digest are what identify the operation there. Total over
+ * `AttestationKind` on purpose: a new kind cannot be added without deciding this.
+ */
+export const KIND_REQUIRED_ACTION: Readonly<Record<AttestationKind, string | null>> = Object.freeze({
+  "configuration.apply": "configuration.apply.v1",
+  "configuration.rollback": "configuration.rollback.v1",
+  "agent.upgrade": null,
+});
+
 /** Kinds that additionally require the subject to name a rollback target. */
 export const KINDS_REQUIRING_ROLLBACK_TARGET: readonly AttestationKind[] =
   Object.freeze(["configuration.rollback"]);

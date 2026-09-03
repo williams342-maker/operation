@@ -266,6 +266,47 @@ test("expectedConfigurationDigest is NOT what review is bound to", () => {
   assert.equal(result.ok, true, "changing the precondition does not change what was reviewed");
 });
 
+test("an apply attestation cannot authorize a rollback payload, or the reverse", () => {
+  // REGRESSION, design review round 2 §13.1. `validatePayload` did not look at `action` at all, and
+  // acquire's kind check compares the CALLER-SUPPLIED kind against the record rather than against the
+  // bound payload. Both configuration kinds share one subject, one payload schema and one change-set
+  // digest, so every other check here passes identically for an apply and a rollback of the same change
+  // set -- the verb was the one thing separating them, and nothing looked at it.
+  //
+  // Note the payloads below are otherwise VALID: `action` carries no conditional fields, so swapping it
+  // alone produces a payload that parses cleanly. The refusal has to be about the verb, not the schema.
+  const subject = configSubject();
+  const rollbackPayload = configPayload({ action: "configuration.rollback.v1" });
+  const applyPayload = configPayload({ action: "configuration.apply.v1" });
+
+  const swappedForward = validatePayload("configuration.apply", subject, rollbackPayload);
+  assert.equal((swappedForward as { code: string }).code, "payload_not_reviewed_action",
+    "an apply attestation must not authorize a rollback");
+  const swappedBack = validatePayload("configuration.rollback", subject, applyPayload);
+  assert.equal((swappedBack as { code: string }).code, "payload_not_reviewed_action",
+    "a rollback attestation must not authorize an apply");
+
+  // The matching directions still bind, so the check pins the verb rather than blocking the payload.
+  assert.equal(validatePayload("configuration.apply", subject, applyPayload).ok, true);
+  assert.equal(validatePayload("configuration.rollback", subject, rollbackPayload).ok, true);
+});
+
+test("agent upgrade carries no verb to pin, and is unaffected", () => {
+  // KIND_REQUIRED_ACTION is null there: the artifact and release-manifest digests identify the
+  // operation instead. Asserted so that "total over AttestationKind" is not silently satisfied by
+  // making agent.upgrade fail everything.
+  const subject = { kind: "agent.upgrade" as const, artifactSha256: dig("5"), releaseManifestDigest: dig("6") };
+  const manifest = {
+    schemaVersion: "agent-upgrade-v1", upgradeId: "up-1", serverId: "server-000000001",
+    expectedAgentId: "agent-1", expectedCurrentVersion: "0.1.0", targetVersion: "0.2.0",
+    releaseId: "rel-1", artifactSha256: dig("5"), artifactSignature: "s".repeat(90),
+    signatureKeyId: "key-1", releaseManifestDigest: dig("6"), planDigest: dig("7"),
+    operatingSystem: "linux", architecture: "x64", packageType: "tar",
+    requiredCapabilities: [], expiresAt: "2026-09-02T06:00:00.000Z", nonce: "n".repeat(20),
+  };
+  assert.equal(validatePayload("agent.upgrade", subject, manifest).ok, true);
+});
+
 test("agent upgrade binds the bytes that will be installed", () => {
   const subject = { kind: "agent.upgrade" as const,
     artifactSha256: dig("5"), releaseManifestDigest: dig("6") };
@@ -329,6 +370,32 @@ test("the gate computes actionDigest; it never accepts one", async () => {
   assert.equal(actionDigest, privilegedActionDigest(payload),
     "the same function layer 2 signs, computed here rather than trusted");
   assert.equal((await store.loadAttestation(attestationId))!.actionDigest, actionDigest);
+});
+
+test("bind refuses a swapped verb, and leaves the attestation unbound", async () => {
+  // The pure-function test above proves the rule; this proves the real path enforces it AND that the
+  // refusal is clean. A rejected bind must not leave a half-bound attestation: no actionDigest, and the
+  // reservation still usable for the correct payload.
+  const { store, svc, attestationId, who } = await minted();
+  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const { leaseId } = valueOf<{ leaseId: string }>(reservation);
+
+  const rejected = await svc.bind(who("agent-1"), {
+    attestationId, leaseId,
+    payload: configPayload({ action: "configuration.rollback.v1", reviewAuthorization: { attestationId, leaseId } }),
+  });
+  assert.equal((rejected as { code: string }).code, "payload_not_reviewed_action");
+
+  const after = (await store.loadAttestation(attestationId))!;
+  assert.equal(after.actionDigest, undefined, "a refused bind must not record an actionDigest");
+  assert.equal(after.state, "RESERVED_UNBOUND", "a refused bind must not advance the state");
+
+  // And the correct payload still binds on the same lease -- the refusal cost nothing.
+  const accepted = await svc.bind(who("agent-1"), {
+    attestationId, leaseId,
+    payload: configPayload({ reviewAuthorization: { attestationId, leaseId } }),
+  });
+  assert.equal(accepted.ok, true, JSON.stringify(accepted));
 });
 
 test("the payload must name this attestation and lease", async () => {

@@ -9,6 +9,7 @@ import {
 } from "@control-center/shared";
 import {
   KINDS_REQUIRING_ROLLBACK_TARGET,
+  KIND_REQUIRED_ACTION,
   KIND_SUBJECT,
   attestationKinds,
   evaluateReconciliation,
@@ -489,6 +490,15 @@ export function validatePayload(
   if (subject.kind !== "configuration.change") return no("subject_kind_mismatch", "wrong subject");
   const parsed = configurationDeploymentPayloadSchema.safeParse(payload);
   if (!parsed.success) return no("malformed_payload", parsed.error.message.slice(0, 300));
+
+  // THE VERB, before anything else about the content. Both configuration kinds share one subject, one
+  // payload schema and one change-set digest, so every check below this line passes identically for an
+  // apply and for a rollback of the same change set. This is the only thing that separates them.
+  const requiredAction = KIND_REQUIRED_ACTION[kind];
+  if (requiredAction !== null && parsed.data.action !== requiredAction) {
+    return no("payload_not_reviewed_action",
+      `a ${kind} attestation cannot authorize a ${parsed.data.action} payload`);
+  }
 
   // The reviewed thing is the CHANGE SET, and the repository already has a canonical digest over exactly
   // it. Recomputed here rather than trusted.
