@@ -139,7 +139,12 @@ export class AuthenticatedPrincipal {
       Object.freeze([...principal.roles]),
       Object.freeze([...principal.reviewerClasses]),
       principal.credentialEpoch,
-      Object.freeze([...(principal.audienceFor ?? [])]),
+      // DEEP. Freezing the array left its ELEMENTS writable, so code holding a legitimate principal
+      // could reassign audienceFor[0].serverId and mayActOn would then grant a substituted target. The
+      // comment above claimed the contents could not be changed; it was true of the array and false of
+      // what the array held.
+      Object.freeze((principal.audienceFor ?? []).map((target) =>
+        Object.freeze({ orgId: target.orgId, serverId: target.serverId }))),
     );
   }
 

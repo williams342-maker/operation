@@ -118,6 +118,29 @@ test("an authenticated principal cannot have its authority reassigned", async ()
   assert.throws(() => (principal.roles as string[]).push("owner"));
 });
 
+test("an executor cannot have its authorised target rewritten", async () => {
+  // THE DEFECT: the freeze was SHALLOW. audienceFor was a frozen array of writable objects, so code
+  // holding a legitimate principal could set audienceFor[0].serverId to a host it was never provisioned
+  // for and mayActOn would agree. The comment claiming the contents could not change was true of the
+  // array and false of what the array held -- which is the same sentence-versus-mechanism gap this whole
+  // workstream keeps producing.
+  const cast = await castOf([{
+    principalId: "agent-1", roles: ["executor"],
+    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+  }]);
+  const principal = cast.who("agent-1");
+  assert.ok(principal.mayActOn("org-1", "server-1"));
+  assert.equal(principal.mayActOn("org-1", "server-9"), false);
+
+  const target = principal.audienceFor[0] as { orgId: string; serverId: string };
+  assert.throws(() => { "use strict"; target.serverId = "server-9"; },
+    "rewriting the authorised host must throw");
+  assert.throws(() => { "use strict"; target.orgId = "org-9"; });
+  assert.equal(principal.mayActOn("org-1", "server-9"), false,
+    "and the authority is unchanged");
+  assert.throws(() => (principal.audienceFor as Array<unknown>).push({ orgId: "o", serverId: "s" }));
+});
+
 test("a lease can only be used by the principal that holds it", async () => {
   // THE DEFECT: the lease check compared leaseId, epoch and expiry — never the HOLDER. Any other enabled
   // principal whose current epoch matched could use a known leaseId to renew, acquire or redeem someone
