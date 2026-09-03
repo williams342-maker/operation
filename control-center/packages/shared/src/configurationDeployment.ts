@@ -18,6 +18,26 @@ export const encryptedValueBundleSchema = z.object({ algorithm: z.literal("aes-2
 // key reuse; only the agent's private key opens it. Versioned via the algorithm literal.
 export const sealedValueBundleSchema = z.object({ algorithm: z.literal("x25519-hkdf-sha256-aes256gcm"), ephemeralPublicKey: z.string().max(512), nonce: z.string().max(64), authTag: z.string().max(64), ciphertext: z.string().max(400_000) }).strict();
 
+/**
+ * Layer-3 review authorization, carried INSIDE the action payload.
+ *
+ * It lives here rather than beside the payload so that it falls under `privilegedActionDigest`, and
+ * therefore under both the owner's offline signature and the transport envelope digest, with no
+ * separate hashing rule for the gate, the signer, the API and the executor to disagree about.
+ *
+ * OPTIONAL, AND INERT WHEN ABSENT. `authorizePrivilegedTask` is unchanged and the existing two layers
+ * behave exactly as before. That is the same additive discipline the owner-authorization layer used:
+ * a new check must not be able to break the path it is being added to.
+ *
+ * NOT circular. Both ids exist before the payload is finalised, because an attestation is minted
+ * UNBOUND and a lease is taken before binding. An earlier design computed the action digest at mint
+ * time, which required the payload to contain ids that did not exist yet — a sequence with no valid
+ * execution order.
+ */
+export const reviewAuthorizationSchema = z.object({
+  attestationId: z.string().min(1).max(200),
+  leaseId: z.string().min(1).max(200),
+}).strict();
 export const configurationDeploymentPayloadSchema = z.object({
   schemaVersion: z.literal("configuration-deployment-v1"),
   action: z.enum(["configuration.apply.v1", "configuration.rollback.v1"]),
@@ -41,6 +61,7 @@ export const configurationDeploymentPayloadSchema = z.object({
   sealedValues: sealedValueBundleSchema.optional(),
   expectedConfigurationDigest: z.string().regex(/^[a-f0-9]{64}$/),
   expectedActiveDeploymentId: z.string().min(12).max(64).optional(),
+  reviewAuthorization: reviewAuthorizationSchema.optional(),
   automaticRollback: z.literal(true)
 }).strict().superRefine((value, context) => {
   const protectedSet = new Set(value.protectedServices);

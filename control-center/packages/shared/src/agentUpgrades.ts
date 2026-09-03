@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { z } from "zod";
+import { reviewAuthorizationSchema } from "./configurationDeployment.js";
 import { settingNameSchema } from "./configuration.js";
 
 const safeId = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/);
@@ -38,7 +39,7 @@ export const agentInventorySchema = z.object({
 }).strict();
 
 export const agentUpgradeManifestSchema = z.object({
-  schemaVersion: z.literal("agent-upgrade-v1"), upgradeId: safeId, serverId: z.string().min(12).max(64), expectedAgentId: safeId, expectedCurrentVersion: semver, expectedCurrentBinarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(), targetVersion: semver, releaseId: safeId, artifactSha256: z.string().regex(/^[a-f0-9]{64}$/), artifactSignature: z.string().min(80).max(1000), signatureKeyId: safeId, releaseManifestDigest: z.string().regex(/^[a-f0-9]{64}$/), planDigest: z.string().regex(/^[a-f0-9]{64}$/), operatingSystem: safeId, architecture: safeId, packageType: z.enum(packageTypes), requiredCapabilities: z.array(safeId).max(100), expiresAt: z.string().datetime(), nonce: z.string().min(16).max(160)
+  schemaVersion: z.literal("agent-upgrade-v1"), upgradeId: safeId, serverId: z.string().min(12).max(64), expectedAgentId: safeId, expectedCurrentVersion: semver, expectedCurrentBinarySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(), targetVersion: semver, releaseId: safeId, artifactSha256: z.string().regex(/^[a-f0-9]{64}$/), artifactSignature: z.string().min(80).max(1000), signatureKeyId: safeId, releaseManifestDigest: z.string().regex(/^[a-f0-9]{64}$/), planDigest: z.string().regex(/^[a-f0-9]{64}$/), operatingSystem: safeId, architecture: safeId, packageType: z.enum(packageTypes), requiredCapabilities: z.array(safeId).max(100), expiresAt: z.string().datetime(), nonce: z.string().min(16).max(160), reviewAuthorization: reviewAuthorizationSchema.optional()
 }).strict();
 export const agentUpgradeResultSchema = z.object({ phase: z.enum(["queued", "upgrading", "validating", "complete", "failed", "rolled_back", "rollback_failed"]), upgradeId: safeId, targetVersion: semver.optional(), errorCategory: z.enum(["download", "digest", "signature", "package", "architecture", "disk", "restart", "heartbeat", "capabilities", "discovery", "rollback", "validation", "unknown"]).optional() }).strict();
 
