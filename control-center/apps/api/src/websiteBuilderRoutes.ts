@@ -4,9 +4,33 @@ import { z } from "zod";
 import { audit } from "./audit.js";
 import { noStore, requirePermission } from "./auth.js";
 import { collections } from "./db.js";
+import { assertChargeable, classifyExecution } from "@control-center/shared";
+import type { WebsiteBuildWorkflowDoc } from "./models.js";
 import { buildArchitecture, buildBrandDirections, buildImplementationPlan, buildProjectBrief, buildSiteContent, buildStaticSiteArtifact, buildValidation, regenerateSiteSection } from "./websiteBuilder.js";
 
 export const websiteBuilderRouter = express.Router();
+
+// A website build is the artifact the customer asked for, so the workflow is customer-billable. The
+// stages that merely check the work -- validation, regeneration of a section the platform got wrong --
+// are not, and must never move the number.
+const WEBSITE_BUILD_EXECUTION_KIND = "build.website_artifact" as const;
+
+/**
+ * THE ONLY PATH THAT MAY MOVE `actualCredits`. Server-side, per §7: UI labelling is not enforcement.
+ *
+ * Every current caller passes 0, and that is the state this is meant to preserve. It exists so the first
+ * code that wants to pass something else has to justify it against the execution's recorded class rather
+ * than incrementing a field.
+ *
+ * A workflow created before classification existed carries no stamp. It is treated as zero-credit and so
+ * refuses any real charge; no migration, and the unmigrated direction is the safe one.
+ */
+function assertWorkflowChargeable(workflow: WebsiteBuildWorkflowDoc, creditsDelta: number): void {
+  assertChargeable(
+    { executionKind: workflow.executionKind ?? WEBSITE_BUILD_EXECUTION_KIND, billingClass: workflow.billingClass ?? "zero_credit" },
+    creditsDelta,
+  );
+}
 
 export const discoveryQuestions = [
   { id: "business_name", prompt: "What is the name of your business or organization?", help: "Use the public name visitors should see." },
@@ -44,7 +68,7 @@ websiteBuilderRouter.get("/website-builder/workflows", noStore, requirePermissio
 websiteBuilderRouter.post("/website-builder/workflows", noStore, requirePermission("ai:use"), async (req, res, next) => {
   try {
     const body = z.object({ websiteType: websiteTypeSchema }).strict().parse(req.body); const now = new Date();
-    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType: body.websiteType, stage: "discovery", version: 1, currentQuestionIndex: 0, answers: [], estimatedCredits: 5, actualCredits: 0, createdAt: now, updatedAt: now });
+    const result = await collections.websiteBuildWorkflows.insertOne({ orgId: req.orgId!, createdByUserId: req.user!._id, websiteType: body.websiteType, stage: "discovery", version: 1, currentQuestionIndex: 0, answers: [], estimatedCredits: 5, actualCredits: 0, ...classifyExecution(WEBSITE_BUILD_EXECUTION_KIND), createdAt: now, updatedAt: now });
     const workflow = await collections.websiteBuildWorkflows.findOne({ _id: result.insertedId, orgId: req.orgId! });
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.workflow.create", targetType: "website_workflow", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { websiteType: body.websiteType, stage: "discovery", estimatedCredits: 5 } });
     res.status(201).json(workflowResponse(workflow));
@@ -89,7 +113,7 @@ websiteBuilderRouter.patch("/website-builder/workflows/:id/sections/:sectionId",
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/sections/:sectionId/regenerate", noStore, requirePermission("ai:use"), async (req, res, next) => {
-  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (!["content_review", "preview_ready", "user_review"].includes(workflow.stage) || !workflow.sections || !workflow.brief) return res.status(409).json({ error: "Content is not regeneratable" }); const sectionId = String(req.params.sectionId); const index = workflow.sections.findIndex((item) => item.id === sectionId); if (index < 0) return res.status(404).json({ error: "Section not found" }); const sections = workflow.sections.map((item, itemIndex) => itemIndex === index ? regenerateSiteSection(item as any, workflow.brief) : item); const now = new Date(); const set: Record<string, unknown> = { sections, updatedAt: now }; if (workflow.stage !== "content_review" && workflow.architecture) { const brand = (workflow.brandDirections || []).find((item: any) => item.id === workflow.selectedBrandId); if (!brand) return res.status(409).json({ error: "Approved brand direction is unavailable" }); const artifact = buildStaticSiteArtifact(workflow.brief, workflow.architecture, brand, sections as any); set.artifact = artifact; set.validation = { ...buildValidation(sections as any), artifactSha256: artifact.sha256, artifactBytes: artifact.bytes }; } const changed = await collections.websiteBuildWorkflows.updateOne({ _id: workflow._id, orgId: req.orgId!, version: workflow.version }, { $set: set, $inc: { version: 1, actualCredits: 0 } }); if (changed.modifiedCount !== 1) return res.status(409).json({ error: "Workflow changed; reload and try again" }); await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.section.update", targetType: "website_workflow", targetId: workflow._id, result: "success", requestId: req.requestId, metadata: { sectionId, version: sections[index].version, deterministic: true } }); const updated = await collections.websiteBuildWorkflows.findOne({ _id: workflow._id, orgId: req.orgId! }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (!["content_review", "preview_ready", "user_review"].includes(workflow.stage) || !workflow.sections || !workflow.brief) return res.status(409).json({ error: "Content is not regeneratable" }); const sectionId = String(req.params.sectionId); const index = workflow.sections.findIndex((item) => item.id === sectionId); if (index < 0) return res.status(404).json({ error: "Section not found" }); const sections = workflow.sections.map((item, itemIndex) => itemIndex === index ? regenerateSiteSection(item as any, workflow.brief) : item); const now = new Date(); const set: Record<string, unknown> = { sections, updatedAt: now }; if (workflow.stage !== "content_review" && workflow.architecture) { const brand = (workflow.brandDirections || []).find((item: any) => item.id === workflow.selectedBrandId); if (!brand) return res.status(409).json({ error: "Approved brand direction is unavailable" }); const artifact = buildStaticSiteArtifact(workflow.brief, workflow.architecture, brand, sections as any); set.artifact = artifact; set.validation = { ...buildValidation(sections as any), artifactSha256: artifact.sha256, artifactBytes: artifact.bytes }; } assertWorkflowChargeable(workflow, 0); const changed = await collections.websiteBuildWorkflows.updateOne({ _id: workflow._id, orgId: req.orgId!, version: workflow.version }, { $set: set, $inc: { version: 1, actualCredits: 0 } }); if (changed.modifiedCount !== 1) return res.status(409).json({ error: "Workflow changed; reload and try again" }); await audit({ orgId: req.orgId, actorType: "user", actorId: req.user!._id, action: "website.section.update", targetType: "website_workflow", targetId: workflow._id, result: "success", requestId: req.requestId, metadata: { sectionId, version: sections[index].version, deterministic: true } }); const updated = await collections.websiteBuildWorkflows.findOne({ _id: workflow._id, orgId: req.orgId! }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-content", noStore, requirePermission("ai:use"), async (req, res, next) => {
@@ -97,7 +121,7 @@ websiteBuilderRouter.post("/website-builder/workflows/:id/approve-content", noSt
 });
 
 websiteBuilderRouter.post("/website-builder/workflows/:id/approve-implementation", noStore, requirePermission("ai:use"), async (req, res, next) => {
-  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "implementation_approval" || !workflow.implementationPlan || !workflow.sections || !workflow.brief || !workflow.architecture) return res.status(409).json({ error: "Implementation plan is not awaiting approval" }); const brand = (workflow.brandDirections || []).find((item: any) => item.id === workflow.selectedBrandId); if (!brand) return res.status(409).json({ error: "Approved brand direction is unavailable" }); const artifact = buildStaticSiteArtifact(workflow.brief, workflow.architecture, brand, workflow.sections as any); const validation = { ...buildValidation(workflow.sections as any), artifactSha256: artifact.sha256, artifactBytes: artifact.bytes }; const updated = await recordApproval(req, workflow, "implementation_plan", Number((workflow.implementationPlan as any).version) || 1, { stage: "preview_ready", artifact, validation, actualCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
+  try { const workflow = await loadWorkflow(req, res); if (!workflow) return; if (workflow.stage !== "implementation_approval" || !workflow.implementationPlan || !workflow.sections || !workflow.brief || !workflow.architecture) return res.status(409).json({ error: "Implementation plan is not awaiting approval" }); const brand = (workflow.brandDirections || []).find((item: any) => item.id === workflow.selectedBrandId); if (!brand) return res.status(409).json({ error: "Approved brand direction is unavailable" }); const artifact = buildStaticSiteArtifact(workflow.brief, workflow.architecture, brand, workflow.sections as any); const validation = { ...buildValidation(workflow.sections as any), artifactSha256: artifact.sha256, artifactBytes: artifact.bytes }; assertWorkflowChargeable(workflow, 0); const updated = await recordApproval(req, workflow, "implementation_plan", Number((workflow.implementationPlan as any).version) || 1, { stage: "preview_ready", artifact, validation, actualCredits: 0 }); if (!updated) return res.status(409).json({ error: "Workflow changed; reload and try again" }); res.json(workflowResponse(updated)); } catch (error) { next(error); }
 });
 
 websiteBuilderRouter.get("/website-builder/workflows/:id/artifact", noStore, requirePermission("ai:use"), async (req, res, next) => {
