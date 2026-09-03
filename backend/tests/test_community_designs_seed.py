@@ -4,10 +4,21 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://active-project-4.preview.emergentagent.com").rstrip("/")
-# Fallback to the frontend env var if backend env missing
-if not BASE_URL or "localhost" in BASE_URL:
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+if not BASE_URL:
+    # Only when the variable is genuinely absent. This used to also fire when BASE_URL
+    # CONTAINED "localhost", which meant CI -- which sets REACT_APP_BACKEND_URL=http://localhost:8001
+    # precisely to point the suite at the server it just started -- had that value thrown away and
+    # every request in this module sent to a third-party preview host over the public internet.
+    # The gate's colour then depended on that host: identical code (07244a83) passed at
+    # 2026-09-02T20:26Z and failed at 2026-09-03T15:04Z because the remote host began answering 404.
     BASE_URL = "https://active-project-4.preview.emergentagent.com"
+
+# The /seed-designs/* files are served by the site's static hosting, not by the API. CI runs a bare
+# `uvicorn server:app`, which mounts no StaticFiles at all, so those paths cannot exist there and a
+# 404 from them says nothing about the backend. Declared per environment rather than sniffed, so that
+# where the assets ARE hosted these tests still run and can still genuinely fail.
+SERVES_STATIC_ASSETS = os.environ.get("BACKEND_TESTS_TARGET_SERVES_STATIC") == "true"
 
 
 def _mint_admin_jwt():
@@ -88,6 +99,10 @@ class TestCommunityFilesPublic:
 
 
 # ---- Static asset reachability ----------------------------------------------
+@pytest.mark.skipif(
+    not SERVES_STATIC_ASSETS,
+    reason="target serves no /seed-designs/* static assets; set BACKEND_TESTS_TARGET_SERVES_STATIC=true",
+)
 class TestSeedDesignsStaticAssets:
     SLUGS = [
         "mountain-range-silhouette",
