@@ -10,9 +10,10 @@ rounds on this one, and four implementation rounds). That GO is scoped: it does 
 or the unverified Mongo store.
 
 Two of the things it excluded — **the unwired enforcement point and the executor durable claim** — are now
-built as a separate candidate. **W1 (`8d675d99`) was NO-GO**; **W2 (`0e49e9f1`) is the remediation and is
-REVIEW READY** (`REVIEW_GATE_HANDOFF_0e49e9f1_20260902.md`). Both leave every executor `DISABLED`, so the
-gate remains advisory in practice until an owner activates one.
+built as a separate candidate. **W1 (`8d675d99`) and W2 (`0e49e9f1`) were both NO-GO**; **W3
+(`7b62c0c6`) is the current remediation and is REVIEW READY**
+(`REVIEW_GATE_HANDOFF_7b62c0c6_20260902.md`). All leave every executor `DISABLED`, so the gate remains
+advisory in practice until an owner activates one.
 
 **Previously:** ENGINEERING IN PROGRESS — Option B. The owner chose option B: the gate is a
 separate service with its own database. The design went through SIX review rounds before any code was
@@ -56,19 +57,33 @@ actually read is preserved at the commit named below. Never edit a superseded ha
 | # | candidate | handoff document | verdict | findings |
 | --- | --- | --- | --- | --- |
 | W1 | `8d675d99` / wiring at `12049b9b` | `REVIEW_GATE_HANDOFF_8d675d99_20260902.md` | **NO-GO** | 2 CRITICAL — enforcement was an optional argument to `executeTask` defaulting to advisory, so any caller omitting it bypassed the gate on an ENFORCING host; and the executor digested the TASK payload while the gate binds the SUB-payload, so an activated executor would have refused every privileged task. 2 MAJOR — `state` and `history` could contradict each other and only `state` was read; a plaintext `http://` gate URL counted as usable configuration |
-| W2 | `0e49e9f1` | `REVIEW_GATE_HANDOFF_0e49e9f1_20260902.md` | **not yet reviewed** | — |
+| W2 | `0e49e9f1` | `REVIEW_GATE_HANDOFF_0e49e9f1_20260902.md` | **NO-GO** | 1 CRITICAL — removing the enforcement argument fixed *omission* but not *substitution*: the record's LOCATION still came from `config.stateDir`, so a caller could hand over a config naming an empty directory and be told it was advisory. 1 MAJOR — `taskTypes` and `privilegedTaskTypes` were two hand-maintained lists whose drift was fail-OPEN |
+| W3 | `7b62c0c6` | `REVIEW_GATE_HANDOFF_7b62c0c6_20260902.md` | **not yet reviewed** | — |
 
 This lineage is remediation of the gate's own central weakness — that nothing consulted it — which by
 policy makes it the highest-risk code in the workstream and deserves *more* suspicion than the thing it
 fixes. Round 1 bore that out: three findings from the reviewer, and a fourth I found myself that the
 reviewer had not reached, which was the most consequential of the four.
 
-**The round-1 lesson, recorded because it is the eleventh instance of one pattern.** Both criticals
-survived a green suite for the same reason: every test drove a HELPER with arguments the test chose, so
-the tests agreed with my *description* of the wiring rather than measuring the wiring. The unit fixture
-even encoded the defect's own shape — `reviewAuthorization` at the top of the task payload — so the
-mistake was asserted as correct. W2 adds `executorEffectPoint.test.ts`, which calls `executeTask` itself
-with nothing about enforcement passed in.
+**The lesson across all three rounds, recorded because the pattern never varies.** Every defect has been
+the same one: *my description claims a boundary the mechanism does not have*, and my tests confirm the
+description instead of measuring the mechanism.
+
+| round | what I claimed | what the mechanism did |
+| --- | --- | --- |
+| 1 | "an activated executor cannot apply a privileged task without taking execution from the gate" | enforcement was an optional argument defaulting to advisory — the guarantee was that `pollOnce` remembered to pass it |
+| 1 | the executor sends the gate the digest of what it will apply | it digested the TASK payload while the gate binds the SUB-payload, so an activated executor would refuse everything. Found by me, not the reviewer |
+| 2 | "there is no argument to omit; the durable record is the only input" | the record's LOCATION came from the caller's config, so substitution replaced omission |
+| 2 | a new privileged type is refused rather than applied | true only for types already in `privilegedTaskTypes`; the two lists could drift fail-open |
+
+The tests failed the same way each time: they drove a HELPER with arguments the test chose. The round-1
+unit fixture even encoded the defect's own shape — `reviewAuthorization` at the top of the task payload —
+so the mistake was asserted as correct. `executorEffectPoint.test.ts` now calls `executeTask` itself with
+nothing about enforcement passed in, and each round's defect has been added to it as a test.
+
+**Also recorded: no independent party had executed the agent suite through two rounds.** `node --test`
+spawns one child per file, which the review sandbox denies (`spawn EPERM`). Running each file directly
+(`for f in test/*.test.ts; do npx tsx "$f"; done`) executes in-process and works.
 
 Still known and unfixed, flagged rather than described around: a *deleted* enforcement record reads as
 `DISABLED`, so root on a host defeats activation.
