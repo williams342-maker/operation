@@ -7,6 +7,26 @@ rollback images already exist; and emits value-free JSON with deployment and
 rollback commands. It never calls `up`, `create`, `start`, `restart`, `build`,
 `pull`, or a volume-changing operation.
 
+## What "value-free" means, exactly
+
+It does **not** mean the report is empty of content, and reading it that way is
+how the term got overstated. The report deliberately carries what an operator
+needs in order to act: file paths, image references, resolved service names, the
+deployment and rollback commands, the database hostname and database name, and
+Forge nonces. Those are identifiers and operational metadata.
+
+What it means is that the report carries **no secret configuration values and no
+key material**. The distinction is load-bearing where the two meet: `MONGO_URL`
+is parsed, and its hostname and database name ARE reported — so material derived
+from a configuration value reaches the report, while the credential embedded in
+that same value does not. `new URL()` exposes `username` and `password` as
+separate properties and nothing here reads them.
+
+That is asserted rather than asserted-about: a test puts a credential inside
+`MONGO_URL` and checks it never appears in the serialized report on the passing
+path, the blocked path, or the malformed-destination path — the last being where
+a raw value is most likely to get interpolated into a message for debugging.
+
 Run it from `control-center` with a value-free JSON input file:
 
 ```bash

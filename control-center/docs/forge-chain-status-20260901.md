@@ -111,8 +111,24 @@ Ordered by what would bite first.
    **Honest limit:** the report half is tested and mutation-tested; the CLI half is **not** — there is no
    CLI test seam in this repo, so "does not read those paths when inert" is a code-reading claim, not a
    proven one.
-6. **Reports are not literally value-free.** They carry paths, image references, host and database
-   names, commands, and nonce values. This predates Forge, but the claim was overstated.
+6. ~~**Reports are not literally value-free.**~~ **RESOLVED 2026-09-03 — as a claim, which is what was
+   actually wrong.** The reports do carry paths, image references, host and database names, commands and
+   nonces, and they should: that is what an operator needs in order to act. What "value-free" was always
+   meant to assert is narrower — **no secret configuration values and no key material** — and the term
+   read as absolute.
+
+   `docs/beta-deployment-preflight.md` now defines it exactly, including the case where the two meet:
+   `MONGO_URL` is parsed and its hostname and database name ARE reported, so material derived from a
+   configuration value does reach the report while the credential inside that value does not.
+
+   And it is now tested where it matters. The existing secret-free test used an unrelated variable on the
+   passing path only. A new test puts a credential inside `MONGO_URL` — the one value the code actually
+   parses and partially reports — and asserts it never appears on the passing path, the blocked path, or
+   the malformed-destination path, the last being where a raw value is most likely to be interpolated
+   into a message. Mutation-tested: reporting `parsed.href` instead of `parsed.hostname`, or echoing the
+   raw string in the malformed message, each fails it.
+
+   **No redaction was needed.** The code was already correct; the claim and the test coverage were not.
 
 ## What has never run
 

@@ -217,3 +217,40 @@ test("option 1: when a rollback override is supplied, rollback selects it and ne
   assert.equal(result.report.rollbackCommand!.includes(item.override), false, "rollback must not reference the candidate override");
   assert.equal(typeof result.report.rollbackComposeOverrideFileSha256, "string");
 });
+
+test("VALUE-FREE, tested where it matters: a credential in the connection string never reaches the report", async () => {
+  // "Value-free" was claimed and never tested against the one input that actually carries a secret.
+  // MONGO_URL is parsed for its hostname and database name, both of which ARE reported -- so the report
+  // demonstrably contains material derived from a configuration value, and the question is only whether
+  // the credential inside it survives that derivation.
+  //
+  // `new URL()` exposes username and password as separate properties and this code never reads them,
+  // but "never reads them" is a code-reading claim until something asserts it. This asserts it, on the
+  // PASS path and on the BLOCKED path, because a failure message is exactly where a raw value tends to
+  // get interpolated for debugging.
+  const SECRET = "p4ssw0rd-that-must-never-be-reported";
+  const withCredential = (item: ReturnType<typeof fixture>) => {
+    item.model.services.backend.environment.MONGO_URL =
+      `mongodb://admin:${SECRET}@mongo:27017/craftersmarket`;
+  };
+
+  const passing = fixture();
+  withCredential(passing);
+  const ok = JSON.stringify(await runBetaDeploymentPreflight(passing.input, passing.hooks));
+  assert.equal(ok.includes(SECRET), false, "a PASSING report must not carry the credential");
+  assert.equal(ok.includes("admin:"), false, "nor the userinfo it sat in");
+  assert.match(ok, /"hostname":"mongo"/, "the hostname it derives IS reported, which is the point");
+
+  const blocked = fixture();
+  withCredential(blocked);
+  blocked.model.services.backend.environment.MONGO_URL =
+    `mongodb://admin:${SECRET}@not-approved.example.com:27017/craftersmarket`;
+  const bad = JSON.stringify(await runBetaDeploymentPreflight(blocked.input, blocked.hooks));
+  assert.equal(bad.includes(SECRET), false, "a BLOCKING report must not carry the credential either");
+
+  // And a malformed destination, where the temptation to echo the raw string is strongest.
+  const malformed = fixture();
+  malformed.model.services.backend.environment.MONGO_URL = `::not-a-url::${SECRET}`;
+  const broken = JSON.stringify(await runBetaDeploymentPreflight(malformed.input, malformed.hooks));
+  assert.equal(broken.includes(SECRET), false, "a malformed-destination message must not echo the value");
+});
