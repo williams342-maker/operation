@@ -144,10 +144,15 @@ jobs:
       # since the buildIdentity work; do not read it as history.
       # agent +26 reviewEnforcement, +37 Forge (attestation, evidence, preflight, credential-leak).
       # shared +3 task-type authorization, +11 billing, +15 authority envelopes, +38 Forge manifest.
-      # The review-gate suite (174) runs under `npm test` but is deliberately NOT counted here: it
-      # carries one documented skip (Mongo conformance needs a replica set) and this gate forbids skips.
-      CI_EXPECTED_TEST_SUITES: "agent=127,api=133,shared=146,web=34"
-      CI_EXPECTED_TESTS: "440"
+      # review-gate 225: NOW COUNTED. The exclusion note this replaces read "deliberately NOT counted
+      # here: it carries one documented skip (Mongo conformance needs a replica set) and this gate
+      # forbids skips" -- and that reason expired the moment the replica-set step above was added. On
+      # Linux the conformance suite RUNS, so the suite reports 0 skips and can be gated like any other.
+      # Leaving it out meant the one package this candidate actually changes was the one package whose
+      # count nothing checked; a deleted authorization test there would have been invisible.
+      # 221 measured on the previous commit + 4 for the §B choreography gate.
+      CI_EXPECTED_TEST_SUITES: "agent=127,api=133,review-gate=225,shared=146,web=34"
+      CI_EXPECTED_TESTS: "665"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
@@ -261,7 +266,11 @@ jobs:
           (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap
           (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap
           (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap
-          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap shared=shared.tap web=web.tap
+          # REVIEW_GATE_TEST_MONGO_URL is job-level env, so this run reaches the replica set and the
+          # Mongo conformance cases execute here too. If it ever silently fell back to skipping, the
+          # skip gate below would fail rather than let a smaller suite pass as green.
+          (cd apps/review-gate && node --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap
+          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap review-gate=review-gate.tap shared=shared.tap web=web.tap
       - name: Linux agent upgrade and rollback dry run
         run: bash scripts/linux-agent-upgrade-dry-run.sh
       - name: Install Playwright Chromium
