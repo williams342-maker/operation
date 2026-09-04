@@ -1,3 +1,4 @@
+/* global process */
 /**
  * Decide the dependency-audit gate from an `npm audit --json` report.
  *
@@ -75,14 +76,15 @@ export function decide(report) {
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop())) {
   const { readFileSync } = await import("node:fs");
   const path = process.argv[2];
-  let parsed = null;
+  let parsed;
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    parsed = null;
+    // Left undefined deliberately: `decide` treats anything unparseable as did-not-run, which is the
+    // same refusal an unreachable registry produces, and for the same reason.
     process.stderr.write(`could not read ${path}: ${(error && error.message) || error}\n`);
   }
-  const decision = decide(parsed);
+  const decision = decide(parsed ?? null);
   process.stdout.write(`${decision.outcome.toUpperCase()}: ${decision.summary}\n`);
   // Distinct exit codes so the caller retries only the failure worth retrying. A registry outage is
   // transient; a high advisory is not, and retrying it only delays the same answer.
