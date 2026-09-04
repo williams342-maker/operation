@@ -27,15 +27,41 @@ const CONSUMED_NONCE_DIR = "/var/lib/opsworkbench-agent/consumed-preflight-nonce
 
 type RootOwnedIdentity = { orgId: string; serverId: string; ownerPublicKey: string };
 
-/** Root-owned agent identity, or undefined when this host has none. Never falls back to cwd or env. */
-function loadRootOwnedIdentity(): RootOwnedIdentity | undefined {
+/**
+ * Root-owned agent identity, or the reason there is none. Never falls back to cwd or env.
+ *
+ * THESE FIELDS ARE PROVISIONED, NOT ENROLLED, and that is deliberate. `orgId` in particular is the
+ * MEASURED identity the Forge binding check compares a signed authorization against. If the agent
+ * learned it from the control plane, the party that issues bindings would also define the identity they
+ * are checked against, and an authorization meant for another host could be made to pass here. The same
+ * argument is why the owner key and the trusted root are files at fixed root-owned paths.
+ *
+ * Consequence, stated because it was previously described as temporary: NOTHING in this repository ever
+ * writes `orgId`. Enrollment writes `serverId` only (agent.ts, on the poll response, which carries no
+ * orgId at all). So on an unprovisioned host this is missing permanently, not "until enrollment", and
+ * Forge evidence can never verify there. That is the correct direction -- it must be provisioned by
+ * whoever owns the host -- but it has to be VISIBLE, which is what the reason string is for.
+ */
+type IdentityOutcome =
+  | { ok: true; identity: RootOwnedIdentity }
+  | { ok: false; reason: string };
+
+function loadRootOwnedIdentity(): IdentityOutcome {
+  let config: ReturnType<typeof agentConfigSchema.parse>;
   try {
-    const config = agentConfigSchema.parse(JSON.parse(fs.readFileSync(AGENT_IDENTITY_PATH, "utf8")));
-    if (!config.orgId || !config.serverId || !config.ownerPublicKey) return undefined;
-    return { orgId: config.orgId, serverId: config.serverId, ownerPublicKey: config.ownerPublicKey };
+    config = agentConfigSchema.parse(JSON.parse(fs.readFileSync(AGENT_IDENTITY_PATH, "utf8")));
   } catch {
-    return undefined;
+    return { ok: false, reason: `no readable agent configuration at ${AGENT_IDENTITY_PATH}` };
   }
+  // Named individually. "identity unavailable" sent the last reader to re-derive which of three fields
+  // was missing, and the answer is almost always the same one.
+  const missing = ([["orgId", config.orgId], ["serverId", config.serverId],
+    ["ownerPublicKey", config.ownerPublicKey]] as const)
+    .filter(([, value]) => !value).map(([name]) => name);
+  if (missing.length > 0) {
+    return { ok: false, reason: `${AGENT_IDENTITY_PATH} is missing: ${missing.join(", ")}` };
+  }
+  return { ok: true, identity: { orgId: config.orgId, serverId: config.serverId, ownerPublicKey: config.ownerPublicKey! } };
 }
 
 function loadTrustAnchors(ownerPublicKey: string): ForgeTrustAnchors | undefined {
@@ -105,7 +131,15 @@ if (!inputPath) {
     const forgeRequested = forgeEvidenceRequested(supplied);
     // Identity is MEASURED from root-owned material. Anything the input file claims about identity or
     // consumed nonces is discarded rather than merged.
-    const identity = forgeRequested ? loadRootOwnedIdentity() : undefined;
+    const outcome = forgeRequested ? loadRootOwnedIdentity() : undefined;
+    if (outcome && !outcome.ok) {
+      // The run still BLOCKS -- unprovisioned identity must never become a pass. But it blocked with
+      // "trust-anchors-unavailable", which describes a symptom two layers from the cause and does not
+      // tell an operator what to put where.
+      process.stderr.write(`Forge evidence was supplied, but this host has no provisioned identity: ${outcome.reason}\n`);
+      process.stderr.write("Provision it root-owned; it is deliberately not supplied by enrollment.\n");
+    }
+    const identity = outcome?.ok ? outcome.identity : undefined;
     const input: BetaDeploymentPreflightInput = {
       ...supplied,
       actualOrgId: identity?.orgId,

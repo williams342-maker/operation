@@ -7,6 +7,20 @@ rollback images already exist; and emits value-free JSON with deployment and
 rollback commands. It never calls `up`, `create`, `start`, `restart`, `build`,
 `pull`, or a volume-changing operation.
 
+## Forge evidence requires a provisioned host identity
+
+Supplying Forge evidence paths makes the preflight read root-owned identity from the agent
+configuration: `orgId`, `serverId` and `ownerPublicKey`, plus the trusted root at
+`/etc/opsworkbench-agent/forge-trust-root.json`.
+
+**These are provisioned, not enrolled.** Enrollment writes `serverId` only; nothing writes `orgId`. That
+is deliberate rather than an omission: `orgId` is the measured identity a signed binding is checked
+against, so learning it from the control plane would let the party issuing bindings also define the
+identity they are checked against.
+
+A host where they are absent **blocks**, and the preflight now names which field is missing on stderr
+rather than reporting `trust-anchors-unavailable`, which describes a symptom two layers from the cause.
+
 ## What "value-free" means, exactly
 
 It does **not** mean the report is empty of content, and reading it that way is

@@ -78,8 +78,31 @@ Ordered by what would bite first.
 
    Two regression tests, mutation-tested: removing either the `id` or the bundle from the upload fails
    them. **Still never executed** -- publishing remains owner-gated.
-3. **`config.orgId` is empty until enrollment populates it.** Forge evidence therefore fails closed on
-   every host today. Correct direction; also means the gate cannot pass anywhere yet.
+3. ~~**`config.orgId` is empty until enrollment populates it.**~~ **RESOLVED 2026-09-03 — and the
+   description above was wrong in the part that mattered.** Enrollment does **not** populate `orgId`.
+   Nothing in this repository ever writes it: `agent.ts` persists `serverId` only, from a poll response
+   typed `{ serverId?, tasks? }` that carries no `orgId` at all. So on an unprovisioned host it is empty
+   **permanently**, not until enrollment, and Forge evidence could never verify there — a third
+   independent reason the chain was non-functional end to end, alongside items 1 and 2.
+
+   **The fix is not to make enrollment supply it.** `orgId` is the MEASURED identity that the binding
+   check compares a signed authorization against. If the agent learned it from the control plane, the
+   party issuing bindings would also define the identity they are checked against, and an authorization
+   meant for another host could be made to pass here. It is provisioned root-owned for the same reason
+   the owner key and the trusted root are.
+
+   What was actually broken was that this was **invisible**. `loadRootOwnedIdentity()` returned
+   `undefined` on any missing field, and the run then blocked with `trust-anchors-unavailable` — a
+   symptom two layers from the cause, which told an operator nothing about what to put where. It now
+   returns a reason naming the specific missing field(s), and the CLI prints it. The run still blocks;
+   unprovisioned identity must never become a pass.
+
+   **A human must still provision `orgId`, `serverId` and `ownerPublicKey` at the root-owned path.** The
+   gate cannot pass on a host where that has not been done, which is correct.
+
+   *Related and NOT changed:* `serverId` IS learned from the control plane at enrollment. By the argument
+   above that is the same weakness in a smaller form. Changing it would alter enrollment for every host,
+   so it is recorded here rather than done quietly.
 4. ~~**The human publish gate is unproven.**~~ **FIXED 2026-09-03 — and it was worse than "unproven".**
    The workflow's own comment claimed that until `image-publish` is configured, "a publish run waits for
    an approval that no one can grant, which is the correct failure direction." **That is false.** GitHub
