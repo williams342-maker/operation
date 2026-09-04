@@ -43,9 +43,17 @@ jobs:
     runs-on: ubuntu-latest
     # A protected environment is what makes the publish decision STRUCTURAL rather than conventional.
     # `workflow_dispatch` plus a boolean input only proves someone with dispatch permission set a flag;
-    # it does not prove a human approved a publish. Configure `image-publish` in repository settings
-    # with required reviewers — until that is done, a publish run waits for an approval that no one can
-    # grant, which is the correct failure direction.
+    # it does not prove a human approved a publish.
+    #
+    # CORRECTION, 2026-09-03. This comment used to say that until `image-publish` is configured with
+    # required reviewers, "a publish run waits for an approval that no one can grant, which is the
+    # correct failure direction." THAT IS FALSE, and it was the most dangerous sentence in this file.
+    # GitHub CREATES a referenced environment on demand, with NO protection rules, and the job proceeds.
+    # Verified 2026-09-03: this repository has no environments at all, so a publish run would have
+    # published, unprotected, while this comment claimed it could not.
+    #
+    # Naming an environment therefore protects nothing by itself. The `Require a real publish gate` step
+    # below is what actually refuses, by checking the environment's protection rules at run time.
     environment: ${{ inputs.publish && 'image-publish' || '' }}
     # Job-level, so EVERY step reads the untrusted tag from the environment. The previous fix moved only
     # the one step an independent review happened to cite, leaving `${{ inputs.tag }}` interpolated into
@@ -112,6 +120,42 @@ jobs:
             echo "created=$(git show -s --format=%cI "$commit")"
             echo "repository=${{ github.server_url }}/${{ github.repository }}"
           } >> "$GITHUB_OUTPUT"
+
+      # YAML CANNOT CERTIFY A HUMAN GATE -- required reviewers are repository settings, not workflow
+      # syntax. So this does not try to BE the gate; it refuses to proceed unless the gate exists.
+      #
+      # Every outcome refuses, and they are distinguished on purpose: "no such environment" and "cannot
+      # read the settings" are different problems for whoever has to fix them, and collapsing them into
+      # one message is how the false claim above survived as long as it did.
+      - name: Require a real publish gate
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          body="$(gh api "repos/${REPOSITORY}/environments/image-publish" 2>/dev/null)"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            if gh api "repos/${REPOSITORY}/environments" >/dev/null 2>&1; then
+              echo "::error::The environment 'image-publish' does not exist. GitHub would create it on" >&2
+              echo "::error::demand with NO protection rules and publish anyway. Create it in repository" >&2
+              echo "::error::settings with required reviewers before publishing." >&2
+            else
+              echo "::error::Could not read this repository's environments, so the publish gate cannot be" >&2
+              echo "::error::verified. Refusing: an unverifiable gate is not a gate." >&2
+            fi
+            exit 1
+          fi
+          rules="$(printf '%s' "$body" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=(JSON.parse(s).protection_rules||[]).map(x=>x.type);process.stdout.write(r.join(","))})')"
+          case ",${rules}," in
+            *,required_reviewers,*) echo "publish gate present: ${rules}" ;;
+            *)
+              echo "::error::'image-publish' exists but has no required_reviewers rule (has: ${rules:-none})." >&2
+              echo "::error::A boolean input is not a human approval. Refusing to publish." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Report what will be built
         env:

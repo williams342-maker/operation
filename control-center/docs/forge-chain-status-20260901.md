@@ -80,11 +80,37 @@ Ordered by what would bite first.
    them. **Still never executed** -- publishing remains owner-gated.
 3. **`config.orgId` is empty until enrollment populates it.** Forge evidence therefore fails closed on
    every host today. Correct direction; also means the gate cannot pass anywhere yet.
-4. **The human publish gate is unproven.** The workflow names an `image-publish` environment, but
-   required reviewers are repository settings. YAML cannot certify a human gate.
-5. **Strict inertness is partial.** With no Forge paths supplied the preflight still loads root-owned
-   identity and emits `forge: {state: "absent"}` in the report. The mandatory-rollback-override
-   regression is fixed; exact `origin/main` behaviour is not restored.
+4. ~~**The human publish gate is unproven.**~~ **FIXED 2026-09-03 — and it was worse than "unproven".**
+   The workflow's own comment claimed that until `image-publish` is configured, "a publish run waits for
+   an approval that no one can grant, which is the correct failure direction." **That is false.** GitHub
+   creates a referenced environment on demand with **no protection rules** and the job proceeds.
+   Verified 2026-09-03 against the live repository: **it has no environments at all**, so a publish run
+   would have published, unprotected, while the comment asserted it could not.
+
+   YAML still cannot certify a human gate — required reviewers are repository settings. So the workflow
+   no longer tries to *be* the gate; a `Require a real publish gate` step now **refuses to proceed unless
+   the gate exists**, checking the environment's protection rules at run time and distinguishing "no such
+   environment" from "cannot read the settings", because those are different problems for whoever fixes
+   them. It runs before anything is built.
+
+   **Still requires a human to create `image-publish` with required reviewers.** The fix makes its absence
+   fail loudly instead of silently.
+5. ~~**Strict inertness is partial.**~~ **FIXED 2026-09-03.** Both halves:
+
+   - **The report.** `forge: {state:"absent"}` was emitted on every run, putting a new key in every
+     report on every host — including those that will never use Forge, which is a visible behaviour
+     change from a feature that is supposed to be inert when unused. When no Forge paths are supplied the
+     report now carries **no `forge` key at all**. Asserted literally (`"forge" in report === false`) in
+     both inertness tests, and mutation-tested.
+   - **The CLI.** It read root-owned identity and trust anchors unconditionally. That is not harmless:
+     it is I/O on privileged paths that can fail or warn, and it made every non-Forge run depend on state
+     it never used. Both loads are now gated on `forgeEvidenceRequested(input)`. `actualOrgId` and
+     `actualServerId` have exactly one consumer — the Forge binding check — so nothing outside Forge
+     loses anything.
+
+   **Honest limit:** the report half is tested and mutation-tested; the CLI half is **not** — there is no
+   CLI test seam in this repo, so "does not read those paths when inert" is a code-reading claim, not a
+   proven one.
 6. **Reports are not literally value-free.** They carry paths, image references, host and database
    names, commands, and nonce values. This predates Forge, but the claim was overstated.
 

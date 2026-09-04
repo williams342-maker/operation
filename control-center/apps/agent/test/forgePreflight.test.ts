@@ -141,7 +141,10 @@ test("INERT: with no Forge paths the preflight behaves exactly as before", async
   for (const key of Object.keys(item.paths)) delete (item.input as Record<string, unknown>)[key];
   const result = await runBetaDeploymentPreflight(item.input, item.hooks);
   assert.equal(result.status, "PASS — awaiting operator approval");
-  assert.equal(result.report.forge?.state, "absent");
+  // "Exactly as before" is asserted literally: the report carries no `forge` key, so a consumer written
+  // against pre-Forge reports sees no difference at all. `{state:"absent"}` was still a difference.
+  assert.equal(result.report.forge, undefined);
+  assert.equal("forge" in result.report, false, "an unused feature must not appear in the report");
   assert.equal(result.checks.some((check) => check.name.startsWith("forge_")), false, "no forge check should run");
 });
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { runBetaDeploymentPreflight, serializePreflightReport, withBetaPreflightTemporaryFiles, type BetaDeploymentPreflightInput } from "./betaDeploymentPreflight.js";
 import { agentConfigSchema } from "./config.js";
 import { readJsonFile } from "./forgeAttestation.js";
-import type { ForgeTrustAnchors } from "./forgePreflightEvidence.js";
+import { forgeEvidenceRequested, type ForgeTrustAnchors } from "./forgePreflightEvidence.js";
 
 // FIXED, ROOT-OWNED PATHS. Not configurable, not environment-overridable, not relative to the working
 // directory, and not reachable from the operator-supplied input file.
@@ -97,9 +97,15 @@ if (!inputPath) {
   let passed = false;
   try {
     const supplied = JSON.parse(fs.readFileSync(inputPath, "utf8")) as BetaDeploymentPreflightInput;
+    // STRICT INERTNESS. A host not using Forge must behave exactly as it did before Forge existed, and
+    // that includes not READING root-owned identity or trust material. Reading those files is not
+    // harmless: it is I/O on privileged paths, it can fail or warn, and it made every non-Forge run
+    // depend on state it never used. `actualOrgId` and `actualServerId` have exactly one consumer -- the
+    // Forge binding check -- so nothing outside Forge loses anything by this being conditional.
+    const forgeRequested = forgeEvidenceRequested(supplied);
     // Identity is MEASURED from root-owned material. Anything the input file claims about identity or
     // consumed nonces is discarded rather than merged.
-    const identity = loadRootOwnedIdentity();
+    const identity = forgeRequested ? loadRootOwnedIdentity() : undefined;
     const input: BetaDeploymentPreflightInput = {
       ...supplied,
       actualOrgId: identity?.orgId,

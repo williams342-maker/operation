@@ -53,7 +53,10 @@ test("passes with explicit beta env and stops at operator approval", async () =>
   // exactly what it was before any of this existed — the legacy retag command, unchanged.
   assert.match(result.report.rollbackCommand!, /docker image tag 'rollback-backend' 'candidate-backend'/);
   assert.equal(result.report.rollbackComposeOverrideFileSha256, undefined);
-  assert.equal(result.report.forge?.state, "absent");
+  // No `forge` key AT ALL, not `{state:"absent"}`. A feature that is unused must not add a key to the
+  // report of every host that will never use it.
+  assert.equal(result.report.forge, undefined);
+  assert.equal("forge" in result.report, false);
   assert.equal(result.report.mongoDbRecreation, "blocked"); assert.equal(result.report.mongoDbServiceIncluded, "no"); assert.equal(result.report.volumeRecreation, "no");
   assert.ok(Object.values(result.report.startupSafetyFlags).every((value) => value === "PASS"));
 });

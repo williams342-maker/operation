@@ -283,7 +283,13 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
   // Claim the replay markers as part of deciding, not afterwards. A run that cannot claim them is a
   // replay and must block even though every signature verified.
   const nonceClaim = forge.state === "verified" && hooks.claimNonces ? hooks.claimNonces(forge.nonces) : undefined;
-  report.forge = { state: forge.state === "verified" ? "verified" : forge.state === "absent" ? "absent" : "rejected" };
+  // `absent` means the input named no Forge paths at all. Emitting `forge: {state:"absent"}` in that
+  // case put a new key in EVERY report on EVERY host, including those that will never use Forge -- a
+  // visible behaviour change for report consumers, from a feature that is supposed to be inert when
+  // unused. When nothing was requested the report is shaped exactly as it was before Forge existed.
+  if (forge.state !== "absent") {
+    report.forge = { state: forge.state === "verified" ? "verified" : "rejected" };
+  }
   if (forge.state === "verified") {
     // The nonces are surfaced so the CLI can consume them persistently after a PASS. They are opaque
     // replay markers, not secrets.
