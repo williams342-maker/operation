@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import { reviewActions, type ReviewAction } from "./actions.js";
@@ -298,21 +299,63 @@ export function buildRouter(deps: RouteDependencies): Router {
         res.status(400).json({ ok: false, code: "malformed_input" });
         return;
       }
-      sendAttestation(res, await deps.attestations.acquire(principal, {
+      // REQUIRED, and high-entropy. The key is what makes a committed retry return `already_acquired`
+      // instead of a second attempt, so acquire cannot proceed without one.
+      const key = idempotencyKey(req);
+      if (!key) {
+        res.status(400).json({ ok: false, code: "malformed_input",
+          message: "acquire requires an Idempotency-Key header" });
+        return;
+      }
+      const outcome = await deps.attestations.acquire(principal, {
         attestationId: req.params.id, ...body.data, kind: body.data.kind as never,
+        idempotencyKey: key,
+        // Bound to the whole request, not merely to the principal identity that every process of this
+        // executor shares. A repeat with a different request is an error, not a replay.
+        requestHash: createHash("sha256").update(JSON.stringify({
+          attestationId: req.params.id, ...body.data,
+        })).digest("hex"),
+      });
+      // THE ONE RESPONSE THAT CARRIES A TOKEN. `no-store` so no intermediary or client cache retains it;
+      // set before the body is written, and on the refusal path too, so a 4xx cannot be cached either.
+      res.setHeader("Cache-Control", "no-store");
+      sendAttestation(res, outcome);
+    });
+  });
+
+  // Extension is NOT the pre-acquire lease renewal below. That preserves the binder's allocation; this
+  // asserts the acquired attempt is still running, and it refuses after an audience rotation because the
+  // recorded acquiring epoch no longer matches.
+  router.post("/attestations/:id/extend-execution", async (req, res) => {
+    await withPrincipal(req, res, async (principal) => {
+      const body = z.object({
+        attemptToken: z.string().min(1).max(500),
+        requestedDeadline: z.string().min(1).max(64),
+      }).safeParse(req.body);
+      if (!body.success) {
+        res.status(400).json({ ok: false, code: "malformed_input" });
+        return;
+      }
+      // No `no-store` needed: extension never returns token material, only the new deadline.
+      sendAttestation(res, await deps.attestations.extendExecution(principal, {
+        attestationId: req.params.id, ...body.data,
       }));
     });
   });
 
   router.post("/attestations/:id/redeem", async (req, res) => {
     await withPrincipal(req, res, async (principal) => {
-      const body = z.object({ leaseId: z.string().min(1).max(200) }).safeParse(req.body);
+      const body = z.object({
+        leaseId: z.string().min(1).max(200),
+        attemptToken: z.string().min(1).max(500),
+      }).safeParse(req.body);
       if (!body.success) {
         res.status(400).json({ ok: false, code: "malformed_input" });
         return;
       }
       sendAttestation(res, await deps.attestations.redeem(principal, {
         attestationId: req.params.id, leaseId: body.data.leaseId,
+        attemptToken: body.data.attemptToken,
       }));
     });
   });

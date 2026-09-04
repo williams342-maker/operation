@@ -76,7 +76,12 @@ function fakeGate(answers: Record<string, { status: number; body: unknown }>) {
     const url = String(input);
     calls.push({ url, authorization: String((init?.headers as any)?.authorization ?? ""), body: JSON.parse(String(init?.body ?? "{}")) });
     const key = url.includes("/acquire") ? "acquire" : "redeem";
-    const answer = answers[key] ?? { status: 200, body: { ok: true } };
+    // A successful acquire MUST carry the attempt token: the client fails closed on a 200 without one,
+    // because proceeding tokenless would mean acting on something the gate never issued.
+    const fallback = key === "acquire"
+      ? { status: 200, body: { ok: true, attemptToken: "attempt-token-fake", executionDeadline: "2026-09-02T04:00:00.000Z" } }
+      : { status: 200, body: { ok: true } };
+    const answer = answers[key] ?? fallback;
     return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { "content-type": "application/json" } });
   };
   return { calls, client: (credential = "executor-own-credential") => new ReviewGateClient({ url: "https://gate.test", credential, timeoutMs: 1000 }, impl) };
@@ -211,7 +216,7 @@ test("the gate client fails closed on every unhappy answer", async () => {
   ];
   for (const [name, answer, expected] of cases) {
     const gate = fakeGate({ acquire: answer });
-    const outcome = await gate.client().acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply" });
+    const outcome = await gate.client().acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply", idempotencyKey: "idem-test" });
     assert.equal(outcome.ok, false, name);
     assert.match(outcome.ok === false ? outcome.code : "", expected, name);
   }
@@ -219,11 +224,11 @@ test("the gate client fails closed on every unhappy answer", async () => {
 
 test("an unreachable or unreadable gate is a refusal, never a pass", async () => {
   const unreachable = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => { throw new Error("ECONNREFUSED"); });
-  const down = await unreachable.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k" });
+  const down = await unreachable.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-test" });
   assert.equal(down.ok === false && down.code, "gate_unreachable");
 
   const garbage = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => new Response("<html>proxy error</html>", { status: 200 }));
-  const unreadable = await garbage.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k" });
+  const unreadable = await garbage.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-test" });
   assert.equal(unreadable.ok === false && unreadable.code, "gate_unreadable");
 });
 
@@ -234,7 +239,7 @@ test("a gate that does not answer promptly is a gate that is unreachable", async
       // out into a pass. The abort is the answer.
       init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
     }));
-  const outcome = await hanging.acquire({ attestationId: "a", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k" });
+  const outcome = await hanging.acquire({ attestationId: "a", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-test" });
   assert.equal(outcome.ok === false && outcome.code, "gate_timeout");
 });
 
@@ -254,7 +259,7 @@ test("an executor with NO owner public key is still stopped at the effect point"
 
 test("the executor authenticates to the gate with ITS OWN credential", async () => {
   const gate = fakeGate({});
-  await gate.client("executor-own-credential").acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply" });
+  await gate.client("executor-own-credential").acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply", idempotencyKey: "idem-test" });
   // An instruction is not authorization. If the control-center could supply the proof that its own
   // deployment was reviewed, the review would be decorative.
   assert.equal(gate.calls[0].authorization, "Bearer executor-own-credential");

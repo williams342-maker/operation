@@ -139,6 +139,15 @@ async function build() {
   return { store, svc, who: cast.who };
 }
 
+// Acquire now requires an idempotency identity bound to the whole request. A counter keeps each call
+// distinct, so a test that acquires twice on purpose gets two attempts rather than a replay refusal.
+let acquireSeq = 0;
+const acquireArgs = <T extends object>(over: T) => ({
+  idempotencyKey: `acq-${acquireSeq++}`,
+  requestHash: `hash-${acquireSeq}`,
+  ...over,
+});
+
 const configPayload = (over: Record<string, unknown> = {}) => ({
   schemaVersion: "configuration-deployment-v1",
   action: "configuration.apply.v1",
@@ -427,10 +436,12 @@ test("the binder may not acquire or redeem the execution it authorized", async (
   const request = { attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
     kind: "configuration.apply" as const };
 
-  const binderAcquire = await svc.acquire(who("binder-1"), request);
+  const binderAcquire = await svc.acquire(who("binder-1"), acquireArgs(request));
   assert.equal((binderAcquire as { code: string }).code, "wrong_audience");
-  assert.equal((await svc.acquire(who("agent-1"), request)).ok, true);
-  const binderRedeem = await svc.redeem(who("binder-1"), { attestationId, leaseId });
+  const acquired = await svc.acquire(who("agent-1"), acquireArgs(request));
+  assert.equal(acquired.ok, true);
+  const { attemptToken } = valueOf<{ attemptToken: string }>(acquired);
+  const binderRedeem = await svc.redeem(who("binder-1"), { attestationId, leaseId, attemptToken });
   assert.equal((binderRedeem as { code: string }).code, "wrong_audience");
 });
 
@@ -517,10 +528,12 @@ test("acquisition wins for exactly one caller, before any host mutation", async 
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
   const request = { attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
     kind: "configuration.apply" as const };
-  assert.equal((await svc.acquire(who("agent-1"), request)).ok, true);
-  assert.equal((await svc.acquire(who("agent-1"), request)).ok, false,
+  const won = await svc.acquire(who("agent-1"), acquireArgs(request));
+  assert.equal(won.ok, true);
+  const token = valueOf<{ attemptToken: string }>(won).attemptToken;
+  assert.equal((await svc.acquire(who("agent-1"), acquireArgs(request))).ok, false,
     "a second delivery loses, and loses before it could change anything");
-  assert.equal((await svc.redeem(who("agent-1"), { attestationId, leaseId })).ok, true);
+  assert.equal((await svc.redeem(who("agent-1"), { attestationId, leaseId, attemptToken: token })).ok, true);
 });
 
 test("a rotation after authentication invalidates a lease in flight", async () => {
@@ -567,8 +580,8 @@ test("only the owner may revoke, and not once execution is underway", async () =
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
   const bound = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
-  await svc.acquire(who("agent-1"), { attestationId, leaseId, actionDigest,
-    orgId: "org-1", serverId: "server-1", kind: "configuration.apply" });
+  await svc.acquire(who("agent-1"), acquireArgs({ attestationId, leaseId, actionDigest,
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply" }));
   const late = await svc.revoke(who("owner"), { attestationId, reason: "changed mind" });
   assert.equal(late.ok, false,
     "the effect may be underway; a row claiming it was stopped would assert what the gate cannot know");

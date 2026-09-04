@@ -200,6 +200,36 @@ export type AttestationRecord = {
   state: AttestationState;
   /** Absent until bind; written exactly once; never re-bound. */
   actionDigest?: string;
+  /**
+   * Recorded at BIND, read from the canonical principal row inside the same transaction.
+   *
+   * `binderIncarnation` is the ACQUIRE-TIME EQUALITY TEST. Not the credential epoch -- comparing that
+   * would invalidate on ordinary rotation, contradicting the policy that rotation preserves completed
+   * bindings. And not present enabled/disabled status -- a principal disabled after bind and later
+   * re-enabled is presently enabled, so a status-only check would accept exactly the bindings that
+   * disablement was meant to invalidate.
+   */
+  binderIncarnation?: number;
+  /** AUDIT AND ENUMERATION ONLY. Deliberately not an acquire predicate; see `binderIncarnation`. */
+  binderCredentialEpoch?: number;
+
+  /** Written at ACQUIRE, in the same transaction as the state transition. */
+  executingPrincipalId?: string;
+  /**
+   * ENFORCED, not an audit note: execution extension requires `acting.credentialEpoch` to equal this.
+   * That equality is the whole mechanism by which rotation refuses extension while still permitting
+   * redeem -- "requires the current credential" would permit both, since after a rotation the new
+   * credential IS current.
+   */
+  executingCredentialEpoch?: number;
+  acquiredAt?: string;
+  /** Monotonic: an extension may only move this later, and never past the absolute bound. */
+  executionDeadline?: string;
+  /**
+   * A VERIFIER, never the token. The attempt token's plaintext exists in exactly two places -- the local
+   * value inside the acquire handler, and the single successful acquire response.
+   */
+  attemptTokenVerifier?: string;
   lease?: Lease;
   reconciliation?: Reconciliation;
   consumedAt?: string;

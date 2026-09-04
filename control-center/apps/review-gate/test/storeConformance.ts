@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { hashCredential } from "../src/auth.js";
 import { contentDigest, candidateDigest, type CandidateBinding } from "../src/policy.js";
 import type { AttestationRecord } from "../src/attestation.js";
 import type { CandidateRecord, IdempotencyKey, Principal, ReviewGateStore } from "../src/store.js";
@@ -105,6 +106,18 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
    * reviewer request authenticated before a rotation could still commit afterwards.
    */
   const acting = (principalId: string, credentialEpoch = 1) => ({ principalId, credentialEpoch });
+
+  // Acquire now mints an attempt: the store receives a VERIFIER (never the token), an execution deadline,
+  // and an idempotency identity bound to the whole request. `token` is the plaintext a test keeps so it
+  // can later extend or redeem with it.
+  let acquireSeq = 0;
+  const attempt = (token: string, over: Record<string, unknown> = {}) => ({
+    attemptTokenVerifier: hashCredential(token),
+    executionDeadline: "2026-09-02T04:00:00.000Z",
+    idempotency: { principalId: "agent-1", scope: "acquire", key: `acq-${acquireSeq++}`,
+      requestHash: "h" } as IdempotencyKey,
+    ...over,
+  });
 
   let counter = 0;
   const idem = (principalId = "claude"): IdempotencyKey =>
@@ -379,14 +392,14 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
         acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"),
         orgId: "org-1", serverId: "server-1", kind: "configuration.apply" as const, now,
-        requireClaim: claim,
+        requireClaim: claim, ...attempt("t-1"),
       };
       assert.equal((await store.acquireAttestation(acquire)).applied, true);
       // The point of acquisition: a second delivery loses, and loses BEFORE it could mutate anything.
       assert.equal((await store.acquireAttestation(acquire)).applied, false);
       assert.equal((await store.redeemAttestation({
-        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1", now,
-        requireClaim: claim })).applied, true);
+        acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-1", now, requireClaim: claim })).applied, true);
       assert.equal((await store.loadAttestation("at-1"))!.state, "CONSUMED");
     });
   });
@@ -529,7 +542,8 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       await store.acquireAttestation({
         acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"),
-        orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now, requireClaim: claim });
+        orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now, requireClaim: claim,
+        ...attempt("t-revoke") });
       const revoke = await store.revokeAttestation({ acting: acting("owner"),
         attestationId: "at-1", reason: "changed mind", now });
       assert.equal(revoke.applied, false,

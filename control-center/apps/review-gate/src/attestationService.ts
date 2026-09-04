@@ -18,7 +18,7 @@ import {
   type AttestationKind,
   type AttestationRecord,
 } from "./attestation.js";
-import { AuthenticatedPrincipal } from "./auth.js";
+import { AuthenticatedPrincipal, generateCredential, hashCredential } from "./auth.js";
 import type { CandidateSubject } from "./policy.js";
 import type { ReviewGateStore } from "./store.js";
 
@@ -34,6 +34,14 @@ export type AttestationResult =
   | { ok: false; code: string; message: string };
 
 const no = (code: string, message: string): AttestationResult => ({ ok: false, code, message });
+
+/**
+ * The cumulative execution bound. `absoluteDeadline = min(acquiredAt + this, attestation.expiresAt)`.
+ *
+ * "Repeat until attestation expiry" is available only as an explicit choice, never the default: an
+ * attempt that can extend indefinitely is a lease with extra steps.
+ */
+const MAX_EXECUTION_MS = 30 * 60_000;
 
 /**
  * v1 records cannot execute, and are never migrated.
@@ -352,6 +360,20 @@ export class AttestationService {
 
   // ── acquire: take execution BEFORE the host is mutated ──────────────────────────────────────────
 
+  /**
+   * THE ATTEMPT TOKEN'S PLAINTEXT EXISTS IN EXACTLY TWO PLACES: the local `attemptToken` below, and the
+   * single successful response this returns. It is structurally confined rather than excluded by a list,
+   * because an exclusion list is only as complete as its author.
+   *
+   * It must never enter an AttestationRecord, a generic operation result, an exception, a tracing
+   * attribute, a request/response logger, an idempotency record, a metrics label or a diagnostic dump.
+   * The store receives only a verifier. The lease id's mistake was being public; repeating it here would
+   * waste the mechanism.
+   *
+   * Acquire is SINGLE-DELIVERY. A retry of a committed acquire returns `already_acquired` and no token,
+   * because verifier-only storage means the gate cannot reproduce a token it never kept. Losing the
+   * response loses the attempt, which becomes INDETERMINATE for reconciliation -- the honest outcome.
+   */
   async acquire(principal: AuthenticatedPrincipal, input: {
     attestationId: string;
     leaseId: string;
@@ -359,6 +381,8 @@ export class AttestationService {
     orgId: string;
     serverId: string;
     kind: AttestationKind;
+    idempotencyKey: string;
+    requestHash: string;
   }): Promise<AttestationResult> {
     const unissued = notIssued(principal);
     if (unissued) return unissued;
@@ -371,6 +395,14 @@ export class AttestationService {
     if (record.audiencePrincipalId !== principal.principalId) {
       return no("wrong_audience", "only the audience may acquire execution; binding authority does not execute");
     }
+    const now = this.#clock();
+    // Bounded by the attestation's own validity: an attempt may never outlive the authorization.
+    const deadline = Math.min(
+      Date.parse(now) + MAX_EXECUTION_MS,
+      Date.parse(record.expiresAt),
+    );
+    if (deadline <= Date.parse(now)) return no("attestation_expired", "attestation_expired");
+    const attemptToken = generateCredential();
     const result = await this.#store.acquireAttestation({
       acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
@@ -379,6 +411,56 @@ export class AttestationService {
       orgId: input.orgId,
       serverId: input.serverId,
       kind: input.kind,
+      now,
+      requireClaim: {
+        contentDigest: record.contentDigest,
+        releasedByCandidateId: record.candidateId,
+      },
+      // The store gets a VERIFIER, never the token.
+      attemptTokenVerifier: hashCredential(attemptToken),
+      executionDeadline: new Date(deadline).toISOString(),
+      idempotency: {
+        principalId: principal.principalId,
+        scope: "acquire",
+        key: input.idempotencyKey,
+        // Bound to this attestation, lease and digest -- not merely to the shared principal identity,
+        // which every process of that executor has.
+        requestHash: input.requestHash,
+      },
+    });
+    if (!result.applied) return no(result.code, result.code);
+    // The one and only place the plaintext leaves this method.
+    return yes({ attemptToken, executionDeadline: new Date(deadline).toISOString() });
+  }
+
+  /**
+   * Extend a live attempt. NOT the pre-acquire lease renewal: that preserves the binder's allocation,
+   * this asserts the acquired attempt is still running.
+   */
+  async extendExecution(principal: AuthenticatedPrincipal, input: {
+    attestationId: string;
+    attemptToken: string;
+    requestedDeadline: string;
+  }): Promise<AttestationResult> {
+    const unissued = notIssued(principal);
+    if (unissued) return unissued;
+    const record = await this.#store.loadAttestation(input.attestationId);
+    if (!record) return no("unknown_attestation", "no such attestation");
+    const legacy = refuseLegacy(record);
+    if (legacy) return legacy;
+    if (record.audiencePrincipalId !== principal.principalId) {
+      return no("wrong_audience", "only the audience may extend the execution it acquired");
+    }
+    const absolute = Math.min(
+      Date.parse(record.acquiredAt ?? this.#clock()) + MAX_EXECUTION_MS,
+      Date.parse(record.expiresAt),
+    );
+    const result = await this.#store.extendExecution({
+      acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
+      attestationId: input.attestationId,
+      attemptToken: input.attemptToken,
+      requestedDeadline: input.requestedDeadline,
+      absoluteDeadline: new Date(absolute).toISOString(),
       now: this.#clock(),
       requireClaim: {
         contentDigest: record.contentDigest,
@@ -386,12 +468,14 @@ export class AttestationService {
       },
     });
     if (!result.applied) return no(result.code, result.code);
-    return yes();
+    // The extension NEVER returns or persists plaintext token material -- only the new deadline.
+    return yes({ executionDeadline: result.value.executionDeadline });
   }
 
   async redeem(principal: AuthenticatedPrincipal, input: {
     attestationId: string;
     leaseId: string;
+    attemptToken: string;
   }): Promise<AttestationResult> {
     const unissued = notIssued(principal);
     if (unissued) return unissued;
@@ -406,6 +490,7 @@ export class AttestationService {
       acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
       leaseId: input.leaseId,
+      attemptToken: input.attemptToken,
       now: this.#clock(),
       requireClaim: {
         contentDigest: record.contentDigest,

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { hashCredential } from "../src/auth.js";
 import { AuthenticatedPrincipal, authenticate, generateCredential } from "../src/auth.js";
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { startExpirySweep } from "../src/server.js";
@@ -246,19 +247,25 @@ test("a lease can only be used by the principal that holds it", async () => {
   assert.equal(bound.applied, true, JSON.stringify(bound));
   await refusal("acquire", "wrong_audience", store.acquireAttestation({
     acting: thief, attestationId, leaseId, actionDigest: digest,
-    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim }));
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim,
+    attemptTokenVerifier: hashCredential("t-thief"), executionDeadline: "2026-09-02T04:00:00.000Z",
+    idempotency: idem("agent-2", "acq-thief") }));
 
   // The holder acquires, so redeem becomes reachable.
+  const attemptToken = "t-legit";
   const acquired = await store.acquireAttestation({
     acting: acting("agent-1"), attestationId, leaseId, actionDigest: digest,
-    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim });
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim,
+    attemptTokenVerifier: hashCredential(attemptToken), executionDeadline: "2026-09-02T04:00:00.000Z",
+    idempotency: idem("agent-1", "acq-legit") });
   assert.equal(acquired.applied, true, JSON.stringify(acquired));
   await refusal("redeem", "wrong_audience", store.redeemAttestation({
-    acting: thief, attestationId, leaseId, now: at, requireClaim: claim }));
+    acting: thief, attestationId, leaseId, attemptToken, now: at,
+    requireClaim: claim }));
 
   // ...and the legitimate holder still completes, so the check is not simply refusing everyone.
   const redeemed = await store.redeemAttestation({
-    acting: acting("agent-1"), attestationId, leaseId, now: at, requireClaim: claim });
+    acting: acting("agent-1"), attestationId, leaseId, attemptToken, now: at, requireClaim: claim });
   assert.equal(redeemed.applied, true, JSON.stringify(redeemed));
 });
 

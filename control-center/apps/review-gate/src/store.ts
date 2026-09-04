@@ -110,6 +110,27 @@ export type Principal = {
   audienceFor?: ReadonlyArray<{ orgId: string; serverId: string }>;
   /** MONOTONIC INTEGER. Not a timestamp — two rotations in one clock tick must be distinguishable. */
   credentialEpoch: number;
+  /**
+   * MONOTONIC. Incremented on DISABLE only, never on rotation. Absent is read as 1, so rows provisioned
+   * before this field existed behave as a first incarnation rather than failing closed on every acquire.
+   *
+   * Disable-then-re-enable therefore invalidates bindings taken under the previous incarnation, while an
+   * ordinary rotation leaves them alone. That asymmetry is the policy, not an accident of the encoding.
+   */
+  incarnation?: number;
+  /**
+   * THE CONFLICT PRIMITIVE for acquire, and it must be `$inc` rather than a timestamp.
+   *
+   * Acquire conditionally updates this row filtered on `{ disabledAt: null, incarnation }`; the matched
+   * and modified counts ARE the decision. A `$set` of a timestamp is not equivalent: two acquisitions can
+   * read the same clock, a fixed test clock reproduces one exactly, clock regression can rewrite it, and
+   * MongoDB reports `matchedCount: 1, modifiedCount: 0` when `$set` writes a value already present. A
+   * monotonic counter always modifies.
+   *
+   * On the canonical principal row deliberately -- serialising against disablement only works if both
+   * operations contend on the same authoritative write target. Absent is read as 0.
+   */
+  acquireFence?: number;
   createdAt: string;
   disabledAt?: string;
 };
@@ -301,12 +322,42 @@ export interface ReviewGateStore {
     kind: AttestationKind;
     now: string;
     requireClaim: { contentDigest: string; releasedByCandidateId: string };
-  }): Promise<Applied<undefined>>;
+    /**
+     * A VERIFIER of the attempt token. The caller mints the token, keeps the plaintext in exactly one
+     * local variable, and hands the store only this. The store never receives or stores the plaintext.
+     */
+    attemptTokenVerifier: string;
+    /** `min(acquiredAt + configuredMaximumExecutionDuration, attestation.expiresAt)` is the caller's. */
+    executionDeadline: string;
+    /**
+     * Bound to the acting principal, this attestation, the lease, the action digest and a hash of the
+     * whole request -- NOT the shared principal identity, which every process of that executor has.
+     */
+    idempotency: IdempotencyKey;
+  }): Promise<Applied<AcquireOutcome>>;
+
+  /**
+   * Extend a live attempt. NOT the pre-acquire lease renewal: the two assert different things, and
+   * reusing the lease operation was the mistake round 5 caught.
+   */
+  extendExecution(input: {
+    acting: Acting;
+    attestationId: string;
+    /** Verified in constant time against the stored verifier. */
+    attemptToken: string;
+    requestedDeadline: string;
+    /** Absolute cumulative bound; the store refuses beyond it. */
+    absoluteDeadline: string;
+    now: string;
+    requireClaim: { contentDigest: string; releasedByCandidateId: string };
+  }): Promise<Applied<{ executionDeadline: string }>>;
 
   redeemAttestation(input: {
     acting: Acting;
     attestationId: string;
     leaseId: string;
+    /** Verified in constant time. Redeem needs the CURRENT credential plus this -- see AcquireOutcome. */
+    attemptToken: string;
     now: string;
     requireClaim: { contentDigest: string; releasedByCandidateId: string };
   }): Promise<Applied<undefined>>;
@@ -339,6 +390,21 @@ export interface ReviewGateStore {
   /** UNBOUND attestations expire harmlessly; BOUND ones become INDETERMINATE. Never reservable again. */
   sweepAttestations(now: string): Promise<{ expired: string[]; indeterminate: string[] }>;
 }
+
+/**
+ * What acquire observed, so both stores expose the SAME decision.
+ *
+ * The Mongo store's conditional binder-row update reports driver counts; the memory store has none, so it
+ * reports the equivalent. `matchedCount === 1 && modifiedCount === 0` is a FAILURE, never a success --
+ * that is precisely what a `$set` of an unchanged timestamp produces, which is why the fence is an
+ * `$inc`. Tests assert all four fields rather than inferring them.
+ */
+export type AcquireOutcome = {
+  binderFenceBefore: number;
+  binderFenceAfter: number;
+  matchedCount: number;
+  modifiedCount: number;
+};
 
 export type IdempotencyKey = {
   principalId: string;

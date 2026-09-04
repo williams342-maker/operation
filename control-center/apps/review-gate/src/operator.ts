@@ -123,14 +123,50 @@ export async function disable(db: Db, principalId: string): Promise<void> {
   const now = new Date().toISOString();
   // Disabling also bumps the epoch: outstanding leases stamped with the old one stop matching, so work
   // in flight is invalidated rather than left to finish under a revoked identity.
+  //
+  // AND IT BUMPS THE INCARNATION, which is a different mechanism for a different reason. Under split
+  // authority, acquire deliberately ignores the binder's credential epoch -- rotation must not invalidate
+  // a completed binding -- so the epoch alone would no longer invalidate this binder's outstanding
+  // bindings. The incarnation is the value bind records and acquire compares, and it increments ONLY
+  // here. That is what makes disable-then-re-enable invalidate prior bindings while an ordinary rotation
+  // leaves them alone.
+  //
+  // This mutates ONLY the canonical principal row and its audit record. There is deliberately no bulk
+  // update over attestations: that would be an unbounded write, and incident identification is derived
+  // instead by querying EXECUTING records by bindingPrincipalId.
   await inTransaction(db, async (session) => {
     const update = await principals.updateOne(
       { principalId },
-      { $set: { disabledAt: now }, $inc: { credentialEpoch: 1 } } as never,
+      { $set: { disabledAt: now }, $inc: { credentialEpoch: 1, incarnation: 1 } } as never,
       { session },
     );
     if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);
     await audit(db, { at: now, action: "disable", principalId, by: operatorIdentity() }, session);
+  });
+}
+
+/**
+ * Re-enable a disabled principal. It does NOT restore the previous incarnation, and that is the point.
+ *
+ * A principal disabled after a bind and later re-enabled is *presently enabled*, so anything checking
+ * only enabled/disabled status would accept exactly the bindings disablement was meant to invalidate.
+ * The incarnation stays where disable left it, so those bindings remain refused at acquire while new
+ * ones taken after re-enablement work normally.
+ *
+ * (The design asserted this operation already existed here. It did not -- only the audit action name did.
+ * Implemented rather than quietly dropped, because A9 requires the enable path to be exercised.)
+ */
+export async function enable(db: Db, principalId: string): Promise<void> {
+  const principals = db.collection<Principal>("principals");
+  const now = new Date().toISOString();
+  await inTransaction(db, async (session) => {
+    const update = await principals.updateOne(
+      { principalId },
+      { $unset: { disabledAt: "" } } as never,
+      { session },
+    );
+    if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);
+    await audit(db, { at: now, action: "enable", principalId, by: operatorIdentity() }, session);
   });
 }
 
@@ -143,6 +179,7 @@ review-gate operator
             [--audience <orgId>:<serverId>]...
   rotate    --id <principalId>
   disable   --id <principalId>
+  enable    --id <principalId>
 
 Prints a credential ONCE on provision and rotate. It is not stored, logged, or recoverable:
 if it is lost, rotate again.
@@ -177,7 +214,7 @@ export async function main(argv: string[]): Promise<number> {
     return 2;
   }
   const { command, flags } = parsed;
-  if (!["provision", "rotate", "disable"].includes(command)) {
+  if (!["provision", "rotate", "disable", "enable"].includes(command)) {
     console.error(USAGE);
     return 2;
   }
@@ -217,8 +254,15 @@ export async function main(argv: string[]): Promise<number> {
       console.log(`credential (shown once, not stored): ${credential}`);
       return 0;
     }
+    if (command === "enable") {
+      await enable(db, id);
+      console.log(`principal ${id} enabled. Bindings taken before it was disabled stay refused: `
+        + `re-enabling does not restore the previous incarnation.`);
+      return 0;
+    }
     await disable(db, id);
-    console.log(`principal ${id} disabled; outstanding leases are invalidated.`);
+    console.log(`principal ${id} disabled; outstanding leases are invalidated, and bindings it made `
+      + `can no longer be acquired.`);
     return 0;
   } catch (error) {
     console.error((error as Error).message);

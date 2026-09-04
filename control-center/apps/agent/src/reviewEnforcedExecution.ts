@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readReviewAuthorization, privilegedActionDigest } from "@control-center/shared";
 import { ExecutionJournal, type JournalEntry } from "./executionJournal.js";
 import type { ReviewGateClient } from "./reviewGateClient.js";
@@ -31,6 +32,13 @@ export type Acquired = {
   attestationId: string;
   leaseId: string;
   actionDigest: string;
+  /**
+   * SINGLE-DELIVERY SECRET. Held in memory for the life of the attempt and required to extend or redeem.
+   * Never journalled, never logged, never included in a report: the gate keeps only a verifier, so a
+   * durable copy here would defeat the reason for that.
+   */
+  attemptToken: string;
+  executionDeadline: string;
 };
 
 export type EnforcedOutcome = Acquired | EnforcementRefusal;
@@ -81,6 +89,10 @@ export async function acquireForEffect(input: {
     orgId: input.orgId,
     serverId: input.serverId,
     kind: input.taskType,
+    // PER ATTEMPT, high-entropy, and generated here rather than derived from the task: a key derived
+    // from stable task fields would make an honest retry after a lost response look like the same
+    // request identity, which is precisely the case that must return `already_acquired`.
+    idempotencyKey: randomUUID(),
   });
   if (!acquired.ok) return refuse(acquired.code, acquired.detail);
 
@@ -101,7 +113,17 @@ export async function acquireForEffect(input: {
       describeEntry(claim.entry),
     );
   }
-  return { refused: false, attestationId: reference.attestationId, leaseId: reference.leaseId, actionDigest };
+  // The token travels in memory, in the returned value, and nowhere else. It is deliberately NOT passed
+  // to `journal.claim` above: the journal is durable, and a durable copy of a single-delivery secret
+  // would undo the reason it is verifier-only at the gate.
+  return {
+    refused: false,
+    attestationId: reference.attestationId,
+    leaseId: reference.leaseId,
+    actionDigest,
+    attemptToken: acquired.attemptToken,
+    executionDeadline: acquired.executionDeadline,
+  };
 }
 
 /**
@@ -133,6 +155,10 @@ export async function recordEffect(input: {
   const redeemed = await input.gate.redeem({
     attestationId: input.acquired.attestationId,
     leaseId: input.acquired.leaseId,
+    // Redeem needs the CURRENT credential plus this token, and deliberately NOT the epoch recorded at
+    // acquire: a rotated executor may still record an outcome it already produced. Extension is the
+    // operation that refuses after rotation.
+    attemptToken: input.acquired.attemptToken,
   });
   return redeemed.ok ? { redeemed: true } : { redeemed: false, redeemCode: redeemed.code };
 }
