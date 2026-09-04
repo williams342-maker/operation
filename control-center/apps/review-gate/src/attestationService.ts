@@ -618,10 +618,23 @@ export class AttestationService {
     }
     const decision = evaluateReconciliation({ kind: record.kind, reconciliation });
     if (!decision.ok) return no(decision.code, decision.message);
+    // ATTRIBUTION COMES FROM THE AUTHENTICATED PRINCIPAL, NOT THE CALLER. `resolvedByPrincipalId` was
+    // caller-supplied and never compared to the acting owner, so a reconciliation could name anyone as
+    // having resolved it -- in the one record whose entire purpose is to say who decided what happened
+    // to an execution nobody can otherwise account for.
+    //
+    // A caller-supplied value that disagrees is REFUSED rather than silently overwritten: quietly
+    // replacing it would hide that a client believed something false about who was resolving.
+    if (reconciliation.resolvedByPrincipalId !== undefined
+      && reconciliation.resolvedByPrincipalId !== principal.principalId) {
+      return no("reconciliation_actor_mismatch",
+        "resolvedByPrincipalId is taken from the authenticated owner and cannot be supplied as someone else");
+    }
+    const attributed = { ...reconciliation, resolvedByPrincipalId: principal.principalId };
     const result = await this.#store.resolveIndeterminate({
       acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
-      reconciliation,
+      reconciliation: attributed,
       nextState: reconciliation.outcome === "APPLIED" ? "CONSUMED" : "ABORTED",
       now: this.#clock(),
     });

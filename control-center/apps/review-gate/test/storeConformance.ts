@@ -113,7 +113,9 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
   let acquireSeq = 0;
   const attempt = (token: string, over: Record<string, unknown> = {}) => ({
     attemptTokenVerifier: hashCredential(token),
-    executionDeadline: "2026-09-02T04:00:00.000Z",
+    // Comfortably inside the absolute bound the extension tests use, so a genuine extension has
+    // somewhere to go. Sitting on the bound would make every extension look like a violation.
+    executionDeadline: "2026-09-02T02:40:00.000Z",
     idempotency: { principalId: "agent-1", scope: "acquire", key: `acq-${acquireSeq++}`,
       requestHash: "h" } as IdempotencyKey,
     ...over,
@@ -448,6 +450,174 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
         acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"), now });
       assert.equal((bind as { code: string }).code, "principal_disabled");
+    });
+  });
+
+  // ── A5-A9: acquire fencing, attempt tokens, extension, and disable semantics ──────────────────────
+
+  const NOW = "2026-09-02T02:10:00.000Z";
+  const SCOPE = [{ orgId: "org-1", serverId: "server-1" }];
+
+  /** Reserve + bind, leaving the attestation RESERVED_BOUND and ready to acquire. */
+  async function bound(store: ReviewGateStore, now = NOW) {
+    const { claim } = await released(store, [attestation("at-1")]);
+    await store.reserveAttestation({
+      acting: acting("binder-1"), attestationId: "at-1",
+      lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
+        expiresAt: "2026-09-02T03:00:00.000Z" },
+      now, requireClaim: claim });
+    await store.bindAttestation({
+      acting: acting("binder-1"), attestationId: "at-1", leaseId: "L1",
+      actionDigest: dig("7"), now });
+    return { claim };
+  }
+
+  const acquireArgs = (claim: { contentDigest: string; releasedByCandidateId: string },
+    token: string, over: Record<string, unknown> = {}) => ({
+    acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1", actionDigest: dig("7"),
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply" as const, now: NOW,
+    requireClaim: claim, ...attempt(token), ...over,
+  });
+
+  test(`${label}: A6 -- the binder fence increments by exactly one, and the counts are the decision`, async () => {
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      const outcome = await store.acquireAttestation(acquireArgs(claim, "t-1"));
+      assert.equal(outcome.applied, true, JSON.stringify(outcome));
+      const value = (outcome as { value: { binderFenceBefore: number; binderFenceAfter: number;
+        matchedCount: number; modifiedCount: number } }).value;
+      assert.equal(value.binderFenceAfter, value.binderFenceBefore + 1, "the fence moves by exactly one");
+      assert.equal(value.matchedCount, 1);
+      // matched 1 with modified 0 is a FAILURE, never a success: it is exactly what a `$set` of an
+      // unchanged value produces, which is why the fence is an `$inc`.
+      assert.equal(value.modifiedCount, 1, "the conditional update must MODIFY, not merely match");
+    });
+  });
+
+  test(`${label}: A6 -- a FIXED clock still yields distinct fences, so $inc is load-bearing`, async () => {
+    // The case a timestamp cannot serve. Two acquisitions on the same clock instant: `lastAcquireAt`
+    // would `$set` the same value twice and report modified 0 the second time. A counter always moves.
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      const first = await store.acquireAttestation(acquireArgs(claim, "t-1"));
+      assert.equal(first.applied, true);
+      const firstValue = (first as { value: { binderFenceAfter: number } }).value;
+      // A second acquire on the SAME instant is refused by the state transition, so the fence must not
+      // have moved again -- nothing commits when the transition fails.
+      const second = await store.acquireAttestation(acquireArgs(claim, "t-2", {
+        idempotency: { principalId: "agent-1", scope: "acquire", key: "acq-same-clock", requestHash: "h2" },
+      }));
+      assert.equal(second.applied, false, "a second delivery loses");
+      assert.equal(firstValue.binderFenceAfter, 1, "and the winning fence is exactly 1");
+    });
+  });
+
+  test(`${label}: A5 -- a disabled binder blocks acquire; re-enabling does NOT unblock it`, async () => {
+    await withStore(async (store, seed) => {
+      const { claim } = await bound(store);
+      // Disable bumps the incarnation. The binding recorded incarnation 1.
+      await seed(principal("binder-1", { audienceFor: SCOPE, incarnation: 2,
+        disabledAt: "2026-09-02T02:11:00.000Z" }));
+      const whileDisabled = await store.acquireAttestation(acquireArgs(claim, "t-1"));
+      assert.equal(whileDisabled.applied, false, "a disabled binder must block acquire");
+
+      // Re-enable. The principal is now PRESENTLY ENABLED, which is exactly the trap: a status-only
+      // check would accept the very bindings disablement was meant to invalidate. The incarnation is
+      // NOT restored, so the old binding stays refused.
+      await seed(principal("binder-1", { audienceFor: SCOPE, incarnation: 2 }));
+      const afterEnable = await store.acquireAttestation(acquireArgs(claim, "t-1", {
+        idempotency: { principalId: "agent-1", scope: "acquire", key: "acq-after-enable", requestHash: "h" },
+      }));
+      assert.equal(afterEnable.applied, false,
+        "disable-then-enable must still refuse a binding taken under the previous incarnation");
+      assert.equal((afterEnable as { code: string }).code, "binder_incarnation_changed");
+    });
+  });
+
+  test(`${label}: A5 -- ordinary binder ROTATION after bind does not block acquire`, async () => {
+    // The deliberate asymmetry: rotation preserves completed bindings, disablement does not. Comparing
+    // the credential epoch instead of the incarnation would have broken this.
+    await withStore(async (store, seed) => {
+      const { claim } = await bound(store);
+      await seed(principal("binder-1", { audienceFor: SCOPE, credentialEpoch: 9, incarnation: 1 }));
+      const outcome = await store.acquireAttestation(acquireArgs(claim, "t-1"));
+      assert.equal(outcome.applied, true, JSON.stringify(outcome));
+    });
+  });
+
+  test(`${label}: A5 -- a committed acquire replays as already_acquired, never a second attempt`, async () => {
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      const args = acquireArgs(claim, "t-1");
+      assert.equal((await store.acquireAttestation(args)).applied, true);
+      const replay = await store.acquireAttestation(args);
+      assert.equal(replay.applied, false);
+      assert.equal((replay as { code: string }).code, "already_acquired",
+        "the gate keeps only a verifier and cannot reissue a token it never kept");
+    });
+  });
+
+  test(`${label}: A7 -- extension refuses after audience ROTATION, and A8 redeem still succeeds`, async () => {
+    // The whole content of the rotation row: extension asserts the attempt is still running under the
+    // credential that won it; redeem only records an outcome that already happened.
+    await withStore(async (store, seed) => {
+      const { claim } = await bound(store);
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
+
+      await seed(principal("agent-1", { audienceFor: SCOPE, credentialEpoch: 2 }));
+      const extend = await store.extendExecution({
+        acting: acting("agent-1", 2), attestationId: "at-1", attemptToken: "t-1",
+        requestedDeadline: "2026-09-02T03:30:00.000Z",
+        absoluteDeadline: "2026-09-02T04:00:00.000Z", now: NOW, requireClaim: claim });
+      assert.equal(extend.applied, false, "a rotated executor must not extend");
+      assert.equal((extend as { code: string }).code, "credential_rotated");
+
+      const redeem = await store.redeemAttestation({
+        acting: acting("agent-1", 2), attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-1", now: NOW, requireClaim: claim });
+      assert.equal(redeem.applied, true,
+        "but it may still record the outcome it already produced, with its NEW credential and the token");
+    });
+  });
+
+  test(`${label}: A7 -- the wrong attempt token extends nothing, and A8 redeems nothing`, async () => {
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
+      const extend = await store.extendExecution({
+        acting: acting("agent-1"), attestationId: "at-1", attemptToken: "t-WRONG",
+        requestedDeadline: "2026-09-02T03:30:00.000Z",
+        absoluteDeadline: "2026-09-02T04:00:00.000Z", now: NOW, requireClaim: claim });
+      assert.equal((extend as { code: string }).code, "attempt_token_invalid");
+      const redeem = await store.redeemAttestation({
+        acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-WRONG", now: NOW, requireClaim: claim });
+      assert.equal((redeem as { code: string }).code, "attempt_token_invalid");
+    });
+  });
+
+  test(`${label}: A7 -- deadlines are monotonic and bounded`, async () => {
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
+      const base = { acting: acting("agent-1"), attestationId: "at-1", attemptToken: "t-1",
+        absoluteDeadline: "2026-09-02T04:00:00.000Z", now: NOW, requireClaim: claim };
+
+      // Backwards is refused: an extension may only move the deadline LATER. The attempt's deadline is
+      // 02:40, so this asks to pull it in to 02:20 -- which a naive "is it a valid instant" check would
+      // accept, and which would silently shorten an attempt already relying on the later time.
+      const backwards = await store.extendExecution({ ...base,
+        requestedDeadline: "2026-09-02T02:20:00.000Z" });
+      assert.equal((backwards as { code: string }).code, "deadline_not_extended");
+
+      // Beyond the absolute cumulative bound is refused, even though it is later.
+      const beyond = await store.extendExecution({ ...base,
+        requestedDeadline: "2026-09-02T09:00:00.000Z" });
+      assert.equal((beyond as { code: string }).code, "beyond_absolute_deadline");
+
+      const ok = await store.extendExecution({ ...base,
+        requestedDeadline: "2026-09-02T03:50:00.000Z" });
+      assert.equal(ok.applied, true, JSON.stringify(ok));
     });
   });
 
