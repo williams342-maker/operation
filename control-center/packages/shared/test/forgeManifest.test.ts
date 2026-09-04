@@ -348,7 +348,10 @@ test("PROOF 7 (secret leak): credential-shaped values in any field are rejected"
   assert.equal(findSecretShapedField(leaky), "sourceRepository");
   assert.equal(reason(verifyForgeDeployment(input({ candidate: attested(leaky) }))), "secret-shaped-value");
 
-  const leakyBinding = binding(build(), priorBuild(), { bindingId: "sk_live_abcdefghijklmnop" });
+  // Synthetic and deliberately Stripe-SHAPED: this asserts the manifest REFUSES a secret-shaped value,
+  // so the fixture has to look like one, and its body is the alphabet. Gitleaks flagging it is the
+  // scanner and the test agreeing with each other, not a leak.
+  const leakyBinding = binding(build(), priorBuild(), { bindingId: "sk_live_abcdefghijklmnop" }); // gitleaks:allow
   assert.equal(findSecretShapedField(leakyBinding), "bindingId");
   assert.equal(reason(verifyForgeDeployment(input({ binding: leakyBinding }))), "secret-shaped-value");
 });

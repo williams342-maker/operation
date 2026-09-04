@@ -54,7 +54,10 @@ test("a missing required input is an error, never a default", () => {
 });
 
 test("a mutable image tag is refused — only digest-pinned references are produced", () => {
-  const tagged = { ...env(), FORGE_BACKEND_IMAGE_DIGEST: "ghcr.io/williams342-maker/operation/control-center-api:v0.1.2-operate" };
+  // A container image TAG, not a credential. Gitleaks' generic-api-key rule matches `name:value`, and
+  // this fixture exists precisely to BE a mutable tag so the producer can refuse it. The marker has to
+  // sit on the offending line itself; gitleaks does not read the line above.
+  const tagged = { ...env(), FORGE_BACKEND_IMAGE_DIGEST: "ghcr.io/williams342-maker/operation/control-center-api:v0.1.2-operate" }; // gitleaks:allow
   assert.throws(() => buildForgeDocument(tagged), /Malformed build provenance input/);
 });
 
