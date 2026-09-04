@@ -459,12 +459,13 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
   const SCOPE = [{ orgId: "org-1", serverId: "server-1" }];
 
   /** Reserve + bind, leaving the attestation RESERVED_BOUND and ready to acquire. */
-  async function bound(store: ReviewGateStore, now = NOW) {
+  async function bound(store: ReviewGateStore, now = NOW,
+    leaseExpiresAt = "2026-09-02T03:00:00.000Z") {
     const { claim } = await released(store, [attestation("at-1")]);
     await store.reserveAttestation({
       acting: acting("binder-1"), attestationId: "at-1",
       lease: { leaseId: "L1", holderPrincipalId: "binder-1", credentialEpoch: 1,
-        expiresAt: "2026-09-02T03:00:00.000Z" },
+        expiresAt: leaseExpiresAt },
       now, requireClaim: claim });
     await store.bindAttestation({
       acting: acting("binder-1"), attestationId: "at-1", leaseId: "L1",
@@ -635,6 +636,71 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
         acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1",
         attemptToken: "t-WRONG", now: NOW, requireClaim: claim });
       assert.equal((redeem as { code: string }).code, "attempt_token_invalid");
+    });
+  });
+
+  test(`${label}: A7/A8 -- the BINDER'S LEASE does not govern an attempt that has been acquired`, async () => {
+    // An independent review found the binder's lease still refusing extend and redeem after acquire, so
+    // a binder who reserved for ten minutes silently capped every execution at ten minutes: the executor
+    // could extend its deadline, succeed, and be refused `lease_expired` at redeem anyway. Extending was
+    // cosmetic whenever the lease was the shorter clock.
+    //
+    // The lease is a PRE-ACQUIRE artefact -- it exists so exactly one binder binds. Once execution is
+    // taken the attempt has its own clock. Checklist A7 and A8 list what governs an acquired attempt and
+    // a still-live binder lease is not among them.
+    await withStore(async (store) => {
+      // The lease dies at 02:20. The attempt's deadline is 02:40 and the attestation lives to 06:00.
+      const { claim } = await bound(store, NOW, "2026-09-02T02:20:00.000Z");
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true,
+        "acquire still requires a LIVE lease -- execution is taken from a live binding");
+
+      const AFTER_LEASE = "2026-09-02T02:30:00.000Z";
+      const extended = await store.extendExecution({
+        acting: acting("agent-1"), attestationId: "at-1", attemptToken: "t-1",
+        requestedDeadline: "2026-09-02T02:50:00.000Z",
+        absoluteDeadline: "2026-09-02T03:00:00.000Z", now: AFTER_LEASE, requireClaim: claim });
+      assert.equal(extended.applied, true,
+        `an expired binder lease must not refuse extension: ${JSON.stringify(extended)}`);
+
+      const redeemed = await store.redeemAttestation({
+        acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-1", now: AFTER_LEASE, requireClaim: claim });
+      assert.equal(redeemed.applied, true,
+        `nor redemption: ${JSON.stringify(redeemed)}`);
+    });
+  });
+
+  test(`${label}: A7 -- but the lease ID is still checked, because it says WHICH binding this is`, async () => {
+    await withStore(async (store) => {
+      const { claim } = await bound(store, NOW, "2026-09-02T02:20:00.000Z");
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
+      const wrong = await store.redeemAttestation({
+        acting: acting("agent-1"), attestationId: "at-1", leaseId: "SOME-OTHER-LEASE",
+        attemptToken: "t-1", now: "2026-09-02T02:30:00.000Z", requireClaim: claim });
+      assert.equal((wrong as { code: string }).code, "lease_mismatch",
+        "dropping the expiry check must not drop the identity check with it");
+    });
+  });
+
+  test(`${label}: an EXECUTING attempt past its deadline is swept to INDETERMINATE on ITS OWN clock`, async () => {
+    // The other half of the same correction. Redeem refuses a passed execution deadline, so without
+    // this the record simply sat in EXECUTING until some unrelated clock caught up -- with an hour-long
+    // lease, unreconcilable for another fifty minutes after a ten-minute deadline.
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
+
+      // The lease runs to 03:00 and the attestation to 06:00, so nothing else is over yet.
+      const early = await store.sweepAttestations("2026-09-02T02:30:00.000Z");
+      assert.equal(early.indeterminate.includes("at-1"), false,
+        "a live attempt must not be swept just because time passed");
+
+      const swept = await store.sweepAttestations("2026-09-02T02:45:00.000Z");
+      assert.equal(swept.indeterminate.includes("at-1"), true,
+        "an overrun attempt must reconcile on its own deadline");
+      const record = await store.loadAttestation("at-1");
+      assert.equal(record?.state, "INDETERMINATE");
+      assert.equal(record?.indeterminateReason, "execution deadline passed");
     });
   });
 

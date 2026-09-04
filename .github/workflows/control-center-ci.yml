@@ -152,15 +152,14 @@ jobs:
       # Linux the conformance suite RUNS, so the suite reports 0 skips and can be gated like any other.
       # Leaving it out meant the one package this candidate actually changes was the one package whose
       # count nothing checked; a deleted authorization test there would have been invisible.
-      # review-gate 234. Last round I derived 232 from the previous run's 227, the gate refused it, and
-      # 231 was the truth -- which is the entire reason this number is checked rather than described.
-      # The relation that actually holds, checked against that measured 231, is:
+      # review-gate 240, by the relation that has now held twice:
       #   CI = (local total) - (2 Mongo skip placeholders) + (conformance cases) + (3 Mongo tx cases)
-      # Here 205 - 2 + 28 + 3 = 234. Still a prediction; the gate below is the measurement.
+      # Here 208 - 2 + 31 + 3 = 240. Still a prediction; the gate below is the measurement. An earlier
+      # round derived 232 where the truth was 231, which is the entire reason this is checked.
       # The Mongo-only cases skip off CI, which is why this suite could not be gated at all before the
       # replica-set step existed.
-      CI_EXPECTED_TEST_SUITES: "agent=132,api=133,review-gate=234,shared=146,web=34"
-      CI_EXPECTED_TESTS: "679"
+      CI_EXPECTED_TEST_SUITES: "agent=132,api=133,review-gate=240,shared=146,web=34"
+      CI_EXPECTED_TESTS: "685"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
