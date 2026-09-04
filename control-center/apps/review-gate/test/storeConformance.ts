@@ -494,21 +494,63 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     });
   });
 
-  test(`${label}: A6 -- a FIXED clock still yields distinct fences, so $inc is load-bearing`, async () => {
-    // The case a timestamp cannot serve. Two acquisitions on the same clock instant: `lastAcquireAt`
-    // would `$set` the same value twice and report modified 0 the second time. A counter always moves.
+  test(`${label}: A6 -- TWO SUCCESSFUL acquisitions on one clock instant get distinct fences`, async () => {
+    // THE CASE A TIMESTAMP CANNOT SERVE, and the previous version of this test did not show it.
+    //
+    // It acquired once and then retried the SAME attestation, which the state transition refuses. A
+    // `lastAcquireAt` timestamp would have passed that test unchanged, so it did not establish the
+    // claim in its own name. An independent review said so and was right.
+    //
+    // Two DIFFERENT attestations, both bound by the same binder, both acquired at the same instant.
+    // A `$set` of a timestamp writes the same value twice and reports modifiedCount 0 on the second --
+    // which this store treats as a failure. Only a counter moves both times.
+    await withStore(async (store) => {
+      const { claim } = await released(store, [attestation("at-1"), attestation("at-2")]);
+      for (const [id, leaseId] of [["at-1", "L1"], ["at-2", "L2"]] as const) {
+        const reserved = await store.reserveAttestation({
+          acting: acting("binder-1"), attestationId: id,
+          lease: { leaseId, holderPrincipalId: "binder-1", credentialEpoch: 1,
+            expiresAt: "2026-09-02T03:00:00.000Z" },
+          now: NOW, requireClaim: claim });
+        assert.equal(reserved.applied, true, JSON.stringify(reserved));
+        const boundOne = await store.bindAttestation({ acting: acting("binder-1"), attestationId: id,
+          leaseId, actionDigest: dig("7"), now: NOW });
+        assert.equal(boundOne.applied, true, JSON.stringify(boundOne));
+      }
+
+      const first = await store.acquireAttestation(acquireArgs(claim, "t-1"));
+      const second = await store.acquireAttestation(
+        acquireArgs(claim, "t-2", { attestationId: "at-2", leaseId: "L2" }));
+      assert.equal(first.applied, true, JSON.stringify(first));
+      assert.equal(second.applied, true, JSON.stringify(second));
+
+      const a = (first as { value: { binderFenceAfter: number; modifiedCount: number } }).value;
+      const b = (second as { value: { binderFenceAfter: number; modifiedCount: number } }).value;
+      assert.notEqual(a.binderFenceAfter, b.binderFenceAfter,
+        "the same clock instant must still separate two acquisitions");
+      assert.equal(a.binderFenceAfter, 1);
+      assert.equal(b.binderFenceAfter, 2);
+      assert.equal(b.modifiedCount, 1, "and the second conditional update MODIFIED, it did not merely match");
+    });
+  });
+
+  test(`${label}: A5 -- the same idempotency key with a DIFFERENT tuple is refused, not replayed`, async () => {
+    // The caller supplies `requestHash`, so the store deciding on it alone decides on the caller's word.
+    // An independent review found the replay short-circuit ran ahead of every tuple check, so a caller
+    // replaying a committed key against a different attestation, lease, digest, target or kind was told
+    // `already_acquired` before any of those fields were read.
     await withStore(async (store) => {
       const { claim } = await bound(store);
-      const first = await store.acquireAttestation(acquireArgs(claim, "t-1"));
-      assert.equal(first.applied, true);
-      const firstValue = (first as { value: { binderFenceAfter: number } }).value;
-      // A second acquire on the SAME instant is refused by the state transition, so the fence must not
-      // have moved again -- nothing commits when the transition fails.
-      const second = await store.acquireAttestation(acquireArgs(claim, "t-2", {
-        idempotency: { principalId: "agent-1", scope: "acquire", key: "acq-same-clock", requestHash: "h2" },
-      }));
-      assert.equal(second.applied, false, "a second delivery loses");
-      assert.equal(firstValue.binderFenceAfter, 1, "and the winning fence is exactly 1");
+      const key = { principalId: "agent-1", scope: "acquire", key: "one-key", requestHash: "one-hash" };
+      const first = await store.acquireAttestation(acquireArgs(claim, "t-1", { idempotency: key }));
+      assert.equal(first.applied, true, JSON.stringify(first));
+
+      // Same key, same hash the caller chose, DIFFERENT action digest.
+      const second = await store.acquireAttestation(
+        acquireArgs(claim, "t-2", { idempotency: key, actionDigest: dig("8") }));
+      assert.equal(second.applied, false);
+      assert.equal((second as { code: string }).code, "idempotency_key_reused",
+        "a replay must BE the same request, not merely claim the same hash");
     });
   });
 

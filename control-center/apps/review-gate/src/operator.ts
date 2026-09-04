@@ -135,9 +135,26 @@ export async function disable(db: Db, principalId: string): Promise<void> {
   // update over attestations: that would be an unbounded write, and incident identification is derived
   // instead by querying EXECUTING records by bindingPrincipalId.
   await inTransaction(db, async (session) => {
+    // AN AGGREGATION PIPELINE, AND NOT `$inc`, AND THIS IS A DEFECT AN INDEPENDENT REVIEW FOUND.
+    //
+    // `$inc` treats a missing field as ZERO, so on a row written before `incarnation` existed it set the
+    // field to 1. Bind reads that same absent field as ONE (`binder.incarnation ?? 1`) and records 1.
+    // The two agreed exactly: disabling a legacy binder produced the very incarnation its outstanding
+    // bindings had recorded, so the fence still matched and re-enabling the principal handed those
+    // bindings straight back. Disablement did nothing for precisely the rows old enough to need it.
+    //
+    // `$ifNull` makes the base explicit and makes the two readings agree: absent means 1 here, exactly
+    // as it means 1 at bind, so the first disable moves it to 2 and the fence stops matching.
+    // `credentialEpoch` keeps `$inc`'s own base of 0 -- it is not read through a `?? 1` anywhere.
     const update = await principals.updateOne(
       { principalId },
-      { $set: { disabledAt: now }, $inc: { credentialEpoch: 1, incarnation: 1 } } as never,
+      [{
+        $set: {
+          disabledAt: now,
+          credentialEpoch: { $add: [{ $ifNull: ["$credentialEpoch", 0] }, 1] },
+          incarnation: { $add: [{ $ifNull: ["$incarnation", 1] }, 1] },
+        },
+      }] as never,
       { session },
     );
     if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);

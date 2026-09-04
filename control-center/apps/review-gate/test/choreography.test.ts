@@ -28,10 +28,17 @@ import { castOf } from "./principals.js";
 //
 //   - `AttestationService` is never imported. Mint, reserve and bind are HTTP calls carrying a bearer
 //     credential, so the route layer, the authenticator and the split-authority checks are all on the
-//     path. A direct service call would skip all three. (Asserted mechanically at the bottom of the
-//     file, so a later edit cannot quietly reintroduce it.)
+//     path. A direct service call would skip all three.
+//
+//     The check at the bottom of this file enforces that mechanically, along with the absence of every
+//     attestation-mutating store call. WHAT IT CANNOT DO is prove the absence of a shortcut nobody has
+//     thought of: it is a named-list check, so it catches the specific ways this test could rot, not
+//     every possible one. An independent review pointed out that an earlier version claimed more than
+//     that, and it did.
 //   - No store write after the released-candidate fixture. The fixture is explicitly permitted — it
-//     stands in for a review that already happened — and everything after it is a request.
+//     stands in for a review that already happened — and everything after it is a request. The store is
+//     READ once at the end, to assert the terminal state; the checklist forbids direct store access for
+//     SETUP, and an assertion is not setup.
 //   - The executor is handed its own credential and nothing else. It never sees the binder's, and the
 //     binder never sees the executor's.
 //   - The attempt token is never injected, read out of the store, or passed to the agent. It is minted
@@ -427,16 +434,29 @@ test("§B choreography: this gate does not use the forbidden shortcuts", () => {
   // Mechanical, because the value of this file is entirely in what it refuses to import. A later edit
   // that reaches for the service directly would otherwise still pass every assertion above.
   const source = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
-  // Scoped to the IMPORT lines, not the whole file. The first version of this check searched the entire
-  // source for names it had to spell out in its own assertion, so it always found itself and always
-  // failed. Bindings are the right scope anyway: a shortcut must be imported before it can be used, and
-  // the needles below are assembled from pieces that never appear joined anywhere in this file.
-  const imports = source.split("\n")
-    .filter((line) => line.trim().startsWith("import ") || line.includes("await import("))
-    .join("\n");
+  // Scoped to real code, not comments. The first version of this check searched the whole file for
+  // names it had to spell out in its own assertion, so it always found itself and always failed; every
+  // needle below is therefore assembled from pieces that never appear joined anywhere in this file.
+  const lines = source.split("\n").filter((line) => !line.trim().startsWith("//"));
+  const imports = lines.filter((line) => line.trim().startsWith("import ") || line.includes("await import(")).join("\n");
+  const code = lines.join("\n");
+
   const service = ["Attestation", "Service"].join("");
   const direct = ["execute", "Task"].join("");
   assert.ok(!imports.includes(service), `must not import ${service}: mint, reserve and bind are HTTP`);
   assert.ok(!imports.includes(direct), `must not import ${direct}: the executor is reached by polling`);
   assert.ok(imports.includes("pollOnce"), "and the poll path is the one it does import");
+
+  // Every attestation-mutating store call, by name. These are the operations §2.6 sequences, and each
+  // one has to cross the socket with a credential or this test proves nothing about authority.
+  for (const verb of ["reserve", "bind", "acquire", "redeem", "extend"]) {
+    const forbidden = `store.${verb}${verb === "extend" ? "Execution" : "Attestation"}(`;
+    assert.ok(!code.includes(forbidden), `must not call ${forbidden} directly`);
+  }
+  // The owner decision is a mint, and it is the one an executor must not be able to perform.
+  assert.ok(!code.includes(`store.${["record", "OwnerDecision"].join("")}(`),
+    "the owner decision must be an authenticated request, not a store write");
+  // Nothing may hand the executor a token, or plant a verifier for one.
+  assert.ok(!code.includes(["attemptToken", "Verifier"].join("")),
+    "the attempt token must be minted by acquire, never seeded");
 });

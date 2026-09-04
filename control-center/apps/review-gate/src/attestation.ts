@@ -59,6 +59,31 @@ export const KIND_SUBJECT: Readonly<Record<AttestationKind, "configuration.chang
  * artifact digest and release manifest digest are what identify the operation there. Total over
  * `AttestationKind` on purpose: a new kind cannot be added without deciding this.
  */
+/**
+ * The tuple an acquire is FOR, digested by the STORE rather than described by its caller.
+ *
+ * An independent review found that idempotency was decided entirely on a caller-supplied
+ * `requestHash`. The store never bound that hash to anything it could check, so a caller replaying a
+ * committed key with the same hash but a DIFFERENT attestation, lease, digest, target or kind was
+ * answered `already_acquired` before any of those fields were looked at -- the replay short-circuit
+ * ran ahead of the validation that should have rejected the changed tuple. The HTTP route computes an
+ * honest hash, but the store is itself a conformance boundary, and A5 requires the same key with a
+ * different binding tuple to be refused.
+ *
+ * So the store now records its own reading of the tuple alongside the key and compares that on replay.
+ * A caller cannot make two different requests look identical here without actually making them
+ * identical.
+ */
+export function acquireTupleDigest(input: {
+  attestationId: string; leaseId: string; actionDigest: string;
+  orgId: string; serverId: string; kind: string;
+}): string {
+  return crypto.createHash("sha256").update(JSON.stringify([
+    input.attestationId, input.leaseId, input.actionDigest,
+    input.orgId, input.serverId, input.kind,
+  ])).digest("hex");
+}
+
 export const KIND_REQUIRED_ACTION: Readonly<Record<AttestationKind, string | null>> = Object.freeze({
   "configuration.apply": "configuration.apply.v1",
   "configuration.rollback": "configuration.rollback.v1",

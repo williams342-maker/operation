@@ -46,6 +46,98 @@ export type EnforcedOutcome = Acquired | EnforcementRefusal;
 const refuse = (code: string, detail?: string): EnforcementRefusal => ({ refused: true, code, detail });
 
 /**
+ * How long before the deadline to ask for more time, and how much more to ask for.
+ *
+ * The margin has to exceed a plausible round trip to the gate plus a retry, or the extension lands
+ * after the deadline it was meant to move.
+ */
+const EXTENSION_MARGIN_MS = 5 * 60_000;
+const EXTENSION_INCREMENT_MS = 15 * 60_000;
+
+export type ExecutionKeeper = {
+  stop: () => void;
+  /** Extensions the gate actually granted. */
+  granted: () => number;
+  /** Why the keeper stopped asking, if it did. */
+  refusal: () => string | undefined;
+  /** The deadline currently in force — the gate's answer, never this executor's request. */
+  deadline: () => string;
+};
+
+/**
+ * Hold a long execution's authorization open while the effect runs.
+ *
+ * THIS DID NOT EXIST. An independent review found the checklist's extension step untested; it was in
+ * fact UNIMPLEMENTED on this side. The gate had a route, the store had a method and the client had a
+ * caller — and nothing in the executor ever invoked any of them. `executionDeadline` was carried out
+ * of `acquire`, put in a field, and never read. An execution that outran its window simply ran on with
+ * an authorization that had lapsed, and nobody found out until redeem.
+ *
+ * The deadline tracked here is the one the GATE returned, not the one this executor asked for: the gate
+ * clamps to the attestation's validity and to an absolute cumulative bound, so a keeper that trusted
+ * its own request would reschedule against time it had never been given.
+ *
+ * A REFUSED EXTENSION DOES NOT ABORT THE EFFECT, and that is a deliberate choice rather than an
+ * oversight. By the time this runs the host is already being changed; interrupting a deployment part
+ * way through is a worse outcome than finishing it and settling honestly. So the keeper stops asking,
+ * records why, and lets the effect complete — redeem does not require an unexpired deadline, and if the
+ * attestation has genuinely lapsed the result is an INDETERMINATE for a human to reconcile, which is
+ * the correct end for an execution nobody can account for.
+ */
+export function keepExecutionAlive(input: {
+  gate: Pick<ReviewGateClient, "extendExecution">;
+  acquired: Acquired;
+  marginMs?: number;
+  incrementMs?: number;
+}): ExecutionKeeper {
+  const marginMs = input.marginMs ?? EXTENSION_MARGIN_MS;
+  const incrementMs = input.incrementMs ?? EXTENSION_INCREMENT_MS;
+  let deadline = input.acquired.executionDeadline;
+  let granted = 0;
+  let refusal: string | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let stopped = false;
+
+  const schedule = () => {
+    if (stopped) return;
+    const delay = Math.max(0, Date.parse(deadline) - Date.now() - marginMs);
+    timer = setTimeout(() => { void tick(); }, delay);
+    // Never a reason for the process to stay alive: this timer exists only for the life of an effect
+    // that something else is awaiting.
+    timer.unref?.();
+  };
+
+  const tick = async () => {
+    if (stopped) return;
+    const requested = new Date(Date.now() + incrementMs).toISOString();
+    const outcome = await input.gate.extendExecution({
+      attestationId: input.acquired.attestationId,
+      // The single-delivery token, from memory. It is the proof this is the winning attempt.
+      attemptToken: input.acquired.attemptToken,
+      requestedDeadline: requested,
+    }).catch((error: Error) => ({ ok: false as const, code: "gate_unreachable", detail: error.message }));
+    if (stopped) return;
+    if (!outcome.ok) {
+      // One refusal ends it. Asking again would either repeat a permanent answer — a rotated
+      // credential, a spent attestation — or hammer a gate that is already unreachable.
+      refusal = outcome.code;
+      return;
+    }
+    granted += 1;
+    deadline = outcome.executionDeadline;
+    schedule();
+  };
+
+  schedule();
+  return {
+    stop: () => { stopped = true; if (timer) clearTimeout(timer); },
+    granted: () => granted,
+    refusal: () => refusal,
+    deadline: () => deadline,
+  };
+}
+
+/**
  * Take the right to act, from the gate and then from this host.
  *
  * WHICH OBJECT GETS DIGESTED, because the first version of this file got it wrong and every test I wrote

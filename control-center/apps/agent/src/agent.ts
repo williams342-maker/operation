@@ -10,7 +10,7 @@ import { handoffUpgrade } from "./upgradeHandoff.js";
 import { ExecutionJournal } from "./executionJournal.js";
 import { ReviewGateClient } from "./reviewGateClient.js";
 import { resolveEnforcement } from "./reviewEnforcement.js";
-import { acquireForEffect, recordEffect, type Acquired } from "./reviewEnforcedExecution.js";
+import { acquireForEffect, keepExecutionAlive, recordEffect, type Acquired } from "./reviewEnforcedExecution.js";
 
 const advertisedCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
@@ -164,6 +164,15 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     acquired = outcome;
   }
 
+  // The authorization has a deadline, and until now nothing read it. A privileged effect that outran
+  // its window kept going with a lapsed attempt and only found out at redeem. The keeper asks the gate
+  // for more time before the window closes, using the attempt token from memory, and stops the moment
+  // the effect is done -- whichever way it ends, which is why it is released in a `finally` rather
+  // than after the settle.
+  const keeper = acquired && enforcement.enforcing
+    ? keepExecutionAlive({ gate: enforcement.gate, acquired })
+    : undefined;
+
   try {
     let result: unknown;
     switch (envelope.taskType as TaskType) {
@@ -227,6 +236,10 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     // partly changed. Record that, then re-throw so the existing failure path is unchanged.
     await settle(enforcement, acquired, { succeeded: false, error: (error as Error)?.message });
     throw error;
+  } finally {
+    // Including the `agent.upgrade` path, which returns from inside the try. A keeper left running
+    // would go on extending an attempt that has already been redeemed.
+    keeper?.stop();
   }
 }
 

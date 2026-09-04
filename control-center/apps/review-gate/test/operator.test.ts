@@ -13,6 +13,27 @@ import type { Principal } from "../src/store.js";
 
 type Row = Principal & { credentialIndex: string };
 
+/**
+ * The sliver of the aggregation language the operator actually uses. It refuses anything else rather
+ * than returning a plausible value, because the defect this fake failed to catch was hidden by exactly
+ * that kind of silent accommodation.
+ */
+function evaluate(expression: unknown, row: Record<string, unknown>): unknown {
+  if (typeof expression === "string" && expression.startsWith("$")) return row[expression.slice(1)];
+  if (typeof expression !== "object" || expression === null) return expression;
+  const node = expression as Record<string, unknown>;
+  if ("$add" in node) {
+    const [left, right] = node.$add as unknown[];
+    return Number(evaluate(left, row)) + Number(evaluate(right, row));
+  }
+  if ("$ifNull" in node) {
+    const [value, fallback] = node.$ifNull as unknown[];
+    const resolved = evaluate(value, row);
+    return resolved === undefined || resolved === null ? evaluate(fallback, row) : resolved;
+  }
+  throw new Error(`this fake does not implement ${Object.keys(node).join(", ")}`);
+}
+
 function fakeDb() {
   const principals: Row[] = [];
   const auditLog: Array<Record<string, unknown>> = [];
@@ -37,10 +58,25 @@ function fakeDb() {
           principals.find((p) =>
             Object.entries(query).every(([k, v]) => (p as Record<string, unknown>)[k] === v)) ?? null,
         insertOne: async (row: Row) => { principals.push({ ...row }); },
-        updateOne: async (query: Record<string, unknown>, update: Record<string, never>) => {
+        updateOne: async (query: Record<string, unknown>, update: Record<string, never> | unknown[]) => {
           const row = principals.find((p) =>
             Object.entries(query).every(([k, v]) => (p as Record<string, unknown>)[k] === v));
           if (!row) return { matchedCount: 0, modifiedCount: 0 };
+          // AN AGGREGATION PIPELINE IS AN ARRAY, and the previous version of this fake destructured
+          // `$set`/`$inc` off it, found neither, applied NOTHING, and still reported modifiedCount 1.
+          // A fake that silently ignores an update it does not understand is worse than no fake: it
+          // reports success over a row it never touched. Emulated where it can be, and thrown on
+          // everywhere else.
+          if (Array.isArray(update)) {
+            for (const stage of update) {
+              const set = (stage as Record<string, Record<string, unknown>>).$set;
+              if (!set) throw new Error("this fake only implements $set stages");
+              for (const [field, expression] of Object.entries(set)) {
+                (row as Record<string, unknown>)[field] = evaluate(expression, row as Record<string, unknown>);
+              }
+            }
+            return { matchedCount: 1, modifiedCount: 1 };
+          }
           Object.assign(row, update.$set ?? {});
           for (const [k, delta] of Object.entries(update.$inc ?? {})) {
             (row as Record<string, unknown>)[k] = Number((row as Record<string, unknown>)[k]) + Number(delta);
@@ -104,6 +140,32 @@ test("disabling also bumps the epoch", async () => {
   const [row] = principals;
   assert.ok(row.disabledAt);
   assert.equal(row.credentialEpoch, 2);
+  assert.equal(row.incarnation, 2, "and the incarnation, which is what acquire compares");
+});
+
+test("disabling a principal written BEFORE incarnation existed moves it past what bind recorded", async () => {
+  // THE DEFECT AN INDEPENDENT REVIEW FOUND, at the smallest scale that shows it.
+  //
+  // `$inc` treats a missing field as ZERO, so it set an absent incarnation to 1. Bind reads that same
+  // absent field as ONE. The two agreed exactly, so disabling a legacy binder produced the incarnation
+  // its outstanding bindings had already recorded -- the acquire fence still matched, and re-enabling
+  // the principal handed those bindings back. Disablement was a no-op for precisely the rows old
+  // enough to lack the field.
+  const { db, principals } = fakeDb();
+  await provision(db, {
+    principalId: "binder-1", displayName: "Binder", roles: ["binder"],
+    reviewerClasses: [], audienceFor: [],
+  });
+  // A row as it existed before this field was introduced.
+  delete (principals[0] as Record<string, unknown>).incarnation;
+
+  await disable(db, "binder-1");
+
+  // 1 is the value `binder.incarnation ?? 1` records at bind. Landing on it would mean the fence still
+  // matches, so this assertion is the whole fix.
+  assert.notEqual(principals[0].incarnation, 1,
+    "disable must not land on the incarnation bind records for an absent field");
+  assert.equal(principals[0].incarnation, 2);
 });
 
 test("every provisioning action is audited", async () => {

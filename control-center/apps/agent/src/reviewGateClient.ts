@@ -27,6 +27,10 @@ export type GateOutcome =
  * SINGLE DELIVERY: losing this response loses the attempt. The gate stores only a verifier and cannot
  * reissue it; a retry returns `already_acquired` with no token, and the attempt must be reconciled.
  */
+export type ExtendOutcome =
+  | { ok: true; executionDeadline: string }
+  | { ok: false; code: string; detail?: string };
+
 export type AcquireOutcome =
   | { ok: true; attemptToken: string; executionDeadline: string }
   | { ok: false; code: string; detail?: string };
@@ -132,17 +136,28 @@ export class ReviewGateClient {
     return { ok: true, attemptToken: token, executionDeadline: deadline };
   }
 
-  /** Extend a live attempt. Refused after a credential rotation, by design; redeem is not. */
+  /**
+   * Extend a live attempt. Refused after a credential rotation, by design; redeem is not.
+   *
+   * Returns the deadline the gate GRANTED, which is not always the one asked for: the gate clamps to
+   * the attestation's own validity and to an absolute cumulative bound. A caller that assumed its own
+   * request had been honoured would believe it had time the gate never gave it.
+   */
   async extendExecution(input: {
     attestationId: string;
     attemptToken: string;
     requestedDeadline: string;
-  }): Promise<GateOutcome> {
+  }): Promise<ExtendOutcome> {
     const outcome = await this.#post(
       `/attestations/${encodeURIComponent(input.attestationId)}/extend-execution`,
       { attemptToken: input.attemptToken, requestedDeadline: input.requestedDeadline },
     );
-    return outcome.ok ? { ok: true } : outcome;
+    if (!outcome.ok) return outcome;
+    const granted = outcome.body?.executionDeadline;
+    if (typeof granted !== "string") {
+      return { ok: false, code: "gate_unreadable", detail: "extend returned no deadline" };
+    }
+    return { ok: true, executionDeadline: granted };
   }
 
   /** Close it out. A failure to redeem does not un-apply anything; it leaves the record for a human. */

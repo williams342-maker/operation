@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MongoClient, type Collection, type Db, type Document } from "mongodb";
 import { MongoReviewGateStore, ensureIndexes } from "../src/mongoStore.js";
+import { disable, enable } from "../src/operator.js";
 import { hashCredential } from "../src/auth.js";
 import { record, attestation, dig } from "./storeConformance.js";
 import type { Principal } from "../src/store.js";
@@ -169,8 +170,38 @@ if (!url || !/replicaSet=/.test(url)) {
       idempotency: { principalId: "agent-1", scope: "acquire", key: "acq-tx", requestHash: "h" },
     });
     const dispose = async () => { await client.db(dbName).dropDatabase(); await client.close(); };
-    return { fenceOf, stateOf, acquire, dispose };
+    // The RAW database, for the cases that must drive the real operator commands rather than seed a
+    // principal row into the shape they want to see.
+    return { fenceOf, stateOf, acquire, dispose, db: client.db(dbName) };
   }
+
+  test("mongo: disabling a LEGACY binder actually invalidates its bindings, even after re-enable", async () => {
+    // THE DEFECT AN INDEPENDENT REVIEW FOUND, against the only thing that can settle it.
+    //
+    // `seed` above writes no `incarnation` at all -- these rows are exactly the shape that existed
+    // before the field was introduced. Bind reads an absent incarnation as ONE. `disable()` used
+    // `$inc`, and MongoDB's `$inc` treats a missing field as ZERO, so it wrote 1: precisely the value
+    // bind had recorded. The acquire fence matched, and `enable()` -- which deliberately does not
+    // restore the incarnation -- handed the old binding straight back.
+    //
+    // The unit test in operator.test.ts cannot settle this. Its fake computes `Number(undefined) + 1`
+    // and gets NaN, where MongoDB gets 1; only the real driver has the behaviour that made the two
+    // readings collide.
+    const injection: Injection = { mode: "off" };
+    const world = await boundAttestation(`review_gate_incarnation_${process.pid}`, injection);
+    try {
+      await disable(world.db, "binder-1");
+      await enable(world.db, "binder-1");
+
+      const outcome = await world.acquire();
+      assert.equal(outcome.applied, false,
+        "a binding taken before the binder was disabled must not survive re-enabling it");
+      assert.equal((outcome as { code: string }).code, "binder_incarnation_changed");
+      assert.equal(await world.stateOf(), "RESERVED_BOUND");
+    } finally {
+      await world.dispose();
+    }
+  });
 
   test("mongo: a THROWN failure after the fence write rolls the $inc back with it", async () => {
     const injection: Injection = { mode: "off" };
