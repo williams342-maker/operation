@@ -162,17 +162,19 @@ if (!url || !/replicaSet=/.test(url)) {
       const row = await client.db(dbName).collection("attestations").findOne({ attestationId: "at-1" });
       return row?.state as string | undefined;
     };
-    const acquire = () => store.acquireAttestation({
+    const acquire = (key = "acq-tx", now = NOW) => store.acquireAttestation({
       acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1", actionDigest: dig("7"),
-      orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: NOW, requireClaim: claim,
+      orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now, requireClaim: claim,
       attemptTokenVerifier: hashCredential("t-1"),
       executionDeadline: "2026-09-02T02:40:00.000Z",
-      idempotency: { principalId: "agent-1", scope: "acquire", key: "acq-tx", requestHash: "h" },
+      // DISTINCT per attempt. Two racing executors are two requests, not one retried: sharing a key
+      // would make the loser an idempotent replay and hide the race this is meant to measure.
+      idempotency: { principalId: "agent-1", scope: "acquire", key, requestHash: `h-${key}` },
     });
     const dispose = async () => { await client.db(dbName).dropDatabase(); await client.close(); };
     // The RAW database, for the cases that must drive the real operator commands rather than seed a
     // principal row into the shape they want to see.
-    return { fenceOf, stateOf, acquire, dispose, db: client.db(dbName) };
+    return { fenceOf, stateOf, acquire, dispose, store, claim, db: client.db(dbName) };
   }
 
   test("mongo: disabling a LEGACY binder actually invalidates its bindings, even after re-enable", async () => {
@@ -245,3 +247,95 @@ if (!url || !/replicaSet=/.test(url)) {
     }
   });
 }
+
+// ── CONCURRENCY (checklist §C) ───────────────────────────────────────────────────────────────────
+//
+// The suite had sequential analogues -- "a second acquire loses", "a disabled principal cannot advance
+// work in flight" -- and an independent review was right that those are a different claim. A sequential
+// pair proves the RULE; only a genuine race proves the rule survives two transactions arriving at once.
+// These need real transactions, so they live here rather than in the shared conformance.
+
+test("mongo: two CONCURRENT acquires -- exactly one wins, and the fence moves exactly once", async () => {
+  const world = await boundAttestation(`review_gate_race_acquire_${process.pid}`, { mode: "off" });
+  try {
+    const before = await world.fenceOf();
+    const [a, b] = await Promise.all([world.acquire("race-a"), world.acquire("race-b")]);
+    const winners = [a, b].filter((outcome) => outcome.applied);
+    assert.equal(winners.length, 1, `exactly one may take execution: ${JSON.stringify([a, b])}`);
+    assert.equal(await world.stateOf(), "EXECUTING");
+    // The fence is the point: a second increment would mean two acquisitions were counted, whichever
+    // one the transition happened to refuse.
+    assert.equal(await world.fenceOf(), before + 1, "the binder fence must move exactly once");
+  } finally {
+    await world.dispose();
+  }
+});
+
+test("mongo: acquire RACING disable -- never both, and the outcome is internally consistent", async () => {
+  const world = await boundAttestation(`review_gate_race_disable_${process.pid}`, { mode: "off" });
+  try {
+    const [acquired] = await Promise.all([
+      world.acquire("race-disable"),
+      disable(world.db, "binder-1"),
+    ]);
+    // Either order is legitimate -- that is what a race means. What must NOT happen is an acquisition
+    // that believes it won against a binder that was already disabled, or a refusal that still moved
+    // the record. Both halves are asserted against the SAME outcome.
+    if (acquired.applied) {
+      assert.equal(await world.stateOf(), "EXECUTING", "a winning acquire must have moved the record");
+    } else {
+      assert.equal(await world.stateOf(), "RESERVED_BOUND", "a losing acquire must have moved nothing");
+    }
+  } finally {
+    await world.dispose();
+  }
+});
+
+test("mongo: acquire RACING revoke -- never both", async () => {
+  const world = await boundAttestation(`review_gate_race_revoke_${process.pid}`, { mode: "off" });
+  try {
+    const [acquired, revoked] = await Promise.all([
+      world.acquire("race-revoke"),
+      world.store.revokeAttestation({
+        acting: { principalId: "owner", credentialEpoch: 1 },
+        attestationId: "at-1", reason: "raced", now: NOW }),
+    ]);
+    assert.equal(acquired.applied && revoked.applied, false,
+      "an attestation cannot be both taken for execution and revoked");
+    const state = await world.stateOf();
+    assert.equal(acquired.applied ? state === "EXECUTING" : state !== "EXECUTING", true,
+      `state ${state} disagrees with the acquire outcome`);
+  } finally {
+    await world.dispose();
+  }
+});
+
+test("mongo: extension and redeem BOTH refuse exactly AT the execution deadline", async () => {
+  // The boundary, which is where an off-by-one lives. The deadline is 02:40; at exactly 02:40 the
+  // window is over, not still open.
+  const world = await boundAttestation(`review_gate_race_expiry_${process.pid}`, { mode: "off" });
+  try {
+    assert.equal((await world.acquire("boundary")).applied, true);
+    const AT = "2026-09-02T02:40:00.000Z";
+
+    const extended = await world.store.extendExecution({
+      acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
+      attemptToken: "t-1", requestedDeadline: "2026-09-02T02:55:00.000Z",
+      absoluteDeadline: "2026-09-02T03:00:00.000Z", now: AT, requireClaim: world.claim });
+    assert.equal(extended.applied, false, "an attempt does not extend at the instant it expires");
+
+    const redeemed = await world.store.redeemAttestation({
+      acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
+      leaseId: "L1", attemptToken: "t-1", now: AT, requireClaim: world.claim });
+    assert.equal(redeemed.applied, false, "nor redeem at that instant");
+    assert.equal((redeemed as { code: string }).code, "execution_deadline_passed");
+
+    // One second earlier it is still live, so the refusals above are the boundary and nothing else.
+    const inTime = await world.store.redeemAttestation({
+      acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
+      leaseId: "L1", attemptToken: "t-1", now: "2026-09-02T02:39:59.000Z", requireClaim: world.claim });
+    assert.equal(inTime.applied, true, JSON.stringify(inTime));
+  } finally {
+    await world.dispose();
+  }
+});
