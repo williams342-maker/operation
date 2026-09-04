@@ -214,7 +214,34 @@ jobs:
       - name: Verify shell bytes and Bash syntax
         run: node scripts/verify-shell-scripts.mjs --require-bash
       - name: Audit production dependencies
-        run: npm audit --audit-level=high
+        env:
+          # PINNED EXACTLY, like Gitleaks, so the gate cannot change under us.
+          #
+          # Node 22 bundles npm 10, which posts to `/-/npm/v1/security/audits/quick` -- the endpoint npm
+          # is retiring. On 2026-09-03 it answered `400 Bad Request` and turned `verify` red on `main` at
+          # a commit that had passed an hour earlier; the failure read like a dependency regression and
+          # was not one. npm 11 queries `/-/npm/v1/security/advisories/bulk`, which answers for this tree.
+          AUDIT_NPM_VERSION: "11.16.0"
+        run: |
+          set -uo pipefail
+          report="${RUNNER_TEMP}/npm-audit.json"
+          # Retry ONLY a registry outage. Exit 1 means a real high/critical advisory, and retrying that
+          # would just delay the same answer three times.
+          status=2
+          for attempt in 1 2 3; do
+            npx --yes "npm@${AUDIT_NPM_VERSION}" audit --json > "${report}" 2> "${RUNNER_TEMP}/npm-audit.err" || true
+            node deploy/scripts/audit-gate.mjs "${report}"
+            status=$?
+            if [ "${status}" -ne 2 ]; then break; fi
+            echo "attempt ${attempt}: the audit did not run; retrying"
+            sed -n '1,5p' "${RUNNER_TEMP}/npm-audit.err" || true
+            sleep $((attempt * 10))
+          done
+          if [ "${status}" -eq 2 ]; then
+            echo "::error::The dependency audit could not run. This is NOT a clean result -- the gate"
+            echo "::error::refuses rather than passing on an audit that never happened."
+          fi
+          exit "${status}"
       - name: Test with disposable MongoDB
         run: npm test
       - name: Retain value-safe database timeout diagnostics
