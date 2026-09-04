@@ -150,9 +150,11 @@ jobs:
       # Linux the conformance suite RUNS, so the suite reports 0 skips and can be gated like any other.
       # Leaving it out meant the one package this candidate actually changes was the one package whose
       # count nothing checked; a deleted authorization test there would have been invisible.
-      # 221 measured on the previous commit + 4 for the §B choreography gate.
-      CI_EXPECTED_TEST_SUITES: "agent=127,api=133,review-gate=225,shared=146,web=34"
-      CI_EXPECTED_TESTS: "665"
+      # 221 measured before this branch, +4 for the §B choreography gate, +2 for the injected-failure
+      # transaction cases. Those two are Mongo-only: off CI they skip, which is why the suite could
+      # not be gated before the replica-set step existed.
+      CI_EXPECTED_TEST_SUITES: "agent=127,api=133,review-gate=227,shared=146,web=34"
+      CI_EXPECTED_TESTS: "667"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

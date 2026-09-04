@@ -17,7 +17,7 @@ import type { CandidateRecord, IdempotencyKey, Principal, ReviewGateStore } from
 // new tests.
 
 const oid = (c: string) => c.repeat(40).slice(0, 40);
-const dig = (c: string) => c.repeat(64).slice(0, 64);
+export const dig = (c: string) => c.repeat(64).slice(0, 64);
 
 export function binding(over: Partial<CandidateBinding> = {}): CandidateBinding {
   return {
@@ -58,7 +58,7 @@ export function record(id: string, over: Partial<CandidateBinding> = {}): Candid
   };
 }
 
-const attestation = (id: string, over: Partial<AttestationRecord> = {}): AttestationRecord => ({
+export const attestation = (id: string, over: Partial<AttestationRecord> = {}): AttestationRecord => ({
   attestationId: id,
   kind: "configuration.apply",
   contentDigest: dig("9"),
