@@ -49,11 +49,21 @@ Verified by test, and independently confirmed across rounds:
 
 Ordered by what would bite first.
 
-1. **The producer's happy path is probably non-functional.** The `forge-build-v1` document records the
-   *tag's* commit, while GitHub's SLSA predicate records the *dispatch* commit (`github.sha`, usually
-   `main`). A dispatch from `main` with a tag input therefore fails `source-commit-mismatch`. This is
-   fail-closed, but it means the producer has likely never been able to complete a real run. Fix:
-   require `github.sha` to equal the tag commit, or emit a predicate that records the checked-out source.
+1. ~~**The producer's happy path is probably non-functional.**~~ **FIXED 2026-09-03.** The
+   `forge-build-v1` document records the *tag's* commit, while GitHub's SLSA predicate records the
+   *dispatch* commit (`github.sha`, usually `main`) -- `actions/checkout` with `ref: <tag>` changes the
+   working tree and nothing the attestation will say. A dispatch from `main` with a tag input therefore
+   failed `source-commit-mismatch`, fail-closed and correct, which is why the producer had never
+   completed a real run.
+
+   Of the two fixes offered, only the first is available: the predicate cannot be told to record the
+   checkout. **The `source` step now requires `$GITHUB_SHA` to equal the tag's commit** and refuses
+   otherwise, before anything is built or published, naming the failure it prevents and printing the
+   correct dispatch command. A regression test asserts the guard and the document's tag-derived commit
+   together, since either half alone is useless; it is mutation-tested.
+
+   **This has still never been executed.** The guard makes a successful run *possible*; it does not
+   demonstrate one. Running the producer means publishing images, which remains owner-gated.
 2. **The evidence package is incomplete.** The workflow step named "document and its bundle" uploads
    only the JSON. `actions/attest-build-provenance` exposes a `bundle-path` output that is unused, so the
    offline evidence set the preflight expects is not actually produced.

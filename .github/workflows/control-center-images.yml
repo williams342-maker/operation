@@ -76,6 +76,34 @@ jobs:
           test "$(git cat-file -t "$tag")" = "tag" || { echo "Tag must be annotated" >&2; exit 1; }
           commit="$(git rev-parse "${tag}^{commit}")"
           test "$(git rev-parse HEAD)" = "$commit" || { echo "Checkout does not match the tag" >&2; exit 1; }
+          # THE ATTESTATION RECORDS THE DISPATCH REF, NOT THE CHECKOUT. This run must therefore BE the tag.
+          #
+          # `actions/attest-build-provenance` builds its SLSA predicate from the GitHub context, where
+          # `resolvedDependencies[].digest.gitCommit` is `github.sha` -- the commit of the ref the run was
+          # DISPATCHED from. `actions/checkout` with `ref: <tag>` changes the working tree and nothing
+          # else; it does not change what the attestation will say.
+          #
+          # So dispatching from `main` with a tag input produced a document recording the TAG's commit and
+          # an attestation recording MAIN's, and the agent refused the pair with `source-commit-mismatch`.
+          # Fail-closed and correct -- and it meant the producer could never complete a real run, which is
+          # why this workflow has never successfully executed end to end.
+          #
+          # The predicate cannot be told to record the checkout instead, so the only fix is to require the
+          # two to agree at the source. Checked here rather than after the build, so a run that could only
+          # ever produce an unusable attestation fails before it publishes anything.
+          if [ "$GITHUB_SHA" != "$commit" ]; then
+            {
+              echo "This run was dispatched from $GITHUB_SHA, but $tag is $commit."
+              echo ""
+              echo "The build-provenance attestation records the DISPATCH ref, so it would claim a"
+              echo "different source commit than the forge-build document, and every agent would refuse"
+              echo "the pair with source-commit-mismatch."
+              echo ""
+              echo "Dispatch this workflow FROM the tag:"
+              echo "  gh workflow run control-center-images.yml --ref $tag -f tag=$tag -f publish=false"
+            } >&2
+            exit 1
+          fi
           # The tree as well as the commit: a rewritten history can reuse a commit message and author
           # while carrying a different tree.
           {
