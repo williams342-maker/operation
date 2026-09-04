@@ -7,11 +7,14 @@ import {
   KIND_SUBJECT,
   REQUIRED_TERMINAL_PHASE,
   UNBOUND_STATES,
+  attestationIdentityDigest,
   attestationKinds,
   attestationStates,
+  isLegacyIdentity,
   evaluateReconciliation,
   isAttestationTransitionAllowed,
   terminalAttestationStates,
+  type AttestationRecord,
   type AttestationState,
 } from "../src/attestation.js";
 
@@ -175,4 +178,76 @@ test("reconciliation: every kind declares the phase it requires", () => {
     assert.ok(REQUIRED_TERMINAL_PHASE[kind], `${kind} must declare its required terminal phase`);
     assert.notEqual(REQUIRED_TERMINAL_PHASE[kind], "rolled_back");
   }
+});
+
+// ── v2 identity ──────────────────────────────────────────────────────────────────────────────────────
+
+const v1Record = (over: Partial<AttestationRecord> = {}): AttestationRecord => ({
+  attestationId: "at-1",
+  kind: "configuration.apply",
+  contentDigest: dig("9"),
+  candidateId: "c1",
+  orgId: "org-1",
+  serverId: "server-1",
+  targetEnvironmentClass: "staging",
+  audiencePrincipalId: "agent-1",
+  nonce: "n-1",
+  grantedByPrincipalId: "owner",
+  grantedAt: "2026-09-02T00:00:00.000Z",
+  expiresAt: "2026-09-02T06:00:00.000Z",
+  state: "PENDING",
+  ...over,
+});
+const v2Record = (over: Partial<AttestationRecord> = {}): AttestationRecord =>
+  v1Record({ identitySchemaVersion: "v2", bindingPrincipalId: "binder-1", ...over });
+
+test("an absent identity schema version means legacy v1", () => {
+  assert.equal(isLegacyIdentity(v1Record()), true);
+  assert.equal(isLegacyIdentity(v2Record()), false);
+});
+
+test("v1 records keep their exact v1 digest bytes forever", () => {
+  // The reason bindingPrincipalId could not simply be added under the v1 marker: the same stored record
+  // would then digest differently depending on which software version read it.
+  // Pinned to the literal a v1 record digested to BEFORE split authority existed. If this changes, a
+  // deployed record's claimed immutable identity changed underneath it, which is the whole failure the
+  // separate v2 domain marker exists to prevent.
+  assert.equal(attestationIdentityDigest(v1Record()),
+    "513ae11dfa9f0fd588b0e6c9438120b666ae1dee2404ae4a9bfbca646e3875cb");
+  // And a v1 record's digest must not depend on any v2 field.
+  const withV2FieldsIgnored = v1Record({ bindingPrincipalId: "binder-1", supersedesAttestationId: "at-0" });
+  assert.equal(attestationIdentityDigest(withV2FieldsIgnored), attestationIdentityDigest(v1Record()),
+    "v2 fields on a record with no identitySchemaVersion must not change its v1 digest");
+});
+
+test("v1 and v2 digests are in different domains", () => {
+  assert.notEqual(attestationIdentityDigest(v1Record()), attestationIdentityDigest(v2Record()),
+    "the domain marker must separate them even before any field differs");
+});
+
+test("binding authority is part of v2 identity", () => {
+  // Without this, two attestations assigning DIFFERENT binding authority would share one claimed
+  // immutable identity.
+  assert.notEqual(
+    attestationIdentityDigest(v2Record({ bindingPrincipalId: "binder-1" })),
+    attestationIdentityDigest(v2Record({ bindingPrincipalId: "binder-2" })),
+  );
+});
+
+test("lineage is part of v2 identity, and its absence is distinguishable", () => {
+  // A replacement that could be re-pointed is not a lineage.
+  const none = attestationIdentityDigest(v2Record());
+  const a = attestationIdentityDigest(v2Record({ supersedesAttestationId: "at-0" }));
+  const b = attestationIdentityDigest(v2Record({ supersedesAttestationId: "at-9" }));
+  assert.notEqual(a, b);
+  assert.notEqual(none, a);
+});
+
+test("a v2 record without a binder has no identity to compute", () => {
+  // Fail closed rather than digesting a placeholder, which would give a malformed record the same
+  // identity as a different malformed record.
+  assert.throws(
+    () => attestationIdentityDigest({ ...v1Record(), identitySchemaVersion: "v2" }),
+    /must carry bindingPrincipalId/,
+  );
 });

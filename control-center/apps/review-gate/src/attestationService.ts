@@ -8,6 +8,7 @@ import {
   reviewAuthorizationSchema,
 } from "@control-center/shared";
 import {
+  isLegacyIdentity,
   KINDS_REQUIRING_ROLLBACK_TARGET,
   KIND_REQUIRED_ACTION,
   KIND_SUBJECT,
@@ -33,6 +34,21 @@ export type AttestationResult =
   | { ok: false; code: string; message: string };
 
 const no = (code: string, message: string): AttestationResult => ({ ok: false, code, message });
+
+/**
+ * v1 records cannot execute, and are never migrated.
+ *
+ * Refused by reserve, bind, acquire, execution extension and redeem. Deliberately NOT refused by revoke,
+ * the expiry sweep, read/audit or reconciliation: a record that cannot execute is still provenance, and
+ * an operator must be able to revoke and reconcile it. Where a replacement is wanted the owner mints a
+ * fresh v2 attestation carrying `supersedesAttestationId`, because rewriting an identity in place would
+ * mean it was never immutable.
+ */
+const refuseLegacy = (record: Pick<AttestationRecord, "identitySchemaVersion">): AttestationResult | null =>
+  isLegacyIdentity(record)
+    ? no("legacy_identity_not_executable",
+        "this attestation predates split authority and cannot be reserved, bound, acquired, extended or redeemed; mint a v2 replacement")
+    : null;
 const yes = (value?: unknown): AttestationResult => ({ ok: true, value });
 
 /** Refuse anything that is not a principal this process issued. See service.ts for why. */
@@ -87,6 +103,8 @@ export class AttestationService {
       orgId: string;
       serverId: string;
       audiencePrincipalId: string;
+      bindingPrincipalId: string;
+      supersedesAttestationId?: string;
       expiresAt: string;
     }>;
   }): Promise<AttestationResult> {
@@ -136,7 +154,8 @@ export class AttestationService {
     record: { contentDigest: string; candidateId: string; binding: { subject: unknown;
       targetEnvironmentClass: string } },
     requests: ReadonlyArray<{ kind: AttestationKind; orgId: string; serverId: string;
-      audiencePrincipalId: string; expiresAt: string }>,
+      audiencePrincipalId: string; bindingPrincipalId: string; supersedesAttestationId?: string;
+      expiresAt: string }>,
     grantedBy: string,
   ): Promise<AttestationResult> {
     const subject = record.binding.subject as CandidateSubject;
@@ -167,8 +186,39 @@ export class AttestationService {
             "you may not roll back to content that was never reviewed and released");
         }
       }
+      // SPLIT AUTHORITY, REQUIRED AND EXPLICIT. Not defaulted to the audience: that default is the
+      // unexecutable protocol this design exists to remove, where the executor must bind a payload the
+      // control plane has not sent it yet.
+      if (!request.bindingPrincipalId) {
+        return no("binding_principal_required",
+          "a v2 attestation must name the principal that may reserve and bind");
+      }
+      if (request.bindingPrincipalId === request.audiencePrincipalId) {
+        return no("binding_principal_not_distinct",
+          "the binder and the audience must be different principals; binding and executing are separate authorities");
+      }
+
+      // Lineage, validated against the referenced record rather than trusted. A replacement that could
+      // point anywhere is not a lineage.
+      if (request.supersedesAttestationId !== undefined) {
+        const superseded = await this.#store.loadAttestation(request.supersedesAttestationId);
+        if (!superseded) {
+          return no("superseded_attestation_unknown",
+            "supersedesAttestationId does not reference an existing attestation");
+        }
+        if (superseded.candidateId !== record.candidateId
+          || superseded.contentDigest !== record.contentDigest
+          || superseded.orgId !== request.orgId
+          || superseded.serverId !== request.serverId) {
+          return no("superseded_attestation_mismatch",
+            "a replacement must supersede an attestation for the same candidate, content, org and server");
+        }
+      }
+
       minted.push({
         attestationId: this.#ids(),
+        // Every mint path writes v2. Absence is what marks a legacy record, so this is never omitted.
+        identitySchemaVersion: "v2",
         kind: request.kind,
         contentDigest: record.contentDigest,
         candidateId: record.candidateId,
@@ -176,6 +226,9 @@ export class AttestationService {
         serverId: request.serverId,
         targetEnvironmentClass: record.binding.targetEnvironmentClass,
         audiencePrincipalId: request.audiencePrincipalId,
+        bindingPrincipalId: request.bindingPrincipalId,
+        ...(request.supersedesAttestationId !== undefined
+          ? { supersedesAttestationId: request.supersedesAttestationId } : {}),
         nonce: this.#ids(),
         grantedByPrincipalId: grantedBy,
         grantedAt: now,
@@ -197,8 +250,13 @@ export class AttestationService {
     if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
-    if (record.audiencePrincipalId !== principal.principalId) {
-      return no("wrong_audience", "this attestation names a different executor");
+    const legacy = refuseLegacy(record);
+    if (legacy) return legacy;
+    // THE BINDER RESERVES, NOT THE AUDIENCE. Before the split this compared the audience, which made
+    // §2.6 unexecutable: the executor would have had to reserve and bind a payload the control plane had
+    // not yet dispatched to it. The audience is refused here explicitly rather than by omission.
+    if (record.bindingPrincipalId !== principal.principalId) {
+      return no("wrong_binder", "this attestation names a different binding principal");
     }
     if (!principal.mayActOn(record.orgId, record.serverId)) {
       return no("target_not_provisioned", "this executor is not provisioned for that target");
@@ -250,6 +308,10 @@ export class AttestationService {
     if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
+    const legacyBind = refuseLegacy(record);
+    if (legacyBind) return legacyBind;
+    // Only the lease holder binds, and only the binder can hold a lease, so this restricts binding to the
+    // binder without needing a second comparison that could disagree with reserve's.
     if (record.lease?.holderPrincipalId !== principal.principalId) {
       return no("not_lease_holder", "only the lease holder may bind a payload");
     }
@@ -302,6 +364,13 @@ export class AttestationService {
     if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
+    const legacyAcquire = refuseLegacy(record);
+    if (legacyAcquire) return legacyAcquire;
+    // The other half of the split: whoever binds may not execute. Checked here as well as in the store
+    // so the refusal names the reason rather than surfacing as a generic transition failure.
+    if (record.audiencePrincipalId !== principal.principalId) {
+      return no("wrong_audience", "only the audience may acquire execution; binding authority does not execute");
+    }
     const result = await this.#store.acquireAttestation({
       acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
@@ -328,6 +397,11 @@ export class AttestationService {
     if (unissued) return unissued;
     const record = await this.#store.loadAttestation(input.attestationId);
     if (!record) return no("unknown_attestation", "no such attestation");
+    const legacyRedeem = refuseLegacy(record);
+    if (legacyRedeem) return legacyRedeem;
+    if (record.audiencePrincipalId !== principal.principalId) {
+      return no("wrong_audience", "only the audience may redeem the execution it acquired");
+    }
     const result = await this.#store.redeemAttestation({
       acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
@@ -350,6 +424,15 @@ export class AttestationService {
   }): Promise<AttestationResult> {
     const unissued = notIssued(principal);
     if (unissued) return unissued;
+    // Renewal did not load the record before, so it could neither refuse a legacy identity nor say who
+    // owns the lease it is extending.
+    const record = await this.#store.loadAttestation(input.attestationId);
+    if (!record) return no("unknown_attestation", "no such attestation");
+    const legacyRenew = refuseLegacy(record);
+    if (legacyRenew) return legacyRenew;
+    if (record.bindingPrincipalId !== principal.principalId) {
+      return no("wrong_binder", "only the binder may renew a pre-acquire lease");
+    }
     const seconds = Math.min(Math.max(1, Math.floor(input.leaseSeconds)), LEASE_MAX_SECONDS);
     const now = this.#clock();
     const result = await this.#store.renewLease({
@@ -377,6 +460,8 @@ export class AttestationService {
       orgId: string;
       serverId: string;
       audiencePrincipalId: string;
+      bindingPrincipalId: string;
+      supersedesAttestationId?: string;
       expiresAt: string;
     }>;
   }): Promise<AttestationResult> {

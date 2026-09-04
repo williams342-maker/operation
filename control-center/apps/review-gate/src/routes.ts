@@ -235,6 +235,10 @@ export function buildRouter(deps: RouteDependencies): Router {
           orgId: z.string().min(1).max(200),
           serverId: z.string().min(1).max(200),
           audiencePrincipalId: z.string().min(1).max(200),
+          // Required on the wire, not defaulted server-side: the split must be an explicit owner
+          // decision at mint, and a request that omits it is refused rather than repaired.
+          bindingPrincipalId: z.string().min(1).max(200),
+          supersedesAttestationId: z.string().min(1).max(200).optional(),
           expiresAt: z.string().datetime(),
         })).min(1).max(50),
       }).safeParse(req.body);
@@ -341,6 +345,10 @@ export function buildRouter(deps: RouteDependencies): Router {
           orgId: z.string().min(1).max(200),
           serverId: z.string().min(1).max(200),
           audiencePrincipalId: z.string().min(1).max(200),
+          // Required on the wire, not defaulted server-side: the split must be an explicit owner
+          // decision at mint, and a request that omits it is refused rather than repaired.
+          bindingPrincipalId: z.string().min(1).max(200),
+          supersedesAttestationId: z.string().min(1).max(200).optional(),
           expiresAt: z.string().datetime(),
         })).min(1).max(50),
       }).safeParse(req.body);
