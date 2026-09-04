@@ -70,8 +70,20 @@ export const configurationDeploymentPayloadSchema = z.object({
   if (Boolean(value.encryptedValues) === Boolean(value.sealedValues)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Exactly one of encryptedValues (v1) or sealedValues (v2) is required", path: ["encryptedValues"] });
 });
 
-const deploymentErrorCategory = z.enum(["capability", "environment", "version", "path", "symlink", "mount", "parsing", "backup", "write", "activation", "health", "rollback", "replay", "unknown"]);
-export const deploymentProgressSchema = z.object({ phase: z.enum(deploymentPhases), progress: z.number().min(0).max(100), changedVariables: z.number().int().nonnegative().max(250), services: z.array(safeId).max(30), healthChecksPassed: z.number().int().nonnegative().max(30), errorCategory: deploymentErrorCategory.optional(), deploymentErrorCategory: deploymentErrorCategory.optional(), rollbackErrorCategory: deploymentErrorCategory.optional(), backupId: safeId.optional(), configurationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
+// `review_gate` is the category for "this executor was REFUSED and nothing was applied", which is a
+// different event from every other category here: those describe a deployment that ran and failed.
+//
+// It exists because an enforcing executor could not report a refusal at all. `acknowledgeTask` parses
+// every failed configuration ack with `deploymentProgressSchema`, the refusal result did not fit it, the
+// acknowledgement came back 400, the agent threw, and the poll loop's catch then reported a FABRICATED
+// generic failure -- `phase: failed, progress: 100, errorCategory: unknown` -- for a task where nothing
+// was deployed. The true reason never reached the control plane, and the operator was told a deployment
+// had failed when none had started.
+//
+// `safeTaskSummary` reads ONLY this field for these task types and ignores the message, so a category is
+// the only way a refusal can be made legible; `reviewGate` below carries the specific code alongside it.
+const deploymentErrorCategory = z.enum(["capability", "environment", "version", "path", "symlink", "mount", "parsing", "backup", "write", "activation", "health", "rollback", "replay", "review_gate", "unknown"]);
+export const deploymentProgressSchema = z.object({ phase: z.enum(deploymentPhases), progress: z.number().min(0).max(100), changedVariables: z.number().int().nonnegative().max(250), services: z.array(safeId).max(30), healthChecksPassed: z.number().int().nonnegative().max(30), errorCategory: deploymentErrorCategory.optional(), deploymentErrorCategory: deploymentErrorCategory.optional(), rollbackErrorCategory: deploymentErrorCategory.optional(), /** The gate's specific refusal code, when errorCategory is review_gate. The category alone cannot say WHY. */ reviewGate: safeId.optional(), backupId: safeId.optional(), configurationDigest: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
 
 export type ConfigurationDeploymentPayload = z.infer<typeof configurationDeploymentPayloadSchema>;
 export type DeploymentProgress = z.infer<typeof deploymentProgressSchema>;

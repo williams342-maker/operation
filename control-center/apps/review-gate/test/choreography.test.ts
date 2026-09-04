@@ -47,14 +47,18 @@ import { castOf } from "./principals.js";
 //     step this gate cannot drive, and says so rather than faking it.
 //   - The agent is not called with a task. It POLLS, over its real signed protocol, and finds one.
 //
-// SCOPE LIMIT, stated because it would otherwise be overclaimed: step 10 says "dispatch through the
-// normal control-center workflow". The control-center here is a protocol-faithful stub — it verifies
-// the agent's real HMAC over the real canonical string with the agent's own secret, and answers the
-// real poll contract — but it is not the deployed API. `apps/api` is a module-level Express app bound
-// to a live Mongo `collections` global; no test in this repository stands it up, and building that
-// harness is a separate piece of work. So this gate proves the agent's side of dispatch/poll in full
-// and the control-center's side only to the protocol. The API's own task persistence is unproven here,
-// and is also untouched by this candidate.
+// SCOPE, and it is narrower than it was: the control-center here is a protocol-faithful stub. It
+// verifies the agent's real HMAC over the real canonical string with the agent's own secret and answers
+// the real poll contract, but it is not the deployed API.
+//
+// Step 10 is now covered by `choreographyDeployedApi.test.ts`, which runs this same sequence against
+// `apps/api` on a socket over a real MongoDB — real authentication, real claim, real control-plane
+// envelope signing, real acknowledgement. That file needs a database and skips without one; this one
+// runs everywhere and stays the fast structural gate. Keeping both is deliberate: this file is where
+// the FORBIDDEN-SHORTCUT checks live, and they are worth running on every machine.
+//
+// What this file therefore still does not prove: the control plane's own task persistence and
+// acknowledgement handling. Read the two together.
 //
 // STEP 15 — extension — is likewise not driven here, and the reason is structural rather than an
 // omission. Extending requires the attempt token, the token is confined to the executor's memory, and
