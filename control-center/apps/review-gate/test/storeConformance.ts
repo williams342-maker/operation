@@ -638,6 +638,35 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     });
   });
 
+  test(`${label}: A8 -- redeem REFUSES once the execution deadline has passed`, async () => {
+    // The checklist's explicit negative case, and it was missing while redeem checked only the
+    // attestation's own expiry and the lease. Those do not cover it: an attestation stays valid for
+    // hours after a particular attempt's window has closed.
+    //
+    // It matters because the executor deliberately does NOT abort an effect whose extension was
+    // refused -- interrupting a half-applied deployment is worse than finishing it. Without this check
+    // that policy silently became "work performed outside its authorized window is recorded as
+    // authorized". Refused here, the record stays EXECUTING and becomes INDETERMINATE, which is the
+    // correct end for an execution nobody can account for.
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
+
+      // The attempt's deadline is 02:40. The ATTESTATION is good until 06:00, so nothing else refuses.
+      const late = await store.redeemAttestation({
+        acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-1", now: "2026-09-02T02:50:00.000Z", requireClaim: claim });
+      assert.equal(late.applied, false, "an overrun attempt must not settle as CONSUMED");
+      assert.equal((late as { code: string }).code, "execution_deadline_passed");
+
+      // And in time, the same redeem succeeds -- so the refusal is the deadline, not something else.
+      const inTime = await store.redeemAttestation({
+        acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-1", now: "2026-09-02T02:30:00.000Z", requireClaim: claim });
+      assert.equal(inTime.applied, true, JSON.stringify(inTime));
+    });
+  });
+
   test(`${label}: A7 -- deadlines are monotonic and bounded`, async () => {
     await withStore(async (store) => {
       const { claim } = await bound(store);

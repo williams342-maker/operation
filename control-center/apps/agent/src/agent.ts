@@ -219,6 +219,7 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
         // including by replacing this process. Holding the lease until the updater reports would make every
         // upgrade INDETERMINATE, because the executor that would redeem it no longer exists. The journal
         // entry records what was actually true at this point, and nothing more.
+        await keeper?.stop();
         await settle(enforcement, acquired, { succeeded: true, terminalPhase: "handed-to-updater" });
         await acknowledge(config, envelope.taskId, "progress", result, "Agent upgrade handed to independent updater");
         return;
@@ -229,17 +230,21 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     const failed = Boolean(deploymentResult && deploymentResult.phase !== "succeeded");
     // Settled BEFORE the acknowledgement, so the durable local record is written before the control-center
     // is told anything. If this host dies between the two, the journal is still right.
+    // The keeper is quiet BEFORE the record is settled: an extension in flight while redeem commits
+    // would be a second use of the attempt token after the attempt is over.
+    await keeper?.stop();
     await settle(enforcement, acquired, { succeeded: !failed, terminalPhase: deploymentResult?.phase });
     await acknowledge(config, envelope.taskId, failed ? "failed" : "succeeded", result, deploymentResult ? `Configuration deployment ${deploymentResult.phase || "failed"}` : undefined);
   } catch (error) {
     // A throw after acquisition still consumed the attestation, and the host may already have been
     // partly changed. Record that, then re-throw so the existing failure path is unchanged.
+    await keeper?.stop();
     await settle(enforcement, acquired, { succeeded: false, error: (error as Error)?.message });
     throw error;
   } finally {
     // Including the `agent.upgrade` path, which returns from inside the try. A keeper left running
     // would go on extending an attempt that has already been redeemed.
-    keeper?.stop();
+    await keeper?.stop();
   }
 }
 

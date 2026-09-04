@@ -435,21 +435,30 @@ test("a task cannot supply the credential the executor presents to the gate", as
 type ExtendRequest = { attemptToken?: string; requestedDeadline?: string };
 
 /** A gate that records extension requests and answers with a deadline of its own choosing. */
-function stubGate(reply: (n: number) => { status: number; body: Record<string, unknown> }) {
+function stubGate(reply: (n: number) => { status: number; body: Record<string, unknown> },
+  delayMs = 0) {
   const seen: ExtendRequest[] = [];
+  const received: number[] = [];
+  let repliedAt = 0;
   let arrived: () => void = () => {};
   const server = http.createServer((req, res) => {
     let body = "";
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
       seen.push(JSON.parse(body || "{}"));
-      const { status, body: payload } = reply(seen.length);
-      res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(payload));
-      arrived();
+      received.push(Date.now());
+      // A slow gate, so a request can genuinely be IN FLIGHT while the caller tries to shut down.
+      setTimeout(() => {
+        const { status, body: payload } = reply(seen.length);
+        res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(payload));
+        repliedAt = Date.now();
+        arrived();
+      }, delayMs);
     });
   });
   return {
-    server, seen,
+    server, seen, received,
+    repliedAt: () => repliedAt,
     nextRequest: () => new Promise<void>((resolve) => { arrived = resolve; }),
     start: async () => {
       server.listen(0);
@@ -551,4 +560,33 @@ test("the executor releases the keeper on every exit from the effect", () => {
   const text = source("agent.ts");
   assert.match(text, /finally\s*\{[\s\S]*keeper\?\.stop\(\)/,
     "the keeper must be released in a finally, not on the success path only");
+});
+
+test("stopping the keeper WAITS for an extension already in flight", async () => {
+  // Clearing the timer was not enough. Once `tick()` had called the gate there was nothing to cancel,
+  // so a request carrying the attempt token could still be in the air while settlement and redeem ran
+  // -- a second use of the token after the attempt was over. An independent review found that race.
+  const gate = stubGate(
+    () => ({ status: 200, body: { ok: true, executionDeadline: new Date(Date.now() + 5_000).toISOString() } }),
+    250);
+  const url = await gate.start();
+  const client = new ReviewGateClient({ url, credential: "executor-credential", timeoutMs: 2000 });
+  const keeper = keepExecutionAlive({
+    gate: client, acquired: acquiredFor(Date.now() + 25),
+    marginMs: 0, incrementMs: 60_000,
+  });
+  try {
+    // Wait until the gate has RECEIVED the request but has not answered it.
+    await until(() => gate.received.length === 1, "the extension to reach the gate");
+    assert.equal(gate.repliedAt(), 0, "the gate has not answered yet");
+
+    await keeper.stop();
+    const stoppedAt = Date.now();
+    assert.notEqual(gate.repliedAt(), 0, "stop must not return while the request is still in flight");
+    assert.ok(stoppedAt >= gate.repliedAt(),
+      "the keeper's life must end after the request it started, not before");
+  } finally {
+    await keeper.stop();
+    await gate.stop();
+  }
 });

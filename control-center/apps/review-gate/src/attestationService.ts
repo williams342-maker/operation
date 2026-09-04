@@ -41,7 +41,22 @@ const no = (code: string, message: string): AttestationResult => ({ ok: false, c
  * "Repeat until attestation expiry" is available only as an explicit choice, never the default: an
  * attempt that can extend indefinitely is a lease with extra steps.
  */
+/**
+ * TWO WINDOWS, AND THEY MUST DIFFER. An independent review found they did not.
+ *
+ * `MAX_EXECUTION_MS` is the ABSOLUTE cumulative cap on one attempt. `INITIAL_EXECUTION_MS` is the
+ * window acquire grants up front. Both were the same constant, and both were applied to the same
+ * `now`, so the deadline acquire issued was already the absolute bound -- and extension, which must
+ * request something strictly later than the current deadline and no later than the absolute one, had
+ * no value it could legally ask for. Every extension against the real service was refused as
+ * `deadline_not_extended` or `beyond_absolute_deadline`, whatever the executor did.
+ *
+ * The route, the store method, the client and the keeper were all correct and all unreachable. The
+ * unit test that passed did so against a permissive stub; nothing exercised acquire and extend
+ * together through the real service, which is the only place the two constants meet.
+ */
 const MAX_EXECUTION_MS = 30 * 60_000;
+const INITIAL_EXECUTION_MS = 10 * 60_000;
 
 /**
  * v1 records cannot execute, and are never migrated.
@@ -396,9 +411,11 @@ export class AttestationService {
       return no("wrong_audience", "only the audience may acquire execution; binding authority does not execute");
     }
     const now = this.#clock();
-    // Bounded by the attestation's own validity: an attempt may never outlive the authorization.
+    // Bounded by the attestation's own validity: an attempt may never outlive the authorization. The
+    // INITIAL window, deliberately shorter than the absolute cap, so a long execution has somewhere to
+    // extend to. A short-lived attestation still clamps below both.
     const deadline = Math.min(
-      Date.parse(now) + MAX_EXECUTION_MS,
+      Date.parse(now) + INITIAL_EXECUTION_MS,
       Date.parse(record.expiresAt),
     );
     if (deadline <= Date.parse(now)) return no("attestation_expired", "attestation_expired");

@@ -55,7 +55,15 @@ const EXTENSION_MARGIN_MS = 5 * 60_000;
 const EXTENSION_INCREMENT_MS = 15 * 60_000;
 
 export type ExecutionKeeper = {
-  stop: () => void;
+  /**
+   * Stop extending, and WAIT for any request already in flight.
+   *
+   * Clearing the timer alone was not enough: once `tick()` had called the gate there was nothing to
+   * cancel, so a request carrying the attempt token could still be in the air while settlement and
+   * redeem ran. An independent review found that race. The keeper's life now genuinely ends before
+   * the attempt's does.
+   */
+  stop: () => Promise<void>;
   /** Extensions the gate actually granted. */
   granted: () => number;
   /** Why the keeper stopped asking, if it did. */
@@ -80,9 +88,15 @@ export type ExecutionKeeper = {
  * A REFUSED EXTENSION DOES NOT ABORT THE EFFECT, and that is a deliberate choice rather than an
  * oversight. By the time this runs the host is already being changed; interrupting a deployment part
  * way through is a worse outcome than finishing it and settling honestly. So the keeper stops asking,
- * records why, and lets the effect complete — redeem does not require an unexpired deadline, and if the
- * attestation has genuinely lapsed the result is an INDETERMINATE for a human to reconcile, which is
- * the correct end for an execution nobody can account for.
+ * records why, and lets the effect complete.
+ *
+ * WHAT THAT DOES NOT MEAN is that the overrun is then accepted. An earlier version of this comment
+ * claimed redeem does not require an unexpired deadline; the checklist says the opposite, and redeem
+ * did not check it either — so an effect that outran its window settled as CONSUMED and work performed
+ * outside its authorized window was recorded as authorized. Redeem now refuses with
+ * `execution_deadline_passed`, the attestation stays EXECUTING and becomes INDETERMINATE, and a human
+ * reconciles it. Finishing the effect and refusing to certify it are not in tension: one is about the
+ * host, the other about the record.
  */
 export function keepExecutionAlive(input: {
   gate: Pick<ReviewGateClient, "extendExecution">;
@@ -97,11 +111,13 @@ export function keepExecutionAlive(input: {
   let refusal: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  // The extension currently in flight, if any. `stop()` awaits it.
+  let pending: Promise<void> | undefined;
 
   const schedule = () => {
     if (stopped) return;
     const delay = Math.max(0, Date.parse(deadline) - Date.now() - marginMs);
-    timer = setTimeout(() => { void tick(); }, delay);
+    timer = setTimeout(() => { pending = tick(); }, delay);
     // Never a reason for the process to stay alive: this timer exists only for the life of an effect
     // that something else is awaiting.
     timer.unref?.();
@@ -130,7 +146,12 @@ export function keepExecutionAlive(input: {
 
   schedule();
   return {
-    stop: () => { stopped = true; if (timer) clearTimeout(timer); },
+    stop: async () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      // Whatever it returns, and whatever it throws: this is a shutdown, not a result.
+      await pending?.catch(() => undefined);
+    },
     granted: () => granted,
     refusal: () => refusal,
     deadline: () => deadline,

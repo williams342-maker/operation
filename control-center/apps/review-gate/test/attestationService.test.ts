@@ -423,6 +423,50 @@ test("only the named BINDER may reserve, and the audience specifically may not",
   assert.equal((await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 })).ok, true);
 });
 
+test("an acquired attempt can actually be EXTENDED through the real service", async () => {
+  // THE TEST THAT WAS MISSING, and its absence made an entire feature unreachable.
+  //
+  // Acquire set the initial deadline to `min(now + MAX_EXECUTION_MS, expiresAt)` and extension computed
+  // its absolute bound from the SAME constant against the same instant, so the deadline acquire issued
+  // was already the absolute one. Extension must request something strictly later than the current
+  // deadline and no later than the bound, and no such value existed -- every extension against the real
+  // service was refused, whatever the executor did.
+  //
+  // Nothing caught it because nothing put the two together. The store conformance supplies both
+  // deadlines as arguments, so it can choose a pair the service can never produce; the executor's unit
+  // test answers from a stub that grants whatever it is asked. Only acquire and extend through the
+  // service that owns both constants can show this, which is why this test exists at this level.
+  const { svc, attestationId, who } = await minted();
+  const { leaseId } = valueOf<{ leaseId: string }>(
+    await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 3600 }));
+  const bound = await svc.bind(who("binder-1"), {
+    attestationId, leaseId, payload: configPayload({ reviewAuthorization: { attestationId, leaseId } }),
+  });
+  const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
+  const acquired = await svc.acquire(who("agent-1"), acquireArgs({
+    attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
+    kind: "configuration.apply" as const,
+  }));
+  const { attemptToken, executionDeadline } =
+    valueOf<{ attemptToken: string; executionDeadline: string }>(acquired);
+
+  const requested = new Date(Date.parse(executionDeadline) + 5 * 60_000).toISOString();
+  const extended = await svc.extendExecution(who("agent-1"), {
+    attestationId, attemptToken, requestedDeadline: requested,
+  });
+  assert.equal(extended.ok, true, JSON.stringify(extended));
+  const granted = valueOf<{ executionDeadline: string }>(extended).executionDeadline;
+  assert.ok(Date.parse(granted) > Date.parse(executionDeadline),
+    "the deadline must actually move, or the initial window IS the absolute bound again");
+
+  // And the cap is still real: far beyond it is refused rather than clamped silently.
+  const absurd = new Date(Date.parse(executionDeadline) + 24 * 60 * 60_000).toISOString();
+  const beyond = await svc.extendExecution(who("agent-1"), {
+    attestationId, attemptToken, requestedDeadline: absurd,
+  });
+  assert.equal(beyond.ok, false, "the absolute cap must still bound the extension");
+});
+
 test("the binder may not acquire or redeem the execution it authorized", async () => {
   // The other half: whoever binds does not execute. Without this the split would be cosmetic -- one
   // principal could reserve, bind and then acquire, which is the single authority it exists to divide.

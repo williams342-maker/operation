@@ -85,11 +85,11 @@ jobs:
       # PRIVILEGED_FS and DOCKER_DEPLOYMENT are intentionally NOT set. That absence is the point of this
       # job; setting them would make it a duplicate of `verify` and delete the coverage it exists for.
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # agent 131 + api 133 + shared 146 = 410, with exactly 3 skips: the docker-deployment test and two
+      # agent 132 + api 133 + shared 146 = 411, with exactly 3 skips: the docker-deployment test and two
       # privileged linuxDiscovery tests. Both numbers must move together when tests are added.
-      # agent +4: the execution keeper, which an independent review found unimplemented rather than
-      # merely untested.
-      CI_EXPECTED_TESTS: "410"
+      # agent +5: the execution keeper, which an independent review found unimplemented rather than
+      # merely untested, plus the in-flight shutdown race a second round found in the keeper itself.
+      CI_EXPECTED_TESTS: "411"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -152,12 +152,15 @@ jobs:
       # Linux the conformance suite RUNS, so the suite reports 0 skips and can be gated like any other.
       # Leaving it out meant the one package this candidate actually changes was the one package whose
       # count nothing checked; a deleted authorization test there would have been invisible.
-      # review-gate 231, MEASURED. I derived 232 from the previous run's 227 and the gate refused it --
-      # which is the entire reason the number is checked rather than described. The Mongo-only cases skip
-      # off CI, which is why this suite could not be gated at all before the replica-set step existed.
-      # agent 131: +4 for the execution keeper.
-      CI_EXPECTED_TEST_SUITES: "agent=131,api=133,review-gate=231,shared=146,web=34"
-      CI_EXPECTED_TESTS: "675"
+      # review-gate 234. Last round I derived 232 from the previous run's 227, the gate refused it, and
+      # 231 was the truth -- which is the entire reason this number is checked rather than described.
+      # The relation that actually holds, checked against that measured 231, is:
+      #   CI = (local total) - (2 Mongo skip placeholders) + (conformance cases) + (3 Mongo tx cases)
+      # Here 205 - 2 + 28 + 3 = 234. Still a prediction; the gate below is the measurement.
+      # The Mongo-only cases skip off CI, which is why this suite could not be gated at all before the
+      # replica-set step existed.
+      CI_EXPECTED_TEST_SUITES: "agent=132,api=133,review-gate=234,shared=146,web=34"
+      CI_EXPECTED_TESTS: "679"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
