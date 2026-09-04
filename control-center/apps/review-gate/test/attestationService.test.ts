@@ -29,13 +29,13 @@ const PEOPLE: Person[] = [
   { principalId: "owner", roles: ["owner"] },
   { principalId: "claude", roles: ["author"] },
   { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
-  { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-  { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
+  { principalId: "agent-1", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "agent-2", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-2" }] },
   // The binder is a separate principal with its own target scope. It reserves and binds; it never
-  // acquires. `audienceFor` is the existing scope field and is used for both roles -- the checklist asks
+  // acquires. `targetScopes` is the existing scope field and is used for both roles -- the checklist asks
   // for it to be renamed to something role-neutral, which is a later increment.
-  { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-  { principalId: "binder-2", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
+  { principalId: "binder-1", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "binder-2", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-2" }] },
 ];
 
 /** The mutation set a candidate is reviewed against. */
@@ -138,6 +138,15 @@ async function build() {
   });
   return { store, svc, who: cast.who };
 }
+
+// Acquire now requires an idempotency identity bound to the whole request. A counter keeps each call
+// distinct, so a test that acquires twice on purpose gets two attempts rather than a replay refusal.
+let acquireSeq = 0;
+const acquireArgs = <T extends object>(over: T) => ({
+  idempotencyKey: `acq-${acquireSeq++}`,
+  requestHash: `hash-${acquireSeq}`,
+  ...over,
+});
 
 const configPayload = (over: Record<string, unknown> = {}) => ({
   schemaVersion: "configuration-deployment-v1",
@@ -414,6 +423,50 @@ test("only the named BINDER may reserve, and the audience specifically may not",
   assert.equal((await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 })).ok, true);
 });
 
+test("an acquired attempt can actually be EXTENDED through the real service", async () => {
+  // THE TEST THAT WAS MISSING, and its absence made an entire feature unreachable.
+  //
+  // Acquire set the initial deadline to `min(now + MAX_EXECUTION_MS, expiresAt)` and extension computed
+  // its absolute bound from the SAME constant against the same instant, so the deadline acquire issued
+  // was already the absolute one. Extension must request something strictly later than the current
+  // deadline and no later than the bound, and no such value existed -- every extension against the real
+  // service was refused, whatever the executor did.
+  //
+  // Nothing caught it because nothing put the two together. The store conformance supplies both
+  // deadlines as arguments, so it can choose a pair the service can never produce; the executor's unit
+  // test answers from a stub that grants whatever it is asked. Only acquire and extend through the
+  // service that owns both constants can show this, which is why this test exists at this level.
+  const { svc, attestationId, who } = await minted();
+  const { leaseId } = valueOf<{ leaseId: string }>(
+    await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 3600 }));
+  const bound = await svc.bind(who("binder-1"), {
+    attestationId, leaseId, payload: configPayload({ reviewAuthorization: { attestationId, leaseId } }),
+  });
+  const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
+  const acquired = await svc.acquire(who("agent-1"), acquireArgs({
+    attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
+    kind: "configuration.apply" as const,
+  }));
+  const { attemptToken, executionDeadline } =
+    valueOf<{ attemptToken: string; executionDeadline: string }>(acquired);
+
+  const requested = new Date(Date.parse(executionDeadline) + 5 * 60_000).toISOString();
+  const extended = await svc.extendExecution(who("agent-1"), {
+    attestationId, attemptToken, requestedDeadline: requested,
+  });
+  assert.equal(extended.ok, true, JSON.stringify(extended));
+  const granted = valueOf<{ executionDeadline: string }>(extended).executionDeadline;
+  assert.ok(Date.parse(granted) > Date.parse(executionDeadline),
+    "the deadline must actually move, or the initial window IS the absolute bound again");
+
+  // And the cap is still real: far beyond it is refused rather than clamped silently.
+  const absurd = new Date(Date.parse(executionDeadline) + 24 * 60 * 60_000).toISOString();
+  const beyond = await svc.extendExecution(who("agent-1"), {
+    attestationId, attemptToken, requestedDeadline: absurd,
+  });
+  assert.equal(beyond.ok, false, "the absolute cap must still bound the extension");
+});
+
 test("the binder may not acquire or redeem the execution it authorized", async () => {
   // The other half: whoever binds does not execute. Without this the split would be cosmetic -- one
   // principal could reserve, bind and then acquire, which is the single authority it exists to divide.
@@ -427,10 +480,12 @@ test("the binder may not acquire or redeem the execution it authorized", async (
   const request = { attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
     kind: "configuration.apply" as const };
 
-  const binderAcquire = await svc.acquire(who("binder-1"), request);
+  const binderAcquire = await svc.acquire(who("binder-1"), acquireArgs(request));
   assert.equal((binderAcquire as { code: string }).code, "wrong_audience");
-  assert.equal((await svc.acquire(who("agent-1"), request)).ok, true);
-  const binderRedeem = await svc.redeem(who("binder-1"), { attestationId, leaseId });
+  const acquired = await svc.acquire(who("agent-1"), acquireArgs(request));
+  assert.equal(acquired.ok, true);
+  const { attemptToken } = valueOf<{ attemptToken: string }>(acquired);
+  const binderRedeem = await svc.redeem(who("binder-1"), { attestationId, leaseId, attemptToken });
   assert.equal((binderRedeem as { code: string }).code, "wrong_audience");
 });
 
@@ -517,10 +572,12 @@ test("acquisition wins for exactly one caller, before any host mutation", async 
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
   const request = { attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
     kind: "configuration.apply" as const };
-  assert.equal((await svc.acquire(who("agent-1"), request)).ok, true);
-  assert.equal((await svc.acquire(who("agent-1"), request)).ok, false,
+  const won = await svc.acquire(who("agent-1"), acquireArgs(request));
+  assert.equal(won.ok, true);
+  const token = valueOf<{ attemptToken: string }>(won).attemptToken;
+  assert.equal((await svc.acquire(who("agent-1"), acquireArgs(request))).ok, false,
     "a second delivery loses, and loses before it could change anything");
-  assert.equal((await svc.redeem(who("agent-1"), { attestationId, leaseId })).ok, true);
+  assert.equal((await svc.redeem(who("agent-1"), { attestationId, leaseId, attemptToken: token })).ok, true);
 });
 
 test("a rotation after authentication invalidates a lease in flight", async () => {
@@ -536,7 +593,7 @@ test("a rotation after authentication invalidates a lease in flight", async () =
   // must invalidate a bind in flight.
   store.seedPrincipal({
     principalId: "binder-1", displayName: "binder-1", roles: ["binder"], reviewerClasses: [],
-    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+    targetScopes: [{ orgId: "org-1", serverId: "server-1" }],
     credentialEpoch: 2, createdAt: "2026-09-02T00:00:00.000Z",
   }, "rotated-credential");
 
@@ -567,8 +624,8 @@ test("only the owner may revoke, and not once execution is underway", async () =
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
   const bound = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
-  await svc.acquire(who("agent-1"), { attestationId, leaseId, actionDigest,
-    orgId: "org-1", serverId: "server-1", kind: "configuration.apply" });
+  await svc.acquire(who("agent-1"), acquireArgs({ attestationId, leaseId, actionDigest,
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply" }));
   const late = await svc.revoke(who("owner"), { attestationId, reason: "changed mind" });
   assert.equal(late.ok, false,
     "the effect may be underway; a row claiming it was stopped would assert what the gate cannot know");

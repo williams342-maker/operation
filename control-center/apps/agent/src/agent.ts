@@ -10,7 +10,7 @@ import { handoffUpgrade } from "./upgradeHandoff.js";
 import { ExecutionJournal } from "./executionJournal.js";
 import { ReviewGateClient } from "./reviewGateClient.js";
 import { resolveEnforcement } from "./reviewEnforcement.js";
-import { acquireForEffect, recordEffect, type Acquired } from "./reviewEnforcedExecution.js";
+import { acquireForEffect, keepExecutionAlive, recordEffect, type Acquired } from "./reviewEnforcedExecution.js";
 
 const advertisedCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
 const heartbeatStateFile = "/var/lib/opsworkbench-agent/agent/heartbeat.json";
@@ -164,6 +164,15 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     acquired = outcome;
   }
 
+  // The authorization has a deadline, and until now nothing read it. A privileged effect that outran
+  // its window kept going with a lapsed attempt and only found out at redeem. The keeper asks the gate
+  // for more time before the window closes, using the attempt token from memory, and stops the moment
+  // the effect is done -- whichever way it ends, which is why it is released in a `finally` rather
+  // than after the settle.
+  const keeper = acquired && enforcement.enforcing
+    ? keepExecutionAlive({ gate: enforcement.gate, acquired })
+    : undefined;
+
   try {
     let result: unknown;
     switch (envelope.taskType as TaskType) {
@@ -210,6 +219,7 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
         // including by replacing this process. Holding the lease until the updater reports would make every
         // upgrade INDETERMINATE, because the executor that would redeem it no longer exists. The journal
         // entry records what was actually true at this point, and nothing more.
+        await keeper?.stop();
         await settle(enforcement, acquired, { succeeded: true, terminalPhase: "handed-to-updater" });
         await acknowledge(config, envelope.taskId, "progress", result, "Agent upgrade handed to independent updater");
         return;
@@ -220,13 +230,21 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     const failed = Boolean(deploymentResult && deploymentResult.phase !== "succeeded");
     // Settled BEFORE the acknowledgement, so the durable local record is written before the control-center
     // is told anything. If this host dies between the two, the journal is still right.
+    // The keeper is quiet BEFORE the record is settled: an extension in flight while redeem commits
+    // would be a second use of the attempt token after the attempt is over.
+    await keeper?.stop();
     await settle(enforcement, acquired, { succeeded: !failed, terminalPhase: deploymentResult?.phase });
     await acknowledge(config, envelope.taskId, failed ? "failed" : "succeeded", result, deploymentResult ? `Configuration deployment ${deploymentResult.phase || "failed"}` : undefined);
   } catch (error) {
     // A throw after acquisition still consumed the attestation, and the host may already have been
     // partly changed. Record that, then re-throw so the existing failure path is unchanged.
+    await keeper?.stop();
     await settle(enforcement, acquired, { succeeded: false, error: (error as Error)?.message });
     throw error;
+  } finally {
+    // Including the `agent.upgrade` path, which returns from inside the try. A keeper left running
+    // would go on extending an attempt that has already been redeemed.
+    await keeper?.stop();
   }
 }
 

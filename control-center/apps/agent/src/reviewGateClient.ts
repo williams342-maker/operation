@@ -17,6 +17,25 @@ export type GateOutcome =
   | { ok: false; code: string; detail?: string };
 
 /**
+ * Acquire returns the ATTEMPT TOKEN, once. It is the executor's proof that it is the winning attempt,
+ * and it is required to extend or redeem.
+ *
+ * It is deliberately not part of `GateOutcome`: every other operation returns that type, and a token
+ * field on the shared type is how a secret ends up in a log line that prints "the outcome". Keep it in
+ * memory for the life of the attempt and never write it to the journal, a report, or an error.
+ *
+ * SINGLE DELIVERY: losing this response loses the attempt. The gate stores only a verifier and cannot
+ * reissue it; a retry returns `already_acquired` with no token, and the attempt must be reconciled.
+ */
+export type ExtendOutcome =
+  | { ok: true; executionDeadline: string }
+  | { ok: false; code: string; detail?: string };
+
+export type AcquireOutcome =
+  | { ok: true; attemptToken: string; executionDeadline: string }
+  | { ok: false; code: string; detail?: string };
+
+/**
  * FAIL CLOSED, everywhere, with no exceptions.
  *
  * Unreachable, slow, wrong status, unparseable body, unexpected shape: all refuse. There is no cache, no
@@ -33,7 +52,8 @@ export class ReviewGateClient {
     this.#fetch = fetchImpl;
   }
 
-  async #post(endpoint: string, body: unknown): Promise<GateOutcome> {
+  async #post(endpoint: string, body: unknown, headers: Record<string, string> = {},
+  ): Promise<GateOutcome & { body?: Record<string, unknown> }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#gate.timeoutMs);
     try {
@@ -43,6 +63,7 @@ export class ReviewGateClient {
           "content-type": "application/json",
           // The executor's own credential. Never one the control-center supplied.
           authorization: `Bearer ${this.#gate.credential}`,
+          ...headers,
         },
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -54,7 +75,9 @@ export class ReviewGateClient {
         return { ok: false, code: "gate_unreadable", detail: `status ${response.status}` };
       }
       const payload = parsed as { ok?: unknown; code?: unknown; message?: unknown };
-      if (response.status === 200 && payload.ok === true) return { ok: true };
+      if (response.status === 200 && payload.ok === true) {
+        return { ok: true, body: parsed as Record<string, unknown> };
+      }
       // Anything else is a refusal, including a 200 whose body does not say ok. A response we cannot
       // interpret is not permission.
       return {
@@ -88,20 +111,63 @@ export class ReviewGateClient {
     orgId: string;
     serverId: string;
     kind: string;
-  }): Promise<GateOutcome> {
-    return this.#post(`/attestations/${encodeURIComponent(input.attestationId)}/acquire`, {
-      leaseId: input.leaseId,
-      actionDigest: input.actionDigest,
-      orgId: input.orgId,
-      serverId: input.serverId,
-      kind: input.kind,
-    });
+    /** High-entropy and per-attempt. A committed retry with the same key returns `already_acquired`. */
+    idempotencyKey: string;
+  }): Promise<AcquireOutcome> {
+    const outcome = await this.#post(
+      `/attestations/${encodeURIComponent(input.attestationId)}/acquire`,
+      {
+        leaseId: input.leaseId,
+        actionDigest: input.actionDigest,
+        orgId: input.orgId,
+        serverId: input.serverId,
+        kind: input.kind,
+      },
+      { "idempotency-key": input.idempotencyKey },
+    );
+    if (!outcome.ok) return outcome;
+    const token = outcome.body?.attemptToken;
+    const deadline = outcome.body?.executionDeadline;
+    // A 200 that does not carry a token is not a successful acquire. Failing closed here rather than
+    // proceeding tokenless keeps the effect gated on something the gate actually issued.
+    if (typeof token !== "string" || !token || typeof deadline !== "string") {
+      return { ok: false, code: "gate_unreadable", detail: "acquire returned no attempt token" };
+    }
+    return { ok: true, attemptToken: token, executionDeadline: deadline };
+  }
+
+  /**
+   * Extend a live attempt. Refused after a credential rotation, by design; redeem is not.
+   *
+   * Returns the deadline the gate GRANTED, which is not always the one asked for: the gate clamps to
+   * the attestation's own validity and to an absolute cumulative bound. A caller that assumed its own
+   * request had been honoured would believe it had time the gate never gave it.
+   */
+  async extendExecution(input: {
+    attestationId: string;
+    attemptToken: string;
+    requestedDeadline: string;
+  }): Promise<ExtendOutcome> {
+    const outcome = await this.#post(
+      `/attestations/${encodeURIComponent(input.attestationId)}/extend-execution`,
+      { attemptToken: input.attemptToken, requestedDeadline: input.requestedDeadline },
+    );
+    if (!outcome.ok) return outcome;
+    const granted = outcome.body?.executionDeadline;
+    if (typeof granted !== "string") {
+      return { ok: false, code: "gate_unreadable", detail: "extend returned no deadline" };
+    }
+    return { ok: true, executionDeadline: granted };
   }
 
   /** Close it out. A failure to redeem does not un-apply anything; it leaves the record for a human. */
-  async redeem(input: { attestationId: string; leaseId: string }): Promise<GateOutcome> {
-    return this.#post(`/attestations/${encodeURIComponent(input.attestationId)}/redeem`, {
-      leaseId: input.leaseId,
-    });
+  async redeem(input: {
+    attestationId: string; leaseId: string; attemptToken: string;
+  }): Promise<GateOutcome> {
+    const outcome = await this.#post(
+      `/attestations/${encodeURIComponent(input.attestationId)}/redeem`,
+      { leaseId: input.leaseId, attemptToken: input.attemptToken },
+    );
+    return outcome.ok ? { ok: true } : outcome;
   }
 }

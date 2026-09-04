@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readReviewAuthorization, privilegedActionDigest } from "@control-center/shared";
 import { ExecutionJournal, type JournalEntry } from "./executionJournal.js";
 import type { ReviewGateClient } from "./reviewGateClient.js";
@@ -31,11 +32,131 @@ export type Acquired = {
   attestationId: string;
   leaseId: string;
   actionDigest: string;
+  /**
+   * SINGLE-DELIVERY SECRET. Held in memory for the life of the attempt and required to extend or redeem.
+   * Never journalled, never logged, never included in a report: the gate keeps only a verifier, so a
+   * durable copy here would defeat the reason for that.
+   */
+  attemptToken: string;
+  executionDeadline: string;
 };
 
 export type EnforcedOutcome = Acquired | EnforcementRefusal;
 
 const refuse = (code: string, detail?: string): EnforcementRefusal => ({ refused: true, code, detail });
+
+/**
+ * How long before the deadline to ask for more time, and how much more to ask for.
+ *
+ * The margin has to exceed a plausible round trip to the gate plus a retry, or the extension lands
+ * after the deadline it was meant to move.
+ */
+const EXTENSION_MARGIN_MS = 5 * 60_000;
+const EXTENSION_INCREMENT_MS = 15 * 60_000;
+
+export type ExecutionKeeper = {
+  /**
+   * Stop extending, and WAIT for any request already in flight.
+   *
+   * Clearing the timer alone was not enough: once `tick()` had called the gate there was nothing to
+   * cancel, so a request carrying the attempt token could still be in the air while settlement and
+   * redeem ran. An independent review found that race. The keeper's life now genuinely ends before
+   * the attempt's does.
+   */
+  stop: () => Promise<void>;
+  /** Extensions the gate actually granted. */
+  granted: () => number;
+  /** Why the keeper stopped asking, if it did. */
+  refusal: () => string | undefined;
+  /** The deadline currently in force — the gate's answer, never this executor's request. */
+  deadline: () => string;
+};
+
+/**
+ * Hold a long execution's authorization open while the effect runs.
+ *
+ * THIS DID NOT EXIST. An independent review found the checklist's extension step untested; it was in
+ * fact UNIMPLEMENTED on this side. The gate had a route, the store had a method and the client had a
+ * caller — and nothing in the executor ever invoked any of them. `executionDeadline` was carried out
+ * of `acquire`, put in a field, and never read. An execution that outran its window simply ran on with
+ * an authorization that had lapsed, and nobody found out until redeem.
+ *
+ * The deadline tracked here is the one the GATE returned, not the one this executor asked for: the gate
+ * clamps to the attestation's validity and to an absolute cumulative bound, so a keeper that trusted
+ * its own request would reschedule against time it had never been given.
+ *
+ * A REFUSED EXTENSION DOES NOT ABORT THE EFFECT, and that is a deliberate choice rather than an
+ * oversight. By the time this runs the host is already being changed; interrupting a deployment part
+ * way through is a worse outcome than finishing it and settling honestly. So the keeper stops asking,
+ * records why, and lets the effect complete.
+ *
+ * WHAT THAT DOES NOT MEAN is that the overrun is then accepted. An earlier version of this comment
+ * claimed redeem does not require an unexpired deadline; the checklist says the opposite, and redeem
+ * did not check it either — so an effect that outran its window settled as CONSUMED and work performed
+ * outside its authorized window was recorded as authorized. Redeem now refuses with
+ * `execution_deadline_passed`, the attestation stays EXECUTING and becomes INDETERMINATE, and a human
+ * reconciles it. Finishing the effect and refusing to certify it are not in tension: one is about the
+ * host, the other about the record.
+ */
+export function keepExecutionAlive(input: {
+  gate: Pick<ReviewGateClient, "extendExecution">;
+  acquired: Acquired;
+  marginMs?: number;
+  incrementMs?: number;
+}): ExecutionKeeper {
+  const marginMs = input.marginMs ?? EXTENSION_MARGIN_MS;
+  const incrementMs = input.incrementMs ?? EXTENSION_INCREMENT_MS;
+  let deadline = input.acquired.executionDeadline;
+  let granted = 0;
+  let refusal: string | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let stopped = false;
+  // The extension currently in flight, if any. `stop()` awaits it.
+  let pending: Promise<void> | undefined;
+
+  const schedule = () => {
+    if (stopped) return;
+    const delay = Math.max(0, Date.parse(deadline) - Date.now() - marginMs);
+    timer = setTimeout(() => { pending = tick(); }, delay);
+    // Never a reason for the process to stay alive: this timer exists only for the life of an effect
+    // that something else is awaiting.
+    timer.unref?.();
+  };
+
+  const tick = async () => {
+    if (stopped) return;
+    const requested = new Date(Date.now() + incrementMs).toISOString();
+    const outcome = await input.gate.extendExecution({
+      attestationId: input.acquired.attestationId,
+      // The single-delivery token, from memory. It is the proof this is the winning attempt.
+      attemptToken: input.acquired.attemptToken,
+      requestedDeadline: requested,
+    }).catch((error: Error) => ({ ok: false as const, code: "gate_unreachable", detail: error.message }));
+    if (stopped) return;
+    if (!outcome.ok) {
+      // One refusal ends it. Asking again would either repeat a permanent answer — a rotated
+      // credential, a spent attestation — or hammer a gate that is already unreachable.
+      refusal = outcome.code;
+      return;
+    }
+    granted += 1;
+    deadline = outcome.executionDeadline;
+    schedule();
+  };
+
+  schedule();
+  return {
+    stop: async () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      // Whatever it returns, and whatever it throws: this is a shutdown, not a result.
+      await pending?.catch(() => undefined);
+    },
+    granted: () => granted,
+    refusal: () => refusal,
+    deadline: () => deadline,
+  };
+}
 
 /**
  * Take the right to act, from the gate and then from this host.
@@ -81,6 +202,10 @@ export async function acquireForEffect(input: {
     orgId: input.orgId,
     serverId: input.serverId,
     kind: input.taskType,
+    // PER ATTEMPT, high-entropy, and generated here rather than derived from the task: a key derived
+    // from stable task fields would make an honest retry after a lost response look like the same
+    // request identity, which is precisely the case that must return `already_acquired`.
+    idempotencyKey: randomUUID(),
   });
   if (!acquired.ok) return refuse(acquired.code, acquired.detail);
 
@@ -101,7 +226,17 @@ export async function acquireForEffect(input: {
       describeEntry(claim.entry),
     );
   }
-  return { refused: false, attestationId: reference.attestationId, leaseId: reference.leaseId, actionDigest };
+  // The token travels in memory, in the returned value, and nowhere else. It is deliberately NOT passed
+  // to `journal.claim` above: the journal is durable, and a durable copy of a single-delivery secret
+  // would undo the reason it is verifier-only at the gate.
+  return {
+    refused: false,
+    attestationId: reference.attestationId,
+    leaseId: reference.leaseId,
+    actionDigest,
+    attemptToken: acquired.attemptToken,
+    executionDeadline: acquired.executionDeadline,
+  };
 }
 
 /**
@@ -133,6 +268,10 @@ export async function recordEffect(input: {
   const redeemed = await input.gate.redeem({
     attestationId: input.acquired.attestationId,
     leaseId: input.acquired.leaseId,
+    // Redeem needs the CURRENT credential plus this token, and deliberately NOT the epoch recorded at
+    // acquire: a rotated executor may still record an outcome it already produced. Extension is the
+    // operation that refuses after rotation.
+    attemptToken: input.acquired.attemptToken,
   });
   return redeemed.ok ? { redeemed: true } : { redeemed: false, redeemCode: redeemed.code };
 }

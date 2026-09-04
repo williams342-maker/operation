@@ -18,7 +18,7 @@ type ProvisionArgs = {
   displayName: string;
   roles: string[];
   reviewerClasses: string[];
-  audienceFor: Array<{ orgId: string; serverId: string }>;
+  targetScopes: Array<{ orgId: string; serverId: string }>;
 };
 
 export type AuditEntry = {
@@ -79,7 +79,7 @@ export async function provision(db: Db, args: ProvisionArgs): Promise<{ credenti
       credentialIndex: credentialIndex(credential),
       roles: args.roles,
       reviewerClasses: args.reviewerClasses,
-      ...(args.audienceFor.length ? { audienceFor: args.audienceFor } : {}),
+      ...(args.targetScopes.length ? { targetScopes: args.targetScopes } : {}),
       // Starts at 1 and only ever increases. A timestamp cannot serve here: two rotations inside one
       // clock tick are indistinguishable, and clock adjustment moves one backwards.
       credentialEpoch: 1,
@@ -123,14 +123,67 @@ export async function disable(db: Db, principalId: string): Promise<void> {
   const now = new Date().toISOString();
   // Disabling also bumps the epoch: outstanding leases stamped with the old one stop matching, so work
   // in flight is invalidated rather than left to finish under a revoked identity.
+  //
+  // AND IT BUMPS THE INCARNATION, which is a different mechanism for a different reason. Under split
+  // authority, acquire deliberately ignores the binder's credential epoch -- rotation must not invalidate
+  // a completed binding -- so the epoch alone would no longer invalidate this binder's outstanding
+  // bindings. The incarnation is the value bind records and acquire compares, and it increments ONLY
+  // here. That is what makes disable-then-re-enable invalidate prior bindings while an ordinary rotation
+  // leaves them alone.
+  //
+  // This mutates ONLY the canonical principal row and its audit record. There is deliberately no bulk
+  // update over attestations: that would be an unbounded write, and incident identification is derived
+  // instead by querying EXECUTING records by bindingPrincipalId.
   await inTransaction(db, async (session) => {
+    // AN AGGREGATION PIPELINE, AND NOT `$inc`, AND THIS IS A DEFECT AN INDEPENDENT REVIEW FOUND.
+    //
+    // `$inc` treats a missing field as ZERO, so on a row written before `incarnation` existed it set the
+    // field to 1. Bind reads that same absent field as ONE (`binder.incarnation ?? 1`) and records 1.
+    // The two agreed exactly: disabling a legacy binder produced the very incarnation its outstanding
+    // bindings had recorded, so the fence still matched and re-enabling the principal handed those
+    // bindings straight back. Disablement did nothing for precisely the rows old enough to need it.
+    //
+    // `$ifNull` makes the base explicit and makes the two readings agree: absent means 1 here, exactly
+    // as it means 1 at bind, so the first disable moves it to 2 and the fence stops matching.
+    // `credentialEpoch` keeps `$inc`'s own base of 0 -- it is not read through a `?? 1` anywhere.
     const update = await principals.updateOne(
       { principalId },
-      { $set: { disabledAt: now }, $inc: { credentialEpoch: 1 } } as never,
+      [{
+        $set: {
+          disabledAt: now,
+          credentialEpoch: { $add: [{ $ifNull: ["$credentialEpoch", 0] }, 1] },
+          incarnation: { $add: [{ $ifNull: ["$incarnation", 1] }, 1] },
+        },
+      }] as never,
       { session },
     );
     if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);
     await audit(db, { at: now, action: "disable", principalId, by: operatorIdentity() }, session);
+  });
+}
+
+/**
+ * Re-enable a disabled principal. It does NOT restore the previous incarnation, and that is the point.
+ *
+ * A principal disabled after a bind and later re-enabled is *presently enabled*, so anything checking
+ * only enabled/disabled status would accept exactly the bindings disablement was meant to invalidate.
+ * The incarnation stays where disable left it, so those bindings remain refused at acquire while new
+ * ones taken after re-enablement work normally.
+ *
+ * (The design asserted this operation already existed here. It did not -- only the audit action name did.
+ * Implemented rather than quietly dropped, because A9 requires the enable path to be exercised.)
+ */
+export async function enable(db: Db, principalId: string): Promise<void> {
+  const principals = db.collection<Principal>("principals");
+  const now = new Date().toISOString();
+  await inTransaction(db, async (session) => {
+    const update = await principals.updateOne(
+      { principalId },
+      { $unset: { disabledAt: "" } } as never,
+      { session },
+    );
+    if (update.matchedCount !== 1) throw new Error(`no such principal: ${principalId}`);
+    await audit(db, { at: now, action: "enable", principalId, by: operatorIdentity() }, session);
   });
 }
 
@@ -143,6 +196,7 @@ review-gate operator
             [--audience <orgId>:<serverId>]...
   rotate    --id <principalId>
   disable   --id <principalId>
+  enable    --id <principalId>
 
 Prints a credential ONCE on provision and rotate. It is not stored, logged, or recoverable:
 if it is lost, rotate again.
@@ -177,7 +231,7 @@ export async function main(argv: string[]): Promise<number> {
     return 2;
   }
   const { command, flags } = parsed;
-  if (!["provision", "rotate", "disable"].includes(command)) {
+  if (!["provision", "rotate", "disable", "enable"].includes(command)) {
     console.error(USAGE);
     return 2;
   }
@@ -194,7 +248,7 @@ export async function main(argv: string[]): Promise<number> {
     const db = client.db(config.dbName);
     await ensureIndexes(db);
     if (command === "provision") {
-      const audienceFor = (flags.get("audience") ?? []).map((entry) => {
+      const targetScopes = (flags.get("audience") ?? []).map((entry) => {
         const [orgId, serverId] = entry.split(":");
         if (!orgId || !serverId) throw new Error(`--audience must be <orgId>:<serverId>, got ${entry}`);
         return { orgId, serverId };
@@ -204,7 +258,7 @@ export async function main(argv: string[]): Promise<number> {
         displayName: flags.get("name")?.[0] ?? id,
         roles: flags.get("role") ?? [],
         reviewerClasses: flags.get("reviewer-class") ?? [],
-        audienceFor,
+        targetScopes,
       });
       // The one and only time this value exists outside the caller's head.
       console.log(`principal ${id} provisioned.`);
@@ -217,8 +271,15 @@ export async function main(argv: string[]): Promise<number> {
       console.log(`credential (shown once, not stored): ${credential}`);
       return 0;
     }
+    if (command === "enable") {
+      await enable(db, id);
+      console.log(`principal ${id} enabled. Bindings taken before it was disabled stay refused: `
+        + `re-enabling does not restore the previous incarnation.`);
+      return 0;
+    }
     await disable(db, id);
-    console.log(`principal ${id} disabled; outstanding leases are invalidated.`);
+    console.log(`principal ${id} disabled; outstanding leases are invalidated, and bindings it made `
+      + `can no longer be acquired.`);
     return 0;
   } catch (error) {
     console.error((error as Error).message);

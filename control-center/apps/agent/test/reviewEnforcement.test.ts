@@ -10,7 +10,9 @@ import { agentConfigSchema } from "../src/config.js";
 import { readEnforcement, writeEnforcement, resolveEnforcement } from "../src/reviewEnforcement.js";
 import { ExecutionJournal } from "../src/executionJournal.js";
 import { ReviewGateClient } from "../src/reviewGateClient.js";
-import { acquireForEffect, recordEffect } from "../src/reviewEnforcedExecution.js";
+import { acquireForEffect, keepExecutionAlive, recordEffect, type Acquired } from "../src/reviewEnforcedExecution.js";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 
 process.env.NODE_ENV = "test";
 const { verifyTask } = await import("../src/agent.js");
@@ -76,7 +78,12 @@ function fakeGate(answers: Record<string, { status: number; body: unknown }>) {
     const url = String(input);
     calls.push({ url, authorization: String((init?.headers as any)?.authorization ?? ""), body: JSON.parse(String(init?.body ?? "{}")) });
     const key = url.includes("/acquire") ? "acquire" : "redeem";
-    const answer = answers[key] ?? { status: 200, body: { ok: true } };
+    // A successful acquire MUST carry the attempt token: the client fails closed on a 200 without one,
+    // because proceeding tokenless would mean acting on something the gate never issued.
+    const fallback = key === "acquire"
+      ? { status: 200, body: { ok: true, attemptToken: "attempt-token-fake", executionDeadline: "2026-09-02T04:00:00.000Z" } }
+      : { status: 200, body: { ok: true } };
+    const answer = answers[key] ?? fallback;
     return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { "content-type": "application/json" } });
   };
   return { calls, client: (credential = "executor-own-credential") => new ReviewGateClient({ url: "https://gate.test", credential, timeoutMs: 1000 }, impl) };
@@ -211,7 +218,7 @@ test("the gate client fails closed on every unhappy answer", async () => {
   ];
   for (const [name, answer, expected] of cases) {
     const gate = fakeGate({ acquire: answer });
-    const outcome = await gate.client().acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply" });
+    const outcome = await gate.client().acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply", idempotencyKey: "idem-test" });
     assert.equal(outcome.ok, false, name);
     assert.match(outcome.ok === false ? outcome.code : "", expected, name);
   }
@@ -219,11 +226,11 @@ test("the gate client fails closed on every unhappy answer", async () => {
 
 test("an unreachable or unreadable gate is a refusal, never a pass", async () => {
   const unreachable = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => { throw new Error("ECONNREFUSED"); });
-  const down = await unreachable.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k" });
+  const down = await unreachable.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-test" });
   assert.equal(down.ok === false && down.code, "gate_unreachable");
 
   const garbage = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }, async () => new Response("<html>proxy error</html>", { status: 200 }));
-  const unreadable = await garbage.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k" });
+  const unreadable = await garbage.acquire({ attestationId: "a", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-test" });
   assert.equal(unreadable.ok === false && unreadable.code, "gate_unreadable");
 });
 
@@ -234,7 +241,7 @@ test("a gate that does not answer promptly is a gate that is unreachable", async
       // out into a pass. The abort is the answer.
       init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
     }));
-  const outcome = await hanging.acquire({ attestationId: "a", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k" });
+  const outcome = await hanging.acquire({ attestationId: "a", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-test" });
   assert.equal(outcome.ok === false && outcome.code, "gate_timeout");
 });
 
@@ -254,7 +261,7 @@ test("an executor with NO owner public key is still stopped at the effect point"
 
 test("the executor authenticates to the gate with ITS OWN credential", async () => {
   const gate = fakeGate({});
-  await gate.client("executor-own-credential").acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply" });
+  await gate.client("executor-own-credential").acquire({ attestationId: "att-1", leaseId: "l", actionDigest: "d", orgId: "o", serverId: "s", kind: "configuration.apply", idempotencyKey: "idem-test" });
   // An instruction is not authorization. If the control-center could supply the proof that its own
   // deployment was reviewed, the review would be decorative.
   assert.equal(gate.calls[0].authorization, "Bearer executor-own-credential");
@@ -415,4 +422,171 @@ test("a task cannot supply the credential the executor presents to the gate", as
   assert.equal(gate.calls[0].authorization, "Bearer executor-own-credential");
   // And none of it is forwarded to the gate as body fields it might trust.
   assert.deepEqual(Object.keys(gate.calls[0].body).sort(), ["actionDigest", "kind", "leaseId", "orgId", "serverId"]);
+});
+
+// ── the execution keeper ─────────────────────────────────────────────────────────────────────────
+//
+// An independent review found the checklist's extension step untested. It was worse than that: nothing
+// in the executor ever called extend. `executionDeadline` came out of acquire, sat in a field, and was
+// never read, so a privileged effect that outran its window ran on with a lapsed attempt.
+//
+// These drive the real client over a real socket, so the attempt token genuinely travels on the wire.
+
+type ExtendRequest = { attemptToken?: string; requestedDeadline?: string };
+
+/** A gate that records extension requests and answers with a deadline of its own choosing. */
+function stubGate(reply: (n: number) => { status: number; body: Record<string, unknown> },
+  delayMs = 0) {
+  const seen: ExtendRequest[] = [];
+  const received: number[] = [];
+  let repliedAt = 0;
+  let arrived: () => void = () => {};
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      seen.push(JSON.parse(body || "{}"));
+      received.push(Date.now());
+      // A slow gate, so a request can genuinely be IN FLIGHT while the caller tries to shut down.
+      setTimeout(() => {
+        const { status, body: payload } = reply(seen.length);
+        res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(payload));
+        repliedAt = Date.now();
+        arrived();
+      }, delayMs);
+    });
+  });
+  return {
+    server, seen, received,
+    repliedAt: () => repliedAt,
+    nextRequest: () => new Promise<void>((resolve) => { arrived = resolve; }),
+    start: async () => {
+      server.listen(0);
+      await new Promise((resolve) => server.once("listening", resolve));
+      return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    },
+    stop: async () => {
+      server.closeAllConnections();
+      await new Promise((resolve) => { server.close(resolve); });
+    },
+  };
+}
+
+/**
+ * Wait for the KEEPER to have recorded something, not for the server to have answered.
+ *
+ * The stub resolves as soon as it writes its response, which is strictly before the client has parsed
+ * it and before the keeper has updated anything. Asserting on the server's timing measured a race.
+ */
+async function until(condition: () => boolean, label: string, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+const acquiredFor = (deadlineMs: number): Acquired => ({
+  refused: false, attestationId: "at-1", leaseId: "L1", actionDigest: "d".repeat(64),
+  attemptToken: "attempt-token-1", executionDeadline: new Date(deadlineMs).toISOString(),
+});
+
+test("the keeper extends before the deadline, with the attempt token, and tracks what the gate GRANTED", async () => {
+  // The gate clamps: it answers with a deadline EARLIER than the one requested. A keeper that believed
+  // its own request would reschedule against time it had never been given.
+  const grantedAt = new Date(Date.now() + 5_000).toISOString();
+  const gate = stubGate(() => ({ status: 200, body: { ok: true, executionDeadline: grantedAt } }));
+  const url = await gate.start();
+  const client = new ReviewGateClient({ url, credential: "executor-credential", timeoutMs: 2000 });
+  const keeper = keepExecutionAlive({
+    gate: client, acquired: acquiredFor(Date.now() + 25),
+    marginMs: 0, incrementMs: 60_000,
+  });
+  try {
+    await until(() => keeper.granted() === 1, "the keeper to record a granted extension");
+    assert.equal(gate.seen.length, 1);
+    assert.equal(gate.seen[0].attemptToken, "attempt-token-1",
+      "the token is what proves this is the winning attempt");
+    assert.notEqual(gate.seen[0].requestedDeadline, grantedAt, "the gate granted something else");
+    assert.equal(keeper.granted(), 1);
+    assert.equal(keeper.deadline(), grantedAt, "the keeper must track the gate's answer, not its own ask");
+    assert.equal(keeper.refusal(), undefined);
+  } finally {
+    keeper.stop();
+    await gate.stop();
+  }
+});
+
+test("a refused extension stops the keeper asking, and does not abort anything", async () => {
+  // One refusal ends it. Asking again would either repeat a permanent answer -- a rotated credential,
+  // a spent attestation -- or hammer a gate that is already unreachable.
+  const gate = stubGate(() => ({ status: 409, body: { ok: false, code: "credential_rotated" } }));
+  const url = await gate.start();
+  const client = new ReviewGateClient({ url, credential: "executor-credential", timeoutMs: 2000 });
+  const keeper = keepExecutionAlive({
+    gate: client, acquired: acquiredFor(Date.now() + 25),
+    marginMs: 0, incrementMs: 60_000,
+  });
+  try {
+    await until(() => keeper.refusal() !== undefined, "the keeper to record the refusal");
+    // And then genuinely stops, rather than merely not having asked again yet.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(gate.seen.length, 1, "it asked once and stopped");
+    assert.equal(keeper.granted(), 0);
+    assert.equal(keeper.refusal(), "credential_rotated");
+  } finally {
+    keeper.stop();
+    await gate.stop();
+  }
+});
+
+test("stopping the keeper stops the extensions", async () => {
+  const gate = stubGate(() => ({ status: 200, body: { ok: true, executionDeadline: new Date(Date.now() + 5_000).toISOString() } }));
+  const url = await gate.start();
+  const client = new ReviewGateClient({ url, credential: "executor-credential", timeoutMs: 2000 });
+  const keeper = keepExecutionAlive({
+    gate: client, acquired: acquiredFor(Date.now() + 10_000),
+    marginMs: 0, incrementMs: 60_000,
+  });
+  keeper.stop();
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.deepEqual(gate.seen, [], "a stopped keeper must not extend an attempt that is already settled");
+  await gate.stop();
+});
+
+test("the executor releases the keeper on every exit from the effect", () => {
+  // The `agent.upgrade` path RETURNS from inside the try block. A keeper released after the settle
+  // rather than in a `finally` would go on extending an attempt that had already been redeemed.
+  const text = source("agent.ts");
+  assert.match(text, /finally\s*\{[\s\S]*keeper\?\.stop\(\)/,
+    "the keeper must be released in a finally, not on the success path only");
+});
+
+test("stopping the keeper WAITS for an extension already in flight", async () => {
+  // Clearing the timer was not enough. Once `tick()` had called the gate there was nothing to cancel,
+  // so a request carrying the attempt token could still be in the air while settlement and redeem ran
+  // -- a second use of the token after the attempt was over. An independent review found that race.
+  const gate = stubGate(
+    () => ({ status: 200, body: { ok: true, executionDeadline: new Date(Date.now() + 5_000).toISOString() } }),
+    250);
+  const url = await gate.start();
+  const client = new ReviewGateClient({ url, credential: "executor-credential", timeoutMs: 2000 });
+  const keeper = keepExecutionAlive({
+    gate: client, acquired: acquiredFor(Date.now() + 25),
+    marginMs: 0, incrementMs: 60_000,
+  });
+  try {
+    // Wait until the gate has RECEIVED the request but has not answered it.
+    await until(() => gate.received.length === 1, "the extension to reach the gate");
+    assert.equal(gate.repliedAt(), 0, "the gate has not answered yet");
+
+    await keeper.stop();
+    const stoppedAt = Date.now();
+    assert.notEqual(gate.repliedAt(), 0, "stop must not return while the request is still in flight");
+    assert.ok(stoppedAt >= gate.repliedAt(),
+      "the keeper's life must end after the request it started, not before");
+  } finally {
+    await keeper.stop();
+    await gate.stop();
+  }
 });

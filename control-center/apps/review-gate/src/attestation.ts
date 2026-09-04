@@ -59,6 +59,31 @@ export const KIND_SUBJECT: Readonly<Record<AttestationKind, "configuration.chang
  * artifact digest and release manifest digest are what identify the operation there. Total over
  * `AttestationKind` on purpose: a new kind cannot be added without deciding this.
  */
+/**
+ * The tuple an acquire is FOR, digested by the STORE rather than described by its caller.
+ *
+ * An independent review found that idempotency was decided entirely on a caller-supplied
+ * `requestHash`. The store never bound that hash to anything it could check, so a caller replaying a
+ * committed key with the same hash but a DIFFERENT attestation, lease, digest, target or kind was
+ * answered `already_acquired` before any of those fields were looked at -- the replay short-circuit
+ * ran ahead of the validation that should have rejected the changed tuple. The HTTP route computes an
+ * honest hash, but the store is itself a conformance boundary, and A5 requires the same key with a
+ * different binding tuple to be refused.
+ *
+ * So the store now records its own reading of the tuple alongside the key and compares that on replay.
+ * A caller cannot make two different requests look identical here without actually making them
+ * identical.
+ */
+export function acquireTupleDigest(input: {
+  attestationId: string; leaseId: string; actionDigest: string;
+  orgId: string; serverId: string; kind: string;
+}): string {
+  return crypto.createHash("sha256").update(JSON.stringify([
+    input.attestationId, input.leaseId, input.actionDigest,
+    input.orgId, input.serverId, input.kind,
+  ])).digest("hex");
+}
+
 export const KIND_REQUIRED_ACTION: Readonly<Record<AttestationKind, string | null>> = Object.freeze({
   "configuration.apply": "configuration.apply.v1",
   "configuration.rollback": "configuration.rollback.v1",
@@ -200,6 +225,36 @@ export type AttestationRecord = {
   state: AttestationState;
   /** Absent until bind; written exactly once; never re-bound. */
   actionDigest?: string;
+  /**
+   * Recorded at BIND, read from the canonical principal row inside the same transaction.
+   *
+   * `binderIncarnation` is the ACQUIRE-TIME EQUALITY TEST. Not the credential epoch -- comparing that
+   * would invalidate on ordinary rotation, contradicting the policy that rotation preserves completed
+   * bindings. And not present enabled/disabled status -- a principal disabled after bind and later
+   * re-enabled is presently enabled, so a status-only check would accept exactly the bindings that
+   * disablement was meant to invalidate.
+   */
+  binderIncarnation?: number;
+  /** AUDIT AND ENUMERATION ONLY. Deliberately not an acquire predicate; see `binderIncarnation`. */
+  binderCredentialEpoch?: number;
+
+  /** Written at ACQUIRE, in the same transaction as the state transition. */
+  executingPrincipalId?: string;
+  /**
+   * ENFORCED, not an audit note: execution extension requires `acting.credentialEpoch` to equal this.
+   * That equality is the whole mechanism by which rotation refuses extension while still permitting
+   * redeem -- "requires the current credential" would permit both, since after a rotation the new
+   * credential IS current.
+   */
+  executingCredentialEpoch?: number;
+  acquiredAt?: string;
+  /** Monotonic: an extension may only move this later, and never past the absolute bound. */
+  executionDeadline?: string;
+  /**
+   * A VERIFIER, never the token. The attempt token's plaintext exists in exactly two places -- the local
+   * value inside the acquire handler, and the single successful acquire response.
+   */
+  attemptTokenVerifier?: string;
   lease?: Lease;
   reconciliation?: Reconciliation;
   consumedAt?: string;

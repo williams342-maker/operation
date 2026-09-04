@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { hashCredential } from "../src/auth.js";
 import { AuthenticatedPrincipal, authenticate, generateCredential } from "../src/auth.js";
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { startExpirySweep } from "../src/server.js";
@@ -51,15 +52,15 @@ test("a rotation after authentication invalidates work in flight", async () => {
   // authenticated at epoch 1 holding a lease stamped at epoch 1 still matched after a rotation to
   // epoch 2 — the rotation was never consulted. The store re-reads the principal now.
   const cast = await castOf([
-    { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "o", serverId: "s" }] },
-    { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "o", serverId: "s" }] },
+    { principalId: "agent-1", roles: ["executor"], targetScopes: [{ orgId: "o", serverId: "s" }] },
+    { principalId: "binder-1", roles: ["binder"], targetScopes: [{ orgId: "o", serverId: "s" }] },
   ]);
   const before = cast.who("agent-1");
   assert.equal(before.credentialEpoch, 1);
 
   cast.store.seedPrincipal({
     principalId: "agent-1", displayName: "agent-1", roles: ["executor"],
-    reviewerClasses: [], audienceFor: [{ orgId: "o", serverId: "s" }],
+    reviewerClasses: [], targetScopes: [{ orgId: "o", serverId: "s" }],
     credentialEpoch: 2, createdAt: "2026-09-02T00:00:00.000Z",
   }, generateCredential());
 
@@ -120,26 +121,26 @@ test("an authenticated principal cannot have its authority reassigned", async ()
 });
 
 test("an executor cannot have its authorised target rewritten", async () => {
-  // THE DEFECT: the freeze was SHALLOW. audienceFor was a frozen array of writable objects, so code
-  // holding a legitimate principal could set audienceFor[0].serverId to a host it was never provisioned
+  // THE DEFECT: the freeze was SHALLOW. targetScopes was a frozen array of writable objects, so code
+  // holding a legitimate principal could set targetScopes[0].serverId to a host it was never provisioned
   // for and mayActOn would agree. The comment claiming the contents could not change was true of the
   // array and false of what the array held -- which is the same sentence-versus-mechanism gap this whole
   // workstream keeps producing.
   const cast = await castOf([{
     principalId: "agent-1", roles: ["executor"],
-    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+    targetScopes: [{ orgId: "org-1", serverId: "server-1" }],
   }]);
   const principal = cast.who("agent-1");
   assert.ok(principal.mayActOn("org-1", "server-1"));
   assert.equal(principal.mayActOn("org-1", "server-9"), false);
 
-  const target = principal.audienceFor[0] as { orgId: string; serverId: string };
+  const target = principal.targetScopes[0] as { orgId: string; serverId: string };
   assert.throws(() => { "use strict"; target.serverId = "server-9"; },
     "rewriting the authorised host must throw");
   assert.throws(() => { "use strict"; target.orgId = "org-9"; });
   assert.equal(principal.mayActOn("org-1", "server-9"), false,
     "and the authority is unchanged");
-  assert.throws(() => (principal.audienceFor as Array<unknown>).push({ orgId: "o", serverId: "s" }));
+  assert.throws(() => (principal.targetScopes as Array<unknown>).push({ orgId: "o", serverId: "s" }));
 });
 
 test("a lease can only be used by the principal that holds it", async () => {
@@ -158,9 +159,9 @@ test("a lease can only be used by the principal that holds it", async () => {
     { principalId: "claude", roles: ["author"] },
     { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
     { principalId: "owner", roles: ["owner"] },
-    { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-    { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-    { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "agent-1", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "agent-2", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "binder-1", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
   ], store);
 
   const at = "2026-09-02T01:00:00.000Z";
@@ -246,19 +247,25 @@ test("a lease can only be used by the principal that holds it", async () => {
   assert.equal(bound.applied, true, JSON.stringify(bound));
   await refusal("acquire", "wrong_audience", store.acquireAttestation({
     acting: thief, attestationId, leaseId, actionDigest: digest,
-    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim }));
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim,
+    attemptTokenVerifier: hashCredential("t-thief"), executionDeadline: "2026-09-02T04:00:00.000Z",
+    idempotency: idem("agent-2", "acq-thief") }));
 
   // The holder acquires, so redeem becomes reachable.
+  const attemptToken = "t-legit";
   const acquired = await store.acquireAttestation({
     acting: acting("agent-1"), attestationId, leaseId, actionDigest: digest,
-    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim });
+    orgId: "org-1", serverId: "server-1", kind: "configuration.apply", now: at, requireClaim: claim,
+    attemptTokenVerifier: hashCredential(attemptToken), executionDeadline: "2026-09-02T04:00:00.000Z",
+    idempotency: idem("agent-1", "acq-legit") });
   assert.equal(acquired.applied, true, JSON.stringify(acquired));
   await refusal("redeem", "wrong_audience", store.redeemAttestation({
-    acting: thief, attestationId, leaseId, now: at, requireClaim: claim }));
+    acting: thief, attestationId, leaseId, attemptToken, now: at,
+    requireClaim: claim }));
 
   // ...and the legitimate holder still completes, so the check is not simply refusing everyone.
   const redeemed = await store.redeemAttestation({
-    acting: acting("agent-1"), attestationId, leaseId, now: at, requireClaim: claim });
+    acting: acting("agent-1"), attestationId, leaseId, attemptToken, now: at, requireClaim: claim });
   assert.equal(redeemed.applied, true, JSON.stringify(redeemed));
 });
 

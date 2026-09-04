@@ -14,7 +14,7 @@ export type Person = {
   principalId: string;
   roles?: string[];
   reviewerClasses?: string[];
-  audienceFor?: Array<{ orgId: string; serverId: string }>;
+  targetScopes?: Array<{ orgId: string; serverId: string }>;
   credentialEpoch?: number;
   disabledAt?: string;
 };
@@ -37,7 +37,7 @@ export async function castOf(people: Person[], store = new InMemoryReviewGateSto
       displayName: person.principalId,
       roles: person.roles ?? [],
       reviewerClasses: person.reviewerClasses ?? [],
-      ...(person.audienceFor ? { audienceFor: person.audienceFor } : {}),
+      ...(person.targetScopes ? { targetScopes: person.targetScopes } : {}),
       credentialEpoch: person.credentialEpoch ?? 1,
       createdAt: "2026-09-02T00:00:00.000Z",
       ...(person.disabledAt ? { disabledAt: person.disabledAt } : {}),
