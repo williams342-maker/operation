@@ -63,7 +63,11 @@ test("the comprehensive gate keeps the name branch protection requires", () => {
   // required check silently becomes weaker than it looks while keeping the same name.
   const comprehensive = fs.readFileSync(path.join(workflows, "control-center-ci.yml"), "utf8");
   assert.ok(checkNames("control-center-ci.yml").includes("verify"), "control-center-ci.yml must emit `verify`");
-  for (const marker of ["Gitleaks", "npm audit", "playwright", "Verify tracked repository integrity"]) {
+  // `npm audit` was replaced by `deploy/scripts/audit-gate.mjs`, which distinguishes "found a high
+  // advisory" from "could not reach the registry" -- outcomes the bare command conflated into one exit
+  // code. The marker moved with it, and naming the script is a stronger check than naming a command that
+  // could be present in a comment.
+  for (const marker of ["Gitleaks", "audit-gate.mjs", "playwright", "Verify tracked repository integrity"]) {
     assert.ok(comprehensive.toLowerCase().includes(marker.toLowerCase()), `the workflow owning \`verify\` must still run ${marker}`);
   }
 });
