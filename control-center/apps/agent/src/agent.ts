@@ -157,8 +157,18 @@ async function executeTask(config: AgentConfig, task: ClaimedTask) {
     if (outcome.refused) {
       // FAIL CLOSED. An unreachable gate, a refused acquisition and an unresolved prior attempt on this
       // host all end here identically, because none of them is permission to touch the host.
-      await acknowledge(config, envelope.taskId, "failed", { errorCategory: "review-gate", reviewGate: outcome.code },
-        `Review gate refused execution: ${outcome.code}${outcome.detail ? ` (${outcome.detail})` : ""}`);
+      // SHAPED AS A DEPLOYMENT PROGRESS RESULT, because the control plane parses every failed
+      // configuration acknowledgement with `deploymentProgressSchema` and rejects anything else with a
+      // 400. The previous shape did not fit it: the acknowledgement failed, this function threw, and the
+      // poll loop's catch reported a fabricated `progress: 100, errorCategory: unknown` deployment
+      // failure for a task where NOTHING was applied. A refusal that cannot be reported is a refusal
+      // nobody can act on, and it read as an ordinary deployment failure.
+      //
+      // The zeros are the truthful part: no variables changed, no services touched, no health check ran.
+      await acknowledge(config, envelope.taskId, "failed", {
+        phase: "failed", progress: 0, changedVariables: 0, services: [], healthChecksPassed: 0,
+        errorCategory: "review_gate", reviewGate: outcome.code,
+      }, `Review gate refused execution: ${outcome.code}${outcome.detail ? ` (${outcome.detail})` : ""}`);
       return;
     }
     acquired = outcome;
