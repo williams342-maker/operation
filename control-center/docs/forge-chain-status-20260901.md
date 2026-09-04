@@ -64,9 +64,20 @@ Ordered by what would bite first.
 
    **This has still never been executed.** The guard makes a successful run *possible*; it does not
    demonstrate one. Running the producer means publishing images, which remains owner-gated.
-2. **The evidence package is incomplete.** The workflow step named "document and its bundle" uploads
-   only the JSON. `actions/attest-build-provenance` exposes a `bundle-path` output that is unused, so the
-   offline evidence set the preflight expects is not actually produced.
+2. ~~**The evidence package is incomplete.**~~ **FIXED 2026-09-03.** The step named "document and its
+   bundle" uploaded only the JSON. The cause was one line: the attest step had **no `id`**, so its
+   `bundle-path` output was unreachable and nothing could consume it. A step name is not a guarantee.
+
+   The attest step is now `id: attest_document`, and a collection step copies the bundle to
+   `forge-build.attestation.json` beside the document; both are uploaded. The collection step **fails the
+   run** if `bundle-path` is empty, missing, or not a parseable Sigstore bundle -- deliberately not
+   "upload whatever exists", because a document without its bundle looks like evidence and proves
+   nothing, and a truncated bundle would surface on the host as an unexplained verification refusal.
+   The check accepts both shapes the agent accepts (a bare bundle and a `{bundle: …}` envelope) and was
+   verified against both, plus a non-bundle and an empty file.
+
+   Two regression tests, mutation-tested: removing either the `id` or the bundle from the upload fails
+   them. **Still never executed** -- publishing remains owner-gated.
 3. **`config.orgId` is empty until enrollment populates it.** Forge evidence therefore fails closed on
    every host today. Correct direction; also means the gate cannot pass anywhere yet.
 4. **The human publish gate is unproven.** The workflow names an `image-publish` environment, but

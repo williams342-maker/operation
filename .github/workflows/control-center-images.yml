@@ -223,10 +223,36 @@ jobs:
       # Attesting the DOCUMENT, not just the images: its sha256 becomes a signed in-toto subject, which
       # is exactly what forgePreflightEvidence.ts compares its own computed hash against.
       - name: Attest the forge build document
+        # `id` is load-bearing: without it `bundle-path` is unreachable, and the bundle was therefore
+        # never collected. The step below is the only consumer.
+        id: attest_document
         if: inputs.publish
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: control-center/forge-build.json
+
+      # THE DOCUMENT ALONE IS NOT EVIDENCE. `forgePreflightEvidence.ts` requires a build document AND its
+      # attestation for each of the candidate and the rollback; a document with no bundle proves nothing,
+      # because the bundle is what carries the signature, the certificate chain and the transparency-log
+      # entry. The upload step below was named "document and its bundle" and shipped only the JSON, so the
+      # offline evidence set the preflight expects could not be assembled from a real run.
+      - name: Collect the attestation bundle beside the document
+        if: inputs.publish
+        env:
+          BUNDLE_PATH: ${{ steps.attest_document.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUNDLE_PATH:-}" ]; then
+            echo "attest-build-provenance produced no bundle-path. The evidence set cannot be assembled," >&2
+            echo "and shipping the document without its bundle would look like evidence and prove nothing." >&2
+            exit 1
+          fi
+          test -f "$BUNDLE_PATH" || { echo "bundle-path does not exist: $BUNDLE_PATH" >&2; exit 1; }
+          # Parseable JSON, and non-trivially so: an empty or truncated bundle fails here rather than on
+          # the host, where it would surface as an unexplained verification refusal.
+          node -e 'const b=require("fs").readFileSync(process.argv[1],"utf8"); const j=JSON.parse(b); if(!(j.bundle??j).dsseEnvelope && !(j.bundle??j).messageSignature) throw new Error("not a Sigstore bundle"); ' "$BUNDLE_PATH"
+          cp "$BUNDLE_PATH" forge-build.attestation.json
+          echo "collected $(wc -c < forge-build.attestation.json) bytes of attestation bundle"
 
       - name: Publish the forge build document and its bundle
         if: inputs.publish
@@ -235,6 +261,7 @@ jobs:
           name: forge-build-${{ inputs.tag }}
           path: |
             control-center/forge-build.json
+            control-center/forge-build.attestation.json
           if-no-files-found: error
           compression-level: 0
 

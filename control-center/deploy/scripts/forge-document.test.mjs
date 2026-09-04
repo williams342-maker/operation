@@ -126,3 +126,37 @@ test("the document's source commit comes from the TAG, which is the half the gua
   assert.match(workflow, /commit="\$\(git rev-parse "\$\{tag\}\^\{commit\}"\)"/,
     "and that commit must be the annotated tag's, not HEAD's by coincidence");
 });
+
+test("REGRESSION: the producer collects and publishes the attestation BUNDLE, not just the document", () => {
+  // The document alone is not evidence. `forgePreflightEvidence.ts` requires a build document AND its
+  // attestation for each of the candidate and the rollback -- the bundle is what carries the signature,
+  // the certificate chain and the transparency-log entry.
+  //
+  // The upload step was named "document and its bundle" and listed only the JSON, because the attest
+  // step had no `id` and its `bundle-path` output was therefore unreachable. A step name is not a
+  // guarantee; this is.
+  const workflow = producerWorkflow();
+  assert.match(workflow, /id: attest_document/,
+    "the attest step needs an id or its bundle-path output cannot be read");
+  assert.match(workflow, /steps\.attest_document\.outputs\.bundle-path/,
+    "the bundle-path output must actually be consumed");
+  assert.match(workflow, /control-center\/forge-build\.attestation\.json/,
+    "the bundle must be uploaded beside the document, or the evidence set cannot be assembled");
+
+  // And the upload must carry BOTH files. Checked as a pair, since shipping either alone is the defect.
+  const upload = workflow.slice(workflow.indexOf("Publish the forge build document"));
+  const paths = upload.slice(0, upload.indexOf("if-no-files-found"));
+  assert.match(paths, /forge-build\.json/);
+  assert.match(paths, /forge-build\.attestation\.json/);
+});
+
+test("REGRESSION: an absent or unparseable bundle fails the run rather than shipping a document alone", () => {
+  // Fail-closed, and specifically NOT "upload whatever exists": a document with no bundle looks like
+  // evidence and proves nothing, and an empty or truncated bundle would surface on the host as an
+  // unexplained verification refusal instead of here.
+  const workflow = producerWorkflow();
+  assert.match(workflow, /if \[ -z "\$\{BUNDLE_PATH:-\}" \]; then/,
+    "a missing bundle-path must stop the run");
+  assert.match(workflow, /not a Sigstore bundle/,
+    "the collected file must be validated as a bundle, not merely copied");
+});
