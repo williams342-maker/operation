@@ -52,7 +52,7 @@ class TestAuthGating:
         r = requests.post(
             f"{API}/community/files/upload",
             files=[("files", ("test.svg", small_svg_bytes, "image/svg+xml"))],
-            data={"title": "T", "description": "D"},
+            data={"title": "T", "description": "D"}, timeout=15,
         )
         assert r.status_code == 401, f"expected 401, got {r.status_code}: {r.text[:200]}"
 
@@ -61,7 +61,7 @@ class TestAuthGating:
             f"{API}/community/files/upload",
             headers={"Authorization": "Bearer not-a-real-jwt"},
             files=[("files", ("test.svg", small_svg_bytes, "image/svg+xml"))],
-            data={"title": "T", "description": "D"},
+            data={"title": "T", "description": "D"}, timeout=15,
         )
         assert r.status_code in (401, 403), f"got {r.status_code}: {r.text[:200]}"
 
@@ -76,7 +76,7 @@ class TestMakerUpload:
             data={
                 "title": "TEST_iter48_maker_upload",
                 "description": "Iter48 maker upload smoke test",
-            },
+            }, timeout=15,
         )
         assert r.status_code == 200, f"expected 200, got {r.status_code}: {r.text[:300]}"
         body = r.json()
@@ -90,7 +90,7 @@ class TestMakerUpload:
         assert body["size_bytes"] == len(small_svg_bytes)
         assert "id" in body
         # Persistence — should appear in the listing
-        listing = requests.get(f"{API}/community/files").json()
+        listing = requests.get(f"{API}/community/files", timeout=15).json()
         assert any(f.get("id") == body["id"] for f in listing), "uploaded file missing from listing"
 
     def test_reject_unsupported_extension(self, maker_jwt):
@@ -101,7 +101,7 @@ class TestMakerUpload:
             data={
                 "title": "TEST_iter48_bad_type",
                 "description": "should be rejected",
-            },
+            }, timeout=15,
         )
         assert r.status_code == 400, f"expected 400, got {r.status_code}: {r.text[:200]}"
         assert "Unsupported" in r.text or "unsupported" in r.text.lower()
@@ -114,7 +114,7 @@ class TestMakerUpload:
             data={
                 "title": "TEST_iter48_empty",
                 "description": "empty body",
-            },
+            }, timeout=15,
         )
         assert r.status_code == 400, f"expected 400, got {r.status_code}: {r.text[:200]}"
 
@@ -123,7 +123,7 @@ class TestMakerUpload:
             f"{API}/community/files/upload",
             headers={"Authorization": f"Bearer {maker_jwt}"},
             files=[("files", ("t.svg", small_svg_bytes, "image/svg+xml"))],
-            data={"title": "", "description": "no title"},
+            data={"title": "", "description": "no title"}, timeout=15,
         )
         assert r.status_code in (400, 422), f"got {r.status_code}: {r.text[:200]}"
 
@@ -153,7 +153,7 @@ class TestBuyerUpload:
                 "title": "TEST_iter48_buyer_upload",
                 "description": "Iter48 buyer upload smoke test",
                 "thumbnail_url": "https://example.com/thumb.jpg",
-            },
+            }, timeout=15,
         )
         assert r.status_code == 200, f"expected 200, got {r.status_code}: {r.text[:300]}"
         body = r.json()
@@ -176,7 +176,7 @@ class TestLegacyUrlPaste:
                 "description": "External URL paste",
                 "file_type": "DXF",
                 "download_url": "https://dropbox.example.com/file.dxf",
-            },
+            }, timeout=15,
         )
         assert r.status_code == 200, f"expected 200, got {r.status_code}: {r.text[:200]}"
         body = r.json()
@@ -194,7 +194,7 @@ class TestLegacyUrlPaste:
                 "description": "buyer trying maker-only endpoint",
                 "file_type": "DXF",
                 "download_url": "https://dropbox.example.com/file.dxf",
-            },
+            }, timeout=15,
         )
         assert r.status_code in (401, 403), f"expected 401/403, got {r.status_code}: {r.text[:200]}"
 

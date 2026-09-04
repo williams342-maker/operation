@@ -32,19 +32,19 @@ ADMIN_HEADERS = {"Authorization": f"Bearer {ADMIN_JWT}"}
 # --- Channels removed: news-and-events / show-off ---
 class TestChannelsRemoved:
     def test_history_rejects_show_off(self):
-        r = requests.get(f"{BASE_URL}/api/community/chat/show-off/history")
+        r = requests.get(f"{BASE_URL}/api/community/chat/show-off/history", timeout=15)
         assert r.status_code == 404, r.text
 
     def test_history_rejects_news_and_events(self):
-        r = requests.get(f"{BASE_URL}/api/community/chat/news-and-events/history")
+        r = requests.get(f"{BASE_URL}/api/community/chat/news-and-events/history", timeout=15)
         assert r.status_code == 404, r.text
 
     def test_history_accepts_general(self):
-        r = requests.get(f"{BASE_URL}/api/community/chat/general/history")
+        r = requests.get(f"{BASE_URL}/api/community/chat/general/history", timeout=15)
         assert r.status_code == 200
 
     def test_buddies_rejects_show_off(self):
-        r = requests.get(f"{BASE_URL}/api/community/chat/show-off/buddies")
+        r = requests.get(f"{BASE_URL}/api/community/chat/show-off/buddies", timeout=15)
         assert r.status_code == 404
 
     def test_channels_set_exact(self):
@@ -94,11 +94,11 @@ class TestWebSocketRejection:
 # --- /api/admin/audit-log ---
 class TestAuditLog:
     def test_requires_auth(self):
-        r = requests.get(f"{BASE_URL}/api/admin/audit-log")
+        r = requests.get(f"{BASE_URL}/api/admin/audit-log", timeout=15)
         assert r.status_code in (401, 403)
 
     def test_returns_items_shape(self):
-        r = requests.get(f"{BASE_URL}/api/admin/audit-log", headers=ADMIN_HEADERS)
+        r = requests.get(f"{BASE_URL}/api/admin/audit-log", headers=ADMIN_HEADERS, timeout=15)
         assert r.status_code == 200, r.text
         data = r.json()
         assert "items" in data and "count" in data
@@ -122,7 +122,7 @@ class TestAuditLog:
             "moderation_history": history, "created_at": now_iso(),
         })
         try:
-            r = requests.get(f"{BASE_URL}/api/admin/audit-log?limit=500", headers=ADMIN_HEADERS)
+            r = requests.get(f"{BASE_URL}/api/admin/audit-log?limit=500", headers=ADMIN_HEADERS, timeout=15)
             assert r.status_code == 200
             items = r.json()["items"]
             mine = [it for it in items if it.get("user_id") == uid]
@@ -161,13 +161,13 @@ class TestChatCleanupParsing:
         pytest.skip("covered by test_clear_idle_endpoint_returns_shape")
 
     def test_clear_idle_endpoint_admin_only(self):
-        r = requests.post(f"{BASE_URL}/api/admin/chat/clear-idle?minutes=60")
+        r = requests.post(f"{BASE_URL}/api/admin/chat/clear-idle?minutes=60", timeout=15)
         assert r.status_code in (401, 403)
 
     def test_clear_idle_endpoint_returns_shape(self):
         r = requests.post(
             f"{BASE_URL}/api/admin/chat/clear-idle?minutes=60",
-            headers=ADMIN_HEADERS,
+            headers=ADMIN_HEADERS, timeout=15,
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -179,16 +179,16 @@ class TestChatCleanupParsing:
 # --- Regression: settings/applications/maintenance still work ---
 class TestRegression:
     def test_public_settings(self):
-        r = requests.get(f"{BASE_URL}/api/settings")
+        r = requests.get(f"{BASE_URL}/api/settings", timeout=15)
         assert r.status_code == 200
         d = r.json()
         assert "maintenance_mode" in d
 
     def test_admin_me(self):
-        r = requests.get(f"{BASE_URL}/api/admin/me", headers=ADMIN_HEADERS)
+        r = requests.get(f"{BASE_URL}/api/admin/me", headers=ADMIN_HEADERS, timeout=15)
         assert r.status_code == 200
 
     def test_forum_categories(self):
-        r = requests.get(f"{BASE_URL}/api/community/forum/categories")
+        r = requests.get(f"{BASE_URL}/api/community/forum/categories", timeout=15)
         assert r.status_code == 200
         assert "categories" in r.json()

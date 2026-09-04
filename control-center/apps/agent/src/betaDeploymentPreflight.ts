@@ -84,7 +84,19 @@ export type PreflightHooks = {
   // so there is no path by which input data can substitute evidence verification. Real Sigstore
   // verification is proven separately in test/forgeAttestation.test.ts against a genuine published
   // bundle; this seam exists so the checks DOWNSTREAM of it can be proven without a live Fulcio.
-  verifyEvidence?: (paths: ForgeEvidencePaths, context: { agentAdvertisedCapabilities: readonly string[]; consumedNonces?: ReadonlySet<string>; now?: number }) => ReturnType<typeof loadAndVerifyForgeEvidence>;
+  /**
+   * DERIVED FROM THE REAL IMPLEMENTATION, both sides, so the hook cannot describe a different contract
+   * than the one the call site honours.
+   *
+   * It was hand-written and omitted `anchors`, while line ~270 passes `anchors` to it. A substitute
+   * therefore could not see -- or typecheck against -- the trust material it was actually handed, and
+   * the test asserting the unanchored-rejection path did not compile. For a chain whose whole subject is
+   * where trust material comes from, the hook that can replace the verifier must not hide it.
+   */
+  verifyEvidence?: (
+    paths: ForgeEvidencePaths,
+    context: Parameters<typeof loadAndVerifyForgeEvidence>[1],
+  ) => ReturnType<typeof loadAndVerifyForgeEvidence>;
 };
 
 type Check = { name: string; passed: boolean; detail: string };

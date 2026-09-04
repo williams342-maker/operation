@@ -1,0 +1,16 @@
+{
+  // Emits src AND tests to plain JavaScript, so the suite can be executed with `node` alone.
+  //
+  // WHY THIS EXISTS. Two review rounds passed with nobody but the author having executed these tests: the
+  // review sandbox denies child processes, `node --test` spawns one per test file, and `tsx` spawns
+  // esbuild. Compiled output needs neither. See `npm run test:nospawn`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "build-tests",
+    // Reaches the control-center root only because `executorContract` and `executorEffectPoint` import the
+    // executor's own modules to test the contract between them. Test-only; `tsconfig.json` still roots at `src`.
+    "rootDir": "../.."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -25,7 +25,7 @@ function fixture() {
     allowedDatabaseDestinations: [{ hostname: "mongo", databaseName: "craftersmarket" }],
   };
   const model = { name: "craftersmarket", services: {
-    backend: { image: "candidate-backend", environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/craftersmarket" }, healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
+    backend: { image: "candidate-backend", environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/craftersmarket" } as Record<string, string>, healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
     frontend: { image: "candidate-frontend", environment: { REACT_APP_BACKEND_URL: "https://craftersmarketbeta.shop" }, healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
     mongo: { image: "mongo:7" },
   }, networks: { default: {} }, volumes: { mongo_data: {} } };

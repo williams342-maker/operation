@@ -1,5 +1,5 @@
 aiohappyeyeballs==2.7.1
-aiohttp==3.13.5
+aiohttp==3.14.3
 aiohttp-retry==2.9.1
 aiosignal==1.4.0
 annotated-doc==0.0.4
@@ -16,15 +16,19 @@ CairoSVG==2.9.0
 certifi==2026.7.22
 cffi==2.0.0
 charset-normalizer==3.4.9
-click==8.3.2
+click==8.3.3
 contourpy==1.3.3
-cryptography==46.0.7
+cryptography==50.0.1
 cssselect2==0.9.0
 cycler==0.12.1
 dataclasses-json==0.6.7
 defusedxml==0.7.1
 distro==1.9.0
 dnspython==2.8.0
+# ecdsa is deliberately NOT bumped: GHSA-wj6h-64fc-37mp / PYSEC-2026-1325 (Minerva timing
+# side-channel) have NO fixed version. Pure-Python ECDSA cannot be made constant-time, which the
+# maintainers document rather than patch. Bumping would churn the pin without clearing anything.
+# Reached only via python-jose; mitigation is to avoid ECDSA algorithms, not to upgrade.
 ecdsa==0.19.2
 email-validator==2.3.0
 ezdxf==1.4.3
@@ -52,7 +56,7 @@ h11==0.16.0
 hf-xet==1.4.3
 http_ece==1.2.1
 httpcore==1.0.9
-httplib2==0.31.2
+httplib2==0.32.0
 httpx==0.28.1
 huggingface_hub==1.9.2
 idna==3.18
@@ -69,7 +73,12 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 kiwisolver==1.5.0
 librt==0.8.1
-litellm==1.80.0
+# litellm was REMOVED on 2026-09-01. It carried 21 advisories including a CRITICAL, and nothing in
+# this repository imports it: `git grep -i litellm` matched only these pins, and the vendored
+# emergentintegrations/llm/chat.py is a stub with no LLM client. Bumping was not a viable fix - every
+# version that clears the advisories requires openai>=2.20.0, while openai is pinned at 1.99.9, has
+# zero advisories, and is itself unused. Removal clears all 21 without forcing an openai major.
+# If something outside this repository does need litellm, re-add it WITH the matching openai bump.
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 marshmallow==3.26.2
@@ -87,14 +96,14 @@ packaging==26.3
 pandas==3.0.2
 passlib==1.7.4
 pathspec==1.0.4
-pillow==12.2.0
+pillow==12.3.0
 platformdirs==4.9.6
 pluggy==1.6.0
 propcache==0.4.1
 proto-plus==1.27.2
 protobuf==5.29.6
 py-vapid==1.9.4
-pyasn1==0.6.3
+pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycodestyle==2.14.0
 pycparser==3.0
@@ -102,8 +111,8 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 pyflakes==3.4.0
 Pygments==2.20.0
-PyJWT==2.12.1
-pymongo==4.5.0
+PyJWT==2.13.0
+pymongo==4.6.3
 pyparsing==3.3.2
 pypng==0.20220715.0
 pytest==9.0.3
@@ -111,7 +120,7 @@ pytest-asyncio==1.3.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-jose==3.5.0
-python-multipart==0.0.24
+python-multipart==0.0.32
 pytokens==0.4.1
 pywebpush==2.3.0
 PyYAML==6.0.3

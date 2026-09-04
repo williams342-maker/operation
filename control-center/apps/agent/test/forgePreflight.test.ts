@@ -197,7 +197,11 @@ test("candidate or rollback images that are not the attested pinned digests bloc
   const rollbackSubstitute = `ghcr.io/williams342-maker/operation/control-center-api@sha256:${"f".repeat(64)}`;
   const rollback = fixture();
   rollback.input.rollbackBackendImage = rollbackSubstitute;
-  fs.writeFileSync(rollback.input.rollbackComposeOverrideFilePath, `${JSON.stringify({ services: { backend: { image: rollbackSubstitute }, frontend: { image: ROLLBACK_FRONTEND } } }, null, 2)}\n`);
+  // Optional on the type, always set by the fixture. Assert it rather than assume it, so a fixture
+  // change fails loudly here instead of writing to `undefined`.
+  const rollbackOverridePath = rollback.input.rollbackComposeOverrideFilePath;
+  assert.ok(rollbackOverridePath, "the fixture must supply a rollback compose override path");
+  fs.writeFileSync(rollbackOverridePath, `${JSON.stringify({ services: { backend: { image: rollbackSubstitute }, frontend: { image: ROLLBACK_FRONTEND } } }, null, 2)}\n`);
   const rollbackHooks = { ...rollback.hooks, inspectImage: async (image: string) => (image === rollbackSubstitute ? { id: "sha256:rsub", repoTags: [], revision: PRIOR_COMMIT } : rollback.hooks.inspectImage(image)) };
   const b = await runBetaDeploymentPreflight(rollback.input, rollbackHooks);
   assert.equal(b.status, "BLOCKED");

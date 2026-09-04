@@ -159,14 +159,44 @@ Work: verify the manifest against the SLSA build-provenance attestation at start
 to the shipped tree with a content digest computed over the served artifact rather than a string copied
 into JSON. Fail closed to an explicit `source: "unverified"` rather than silently falling back to `env`.
 
-### W3 — Resolve the served-asset timing discrepancy *(read-only, small)*
+### W3 — Resolve the served-asset timing discrepancy — ~~open~~ **RESOLVED 2026-09-02: benign, explanation recorded**
 
-`index.html` is served with `Last-Modified: 2026-08-08T14:28:01Z`, which is **before** the `4c47c7b` merge
-commit (`14:50:58Z`) and before its PR-head parent `cae6c0b6` (`14:45:46Z`). The merge commit's tree is
-identical to that parent's (`322b1275e498`), so a benign explanation exists — an origin file mtime, or a
-CDN artifact. But as it stands the served frontend bundle is not provably built from the commit the API
-reports, which is a small live instance of exactly the gap W2 addresses. Resolve it, or record the benign
-explanation.
+**Original concern.** `index.html` is served with `Last-Modified: 2026-08-08T14:28:01Z`, which is *before*
+the `4c47c7b` merge commit (`14:50:58Z`) and before its PR-head parent `cae6c0b6` (`14:45:46Z`), so the
+served frontend appeared not to be provably built from the commit the API reports.
+
+**Reproduced 2026-09-02, unchanged.** Read-only HEAD requests against the live site:
+
+| resource | bytes | `Last-Modified` | nginx `ETag` |
+| --- | --- | --- | --- |
+| `/` (`index.html`) | 168 | `2026-08-08 14:28:01 UTC` | — |
+| `/assets/index-DPk6iYof.js` | 561786 | `2026-08-08 14:28:01 UTC` | `"6a773cf1-8927a"` |
+| `/assets/index-CoFQmGy8.css` | 24638 | `2026-08-08 14:28:01 UTC` | `"6a773cf1-603e"` |
+
+**The explanation is benign, and the timestamp is a non-signal.** All three files share one mtime *to the
+second*. nginx composes its `ETag` as `<mtime-hex>-<size-hex>`: `0x6a773cf1` = 1786199281 = exactly
+`2026-08-08 14:28:01 UTC`, and `0x8927a`/`0x603e` = 561786/24638, matching `Content-Length` exactly. A
+single uniform mtime across an entire asset tree is what an image build or a copy step produces — it is
+not per-file compilation time. `Last-Modified` here therefore carries **no per-file provenance**, and
+comparing it against commit timestamps cannot show either staleness or freshness. The original comparison
+was not measuring what it appeared to measure.
+
+**What remains true, and is the real gap.** The served frontend still has no *measured* identity. The API
+gained one in W2 (`runtimeDigest`, a SHA-256 over first-party build output). The frontend's only
+content-derived identity is its hashed asset filenames, recorded here as a baseline so a future deploy is
+detectable:
+
+- `index.html` sha256 `90c63de840d8e512dc2ab7879854096b888886acc9b52a6e5446587f077d6232` (168 bytes)
+- `/assets/index-DPk6iYof.js`, `/assets/index-CoFQmGy8.css`
+
+Establishing which commit actually produced that bundle needs host filesystem access, which is W1.
+No further action here: the anomaly that prompted W3 is explained, and the residual gap is W1 + W2 scope.
+
+**Incidental finding — the nginx header fix is merged but NOT live.** The same probe shows production
+still emitting `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` **three times each**.
+That is the exact duplication PR #35 removed. #35 is merged to `main`; production has not been redeployed,
+which is consistent with the deployment freeze. Recorded so nobody reads "nginx headers fixed" as "fixed
+in production" — it is fixed in source only. CSP is now served once, not twice.
 
 ### W4 — Correct the stale records *(this change)*
 
@@ -210,13 +240,29 @@ multiple CSP headers, so the effective policy is the stricter one and this is no
 layers disagreeing about policy is a maintenance hazard and makes the effective policy hard to reason
 about. Consolidate to one authority.
 
-### W8 — Decide Foundry's disposition *(decision, then small execution)*
+### W8 — Decide Foundry's disposition — ~~open~~ **RESOLVED 2026-09-01: archived, not merged**
 
-`integration/foundry-consolidated` is 4 commits and roughly 2330 insertions of unmerged work on a product
-that has been scoped out. It is not being reviewed and it is drifting from `main`. Either extract it per
-`website-builder-extraction-audit.md`, which already maps the seams (`audit.ts`, `db.ts`, `auth.ts`,
-`req.orgId`/`req.user`, two owned collections, one cross-domain read), or tag it for durability and stop
-carrying it as an integration branch. Do not merge it as Forge work.
+`integration/foundry-consolidated` is preserved on `origin` as the annotated tag
+**`archive/foundry-consolidated-20260901`** (tip `470983211a2e`) and PR #22 is closed. The branch is
+untouched; reopening is one click.
+
+**Why archived rather than extracted or merged.** Two independent reasons pointed the same way:
+
+1. [website-builder-extraction-audit.md](website-builder-extraction-audit.md) had already decided the
+   builder is a **future standalone product, not a cockpit surface**. This branch adds a `/foundry`
+   route *inside* the control-center SPA — the opposite of that decision.
+2. **The standalone version now exists**, deployed separately by the owner at `foundry.opsworkbench.org`,
+   with its own route set (`/examples`, `/pricing`, `/about`, `/privacy`, `/terms`). This branch's routes
+   are `/` and `/foundry` inside the control center. They are **different artifacts**, so merging this
+   would not advance the live product; it would put a product surface into the internal control plane.
+
+**State at archival:** 4 commits ahead, 22 behind `main`, last touched 2026-08-03, still merging
+cleanly — so this was a decision, not a rescue from conflict. Nothing on `main` references the modules,
+and the only shared change (`audit.ts`) adds credit-ledger and website-brief action names specific to
+this work, so there was nothing to salvage separately.
+
+**Note for anyone re-reading §3.** "Foundry is not Forge" still stands, and is now stronger: the branch,
+the live standalone site, and the Forge authority chain are three distinct things.
 
 ### W9 — Agent release signing *(owner-gated, unchanged)*
 
@@ -227,6 +273,11 @@ private keys stay offline and outside Git, CI, the OpsWorkbench runtime, artifac
 chat, tickets, command arguments, and environment variables.
 
 ### W10 — Independent review of the authority chain *(owner-gated)*
+
+> **A candidate exists and it is PARKED.** Three certification rounds, three NO-GOs, each hole a
+> relocation of the last. See `forge-chain-PARKED.md` in this directory for the summary, and
+> `forge-chain-status-20260901.md` on branch `review/forge-chain-20260901` (PR #33) for the full
+> record. It needs a human security reviewer, not another author-side pass.
 
 Once W5 and W6 exist, route the complete Forge -> OpsWorkbench -> Agent authority and evidence chain to an
 independent certifier. Do not self-certify it.

@@ -5,6 +5,36 @@ import importlib
 import pytest
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _restore_config_module_after_this_file():
+    """Put the real `config` module back when this file is done.
+
+    Every test below calls importlib.reload(config) under a monkeypatched
+    environment. monkeypatch faithfully restores os.environ afterwards, but
+    NOTHING undoes a module reload: the reloaded `config` stays in sys.modules
+    holding whatever the last test set, for the rest of the session.
+
+    That leaked across the whole suite. One of the cases below reloads config
+    with MONGO_URL="mongodb://mongo:27017" — a Docker service alias that does
+    not resolve outside a container network — and every later consumer of
+    config then stalled until pymongo's 30s server selection expired. In the
+    first CI run that could report it, 68 tests failed with
+
+        ServerSelectionTimeoutError: mongo:27017:
+            [Errno -3] Temporary failure in name resolution
+
+    and before the pytest timeout was raised above pymongo's own, they were
+    simply opaque hangs with no cause attached.
+
+    Module scope is deliberate: this finalizer runs after every function-scoped
+    monkeypatch has already been undone, so the reload below sees the real
+    environment.
+    """
+    yield
+    import config
+    importlib.reload(config)
+
+
 def _reload_config(monkeypatch, values):
     keys = {
         "CONFIG_SKIP_ENV_FILE", "APP_ENV", "ENVIRONMENT", "NODE_ENV", "MONGO_URL", "DB_NAME", "MAKER_AUTH_SECRET",

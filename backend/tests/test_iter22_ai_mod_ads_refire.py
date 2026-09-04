@@ -87,7 +87,7 @@ def buyer_jwt() -> str:
 # ============================================================
 class TestAIModeratorSettings:
     def test_default_setting_is_false(self, admin_headers):
-        r = requests.get(f"{BASE_URL}/api/admin/settings", headers=admin_headers)
+        r = requests.get(f"{BASE_URL}/api/admin/settings", headers=admin_headers, timeout=15)
         assert r.status_code == 200, r.text
         data = r.json()
         assert "ai_moderator_enabled" in data
@@ -98,7 +98,7 @@ class TestAIModeratorSettings:
         r = requests.patch(
             f"{BASE_URL}/api/admin/settings",
             headers=admin_headers,
-            json={"ai_moderator_enabled": True},
+            json={"ai_moderator_enabled": True}, timeout=15,
         )
         assert r.status_code == 200, r.text
         assert r.json()["ai_moderator_enabled"] is True
@@ -106,13 +106,13 @@ class TestAIModeratorSettings:
         r2 = requests.patch(
             f"{BASE_URL}/api/admin/settings",
             headers=admin_headers,
-            json={"ai_moderator_enabled": False},
+            json={"ai_moderator_enabled": False}, timeout=15,
         )
         assert r2.status_code == 200
         assert r2.json()["ai_moderator_enabled"] is False
 
     def test_ai_mod_log_endpoint(self, admin_headers):
-        r = requests.get(f"{BASE_URL}/api/admin/ai-mod-log", headers=admin_headers)
+        r = requests.get(f"{BASE_URL}/api/admin/ai-mod-log", headers=admin_headers, timeout=15)
         assert r.status_code == 200, r.text
         data = r.json()
         assert "items" in data
@@ -121,7 +121,7 @@ class TestAIModeratorSettings:
         assert data["limit"] == 100
 
     def test_ai_mod_log_unauthorized(self):
-        r = requests.get(f"{BASE_URL}/api/admin/ai-mod-log")
+        r = requests.get(f"{BASE_URL}/api/admin/ai-mod-log", timeout=15)
         assert r.status_code in (401, 403)
 
 
@@ -224,13 +224,13 @@ class TestAdsFoundation:
     @pytest.fixture(autouse=True)
     def _cleanup(self, admin_headers):
         # Clean before & after each test
-        requests.delete(f"{BASE_URL}/api/admin/ads/clear-demo", headers=admin_headers)
+        requests.delete(f"{BASE_URL}/api/admin/ads/clear-demo", headers=admin_headers, timeout=15)
         yield
-        requests.delete(f"{BASE_URL}/api/admin/ads/clear-demo", headers=admin_headers)
+        requests.delete(f"{BASE_URL}/api/admin/ads/clear-demo", headers=admin_headers, timeout=15)
 
     def test_metrics_zero_when_empty(self, admin_headers):
         r = requests.get(
-            f"{BASE_URL}/api/admin/ads/metrics?days=30", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/metrics?days=30", headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -246,7 +246,7 @@ class TestAdsFoundation:
 
     def test_seed_demo_inserts_70_rows(self, admin_headers):
         r = requests.post(
-            f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -256,22 +256,22 @@ class TestAdsFoundation:
 
     def test_seed_demo_idempotent(self, admin_headers):
         # Seed twice; row count should still be 70
-        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers)
+        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15)
         r2 = requests.post(
-            f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15,
         )
         assert r2.status_code == 200
         # After 2nd seed — count from metrics shouldn't double
         m = requests.get(
-            f"{BASE_URL}/api/admin/ads/metrics?days=14", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/metrics?days=14", headers=admin_headers, timeout=15,
         ).json()
         # spend should be > 0 but bounded (5 camps × 14 days × ~5 USD avg ~ 350 max)
         assert 0 < m["spend"] < 1000
 
     def test_metrics_nonzero_after_seed(self, admin_headers):
-        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers)
+        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15)
         r = requests.get(
-            f"{BASE_URL}/api/admin/ads/metrics?days=30", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/metrics?days=30", headers=admin_headers, timeout=15,
         )
         data = r.json()
         assert data["spend"] > 0
@@ -279,9 +279,9 @@ class TestAdsFoundation:
         assert data["clicks"] > 0
 
     def test_performance_structure(self, admin_headers):
-        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers)
+        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15)
         r = requests.get(
-            f"{BASE_URL}/api/admin/ads/performance?days=30", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/performance?days=30", headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         data = r.json()
@@ -299,19 +299,19 @@ class TestAdsFoundation:
         assert len(data["daily"]) == 31
 
     def test_platform_filter_google(self, admin_headers):
-        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers)
+        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15)
         r = requests.get(
             f"{BASE_URL}/api/admin/ads/metrics?days=30&platform=google",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         assert r.json()["spend"] > 0
 
     def test_platform_filter_meta(self, admin_headers):
-        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers)
+        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15)
         r = requests.get(
             f"{BASE_URL}/api/admin/ads/metrics?days=30&platform=meta",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         assert r.json()["spend"] > 0
@@ -319,26 +319,26 @@ class TestAdsFoundation:
     def test_platform_filter_invalid_returns_422(self, admin_headers):
         r = requests.get(
             f"{BASE_URL}/api/admin/ads/metrics?days=30&platform=tiktok",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 422
 
     def test_clear_demo_wipes_only_demo(self, admin_headers):
-        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers)
+        requests.post(f"{BASE_URL}/api/admin/ads/seed-demo?days=14", headers=admin_headers, timeout=15)
         r = requests.delete(
-            f"{BASE_URL}/api/admin/ads/clear-demo", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/clear-demo", headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200
         assert r.json()["deleted"] == 70
         # iter413as — clear-demo only wipes demo rows; live Google Ads sync
         # rows persist. Just verify spend is finite (not asserting == 0).
         m = requests.get(
-            f"{BASE_URL}/api/admin/ads/metrics?days=30", headers=admin_headers,
+            f"{BASE_URL}/api/admin/ads/metrics?days=30", headers=admin_headers, timeout=15,
         ).json()
         assert isinstance(m["spend"], (int, float))
 
     def test_unauthorized_metrics(self):
-        r = requests.get(f"{BASE_URL}/api/admin/ads/metrics?days=30")
+        r = requests.get(f"{BASE_URL}/api/admin/ads/metrics?days=30", timeout=15)
         assert r.status_code in (401, 403)
 
 
@@ -351,7 +351,7 @@ class TestRefireEmails:
     def test_refire_unknown_session_returns_404(self, admin_headers):
         r = requests.post(
             f"{BASE_URL}/api/admin/orders/cs_test_DOES_NOT_EXIST/refire-emails",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 404
 
@@ -369,7 +369,7 @@ class TestRefireEmails:
 
         r = requests.post(
             f"{BASE_URL}/api/admin/orders/{self.KNOWN_PAID_SESSION}/refire-emails",
-            headers=admin_headers,
+            headers=admin_headers, timeout=15,
         )
         assert r.status_code == 200, r.text
         data = r.json()
@@ -391,7 +391,7 @@ class TestRefireEmails:
 
     def test_refire_unauthorized(self):
         r = requests.post(
-            f"{BASE_URL}/api/admin/orders/anything/refire-emails",
+            f"{BASE_URL}/api/admin/orders/anything/refire-emails", timeout=15,
         )
         assert r.status_code in (401, 403)
 
@@ -426,7 +426,7 @@ class TestRefireEmails:
         try:
             r = requests.post(
                 f"{BASE_URL}/api/admin/orders/{sid}/refire-emails",
-                headers=admin_headers,
+                headers=admin_headers, timeout=15,
             )
             assert r.status_code == 200, r.text
             data = r.json()
@@ -447,7 +447,7 @@ class TestRefireEmails:
 # ============================================================
 class TestChatRegression:
     def test_chat_history_still_works(self):
-        r = requests.get(f"{BASE_URL}/api/community/chat/general/history?limit=5")
+        r = requests.get(f"{BASE_URL}/api/community/chat/general/history?limit=5", timeout=15)
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
@@ -455,7 +455,7 @@ class TestChatRegression:
         channels = ["general", "machine-help", "finishing-tips", "beginners",
                     "advanced-cnc", "off-topic", "makers-only"]
         for ch in channels:
-            r = requests.get(f"{BASE_URL}/api/community/chat/{ch}/history?limit=1")
+            r = requests.get(f"{BASE_URL}/api/community/chat/{ch}/history?limit=1", timeout=15)
             assert r.status_code == 200, f"channel {ch} failed: {r.text}"
 
     def test_ai_moderator_reset_to_off(self, admin_headers):
@@ -463,7 +463,7 @@ class TestChatRegression:
         r = requests.patch(
             f"{BASE_URL}/api/admin/settings",
             headers=admin_headers,
-            json={"ai_moderator_enabled": False},
+            json={"ai_moderator_enabled": False}, timeout=15,
         )
         assert r.status_code == 200
         assert r.json()["ai_moderator_enabled"] is False

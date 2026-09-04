@@ -1,0 +1,14 @@
+{
+  // Typechecks the tests, which `tsconfig.json` does not: it includes only `src`, so for a long time the
+  // test suite was never typechecked at all.
+  //
+  // `rootDir` reaches the control-center root ONLY because `executorContract.test.ts` imports the
+  // executor's client across the workspace boundary to test the HTTP contract against the real router.
+  // That is a test-only import; `tsconfig.json` still roots at `src`, so nothing crosses into the build.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -61,7 +61,7 @@ class TestInfoAppearance:
             assert data.get(k) == v, f"Field {k} mismatch: expected {v!r}, got {data.get(k)!r}"
 
     def test_public_maker_shows_fields(self, session):
-        r = requests.get(f"{BASE_URL}/api/makers/{SLUG}")
+        r = requests.get(f"{BASE_URL}/api/makers/{SLUG}", timeout=15)
         assert r.status_code == 200, r.text
         data = r.json()
         assert data.get("shop_title") == "Precision CNC Since 2019"
@@ -83,7 +83,7 @@ class TestAccountLifecycle:
         assert g.get("shop_closed_at")
 
     def test_02_public_shows_closed_banner_field(self, session):
-        r = requests.get(f"{BASE_URL}/api/makers/{SLUG}")
+        r = requests.get(f"{BASE_URL}/api/makers/{SLUG}", timeout=15)
         assert r.status_code == 200
         assert r.json().get("shop_closed") is True
 
