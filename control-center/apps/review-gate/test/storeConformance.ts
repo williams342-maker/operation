@@ -704,6 +704,37 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     });
   });
 
+  test(`${label}: an EXECUTING attempt with NO deadline fails closed, in redeem and in the sweep`, async () => {
+    // An independent review found both reading an absent deadline as "not expired". Acquire produces the
+    // deadline atomically with the transition to EXECUTING, so an EXECUTING record without one cannot
+    // have come from a successful acquisition -- and treating it as unbounded made it the one attempt
+    // with no window at all, redeemable at leisure until the attestation itself lapsed.
+    //
+    // Produced through the public API rather than by reaching into the store: the deadline is an INPUT
+    // to acquire, so a caller supplying nothing lands exactly the record under discussion. The port
+    // deliberately offers no policy-free write, and another case in this suite asserts that it does not,
+    // so a test-only setter would break the very property it exists to protect.
+    await withStore(async (store) => {
+      const { claim } = await bound(store);
+      const acquired = await store.acquireAttestation(
+        acquireArgs(claim, "t-1", { executionDeadline: "" }));
+      assert.equal(acquired.applied, true, JSON.stringify(acquired));
+
+      const redeemed = await store.redeemAttestation({
+        acting: acting("agent-1"), attestationId: "at-1", leaseId: "L1",
+        attemptToken: "t-1", now: "2026-09-02T02:15:00.000Z", requireClaim: claim });
+      assert.equal(redeemed.applied, false, "an attempt with no window must not settle as CONSUMED");
+      assert.equal((redeemed as { code: string }).code, "execution_deadline_missing");
+
+      // And it reconciles NOW rather than waiting for a clock it does not have.
+      const swept = await store.sweepAttestations("2026-09-02T02:15:00.000Z");
+      assert.equal(swept.indeterminate.includes("at-1"), true);
+      const record = await store.loadAttestation("at-1");
+      assert.equal(record?.state, "INDETERMINATE");
+      assert.equal(record?.indeterminateReason, "execution deadline missing");
+    });
+  });
+
   test(`${label}: A8 -- redeem REFUSES once the execution deadline has passed`, async () => {
     // The checklist's explicit negative case, and it was missing while redeem checked only the
     // attestation's own expiry and the lease. Those do not cover it: an attestation stays valid for
