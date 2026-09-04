@@ -4,6 +4,7 @@
 
 Staging operations: [deployment runbook](docs/staging-deployment.md), [readiness checklist](docs/staging-readiness-checklist.md), [security review](docs/staging-security-review.md), [credential-remediation checklist](docs/staging-credential-remediation-checklist.md), [deployment intake](docs/staging-deployment-intake.md), and [burn-in plan](docs/staging-burn-in-plan.md).
 Release operations: [deterministic deployment artifacts](docs/release-artifacts.md).
+Forge integration: **[parked status](docs/forge-chain-status-20260901.md)** — the chain is DISABLED and UNCERTIFIED after three NO-GO reviews; read this before touching it. Specification: [`forge-build-v1` + `forge-target-binding-v1`](docs/forge-manifest-spec.md) (draft).
 
 Phase 1 implements a read-only hosted control center plus an outbound polling agent.
 

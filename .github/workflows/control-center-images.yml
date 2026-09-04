@@ -1,0 +1,342 @@
+name: Control Center Images
+
+# Forge milestone 5 — see control-center/docs/forge-manifest-spec.md §2.1.
+#
+# Builds the control-center backend and frontend images from an exact annotated tag, stamps the
+# provenance labels the deployment preflight reads, and OPTIONALLY publishes and attests them.
+#
+# DELIBERATELY workflow_dispatch ONLY, and `publish` DEFAULTS TO FALSE.
+#
+# Publishing container images and creating a build-provenance attestation are outward, permanent acts:
+# the image lands in a public registry and the attestation lands in a public transparency log. Neither
+# should happen because someone pushed a tag. With `publish: false` this workflow builds, stamps, and
+# reports — it pushes nothing, attests nothing, and needs no registry credential. A human turns it on,
+# per run, on purpose.
+#
+# This mirrors the discipline the release workflow already follows: it creates a DRAFT prerelease and a
+# human publishes it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated prerelease tag to build images from
+        required: true
+        type: string
+      publish:
+        description: "Push images to GHCR and create build-provenance attestations. Outward and permanent — leave false to build and report only."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    # A protected environment is what makes the publish decision STRUCTURAL rather than conventional.
+    # `workflow_dispatch` plus a boolean input only proves someone with dispatch permission set a flag;
+    # it does not prove a human approved a publish.
+    #
+    # CORRECTION, 2026-09-03. This comment used to say that until `image-publish` is configured with
+    # required reviewers, "a publish run waits for an approval that no one can grant, which is the
+    # correct failure direction." THAT IS FALSE, and it was the most dangerous sentence in this file.
+    # GitHub CREATES a referenced environment on demand, with NO protection rules, and the job proceeds.
+    # Verified 2026-09-03: this repository has no environments at all, so a publish run would have
+    # published, unprotected, while this comment claimed it could not.
+    #
+    # Naming an environment therefore protects nothing by itself. The `Require a real publish gate` step
+    # below is what actually refuses, by checking the environment's protection rules at run time.
+    environment: ${{ inputs.publish && 'image-publish' || '' }}
+    # Job-level, so EVERY step reads the untrusted tag from the environment. The previous fix moved only
+    # the one step an independent review happened to cite, leaving `${{ inputs.tag }}` interpolated into
+    # two other `run:` bodies — fixing the instance instead of the class, in a job holding id-token,
+    # attestations and packages write.
+    env:
+      INPUT_TAG: ${{ inputs.tag }}
+      INPUT_PUBLISH: ${{ inputs.publish }}
+      REPOSITORY: ${{ github.repository }}
+    defaults:
+      run:
+        working-directory: control-center
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Resolve and validate the source identity
+        id: source
+        run: |
+          set -euo pipefail
+          tag="$INPUT_TAG"
+          case "$tag" in
+            v[0-9]*.[0-9]*.[0-9]*-*) ;;
+            *) echo "Tag must be an exact semantic-version prerelease tag" >&2; exit 1 ;;
+          esac
+          test "$(git cat-file -t "$tag")" = "tag" || { echo "Tag must be annotated" >&2; exit 1; }
+          commit="$(git rev-parse "${tag}^{commit}")"
+          test "$(git rev-parse HEAD)" = "$commit" || { echo "Checkout does not match the tag" >&2; exit 1; }
+          # THE ATTESTATION RECORDS THE DISPATCH REF, NOT THE CHECKOUT. This run must therefore BE the tag.
+          #
+          # `actions/attest-build-provenance` builds its SLSA predicate from the GitHub context, where
+          # `resolvedDependencies[].digest.gitCommit` is `github.sha` -- the commit of the ref the run was
+          # DISPATCHED from. `actions/checkout` with `ref: <tag>` changes the working tree and nothing
+          # else; it does not change what the attestation will say.
+          #
+          # So dispatching from `main` with a tag input produced a document recording the TAG's commit and
+          # an attestation recording MAIN's, and the agent refused the pair with `source-commit-mismatch`.
+          # Fail-closed and correct -- and it meant the producer could never complete a real run, which is
+          # why this workflow has never successfully executed end to end.
+          #
+          # The predicate cannot be told to record the checkout instead, so the only fix is to require the
+          # two to agree at the source. Checked here rather than after the build, so a run that could only
+          # ever produce an unusable attestation fails before it publishes anything.
+          if [ "$GITHUB_SHA" != "$commit" ]; then
+            {
+              echo "This run was dispatched from $GITHUB_SHA, but $tag is $commit."
+              echo ""
+              echo "The build-provenance attestation records the DISPATCH ref, so it would claim a"
+              echo "different source commit than the forge-build document, and every agent would refuse"
+              echo "the pair with source-commit-mismatch."
+              echo ""
+              echo "Dispatch this workflow FROM the tag:"
+              echo "  gh workflow run control-center-images.yml --ref $tag -f tag=$tag -f publish=false"
+            } >&2
+            exit 1
+          fi
+          # The tree as well as the commit: a rewritten history can reuse a commit message and author
+          # while carrying a different tree.
+          {
+            echo "commit=$commit"
+            echo "tree=$(git rev-parse "${tag}^{tree}")"
+            echo "created=$(git show -s --format=%cI "$commit")"
+            echo "repository=${{ github.server_url }}/${{ github.repository }}"
+          } >> "$GITHUB_OUTPUT"
+
+      # YAML CANNOT CERTIFY A HUMAN GATE -- required reviewers are repository settings, not workflow
+      # syntax. So this does not try to BE the gate; it refuses to proceed unless the gate exists.
+      #
+      # Every outcome refuses, and they are distinguished on purpose: "no such environment" and "cannot
+      # read the settings" are different problems for whoever has to fix them, and collapsing them into
+      # one message is how the false claim above survived as long as it did.
+      - name: Require a real publish gate
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          body="$(gh api "repos/${REPOSITORY}/environments/image-publish" 2>/dev/null)"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            if gh api "repos/${REPOSITORY}/environments" >/dev/null 2>&1; then
+              echo "::error::The environment 'image-publish' does not exist. GitHub would create it on" >&2
+              echo "::error::demand with NO protection rules and publish anyway. Create it in repository" >&2
+              echo "::error::settings with required reviewers before publishing." >&2
+            else
+              echo "::error::Could not read this repository's environments, so the publish gate cannot be" >&2
+              echo "::error::verified. Refusing: an unverifiable gate is not a gate." >&2
+            fi
+            exit 1
+          fi
+          rules="$(printf '%s' "$body" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=(JSON.parse(s).protection_rules||[]).map(x=>x.type);process.stdout.write(r.join(","))})')"
+          case ",${rules}," in
+            *,required_reviewers,*) echo "publish gate present: ${rules}" ;;
+            *)
+              echo "::error::'image-publish' exists but has no required_reviewers rule (has: ${rules:-none})." >&2
+              echo "::error::A boolean input is not a human approval. Refusing to publish." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Report what will be built
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          SOURCE_TREE: ${{ steps.source.outputs.tree }}
+        run: |
+          {
+            echo "### Control Center images"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| tag | \`$INPUT_TAG\` |"
+            echo "| commit | \`$SOURCE_COMMIT\` |"
+            echo "| tree | \`$SOURCE_TREE\` |"
+            echo "| publish | \`$INPUT_PUBLISH\` |"
+            echo ""
+            if [ "$INPUT_PUBLISH" != "true" ]; then
+              echo "Build-only run. Nothing was pushed and nothing was attested."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Gated: pushing requires a registry credential, so do not even authenticate on a build-only run.
+      - name: Log in to the container registry
+        if: inputs.publish
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the API image
+        id: api
+        uses: docker/build-push-action@v6
+        with:
+          context: control-center
+          file: control-center/apps/api/Dockerfile
+          push: ${{ inputs.publish }}
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api:${{ inputs.tag }}
+          build-args: |
+            SOURCE_COMMIT=${{ steps.source.outputs.commit }}
+            SOURCE_TREE=${{ steps.source.outputs.tree }}
+            SOURCE_REPOSITORY=${{ steps.source.outputs.repository }}
+            SOURCE_TAG=${{ inputs.tag }}
+            BUILD_CREATED=${{ steps.source.outputs.created }}
+
+      - name: Build the web image
+        id: web
+        uses: docker/build-push-action@v6
+        with:
+          context: control-center
+          file: control-center/apps/web/Dockerfile
+          push: ${{ inputs.publish }}
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web:${{ inputs.tag }}
+          build-args: |
+            VITE_API_URL=/api
+            SOURCE_COMMIT=${{ steps.source.outputs.commit }}
+            SOURCE_TREE=${{ steps.source.outputs.tree }}
+            SOURCE_REPOSITORY=${{ steps.source.outputs.repository }}
+            SOURCE_TAG=${{ inputs.tag }}
+            BUILD_CREATED=${{ steps.source.outputs.created }}
+
+      # Verifies the mechanism this whole milestone exists for: the label the deployment preflight reads
+      # must equal the commit the image was built from. Runs on every invocation, published or not, so a
+      # build-only run still proves the provenance stamp works.
+      - name: Verify the provenance labels
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          SOURCE_TREE: ${{ steps.source.outputs.tree }}
+        run: |
+          set -euo pipefail
+          expected="$SOURCE_COMMIT"
+          for image in \
+            "${REGISTRY}/${REPOSITORY}/control-center-api:${INPUT_TAG}" \
+            "${REGISTRY}/${REPOSITORY}/control-center-web:${INPUT_TAG}"; do
+            revision="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+            tree="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opsworkbench.source.tree" }}')"
+            test "$revision" = "$expected" || { echo "$image revision label $revision != $expected" >&2; exit 1; }
+            test "$tree" = "$SOURCE_TREE" || { echo "$image tree label mismatch" >&2; exit 1; }
+            echo "$image -> revision $revision, tree $tree"
+          done
+
+      # THE PRODUCER — the half that was missing. Two independent-review rounds found the workflow
+      # attesting OCI image digests while the preflight verifier requires a bundle whose signed in-toto
+      # subject covers the exact bytes of a forge-build-v1 JSON document. Nothing created that document,
+      # so the legitimate path could not work and only a forged one could.
+      #
+      # Gated on publish for a substantive reason, not symmetry: a build-only run has no image manifest
+      # digests to pin, and a forge-build document without digest-pinned images is not a provenance
+      # record — it is a wish.
+      - name: Compose the forge-build-v1 document
+        if: inputs.publish
+        env:
+          FORGE_BUILD_ID: forge-build-${{ github.run_id }}-${{ github.run_attempt }}
+          FORGE_SOURCE_REPOSITORY: ${{ steps.source.outputs.repository }}
+          FORGE_SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          FORGE_SOURCE_TREE: ${{ steps.source.outputs.tree }}
+          FORGE_SOURCE_TAG: ${{ inputs.tag }}
+          FORGE_BACKEND_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api@${{ steps.api.outputs.digest }}
+          FORGE_FRONTEND_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web@${{ steps.web.outputs.digest }}
+          # The workflow's OWN OIDC identity. This is what the certificate SAN will be, so it is what the
+          # verifier can prove. A document naming any other workflow is unverifiable by construction.
+          FORGE_BUILDER_IDENTITY: ${{ github.server_url }}/${{ github.workflow_ref }}
+          FORGE_BUILDER_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          FORGE_ISSUED_AT: ${{ steps.source.outputs.created }}
+        run: node scripts/build-forge-document.mjs forge-build.json
+
+      # Attesting the DOCUMENT, not just the images: its sha256 becomes a signed in-toto subject, which
+      # is exactly what forgePreflightEvidence.ts compares its own computed hash against.
+      - name: Attest the forge build document
+        # `id` is load-bearing: without it `bundle-path` is unreachable, and the bundle was therefore
+        # never collected. The step below is the only consumer.
+        id: attest_document
+        if: inputs.publish
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: control-center/forge-build.json
+
+      # THE DOCUMENT ALONE IS NOT EVIDENCE. `forgePreflightEvidence.ts` requires a build document AND its
+      # attestation for each of the candidate and the rollback; a document with no bundle proves nothing,
+      # because the bundle is what carries the signature, the certificate chain and the transparency-log
+      # entry. The upload step below was named "document and its bundle" and shipped only the JSON, so the
+      # offline evidence set the preflight expects could not be assembled from a real run.
+      - name: Collect the attestation bundle beside the document
+        if: inputs.publish
+        env:
+          BUNDLE_PATH: ${{ steps.attest_document.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUNDLE_PATH:-}" ]; then
+            echo "attest-build-provenance produced no bundle-path. The evidence set cannot be assembled," >&2
+            echo "and shipping the document without its bundle would look like evidence and prove nothing." >&2
+            exit 1
+          fi
+          test -f "$BUNDLE_PATH" || { echo "bundle-path does not exist: $BUNDLE_PATH" >&2; exit 1; }
+          # Parseable JSON, and non-trivially so: an empty or truncated bundle fails here rather than on
+          # the host, where it would surface as an unexplained verification refusal.
+          node -e 'const b=require("fs").readFileSync(process.argv[1],"utf8"); const j=JSON.parse(b); if(!(j.bundle??j).dsseEnvelope && !(j.bundle??j).messageSignature) throw new Error("not a Sigstore bundle"); ' "$BUNDLE_PATH"
+          cp "$BUNDLE_PATH" forge-build.attestation.json
+          echo "collected $(wc -c < forge-build.attestation.json) bytes of attestation bundle"
+
+      - name: Publish the forge build document and its bundle
+        if: inputs.publish
+        uses: actions/upload-artifact@v6
+        with:
+          name: forge-build-${{ inputs.tag }}
+          path: |
+            control-center/forge-build.json
+            control-center/forge-build.attestation.json
+          if-no-files-found: error
+          compression-level: 0
+
+      # Gated: an attestation is a permanent public transparency-log entry.
+      - name: Attest the API image
+        if: inputs.publish
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api
+          subject-digest: ${{ steps.api.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the web image
+        if: inputs.publish
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web
+          subject-digest: ${{ steps.web.outputs.digest }}
+          push-to-registry: true
+
+      - name: Record the published digests
+        if: inputs.publish
+        run: |
+          {
+            echo ""
+            echo "Published and attested:"
+            echo ""
+            echo "| Image | Digest |"
+            echo "| --- | --- |"
+            echo "| control-center-api | \`${{ steps.api.outputs.digest }}\` |"
+            echo "| control-center-web | \`${{ steps.web.outputs.digest }}\` |"
+            echo ""
+            echo "These digests are what a \`forge-build-v1\` document pins as \`backendImageDigest\` and \`frontendImageDigest\`."
+          } >> "$GITHUB_STEP_SUMMARY"

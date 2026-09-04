@@ -1,6 +1,19 @@
-# Forge authority chain — PARKED, uncertified. Do not enable.
+# Forge authority chain — REVIVED, still uncertified. Do not enable.
 
-**Status as of 2026-09-02.** The Forge authority chain is **disabled, uncertified, and parked for human
+> **REVIVED 2026-09-03 by owner decision** (revive #33, rather than adopt Foreman's orchestration or
+> restart). What changed: `main` was merged in, resolving the drift conflicts, and **two defects that
+> stopped the branch compiling at all** were fixed — `npm run typecheck` failed on it, so it could never
+> have gone green. See the revival commit.
+>
+> **Nothing below is superseded.** The chain is still uncertified, still disabled, and the
+> trust-anchor loading path — the surface all three NO-GO rounds relocated — is deliberately UNTOUCHED.
+> The recommendation for a human security reviewer before further remediation there stands, and the six
+> open items in the status document all still stand.
+>
+> `Code parked at` and `Branch head` below refer to the parked state and are kept as the historical
+> record; the branch has moved on top of them.
+
+**Status as of 2026-09-02, retained as the parked record.** The Forge authority chain is **disabled, uncertified, and parked for human
 security review.** Nothing in it is enabled, nothing is deployed, and no part of it should be turned on.
 
 This note exists on `main` because the full record does not. Everything below is a summary; the detailed
