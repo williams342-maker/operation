@@ -31,6 +31,11 @@ const PEOPLE: Person[] = [
   { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
   { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
   { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
+  // The binder is a separate principal with its own target scope. It reserves and binds; it never
+  // acquires. `audienceFor` is the existing scope field and is used for both roles -- the checklist asks
+  // for it to be renamed to something role-neutral, which is a later increment.
+  { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "binder-2", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
 ];
 
 /** The mutation set a candidate is reviewed against. */
@@ -171,7 +176,7 @@ test("only the owner may accept a review outcome", async () => {
   const result = await svc.recordOwnerDecision(who("claude"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal((result as { code: string }).code, "role_required");
 });
@@ -184,7 +189,7 @@ test("a code candidate cannot authorize a configuration change", async () => {
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal((result as { code: string }).code, "subject_kind_mismatch");
 });
@@ -195,7 +200,7 @@ test("minted attestations are UNBOUND — no payload, no actionDigest", async ()
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal(result.ok, true, JSON.stringify(result));
   const [id] = valueOf<{ attestationIds: string[] }>(result).attestationIds;
@@ -211,7 +216,7 @@ test("a rollback attestation requires the candidate to name what it restores", a
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind: "configuration.rollback", orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal((result as { code: string }).code, "rollback_target_required");
 });
@@ -224,7 +229,7 @@ test("a rollback target that was never released is refused", async () => {
   const result = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind: "configuration.rollback", orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal((result as { code: string }).code, "rollback_target_not_released",
     "you may not roll back to content that was never reviewed");
@@ -332,18 +337,101 @@ async function minted(kind: "configuration.apply" = "configuration.apply") {
   const decision = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind, orgId: "org-1", serverId: "server-1",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   assert.equal(decision.ok, true, JSON.stringify(decision));
   const [attestationId] = valueOf<{ attestationIds: string[] }>(decision).attestationIds;
   return { store, svc, attestationId, who };
 }
 
-test("only the named executor may reserve", async () => {
+test("mint requires an explicit binder, distinct from the audience", async () => {
+  const { store, svc, who } = await build();
+  await atGo(store, "c1", binding({ subject: configSubject() }));
+  const mint = (over: Record<string, unknown>) => svc.recordOwnerDecision(who("owner"), {
+    candidateId: "c1", idempotencyKey: `k-${JSON.stringify(over)}`,
+    attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1",
+      expiresAt: "2026-09-02T06:00:00.000Z", ...over } as never],
+  });
+
+  const missing = await mint({ bindingPrincipalId: "" });
+  assert.equal((missing as { code: string }).code, "binding_principal_required");
+
+  // The default the design exists to forbid. Defaulting the binder to the audience reproduces exactly
+  // the unexecutable protocol: the executor would have to bind a payload it has not been dispatched.
+  const collapsed = await mint({ bindingPrincipalId: "agent-1" });
+  assert.equal((collapsed as { code: string }).code, "binding_principal_not_distinct");
+
+  assert.equal((await mint({})).ok, true);
+});
+
+test("every mint stamps v2, because absence is what marks a legacy record", async () => {
+  const { store, svc, attestationId } = await minted();
+  const record = (await store.loadAttestation(attestationId))!;
+  assert.equal(record.identitySchemaVersion, "v2");
+  assert.equal(record.bindingPrincipalId, "binder-1");
+});
+
+test("lineage is validated against the referenced record, not trusted", async () => {
+  const { store, svc, attestationId, who } = await minted();
+  const mintWith = (supersedes: string, key: string) => svc.mintFurther(who("owner"), {
+    candidateId: "c1", idempotencyKey: key,
+    attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1",
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1",
+      supersedesAttestationId: supersedes, expiresAt: "2026-09-02T06:00:00.000Z" }],
+  });
+
+  const unknown = await mintWith("at-does-not-exist", "k1");
+  assert.equal((unknown as { code: string }).code, "superseded_attestation_unknown");
+
+  // A replacement must supersede an attestation for the SAME candidate, content, org and server.
+  const wrongTarget = await svc.mintFurther(who("owner"), {
+    candidateId: "c1", idempotencyKey: "k2",
+    attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-2",
+      audiencePrincipalId: "agent-2", bindingPrincipalId: "binder-2",
+      supersedesAttestationId: attestationId, expiresAt: "2026-09-02T06:00:00.000Z" }],
+  });
+  assert.equal((wrongTarget as { code: string }).code, "superseded_attestation_mismatch");
+
+  const ok = await mintWith(attestationId, "k3");
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+});
+
+test("only the named BINDER may reserve, and the audience specifically may not", async () => {
+  // The heart of the split. This test previously asserted the opposite -- that only the audience could
+  // reserve -- which is precisely what made §2.6 unexecutable: the executor would have had to reserve
+  // and bind a payload the control plane had not yet dispatched to it.
   const { svc, attestationId, who } = await minted();
-  const wrong = await svc.reserve(who("agent-2"), { attestationId, leaseSeconds: 60 });
-  assert.equal((wrong as { code: string }).code, "wrong_audience");
-  assert.equal((await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 })).ok, true);
+
+  const otherBinder = await svc.reserve(who("binder-2"), { attestationId, leaseSeconds: 60 });
+  assert.equal((otherBinder as { code: string }).code, "wrong_binder");
+
+  // The audience is refused BY NAME, not merely by not being the binder.
+  const audience = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  assert.equal((audience as { code: string }).code, "wrong_binder",
+    "the principal that will execute must not be able to reserve the authority to execute");
+
+  assert.equal((await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 })).ok, true);
+});
+
+test("the binder may not acquire or redeem the execution it authorized", async () => {
+  // The other half: whoever binds does not execute. Without this the split would be cosmetic -- one
+  // principal could reserve, bind and then acquire, which is the single authority it exists to divide.
+  const { svc, attestationId, who } = await minted();
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
+  const { leaseId } = valueOf<{ leaseId: string }>(reservation);
+  const bound = await svc.bind(who("binder-1"), {
+    attestationId, leaseId, payload: configPayload({ reviewAuthorization: { attestationId, leaseId } }),
+  });
+  const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
+  const request = { attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
+    kind: "configuration.apply" as const };
+
+  const binderAcquire = await svc.acquire(who("binder-1"), request);
+  assert.equal((binderAcquire as { code: string }).code, "wrong_audience");
+  assert.equal((await svc.acquire(who("agent-1"), request)).ok, true);
+  const binderRedeem = await svc.redeem(who("binder-1"), { attestationId, leaseId });
+  assert.equal((binderRedeem as { code: string }).code, "wrong_audience");
 });
 
 test("an executor cannot act on a target it was not provisioned for", async () => {
@@ -352,19 +440,19 @@ test("an executor cannot act on a target it was not provisioned for", async () =
   const decision = await svc.recordOwnerDecision(who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
     attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-9",
-      audiencePrincipalId: "agent-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
+      audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: "2026-09-02T06:00:00.000Z" }],
   });
   const [attestationId] = valueOf<{ attestationIds: string[] }>(decision).attestationIds;
-  const result = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const result = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   assert.equal((result as { code: string }).code, "target_not_provisioned");
 });
 
 test("the gate computes actionDigest; it never accepts one", async () => {
   const { store, svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
-  const bound = await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  const bound = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   assert.equal(bound.ok, true, JSON.stringify(bound));
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
   assert.equal(actionDigest, privilegedActionDigest(payload),
@@ -377,10 +465,10 @@ test("bind refuses a swapped verb, and leaves the attestation unbound", async ()
   // refusal is clean. A rejected bind must not leave a half-bound attestation: no actionDigest, and the
   // reservation still usable for the correct payload.
   const { store, svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
 
-  const rejected = await svc.bind(who("agent-1"), {
+  const rejected = await svc.bind(who("binder-1"), {
     attestationId, leaseId,
     payload: configPayload({ action: "configuration.rollback.v1", reviewAuthorization: { attestationId, leaseId } }),
   });
@@ -391,7 +479,7 @@ test("bind refuses a swapped verb, and leaves the attestation unbound", async ()
   assert.equal(after.state, "RESERVED_UNBOUND", "a refused bind must not advance the state");
 
   // And the correct payload still binds on the same lease -- the refusal cost nothing.
-  const accepted = await svc.bind(who("agent-1"), {
+  const accepted = await svc.bind(who("binder-1"), {
     attestationId, leaseId,
     payload: configPayload({ reviewAuthorization: { attestationId, leaseId } }),
   });
@@ -400,9 +488,9 @@ test("bind refuses a swapped verb, and leaves the attestation unbound", async ()
 
 test("the payload must name this attestation and lease", async () => {
   const { svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
-  const result = await svc.bind(who("agent-1"), {
+  const result = await svc.bind(who("binder-1"), {
     attestationId, leaseId,
     payload: configPayload({ reviewAuthorization: { attestationId, leaseId: "someone-elses" } }),
   });
@@ -411,21 +499,21 @@ test("the payload must name this attestation and lease", async () => {
 
 test("a payload with no reviewAuthorization cannot be bound", async () => {
   const { svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
   const payload = configPayload();
   delete (payload as Record<string, unknown>).reviewAuthorization;
-  const result = await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  const result = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   assert.equal((result as { code: string }).code, "review_authorization_missing",
     "the ids must be under the envelope digest and the owner's signature");
 });
 
 test("acquisition wins for exactly one caller, before any host mutation", async () => {
   const { svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
-  const bound = await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  const bound = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
   const request = { attestationId, leaseId, actionDigest, orgId: "org-1", serverId: "server-1",
     kind: "configuration.apply" as const };
@@ -440,18 +528,20 @@ test("a rotation after authentication invalidates a lease in flight", async () =
   // epoch 1, so comparing the supplied epoch ONLY with the lease let the request commit after the
   // rotation. The store re-reads the principal, so the rotation wins.
   const { store, svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
 
-  // The operator rotates while the executor is mid-flight.
+  // The operator rotates THE BINDER while it is mid-flight. Before the split this test rotated the
+  // executor, because the executor held the lease; now the binder does, so the binder's rotation is what
+  // must invalidate a bind in flight.
   store.seedPrincipal({
-    principalId: "agent-1", displayName: "agent-1", roles: ["executor"], reviewerClasses: [],
+    principalId: "binder-1", displayName: "binder-1", roles: ["binder"], reviewerClasses: [],
     audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
     credentialEpoch: 2, createdAt: "2026-09-02T00:00:00.000Z",
   }, "rotated-credential");
 
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
-  const result = await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  const result = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   assert.equal(result.ok, false,
     "an operation using the old credential must not commit after rotation commits");
   assert.equal((result as { code: string }).code, "credential_rotated");
@@ -460,7 +550,7 @@ test("a rotation after authentication invalidates a lease in flight", async () =
 test("a lease is bounded by the attestation it belongs to", async () => {
   const { store, svc, attestationId, who } = await minted();
   // Asks for far longer than the cap and than the attestation's own validity.
-  await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 * 60 * 24 });
+  await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 * 60 * 24 });
   const lease = (await store.loadAttestation(attestationId))!.lease!;
   assert.ok(Date.parse(lease.expiresAt) <= Date.parse("2026-09-02T06:00:00.000Z"),
     "a lease must never outlive the review that authorized it");
@@ -472,10 +562,10 @@ test("only the owner may revoke, and not once execution is underway", async () =
   const { svc, attestationId, who } = await minted();
   assert.equal((await svc.revoke(who("agent-1"), { attestationId, reason: "x" }) as { code: string })
     .code, "role_required");
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
-  const bound = await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  const bound = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
   await svc.acquire(who("agent-1"), { attestationId, leaseId, actionDigest,
     orgId: "org-1", serverId: "server-1", kind: "configuration.apply" });
@@ -487,10 +577,10 @@ test("only the owner may revoke, and not once execution is underway", async () =
 test("an owner asserting APPLIED is not evidence", async () => {
   const { store, svc, attestationId, who } = await minted();
   // Drive it to INDETERMINATE the way the sweep would.
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
   const payload = configPayload({ reviewAuthorization: { attestationId, leaseId } });
-  await svc.bind(who("agent-1"), { attestationId, leaseId, payload });
+  await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   await store.sweepAttestations("2026-09-03T00:00:00.000Z");
   assert.equal((await store.loadAttestation(attestationId))!.state, "INDETERMINATE");
 
@@ -520,9 +610,9 @@ test("an owner asserting APPLIED is not evidence", async () => {
 
 test("NOT_APPLIED terminates the attestation and it is never reopened", async () => {
   const { store, svc, attestationId, who } = await minted();
-  const reservation = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const reservation = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   const { leaseId } = valueOf<{ leaseId: string }>(reservation);
-  await svc.bind(who("agent-1"), {
+  await svc.bind(who("binder-1"), {
     attestationId, leaseId,
     payload: configPayload({ reviewAuthorization: { attestationId, leaseId } }),
   });
@@ -538,6 +628,6 @@ test("NOT_APPLIED terminates the attestation and it is never reopened", async ()
   });
   assert.equal(resolved.ok, true, JSON.stringify(resolved));
   assert.equal((await store.loadAttestation(attestationId))!.state, "ABORTED");
-  const retry = await svc.reserve(who("agent-1"), { attestationId, leaseSeconds: 60 });
+  const retry = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   assert.equal(retry.ok, false, "a retry needs a fresh attestation through the whole sequence");
 });

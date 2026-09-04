@@ -58,6 +58,7 @@ const PEOPLE: Person[] = [
   { principalId: "claude", roles: ["author"] },
   { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
   { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
 ];
 
 const MUTATIONS = [
@@ -140,12 +141,12 @@ async function estate(options: { enforcing: boolean } = { enforcing: true }) {
   await atGo(store, "c1", binding());
   const decision = await svc.recordOwnerDecision(cast.who("owner"), {
     candidateId: "c1", idempotencyKey: "k",
-    attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1", audiencePrincipalId: "agent-1", expiresAt: new Date(Date.now() + 3600_000).toISOString() }],
+    attestations: [{ kind: "configuration.apply", orgId: "org-1", serverId: "server-1", audiencePrincipalId: "agent-1", bindingPrincipalId: "binder-1", expiresAt: new Date(Date.now() + 3600_000).toISOString() }],
   });
   const [attestationId] = valueOf<{ attestationIds: string[] }>(decision).attestationIds;
-  const { leaseId } = valueOf<{ leaseId: string }>(await svc.reserve(cast.who("agent-1"), { attestationId, leaseSeconds: 600 }));
+  const { leaseId } = valueOf<{ leaseId: string }>(await svc.reserve(cast.who("binder-1"), { attestationId, leaseSeconds: 600 }));
   const configurationDeployment = deployment({ reviewAuthorization: { attestationId, leaseId } });
-  assert.equal((await svc.bind(cast.who("agent-1"), { attestationId, leaseId, payload: configurationDeployment })).ok, true);
+  assert.equal((await svc.bind(cast.who("binder-1"), { attestationId, leaseId, payload: configurationDeployment })).ok, true);
 
   const gateServer = buildApp(store).listen(0);
   await new Promise((resolve) => gateServer.once("listening", resolve));

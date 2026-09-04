@@ -159,6 +159,18 @@ export type Reconciliation = z.infer<typeof reconciliationSchema>;
 
 export type AttestationRecord = {
   attestationId: string;
+  /**
+   * ABSENT MEANS LEGACY v1. The discriminator the previous revision of this design forgot to specify:
+   * it declared a v1/v2 policy while `AttestationRecord` carried no field that could tell them apart, so
+   * the policy had nothing to execute against.
+   *
+   * Every mint path writes `"v2"`. v1 records are refused by reserve, bind, acquire, execution extension
+   * and redeem, and remain available to revoke, the expiry sweep, read/audit and reconciliation. They are
+   * NEVER rewritten or migrated in place -- an immutable identity that can be rewritten was never
+   * immutable. Where a replacement is wanted the owner mints a new v2 attestation and points
+   * `supersedesAttestationId` at the old one.
+   */
+  identitySchemaVersion?: "v2";
   kind: AttestationKind;
   contentDigest: string;
   candidateId: string;
@@ -166,6 +178,20 @@ export type AttestationRecord = {
   serverId: string;
   targetEnvironmentClass: string;
   audiencePrincipalId: string;
+  /**
+   * Who may reserve and bind. REQUIRED on v2, absent on legacy v1.
+   *
+   * Distinct from `audiencePrincipalId` and never defaulted to it: that default reproduces exactly the
+   * unexecutable protocol this split exists to fix, in which the executor would have to bind a payload
+   * the control plane has not yet dispatched to it.
+   */
+  bindingPrincipalId?: string;
+  /**
+   * Optional lineage: the v1-or-v2 attestation this one replaces. Owner-supplied at mint, store-validated
+   * against the referenced record's candidate, content digest, org and server, immutable once set, and
+   * covered by the identity digest -- a replacement that could be re-pointed is not a lineage.
+   */
+  supersedesAttestationId?: string;
   nonce: string;
   grantedByPrincipalId: string;
   grantedAt: string;
@@ -241,7 +267,29 @@ export function evaluateReconciliation(input: {
 }
 
 /** Digest over an attestation's immutable identity. Not authority — provenance, for audit and lineage. */
+/** Absent `identitySchemaVersion` means a record minted before the split existed. */
+export function isLegacyIdentity(record: Pick<AttestationRecord, "identitySchemaVersion">): boolean {
+  return record.identitySchemaVersion === undefined;
+}
+
+/**
+ * `bindingPrincipalId` MUST be in this digest: without it, two attestations assigning different binding
+ * authority would share one claimed immutable identity.
+ *
+ * It must NOT be added under the existing `attestation-v1|` domain marker, or the same v1 record would
+ * digest differently depending on software version. v1 records therefore keep their exact v1 bytes
+ * forever, and v2 gets its own marker and its own field list.
+ *
+ * `supersedesAttestationId` is included only when present. The encoding is length-prefixed on both the
+ * field name and the value, so an omitted field cannot be forged by any value of another field.
+ */
 export function attestationIdentityDigest(record: AttestationRecord): string {
+  const legacy = isLegacyIdentity(record);
+  if (!legacy && !record.bindingPrincipalId) {
+    // Fail closed rather than digesting a placeholder: a v2 record without a binder has no identity to
+    // compute, and substituting "" would give it the same digest as a different malformed record.
+    throw new Error("a v2 attestation must carry bindingPrincipalId");
+  }
   const fields: Array<[string, string]> = [
     ["kind", record.kind],
     ["contentDigest", record.contentDigest],
@@ -253,8 +301,14 @@ export function attestationIdentityDigest(record: AttestationRecord): string {
     ["nonce", record.nonce],
     ["expiresAt", record.expiresAt],
   ];
+  if (!legacy) {
+    fields.push(["bindingPrincipalId", record.bindingPrincipalId!]);
+    if (record.supersedesAttestationId !== undefined) {
+      fields.push(["supersedesAttestationId", record.supersedesAttestationId]);
+    }
+  }
   const hash = crypto.createHash("sha256");
-  hash.update("attestation-v1|");
+  hash.update(legacy ? "attestation-v1|" : "attestation-v2|");
   for (const [name, value] of fields) {
     hash.update(`${name.length}|${name}|${Buffer.byteLength(value, "utf8")}|${value}|`);
   }
