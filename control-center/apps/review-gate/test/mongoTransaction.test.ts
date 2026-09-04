@@ -106,8 +106,8 @@ if (!url || !/replicaSet=/.test(url)) {
       }, { upsert: true });
     };
     for (const id of ["claude", "codex", "owner"]) await seed(id);
-    await seed("agent-1", { audienceFor: SCOPE });
-    await seed("binder-1", { audienceFor: SCOPE });
+    await seed("agent-1", { targetScopes: SCOPE });
+    await seed("binder-1", { targetScopes: SCOPE });
 
     const candidate = record("c1");
     await store.registerCandidate({ acting: acting("claude"), record: candidate, idempotency: idem() });

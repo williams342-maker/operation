@@ -33,8 +33,8 @@ const PEOPLE: Person[] = [
   { principalId: "owner", roles: ["owner"] },
   { principalId: "claude", roles: ["author"] },
   { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
-  { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-  { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "agent-1", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "binder-1", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
 ];
 
 const MUTATIONS = [

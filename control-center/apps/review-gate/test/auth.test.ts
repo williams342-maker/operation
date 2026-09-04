@@ -146,7 +146,7 @@ test("an executor may only act on targets it was provisioned for", async () => {
   const credential = generateCredential();
   const store = storeFor(credential, {
     principalId: "agent-1", roles: ["executor"], reviewerClasses: [],
-    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+    targetScopes: [{ orgId: "org-1", serverId: "server-1" }],
   });
   const outcome = await authenticate(store, `Bearer ${credential}`);
   const who = (outcome as { principal: AuthenticatedPrincipal }).principal;

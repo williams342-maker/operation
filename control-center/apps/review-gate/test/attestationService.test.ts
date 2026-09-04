@@ -29,13 +29,13 @@ const PEOPLE: Person[] = [
   { principalId: "owner", roles: ["owner"] },
   { principalId: "claude", roles: ["author"] },
   { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
-  { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-  { principalId: "agent-2", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
+  { principalId: "agent-1", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "agent-2", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-2" }] },
   // The binder is a separate principal with its own target scope. It reserves and binds; it never
-  // acquires. `audienceFor` is the existing scope field and is used for both roles -- the checklist asks
+  // acquires. `targetScopes` is the existing scope field and is used for both roles -- the checklist asks
   // for it to be renamed to something role-neutral, which is a later increment.
-  { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-  { principalId: "binder-2", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-2" }] },
+  { principalId: "binder-1", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+  { principalId: "binder-2", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-2" }] },
 ];
 
 /** The mutation set a candidate is reviewed against. */
@@ -593,7 +593,7 @@ test("a rotation after authentication invalidates a lease in flight", async () =
   // must invalidate a bind in flight.
   store.seedPrincipal({
     principalId: "binder-1", displayName: "binder-1", roles: ["binder"], reviewerClasses: [],
-    audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+    targetScopes: [{ orgId: "org-1", serverId: "server-1" }],
     credentialEpoch: 2, createdAt: "2026-09-02T00:00:00.000Z",
   }, "rotated-credential");
 

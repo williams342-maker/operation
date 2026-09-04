@@ -18,7 +18,7 @@ type ProvisionArgs = {
   displayName: string;
   roles: string[];
   reviewerClasses: string[];
-  audienceFor: Array<{ orgId: string; serverId: string }>;
+  targetScopes: Array<{ orgId: string; serverId: string }>;
 };
 
 export type AuditEntry = {
@@ -79,7 +79,7 @@ export async function provision(db: Db, args: ProvisionArgs): Promise<{ credenti
       credentialIndex: credentialIndex(credential),
       roles: args.roles,
       reviewerClasses: args.reviewerClasses,
-      ...(args.audienceFor.length ? { audienceFor: args.audienceFor } : {}),
+      ...(args.targetScopes.length ? { targetScopes: args.targetScopes } : {}),
       // Starts at 1 and only ever increases. A timestamp cannot serve here: two rotations inside one
       // clock tick are indistinguishable, and clock adjustment moves one backwards.
       credentialEpoch: 1,
@@ -248,7 +248,7 @@ export async function main(argv: string[]): Promise<number> {
     const db = client.db(config.dbName);
     await ensureIndexes(db);
     if (command === "provision") {
-      const audienceFor = (flags.get("audience") ?? []).map((entry) => {
+      const targetScopes = (flags.get("audience") ?? []).map((entry) => {
         const [orgId, serverId] = entry.split(":");
         if (!orgId || !serverId) throw new Error(`--audience must be <orgId>:<serverId>, got ${entry}`);
         return { orgId, serverId };
@@ -258,7 +258,7 @@ export async function main(argv: string[]): Promise<number> {
         displayName: flags.get("name")?.[0] ?? id,
         roles: flags.get("role") ?? [],
         reviewerClasses: flags.get("reviewer-class") ?? [],
-        audienceFor,
+        targetScopes,
       });
       // The one and only time this value exists outside the caller's head.
       console.log(`principal ${id} provisioned.`);

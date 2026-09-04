@@ -146,8 +146,8 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       // The audience must be provisioned for the target: `executionAuthority` re-reads the principal row
       // inside the transaction, which is a check the store did not make before the split.
       const scope = [{ orgId: "org-1", serverId: "server-1" }];
-      await seedPrincipal(principal("agent-1", { audienceFor: scope }));
-      await seedPrincipal(principal("binder-1", { audienceFor: scope }));
+      await seedPrincipal(principal("agent-1", { targetScopes: scope }));
+      await seedPrincipal(principal("binder-1", { targetScopes: scope }));
       await body(store, seedPrincipal);
     } finally {
       await dispose();
@@ -424,7 +424,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       // The operator rotates THE BINDER. Before the split this rotated the executor, because the
       // executor held the lease; the binder holds it now, so the binder's rotation is what must stop a
       // bind in flight. The scope is re-seeded with the row, since seeding replaces it wholesale.
-      await seed(principal("binder-1", { credentialEpoch: 2, audienceFor: [{ orgId: "org-1", serverId: "server-1" }] }));
+      await seed(principal("binder-1", { credentialEpoch: 2, targetScopes: [{ orgId: "org-1", serverId: "server-1" }] }));
 
       const bind = await store.bindAttestation({
         acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
@@ -445,7 +445,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
           expiresAt: "2026-09-02T03:00:00.000Z" },
         now, requireClaim: claim,
       });
-      await seed(principal("binder-1", { disabledAt: "2026-09-02T02:15:00.000Z", audienceFor: [{ orgId: "org-1", serverId: "server-1" }] }));
+      await seed(principal("binder-1", { disabledAt: "2026-09-02T02:15:00.000Z", targetScopes: [{ orgId: "org-1", serverId: "server-1" }] }));
       const bind = await store.bindAttestation({
         acting: { principalId: "binder-1", credentialEpoch: 1 }, attestationId: "at-1", leaseId: "L1",
         actionDigest: dig("7"), now });
@@ -559,7 +559,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     await withStore(async (store, seed) => {
       const { claim } = await bound(store);
       // Disable bumps the incarnation. The binding recorded incarnation 1.
-      await seed(principal("binder-1", { audienceFor: SCOPE, incarnation: 2,
+      await seed(principal("binder-1", { targetScopes: SCOPE, incarnation: 2,
         disabledAt: "2026-09-02T02:11:00.000Z" }));
       const whileDisabled = await store.acquireAttestation(acquireArgs(claim, "t-1"));
       assert.equal(whileDisabled.applied, false, "a disabled binder must block acquire");
@@ -567,7 +567,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       // Re-enable. The principal is now PRESENTLY ENABLED, which is exactly the trap: a status-only
       // check would accept the very bindings disablement was meant to invalidate. The incarnation is
       // NOT restored, so the old binding stays refused.
-      await seed(principal("binder-1", { audienceFor: SCOPE, incarnation: 2 }));
+      await seed(principal("binder-1", { targetScopes: SCOPE, incarnation: 2 }));
       const afterEnable = await store.acquireAttestation(acquireArgs(claim, "t-1", {
         idempotency: { principalId: "agent-1", scope: "acquire", key: "acq-after-enable", requestHash: "h" },
       }));
@@ -582,7 +582,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
     // the credential epoch instead of the incarnation would have broken this.
     await withStore(async (store, seed) => {
       const { claim } = await bound(store);
-      await seed(principal("binder-1", { audienceFor: SCOPE, credentialEpoch: 9, incarnation: 1 }));
+      await seed(principal("binder-1", { targetScopes: SCOPE, credentialEpoch: 9, incarnation: 1 }));
       const outcome = await store.acquireAttestation(acquireArgs(claim, "t-1"));
       assert.equal(outcome.applied, true, JSON.stringify(outcome));
     });
@@ -607,7 +607,7 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const { claim } = await bound(store);
       assert.equal((await store.acquireAttestation(acquireArgs(claim, "t-1"))).applied, true);
 
-      await seed(principal("agent-1", { audienceFor: SCOPE, credentialEpoch: 2 }));
+      await seed(principal("agent-1", { targetScopes: SCOPE, credentialEpoch: 2 }));
       const extend = await store.extendExecution({
         acting: acting("agent-1", 2), attestationId: "at-1", attemptToken: "t-1",
         requestedDeadline: "2026-09-02T03:30:00.000Z",
@@ -732,6 +732,26 @@ export function runStoreConformance(label: string, makeStore: StoreFactory): voi
       const record = await store.loadAttestation("at-1");
       assert.equal(record?.state, "INDETERMINATE");
       assert.equal(record?.indeterminateReason, "execution deadline missing");
+    });
+  });
+
+  test(`${label}: a principal written BEFORE the target-scope rename is still scoped`, async () => {
+    // `audienceFor` became `targetScopes` because the checklist requires role-neutral naming here and
+    // the old name was not: the same field scopes BINDERS, who are not an audience of anything.
+    //
+    // Renaming a field that is also a stored one is where this could go wrong, and the direction it
+    // would go wrong in is the bad one: a row carrying only the old spelling would read as scoped to
+    // NOTHING, and the field decides which hosts a principal may touch. So the old name is still read
+    // and never written, and this is the case that says so.
+    await withStore(async (store, seed) => {
+      const { claim } = await bound(store);
+      const legacy = { ...principal("agent-1"), targetScopes: undefined, audienceFor: SCOPE };
+      delete (legacy as { targetScopes?: unknown }).targetScopes;
+      await seed(legacy as Principal);
+
+      const outcome = await store.acquireAttestation(acquireArgs(claim, "t-1"));
+      assert.equal(outcome.applied, true,
+        `the pre-rename spelling must still scope a principal: ${JSON.stringify(outcome)}`);
     });
   });
 

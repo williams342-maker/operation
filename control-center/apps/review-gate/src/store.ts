@@ -107,6 +107,17 @@ export type Principal = {
   credentialHash: string;
   reviewerClasses: readonly string[];
   roles: readonly string[];
+  /**
+   * The targets this principal may act on. Named for the SCOPE, not for one of the roles that uses it:
+   * the checklist requires role-neutral naming here and `audienceFor` was neither -- the same field
+   * scopes binders, who are not an audience of anything.
+   */
+  targetScopes?: ReadonlyArray<{ orgId: string; serverId: string }>;
+  /**
+   * @deprecated The pre-rename spelling. Still READ, because rows written before the rename carry it
+   * and a rename that silently unscoped every existing principal would fail open on the one field that
+   * decides which hosts a principal may touch. Never written.
+   */
   audienceFor?: ReadonlyArray<{ orgId: string; serverId: string }>;
   /** MONOTONIC INTEGER. Not a timestamp — two rotations in one clock tick must be distinguishable. */
   credentialEpoch: number;

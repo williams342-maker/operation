@@ -93,7 +93,7 @@ test("provisioning stores a hash, never the credential", async () => {
   const { db, principals } = fakeDb();
   const { credential } = await provision(db, {
     principalId: "codex", displayName: "Codex",
-    roles: ["reviewer"], reviewerClasses: ["independent"], audienceFor: [],
+    roles: ["reviewer"], reviewerClasses: ["independent"], targetScopes: [],
   });
   const [row] = principals;
   assert.equal(row.credentialHash.includes(credential), false,
@@ -107,7 +107,7 @@ test("provisioning stores a hash, never the credential", async () => {
 test("the same principal cannot be provisioned twice", async () => {
   const { db } = fakeDb();
   const args = { principalId: "codex", displayName: "Codex",
-    roles: ["reviewer"], reviewerClasses: ["independent"], audienceFor: [] };
+    roles: ["reviewer"], reviewerClasses: ["independent"], targetScopes: [] };
   await provision(db, args);
   await assert.rejects(() => provision(db, args), /already exists/,
     "re-provisioning would silently replace a credential someone is using");
@@ -117,7 +117,7 @@ test("rotation increments the epoch, which is what invalidates work in flight", 
   const { db, principals } = fakeDb();
   const first = await provision(db, {
     principalId: "agent-1", displayName: "Agent", roles: ["executor"],
-    reviewerClasses: [], audienceFor: [{ orgId: "org-1", serverId: "server-1" }],
+    reviewerClasses: [], targetScopes: [{ orgId: "org-1", serverId: "server-1" }],
   });
   const second = await rotate(db, "agent-1");
   const [row] = principals;
@@ -134,7 +134,7 @@ test("disabling also bumps the epoch", async () => {
   const { db, principals } = fakeDb();
   await provision(db, {
     principalId: "agent-1", displayName: "Agent", roles: ["executor"],
-    reviewerClasses: [], audienceFor: [],
+    reviewerClasses: [], targetScopes: [],
   });
   await disable(db, "agent-1");
   const [row] = principals;
@@ -154,7 +154,7 @@ test("disabling a principal written BEFORE incarnation existed moves it past wha
   const { db, principals } = fakeDb();
   await provision(db, {
     principalId: "binder-1", displayName: "Binder", roles: ["binder"],
-    reviewerClasses: [], audienceFor: [],
+    reviewerClasses: [], targetScopes: [],
   });
   // A row as it existed before this field was introduced.
   delete (principals[0] as Record<string, unknown>).incarnation;
@@ -172,7 +172,7 @@ test("every provisioning action is audited", async () => {
   const { db, auditLog } = fakeDb();
   await provision(db, {
     principalId: "codex", displayName: "Codex", roles: ["reviewer"],
-    reviewerClasses: ["independent"], audienceFor: [],
+    reviewerClasses: ["independent"], targetScopes: [],
   });
   await rotate(db, "codex");
   await disable(db, "codex");

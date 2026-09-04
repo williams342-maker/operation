@@ -249,8 +249,8 @@ async function choreograph(verb: "apply" | "rollback") {
     { principalId: "owner", roles: ["owner"] },
     { principalId: "claude", roles: ["author"] },
     { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
-    { principalId: "binder-1", roles: ["binder"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
-    { principalId: "agent-1", roles: ["executor"], audienceFor: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "binder-1", roles: ["binder"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
+    { principalId: "agent-1", roles: ["executor"], targetScopes: [{ orgId: "org-1", serverId: "server-1" }] },
   ], store);
 
   // STEP 1 — a released candidate. A rollback additionally needs the candidate it restores to have been
