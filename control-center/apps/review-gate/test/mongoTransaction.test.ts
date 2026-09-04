@@ -299,11 +299,44 @@ if (!url || !/replicaSet=/.test(url)) {
           acting: { principalId: "owner", credentialEpoch: 1 },
           attestationId: "at-1", reason: "raced", now: NOW }),
       ]);
-      assert.equal(acquired.applied && revoked.applied, false,
-        "an attestation cannot be both taken for execution and revoked");
+      // EXACTLY one, not merely "not both". The weaker assertion an independent review found here would
+      // have been satisfied by an implementation that refused BOTH and left the record RESERVED_BOUND --
+      // a deadlock is not a correct race outcome. One of these two transactions reaches a committed
+      // state first, and the other must then see it and refuse; neither may lose to the other's failure.
+      const committed = [acquired.applied, revoked.applied].filter(Boolean);
+      assert.equal(committed.length, 1,
+        `exactly one must commit: ${JSON.stringify({ acquired, revoked })}`);
       const state = await world.stateOf();
-      assert.equal(acquired.applied ? state === "EXECUTING" : state !== "EXECUTING", true,
-        `state ${state} disagrees with the acquire outcome`);
+      assert.equal(state, acquired.applied ? "EXECUTING" : "REVOKED",
+        `the terminal state must name the winner, and it says ${state}`);
+    } finally {
+      await world.dispose();
+    }
+  });
+
+  test("mongo: redeem RACING the sweep across the deadline -- one outcome, never two and never none", async () => {
+    // The real extension/expiry and redeem/expiry race. Expiry is a CLOCK, not an operation, so the
+    // thing that actually contends with a redeem is the SWEEP that reconciles the overrun -- and they
+    // are two transactions touching one record. An independent review noted the boundary test below is
+    // sequential and proves only the `<=`; this is the concurrent half.
+    //
+    // The redeem believes it is just inside the window and the sweep believes it is just outside, which
+    // is exactly the disagreement two processes have at a boundary.
+    const world = await boundAttestation(`review_gate_race_settle_${process.pid}`, { mode: "off" });
+    try {
+      assert.equal((await world.acquire("race-settle")).applied, true);
+      const [redeemed] = await Promise.all([
+        world.store.redeemAttestation({
+          acting: { principalId: "agent-1", credentialEpoch: 1 }, attestationId: "at-1",
+          leaseId: "L1", attemptToken: "t-1", now: "2026-09-02T02:39:59.000Z",
+          requireClaim: world.claim }),
+        world.store.sweepAttestations("2026-09-02T02:40:01.000Z"),
+      ]);
+      const state = await world.stateOf();
+      // Whichever won, the record must be TERMINAL and must agree with the redeem's own answer. Left
+      // EXECUTING would mean both transactions declined to settle an attempt that is over.
+      assert.equal(state, redeemed.applied ? "CONSUMED" : "INDETERMINATE",
+        `the record must name one winner, and it says ${state}`);
     } finally {
       await world.dispose();
     }

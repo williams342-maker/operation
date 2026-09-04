@@ -115,8 +115,12 @@ export type Principal = {
   targetScopes?: ReadonlyArray<{ orgId: string; serverId: string }>;
   /**
    * @deprecated The pre-rename spelling. Still READ, because rows written before the rename carry it
-   * and a rename that silently unscoped every existing principal would fail open on the one field that
-   * decides which hosts a principal may touch. Never written.
+   * and dropping it would silently unscope every existing principal.
+   *
+   * That failure would be CLOSED, not open -- an empty scope list refuses every target rather than
+   * granting one, so nothing would have been exposed. I described it the other way round and an
+   * independent review corrected me; the reason to keep reading the field is that a fleet of principals
+   * refusing every host is an outage, not that it would have been a hole. Never written.
    */
   audienceFor?: ReadonlyArray<{ orgId: string; serverId: string }>;
   /** MONOTONIC INTEGER. Not a timestamp — two rotations in one clock tick must be distinguishable. */
