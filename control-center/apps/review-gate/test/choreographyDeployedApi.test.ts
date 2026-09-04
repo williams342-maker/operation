@@ -510,5 +510,12 @@ if (!mongoUrl) {
     assert.equal(result?.changedVariables, 0);
     assert.match(String(stored?.resultSummary), /review_gate/,
       "the operator-visible summary must name the refusal, not 'unknown'");
+
+    // AND THE AUDIT ENTRY STANDS ALONE. Audit events are queried on their own, and without these an
+    // executor refused permission and an ordinary failed deployment produce the same line.
+    const completion = await collections.auditEvents.findOne({ orgId, action: "task.complete" });
+    assert.equal(completion?.metadata?.errorCategory, "review_gate",
+      `the audit entry must carry the refusal: ${JSON.stringify(completion?.metadata)}`);
+    assert.equal(completion?.metadata?.reviewGate, "action_digest_mismatch");
   });
 }

@@ -208,7 +208,18 @@ export async function acknowledgeTask(server: ServerDoc & { _id: ObjectId }, bod
   invalidateOperationalContext(server._id.toHexString());
   if (task.projectId) invalidateOperationalContext(task.projectId.toHexString());
   const deployment = task.type === "configuration.apply" || task.type === "configuration.rollback" ? deploymentProgressSchema.safeParse(set.result) : undefined;
-  return { status: 200, body: { ok: true }, auditMetadata: deployment?.success ? { phase: deployment.data.phase, deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none", rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none" } : undefined };
+  // `errorCategory` and `reviewGate` are carried here as well as in the stored result, because an audit
+  // entry is read on its own. Without them a gate REFUSAL and an ordinary deployment failure produce
+  // the same audit line -- a failed phase and no category -- and the one event that says "this executor
+  // was refused permission" is the one an operator most needs to find by querying the audit log.
+  // `deploymentErrorCategory` is a different field and does not cover it: refusals set `errorCategory`.
+  return { status: 200, body: { ok: true }, auditMetadata: deployment?.success ? {
+    phase: deployment.data.phase,
+    deploymentErrorCategory: deployment.data.deploymentErrorCategory || "none",
+    rollbackErrorCategory: deployment.data.rollbackErrorCategory || "none",
+    errorCategory: deployment.data.errorCategory || "none",
+    reviewGate: deployment.data.reviewGate || "none"
+  } : undefined };
 }
 
 export const createTaskSchema = z.object({
