@@ -35,6 +35,33 @@ export function sha256File(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
+// HOW A PATH IS RENDERED INTO EVIDENCE, and the only way it should be.
+//
+// `JSON.stringify` handles the C0 controls, the quotes and the backslashes — a name containing a newline
+// cannot print as two lines, and one carrying ANSI escapes cannot repaint the terminal it lands in. It does
+// NOT handle the Unicode bidi formatting controls, which survive it intact and reorder what a reader sees:
+// `RLO` in a filename can make `deploy/exe.conf` display as `deploy/fnoc.exe`. Those are valid Linux
+// filename characters, so this is the same evidence-integrity problem as the escapes, not a theoretical one.
+//
+// Deliberately NOT escaped: ordinary non-ASCII and homoglyphs. Filenames legitimately use them, and
+// escaping every non-ASCII character would make real paths unreadable to buy nothing — the difference is
+// that a bidi control changes the ORDER of what is displayed, while a homoglyph is just a character that
+// resembles another.
+// Written as code points rather than as a character class of literal bidi controls, because such a class is
+// invisible in an editor and unreviewable in a diff — a reader could not tell a correct one from a wrong one.
+// U+061C ALM, U+200E LRM, U+200F RLM, U+202A–U+202E (LRE RLE PDF LRO RLO), U+2066–U+2069 (LRI RLI FSI PDI).
+const BIDI_CONTROL_POINTS = new Set([0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e,
+  0x2066, 0x2067, 0x2068, 0x2069]);
+export function renderPath(value) {
+  return [...JSON.stringify(value)]
+    .map((character) => {
+      const point = character.codePointAt(0);
+      if (!BIDI_CONTROL_POINTS.has(point)) return character;
+      return `\\u${point.toString(16).padStart(4, "0")}`;
+    })
+    .join("");
+}
+
 // One entry per path, with its TYPE as well as its bytes. Type matters: a name-only comparison accepts a
 // symlink where the artifact had a regular file, and a symlink is an instruction to read something else.
 // `lstat`, not `stat`, so a link is reported as a link rather than as whatever it points at -- which is also
@@ -175,7 +202,7 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
       mismatched.push({
         path: relative,
         // The TARGET is attacker-controlled too, and it is a string read off the deployed tree.
-        reason: `link target differs: expected ${JSON.stringify(want.target)}, found ${JSON.stringify(got.target)}`
+        reason: `link target differs: expected ${renderPath(want.target)}, found ${renderPath(got.target)}`
       });
     }
     if (want.type === "other") {
@@ -203,7 +230,7 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
   // the text of this module's own success line would otherwise print as two lines, the second of them a
   // forged pass; a name carrying ANSI escapes could rewrite what an operator sees in the terminal it is
   // printed to. Either is the thing being caught editing the record of catching it.
-  const show = (relative) => JSON.stringify(relative);
+  const show = renderPath;
   const extraType = (relative) => actualEntries.get(relative)?.type ?? "unknown";
   const problems = [
     ...missing.map((p) => `missing from the deployed tree: ${show(p)}`),
@@ -269,7 +296,7 @@ export function runCli(argv, { log = console.log, error = console.error } = {}) 
     // Says what was permitted rather than "nothing extra", which would be false whenever an allowance was
     // used -- and this line is the evidence a deploy would record.
     const extras = result.permitted.length > 0
-      ? `${result.permitted.length} permitted extra(s): ${result.permitted.map((p) => JSON.stringify(p)).join(", ")}`
+      ? `${result.permitted.length} permitted extra(s): ${result.permitted.map(renderPath).join(", ")}`
       : "nothing extra";
     log(`release tree matches: all expected entries present, ${extras}`);
     return 0;

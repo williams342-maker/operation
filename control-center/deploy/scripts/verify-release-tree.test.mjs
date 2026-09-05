@@ -201,7 +201,7 @@ test("an UNEXPECTED 'other' node is reported ONCE, with its type, and cannot be 
   assert.deepEqual(result.extra, ["sock"]);
   assert.deepEqual(result.mismatched, []);
   assert.equal(result.problems.length, 1);
-  assert.match(result.problems[0], /outside its provenance: .sock. \(other\)/);
+  assert.match(result.problems[0], /outside its provenance: \"sock\" \(other\)/);
   assert.equal(result.ok, false);
 });
 
@@ -284,6 +284,24 @@ test("terminal escape sequences in a path are escaped in problem output", () => 
   assert.match(result.problems[0], /\\u001b\[2Kinnocent\.txt/);
 });
 
+test("BIDI CONTROLS ARE ESCAPED: JSON.stringify leaves them active and they reorder what is displayed", (t) => {
+  // The category JSON quoting does not cover. U+202E RIGHT-TO-LEFT OVERRIDE survives it intact, and a
+  // reader of the evidence sees the path in a different order than it is stored in — an unexpected
+  // `exe.conf` can display as `fnoc.exe`. Homoglyphs and ordinary non-ASCII are deliberately left alone.
+  const rlo = String.fromCharCode(0x202e);
+  const hostile = `deploy/${rlo}fnoc.exe`;
+  const result = compareReleaseTree(new Map(), new Map([[hostile, { type: "file", sha256: "x" }]]));
+  assert.equal(result.problems[0].includes(rlo), false, "the raw override must not reach the output");
+  assert.match(result.problems[0], /\\u202e/);
+  assert.equal(result.extra[0], hostile, "the comparison key keeps the real bytes");
+  t.diagnostic(result.problems[0]);
+});
+
+test("ordinary non-ASCII survives rendering, because escaping it would only hurt a real reader", () => {
+  const result = compareReleaseTree(new Map(), new Map([["docs/café-naïve.md", { type: "file", sha256: "x" }]]));
+  assert.match(result.problems[0], /café-naïve\.md/);
+});
+
 test("a hostile MISSING path and a hostile mismatch are escaped too, not just extras", () => {
   const hostile = `a${String.fromCharCode(10)}b`;
   const missing = compareReleaseTree(new Map([[hostile, { type: "file", sha256: "x" }]]), new Map());
@@ -349,7 +367,7 @@ test("CLI: a permitted extra is REPORTED, never described as 'nothing extra'", (
   write(deployed, "runtime.log", "started\n");
   const run = captureCli([expected, deployed, "--allow-extra", "runtime.log:file"]);
   assert.equal(run.code, 0);
-  assert.match(run.out[0], /1 permitted extra\(s\): .runtime\.log./);
+  assert.match(run.out[0], /1 permitted extra\(s\): \"runtime\.log\"/);
   assert.doesNotMatch(run.out[0], /nothing extra/);
 });
 
