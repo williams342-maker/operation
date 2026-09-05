@@ -83,9 +83,9 @@ jobs:
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' >/dev/null 2>&1 && break; sleep 1; done
           docker exec rehearsal-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"rehearsal-mongo:27017"}]})'
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done
-          mkdir -m 700 tls
+          mkdir -m 755 tls
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=review-gate -addext 'subjectAltName=DNS:review-gate,DNS:gate-candidate,DNS:gate-rollback,IP:127.0.0.1' -keyout tls/tls.key -out tls/tls.crt >/dev/null 2>&1
-          chmod 600 tls/tls.key; chmod 644 tls/tls.crt
+          sudo chown 1000:1000 tls/tls.key; chmod 600 tls/tls.key; chmod 644 tls/tls.crt
           start_set() {
             label="$1"
             prefix="$(printf '%s' "$label" | tr '[:lower:]' '[:upper:]')"
@@ -173,8 +173,8 @@ jobs:
           set -euo pipefail
           node -e 'const fs=require("fs");for(const p of ["package.json",...fs.readdirSync("apps").map(x=>`apps/${x}/package.json`)]){if(!fs.existsSync(p))continue;const s=JSON.parse(fs.readFileSync(p));if(Object.keys(s.scripts||{}).some(k=>/^migrat/.test(k)))process.exit(1)}' 
           test ! -d migrations
-          node -e 'const fs=require("fs");const root="../rollback-source/control-center";for(const p of ["package.json",...fs.readdirSync(`${root}/apps`).map(x=>`${root}/apps/${x}/package.json`)]){if(!fs.existsSync(p))continue;const s=JSON.parse(fs.readFileSync(p));if(Object.keys(s.scripts||{}).some(k=>/^migrat/.test(k)))process.exit(1)}'
-          test ! -d ../rollback-source/control-center/migrations
+          node -e 'const fs=require("fs");const root=`${process.env.GITHUB_WORKSPACE}/../rollback-source/control-center`;for(const p of [`${root}/package.json`,...fs.readdirSync(`${root}/apps`).map(x=>`${root}/apps/${x}/package.json`)]){if(!fs.existsSync(p))continue;const s=JSON.parse(fs.readFileSync(p));if(Object.keys(s.scripts||{}).some(k=>/^migrat/.test(k)))process.exit(1)}'
+          test ! -d "$GITHUB_WORKSPACE/../rollback-source/control-center/migrations"
           node scripts/build-rehearsal-evidence.mjs schema-rehearsal.json
       - name: Attest the rehearsal evidence
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3

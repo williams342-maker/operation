@@ -12,7 +12,7 @@ export const FORGE_REVIEW_GATE_CA_PATH = `${FORGE_SECURITY_DIR}/review-gate-ca.p
 
 const sha256 = (value: Buffer | string) => crypto.createHash("sha256").update(value).digest("hex");
 
-const identityText = z.string().min(1).regex(/^[^\u0000-\u001f\u007f]+$/);
+const identityText = z.string().min(1).refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "control characters are forbidden");
 export const forgeSecurityIdentitySchema = z.object({
   schemaVersion: z.literal("forge-security-identity-v1"),
   orgId: identityText, serverId: identityText, ownerPublicKey: z.string().min(1).regex(/^[A-Za-z0-9_-]+$/),

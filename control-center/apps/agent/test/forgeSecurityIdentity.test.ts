@@ -11,7 +11,7 @@ const digest = (value: string | Buffer) => crypto.createHash("sha256").update(va
 
 test("security identity fields cannot inject canonical statement separators", () => {
   const base = { schemaVersion: "forge-security-identity-v1", orgId: "org", serverId: "server", ownerPublicKey: "abc", trustedRootSha256: "a".repeat(64), reviewGateCaSha256: "b".repeat(64), hostname: "host", machineIdSha256: "c".repeat(64), validFrom: "2026-09-01T00:00:00.000Z", validUntil: "2027-09-01T00:00:00.000Z", ownerSignature: "d".repeat(64) };
-  for (const field of ["orgId", "serverId", "hostname"] as const) assert.equal(forgeSecurityIdentitySchema.safeParse({ ...base, [field]: "trusted\nshifted" }).success, false);
+  for (const field of ["orgId", "serverId", "hostname"] as const) for (const value of ["trusted\nshifted", "trusted\n", "trusted\r"]) assert.equal(forgeSecurityIdentitySchema.safeParse({ ...base, [field]: value }).success, false);
 });
 
 function fixture(): { root: string; security: string; identity: string; trustedRoot: string; reviewGateCa: string; policy: SecurityPathPolicy } {
