@@ -100,13 +100,17 @@ export function ghAvailable() {
 
 // Verify the SLSA build-provenance attestation for each listed file via `gh attestation verify`.
 // Separated from the pure check so offline unit tests never touch the network.
-export function verifyAttestation(dir, fileNames, { repo = REPOSITORY, required = false } = {}) {
+export function verifyAttestation(dir, fileNames, { repo = REPOSITORY, required = false, signerWorkflow, sourceDigest, sourceRef } = {}) {
   if (!ghAvailable()) {
     if (required) throw new Error("gh CLI is unavailable but attestation verification is required");
     return { verified: false, skipped: true, reason: "gh CLI unavailable" };
   }
   for (const name of fileNames) {
-    execFileSync("gh", ["attestation", "verify", path.join(dir, name), "--repo", repo], { stdio: "pipe" });
+    const args = ["attestation", "verify", path.join(dir, name), "--repo", repo];
+    if (signerWorkflow) args.push("--signer-workflow", signerWorkflow);
+    if (sourceDigest) args.push("--source-digest", sourceDigest);
+    if (sourceRef) args.push("--source-ref", sourceRef);
+    execFileSync("gh", args, { stdio: "pipe" });
   }
   return { verified: true, skipped: false };
 }

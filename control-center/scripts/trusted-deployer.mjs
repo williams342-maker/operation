@@ -74,7 +74,7 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     for (const name of ["SHA256SUMS", ...listed]) copyStableRegular(path.join(plan.bundleDirectory, name), path.join(stage, name));
     const copiedCheck = verifyReleaseBundle(stage, { expectedTag: plan.tag });
     if (!copiedCheck.ok || copiedCheck.manifest.commit !== plan.commit) throw new Error("private release copy failed repeat verification");
-    (hooks.verifyAttestation ?? verifyAttestation)(stage, listed, { required: true });
+    (hooks.verifyAttestation ?? verifyAttestation)(stage, listed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}` });
     const archivePath = path.join(stage, copiedCheck.manifest.artifact);
     const prefix = `opsworkbench-control-center-${plan.tag.slice(1)}`;
     const inspected = inspectReleaseTarGz(archivePath, { expectedPrefix: prefix });
@@ -135,7 +135,7 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   const check = verifyReleaseBundle(preparation.stage, { expectedTag: preparation.plan.tag });
   if (!check.ok || check.manifest.commit !== preparation.plan.commit) throw new Error("prepared bundle failed immediate re-verification");
   const listed = parseSha256Sums(fs.readFileSync(path.join(preparation.stage, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
-  (hooks.verifyAttestation ?? verifyAttestation)(preparation.stage, listed, { required: true });
+  (hooks.verifyAttestation ?? verifyAttestation)(preparation.stage, listed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.commit, sourceRef: `refs/tags/${preparation.plan.tag}` });
   const inspected = inspectReleaseTarGz(path.join(preparation.stage, check.manifest.artifact), { expectedPrefix: preparation.prefix });
   if (inspected.archiveCommit !== preparation.plan.commit) throw new Error("prepared archive commit changed");
   const tree = compareReleaseTree(preparation.expectedTree, describeTree(preparation.extracted));
