@@ -56,18 +56,26 @@ Neither was written down anywhere before this revision; both are recovered from 
 live `app/`. Compose lives at `/opt/opsworkbench/shared/compose/docker-compose.yml`; env at
 `shared/compose/env/`. `checkpoints/` retains the compose and env of prior deployments.
 
-**The thing that produces all of that is not in this repository, and is not on the host either.** Nothing
-under `control-center/` deploys the control-center: `verify-release-bundle.mjs` has exactly one caller, its
-own test, and `control-center/deploy/` is material a host consumes — compose, nginx, systemd — not a
-deployer. On the host, no script under `shared/`, `/usr/local/bin` or `/root` references the release layout
-or the two overlay files in G6. The layout above is an artifact of a process that exists only wherever it is
-being run from.
+**The thing that produces all of that was not found, and the search has a stated edge.** Nothing under
+`control-center/` deploys the control-center: `verify-release-bundle.mjs` has exactly one caller, its own
+test, and `control-center/deploy/` is material a host consumes — compose, nginx, systemd — not a deployer.
+That much is exhaustive for this repository. On the host the search was **scoped**: no script under
+`shared/`, `/usr/local/bin` or `/root` references the release layout or the two overlay files in G6.
 
-**That is why G1 and G6 cannot be closed by writing code here.** Both remedies are checks a deploy performs,
-and there is no deploy to put them in; adding another verifier nothing calls would reproduce exactly the
-situation G1 already describes. Recovering or rebuilding the deployment mechanism under version control is
-the prerequisite for both, and it is the first thing a reader looking for "where do I add this" should be
-told, because searching for it is otherwise a day lost.
+**What that supports, and no more:** no deployment mechanism was found in this repository or in the host
+paths searched, and its execution location and version-control status are **unidentified**. It was not
+ruled out in systemd units or timers, cron, a container, CI, another repository, or an operator's own
+machine — and any of those would explain the layout equally well. Finding it is part of G0.
+
+**That is why G1 and G6 cannot be CLOSED by writing code here — which is not the same as saying nothing can
+be written.** Their remedies are checks a deploy performs, and no deploy has been found to put them in, so
+enforcement waits on G0. The reusable primitive does not: `verify-release-tree.mjs` implements and tests the
+bidirectional comparison G6 needs, and ships with **no caller**, exactly as `verify-release-bundle.mjs` does
+for G1. Landing a validated primitive ahead of its caller is not the same mistake as landing a second
+unvalidated one.
+
+Still, a reader looking for "where do I wire this in" will not find anywhere, and should be told that before
+they start rather than after.
 
 **Rollback. What is established, and nothing beyond it:**
 
@@ -97,7 +105,7 @@ destroys the only rollback artifact it has.
 
 | # | Gap | Status |
 |---|-----|--------|
-| G0 | **There is no deployment mechanism under version control.** The process that creates release directories, writes the overlay in G6 and moves `current` exists in neither this repository nor the host. | **OPEN, and it blocks G1 and G6** — both are checks a deploy performs, and there is no deploy to put them in. See §2. |
+| G0 | **The deployment mechanism is not identified or represented in this repository.** Whatever creates release directories, writes the overlay in G6 and moves `current` was not found here or in the host paths searched; where it runs and whether it is version-controlled anywhere is unknown. | **OPEN, and it blocks ENFORCEMENT of G1 and G6** — their checks need a deploy to run in. It does not block implementing their primitives: see `verify-release-tree.mjs`. See §2. |
 | G1 | **No enforced deploy-time verification.** Nothing makes prod consume only release-workflow output. | **OPEN.** `control-center/scripts/verify-release-bundle.mjs` exists (offline checksum+manifest, attestation via `gh`, mandatory with `CONTROL_CENTER_REQUIRE_RELEASE_ATTESTATION=1`) but is not wired into a live deploy. The chain in §1 was verified *by hand, after the fact*. |
 | G2 | **Runtime identity was unverified env strings.** | **PARTLY CLOSED.** `resolveBuildIdentity()` binds `/healthz` to the shipped manifest and production reports `source: manifest`. The manifest is still a file the deployer placed there: nothing re-hashes the unpacked tree at startup and compares. Reporting an identity is not verifying one. |
 | G3 | **Tag → audited-line binding is unchecked.** The release workflow will build any pushed `v*.*.*-*` tag. | **OPEN.** An unreviewed commit could still be tagged, attested and shipped, and the attestation would look exactly as convincing. |
@@ -150,6 +158,8 @@ not a faithful copy of them.
 - [ ] Running app verifies the **unpacked tree** against the manifest at startup, not only reports it (**G2**).
 - [ ] Deploy **refuses a release directory containing files the manifest does not name**, checked
       immediately before start as well as after extraction (**G6**).
+- [ ] **G0** The deployment mechanism identified, and represented under version control where the checks
+      below can run inside it.
 - [ ] agent-v2 decision explicit: flag stays **off** unless the full key ceremony (**G5**) has completed on
       persistent staging with owner sign-off.
 - [ ] Secrets/keys handled by the owner (never by the assistant): no prod keys provisioned in code or CI.
@@ -157,8 +167,11 @@ not a faithful copy of them.
 
 ## 5. Recommended implementation order (all non-production, reviewable in PRs)
 
-1. **G0** — first, because it is not optional: G6 and G1 are checks with nowhere to live until a deployer is under version control. This is recovery of an existing process, not a new design.
-2. **G6** — the only gap with a demonstrated instance, and cheap once G0 gives it a home.
+1. **G0** — first, because everything downstream is enforcement that needs somewhere to run. This is
+   identification and recovery of an existing process, not a new design: something already creates these
+   directories correctly enough that 253 of 255 files match an attested artifact.
+2. **G6** — the only gap with a demonstrated instance. Its primitive is already implemented and tested
+   (`verify-release-tree.mjs`); what remains is a caller, which is G0.
 3. **G3** — the tag→`main`-ancestor assertion in `control-center-release.yml`.
 4. **G2** — startup tree-hash check against the shipped manifest.
 5. **G1** — a verify-before-start deploy gate wired into the deploy scripts.
