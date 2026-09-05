@@ -35,7 +35,8 @@ export type ForgeEvidencePaths = {
   forgeOwnerAuthorizationPath?: string;
 };
 
-// THE TRUST ANCHORS ARE NOT INPUT. They are supplied by the caller from root-owned agent configuration,
+// THE TRUST ANCHORS ARE NOT INPUT. They are supplied by the caller from the separately provisioned,
+// root-owned Forge security identity,
 // never from the operator-supplied evidence file.
 //
 // Round 2 of independent review (2026-09-01) found that both anchors were still selectable through the
@@ -50,7 +51,7 @@ export type ForgeEvidencePaths = {
 export type ForgeTrustAnchors = {
   /** Contents of the pinned Sigstore trusted root. Read by the CALLER from a fixed root-owned path. */
   trustedRoot: unknown;
-  /** The owner's Ed25519 public key from the agent's own enrolled configuration. */
+  /** The owner's Ed25519 public key, pinned by the reviewed release and repeated in its signed host identity. */
   ownerPublicKey: string;
 };
 
@@ -73,7 +74,7 @@ const REQUIRED_PATHS = [
 export const forgeEvidenceRequested = (paths: ForgeEvidencePaths) =>
   REQUIRED_PATHS.some((key) => Boolean(paths[key]?.trim()));
 
-// The owner key arrives from enrolled agent configuration, not from a path. This still validates the
+// The owner key arrives from signed Forge security identity, not from operator evidence. This still validates the
 // shape: configuration can be wrong, and a key that is not an Ed25519 public key must fail loudly here
 // rather than produce a confusing signature failure later.
 function assertEd25519PublicKey(value: string): string {

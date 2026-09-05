@@ -22,20 +22,24 @@ const PRIOR_COMMIT = "467a3138e8c8d4cd3e397bdfa32562b09a5332f8";
 const BUILDER = "https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/v0.1.2-operate";
 const CANDIDATE_BACKEND = `ghcr.io/williams342-maker/operation/control-center-api@sha256:${"a".repeat(64)}`;
 const CANDIDATE_FRONTEND = `ghcr.io/williams342-maker/operation/control-center-web@sha256:${"b".repeat(64)}`;
+const CANDIDATE_ADMIN = `ghcr.io/williams342-maker/operation/control-center-admin-web@sha256:${"e".repeat(64)}`;
+const CANDIDATE_GATE = `ghcr.io/williams342-maker/operation/review-gate@sha256:${"1".repeat(64)}`;
 const ROLLBACK_BACKEND = `ghcr.io/williams342-maker/operation/control-center-api@sha256:${"c".repeat(64)}`;
 const ROLLBACK_FRONTEND = `ghcr.io/williams342-maker/operation/control-center-web@sha256:${"d".repeat(64)}`;
+const ROLLBACK_ADMIN = `ghcr.io/williams342-maker/operation/control-center-admin-web@sha256:${"f".repeat(64)}`;
+const ROLLBACK_GATE = `ghcr.io/williams342-maker/operation/review-gate@sha256:${"2".repeat(64)}`;
 
 const buildManifest = (over: Partial<ForgeBuildManifest> = {}): ForgeBuildManifest => ({
-  schemaVersion: "forge-build-v1", buildId: "forge-build-20260901-0001",
+  schemaVersion: "forge-build-v2", buildId: "forge-build-20260901-0001",
   sourceRepository: "https://github.com/williams342-maker/operation",
   sourceCommit: COMMIT, sourceTree: "322b1275e498aa0d4c0c1cbb0a2f2ab5f4e6d7c8", sourceTag: "v0.1.2-operate",
-  backendImageDigest: CANDIDATE_BACKEND, frontendImageDigest: CANDIDATE_FRONTEND,
+  backendImageDigest: CANDIDATE_BACKEND, frontendImageDigest: CANDIDATE_FRONTEND, adminImageDigest: CANDIDATE_ADMIN, reviewGateImageDigest: CANDIDATE_GATE,
   builderIdentity: BUILDER, builderRunnerEnvironment: "github-hosted", issuedAt: NOW.toISOString(), ...over
 } as ForgeBuildManifest);
 
 const rollbackManifest = (over: Partial<ForgeBuildManifest> = {}): ForgeBuildManifest => buildManifest({
   buildId: "forge-build-20260808-0001", sourceCommit: PRIOR_COMMIT, sourceTree: "f599b3a2b078aa0d4c0c1cbb0a2f2ab5f4e6d7c8",
-  sourceTag: "v0.1.1-operate", backendImageDigest: ROLLBACK_BACKEND, frontendImageDigest: ROLLBACK_FRONTEND, ...over
+  sourceTag: "v0.1.1-operate", backendImageDigest: ROLLBACK_BACKEND, frontendImageDigest: ROLLBACK_FRONTEND, adminImageDigest: ROLLBACK_ADMIN, reviewGateImageDigest: ROLLBACK_GATE, ...over
 });
 
 function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuildManifest; binding?: Partial<ForgeTargetBinding>; evidence?: ForgeEvidenceOutcome; omit?: string[]; revisions?: Record<string, string | undefined>; actualOrgId?: string; actualServerId?: string; consumedNonces?: string[] } = {}) {
@@ -45,9 +49,9 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
   const override = path.join(root, "images.json");
   const rollbackOverride = path.join(root, "rollback-images.json");
   fs.writeFileSync(env, `APP_ENV=beta\nENVIRONMENT=beta\n${BETA_STARTUP_SAFETY_FLAGS.map((name) => `${name}=false`).join("\n")}\n`);
-  fs.writeFileSync(compose, "services:\n  backend:\n    image: x\n  frontend:\n    image: y\n");
-  fs.writeFileSync(override, `${JSON.stringify({ services: { backend: { image: CANDIDATE_BACKEND }, frontend: { image: CANDIDATE_FRONTEND } } }, null, 2)}\n`);
-  fs.writeFileSync(rollbackOverride, `${JSON.stringify({ services: { backend: { image: ROLLBACK_BACKEND }, frontend: { image: ROLLBACK_FRONTEND } } }, null, 2)}\n`);
+  fs.writeFileSync(compose, "services:\n  backend:\n    image: x\n  frontend:\n    image: y\n  admin:\n    image: z\n");
+  fs.writeFileSync(override, `${JSON.stringify({ services: { backend: { image: CANDIDATE_BACKEND }, frontend: { image: CANDIDATE_FRONTEND }, admin: { image: CANDIDATE_ADMIN } } }, null, 2)}\n`);
+  fs.writeFileSync(rollbackOverride, `${JSON.stringify({ services: { backend: { image: ROLLBACK_BACKEND }, frontend: { image: ROLLBACK_FRONTEND }, admin: { image: ROLLBACK_ADMIN } } }, null, 2)}\n`);
 
   const candidate = options.candidate ?? buildManifest();
   const rollback = options.rollback ?? rollbackManifest();
@@ -55,7 +59,7 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     schemaVersion: "forge-target-binding-v1", bindingId: "forge-binding-20260901-0001",
     buildDigest: forgeBuildDigest(candidate), rollbackBuildDigest: forgeBuildDigest(rollback),
     targetEnvironment: "beta", targetOrgId: "org-000000000001", targetServerId: "server-000000000001",
-    composeProjectName: "opsworkbench-beta", authorizedServices: ["backend", "frontend"],
+    composeProjectName: "opsworkbench-beta", authorizedServices: ["backend", "frontend", "admin"],
     requiredCapabilities: ["docker", "compose"], issuedAt: NOW.toISOString(),
     expiresAt: new Date(NOW.getTime() + 3600_000).toISOString(), nonce: "forge-nonce-000000001",
     ...options.binding
@@ -91,8 +95,8 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     composeFilePath: compose, environmentFilePath: env, composeOverrideFilePath: override,
     rollbackComposeOverrideFilePath: rollbackOverride,
     authorizedBackendImage: CANDIDATE_BACKEND, authorizedFrontendImage: CANDIDATE_FRONTEND,
-    rollbackBackendImage: ROLLBACK_BACKEND, rollbackFrontendImage: ROLLBACK_FRONTEND,
-    authorizedServices: ["backend", "frontend"], allowedComposeServices: ["backend", "frontend"],
+    authorizedAdminImage: CANDIDATE_ADMIN, rollbackBackendImage: ROLLBACK_BACKEND, rollbackFrontendImage: ROLLBACK_FRONTEND,
+    rollbackAdminImage: ROLLBACK_ADMIN, authorizedServices: ["backend", "frontend", "admin"], allowedComposeServices: ["backend", "frontend", "admin"],
     allowedHostnames: [], allowedDatabaseDestinations: [{ hostname: "mongo", databaseName: "beta" }],
     agentAdvertisedCapabilities: ["docker", "compose", "dockerComposeActivation"],
     actualOrgId: options.actualOrgId ?? "org-000000000001",
@@ -101,16 +105,19 @@ function fixture(options: { candidate?: ForgeBuildManifest; rollback?: ForgeBuil
     ...paths,
   };
 
-  const revisions = { candidateBackend: COMMIT, candidateFrontend: COMMIT, rollbackBackend: PRIOR_COMMIT, rollbackFrontend: PRIOR_COMMIT, ...options.revisions };
+  const revisions = { candidateBackend: COMMIT, candidateFrontend: COMMIT, candidateAdmin: COMMIT, rollbackBackend: PRIOR_COMMIT, rollbackFrontend: PRIOR_COMMIT, rollbackAdmin: PRIOR_COMMIT, ...options.revisions };
   const model = { name: "opsworkbench-beta", services: {
     backend: { image: CANDIDATE_BACKEND, environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/beta" } },
     frontend: { image: CANDIDATE_FRONTEND, environment: {} },
+    admin: { image: CANDIDATE_ADMIN, environment: {} },
   } };
   const images: Record<string, ImageInspection> = {
     [CANDIDATE_BACKEND]: { id: "sha256:cb", repoTags: [], revision: revisions.candidateBackend },
     [CANDIDATE_FRONTEND]: { id: "sha256:cf", repoTags: [], revision: revisions.candidateFrontend },
+    [CANDIDATE_ADMIN]: { id: "sha256:ca", repoTags: [], revision: revisions.candidateAdmin },
     [ROLLBACK_BACKEND]: { id: "sha256:rb", repoTags: [], revision: revisions.rollbackBackend },
     [ROLLBACK_FRONTEND]: { id: "sha256:rf", repoTags: [], revision: revisions.rollbackFrontend },
+    [ROLLBACK_ADMIN]: { id: "sha256:ra", repoTags: [], revision: revisions.rollbackAdmin },
   };
   const hooks = {
     now: () => NOW,
@@ -189,8 +196,8 @@ test("candidate or rollback images that are not the attested pinned digests bloc
   const substitute = `ghcr.io/williams342-maker/operation/control-center-api@sha256:${"e".repeat(64)}`;
   const swapped = fixture();
   swapped.input.authorizedBackendImage = substitute;
-  fs.writeFileSync(swapped.input.composeOverrideFilePath, `${JSON.stringify({ services: { backend: { image: substitute }, frontend: { image: CANDIDATE_FRONTEND } } }, null, 2)}\n`);
-  const swappedHooks = { ...swapped.hooks, composeConfig: async () => ({ code: 0, stdout: JSON.stringify({ name: "opsworkbench-beta", services: { backend: { image: substitute, environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/beta" } }, frontend: { image: CANDIDATE_FRONTEND, environment: {} } } }), stderr: "" }), inspectImage: async (image: string) => (image === substitute ? { id: "sha256:sub", repoTags: [], revision: COMMIT } : swapped.hooks.inspectImage(image)) };
+  fs.writeFileSync(swapped.input.composeOverrideFilePath, `${JSON.stringify({ services: { backend: { image: substitute }, frontend: { image: CANDIDATE_FRONTEND }, admin: { image: CANDIDATE_ADMIN } } }, null, 2)}\n`);
+  const swappedHooks = { ...swapped.hooks, composeConfig: async () => ({ code: 0, stdout: JSON.stringify({ name: "opsworkbench-beta", services: { backend: { image: substitute, environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/beta" } }, frontend: { image: CANDIDATE_FRONTEND, environment: {} }, admin: { image: CANDIDATE_ADMIN, environment: {} } } }), stderr: "" }), inspectImage: async (image: string) => (image === substitute ? { id: "sha256:sub", repoTags: [], revision: COMMIT } : swapped.hooks.inspectImage(image)) };
   const a = await runBetaDeploymentPreflight(swapped.input, swappedHooks);
   assert.equal(a.status, "BLOCKED");
   assert.ok(failed(a, "forge_binding_images"), "candidate image must be checked against the attested build");
@@ -204,7 +211,7 @@ test("candidate or rollback images that are not the attested pinned digests bloc
   // change fails loudly here instead of writing to `undefined`.
   const rollbackOverridePath = rollback.input.rollbackComposeOverrideFilePath;
   assert.ok(rollbackOverridePath, "the fixture must supply a rollback compose override path");
-  fs.writeFileSync(rollbackOverridePath, `${JSON.stringify({ services: { backend: { image: rollbackSubstitute }, frontend: { image: ROLLBACK_FRONTEND } } }, null, 2)}\n`);
+  fs.writeFileSync(rollbackOverridePath, `${JSON.stringify({ services: { backend: { image: rollbackSubstitute }, frontend: { image: ROLLBACK_FRONTEND }, admin: { image: ROLLBACK_ADMIN } } }, null, 2)}\n`);
   const rollbackHooks = { ...rollback.hooks, inspectImage: async (image: string) => (image === rollbackSubstitute ? { id: "sha256:rsub", repoTags: [], revision: PRIOR_COMMIT } : rollback.hooks.inspectImage(image)) };
   const b = await runBetaDeploymentPreflight(rollback.input, rollbackHooks);
   assert.equal(b.status, "BLOCKED");

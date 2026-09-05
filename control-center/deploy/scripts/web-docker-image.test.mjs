@@ -7,6 +7,8 @@ import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const dockerfilePath = path.join(root, "apps", "web", "Dockerfile");
+const adminDockerfilePath = path.join(root, "apps", "web", "Dockerfile.admin");
+const reviewGateDockerfilePath = path.join(root, "apps", "review-gate", "Dockerfile");
 const apiDockerfilePath = path.join(root, "apps", "api", "Dockerfile");
 const COMMIT = "4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b";
 const TREE = "322b1275e498aa0d4c0c1cbb0a2f2ab5f4e6d7c8";
@@ -77,10 +79,12 @@ test("web Docker build preserves the canonical shared-before-web workspace order
 // The whole test must outlast the work it serialises: two builds at BUILD_COMMAND_MS plus the container
 // runs and inspections afterwards. At 600s it could not even contain two builds at the old per-command
 // cap, so whichever limit expired first decided the failure message.
-test("production API and web images build from a clean context and contain only intended runtime artifacts", { skip: !runDockerTests, timeout: 1_500_000 }, () => {
+test("all four production application images build cleanly with complete provenance", { skip: !runDockerTests, timeout: 2_700_000 }, () => {
   const suffix = `${process.pid}-${Date.now()}`;
   const webImage = `opsworkbench-web-regression:${suffix}`;
   const apiImage = `opsworkbench-api-regression:${suffix}`;
+  const adminImage = `opsworkbench-admin-regression:${suffix}`;
+  const gateImage = `opsworkbench-review-gate-regression:${suffix}`;
   const environmentDirectory = path.join(root, "deploy", "env");
   const environmentFile = path.join(environmentDirectory, ".env.staging");
   const environmentDirectoryExisted = fs.existsSync(environmentDirectory);
@@ -98,6 +102,8 @@ test("production API and web images build from a clean context and contain only 
     // preflight reads. The two are independent and both are required.
     docker(["build", "--progress=plain", "--no-cache", "--build-arg", "VITE_API_URL=/api", ...provenanceArgs, "--file", "apps/web/Dockerfile", "--tag", webImage, "."]);
     docker(["build", "--progress=plain", "--no-cache", ...provenanceArgs, "--file", "apps/api/Dockerfile", "--tag", apiImage, "."]);
+    docker(["build", "--progress=plain", "--no-cache", "--build-arg", "VITE_API_URL=/api", ...provenanceArgs, "--file", "apps/web/Dockerfile.admin", "--tag", adminImage, "."]);
+    docker(["build", "--progress=plain", "--no-cache", ...provenanceArgs, "--file", "apps/review-gate/Dockerfile", "--tag", gateImage, "."]);
 
     const command = JSON.parse(docker(["image", "inspect", "--format", "{{json .Config.Cmd}}", webImage]));
     assert.deepEqual(command, ["nginx", "-g", "daemon off;"]);
@@ -109,12 +115,12 @@ test("production API and web images build from a clean context and contain only 
 
     // Forge milestone 5: the image must be able to say what it was built from. This is the label the
     // deployment preflight reads and, before this existed, never compared against anything.
-    for (const image of [webImage, apiImage]) {
+    for (const image of [webImage, apiImage, adminImage, gateImage]) {
       const labels = JSON.parse(docker(["image", "inspect", "--format", "{{json .Config.Labels}}", image]));
       assert.equal(labels["org.opencontainers.image.revision"], COMMIT, `${image} must carry the source commit`);
       assert.equal(labels["org.opsworkbench.source.tree"], TREE, `${image} must carry the source tree`);
       assert.equal(labels["org.opencontainers.image.version"], "v0.0.0-test");
-      assert.match(labels["org.opencontainers.image.title"], /^opsworkbench-control-center-(api|web)$/);
+      assert.match(labels["org.opencontainers.image.title"], /^opsworkbench-(control-center-(api|web|admin-web)|review-gate)$/);
     }
     // An image without provenance must not be buildable at all.
     const unprovenanced = spawnSync("docker", ["build", "--no-cache", "--file", "apps/api/Dockerfile", "--tag", `${apiImage}-noprov`, "."], { cwd: root, encoding: "utf8", timeout: 240_000 });
@@ -125,14 +131,14 @@ test("production API and web images build from a clean context and contain only 
     assert.doesNotMatch(history, /(?:TOKEN|SECRET|PASSWORD|PRIVATE_KEY)=[^\s]+/i);
     assert.doesNotMatch(history, /(?:^|[\\/])\.env(?:\.|\s|$)/i);
   } finally {
-    spawnSync("docker", ["image", "rm", "--force", webImage, apiImage], { cwd: root, encoding: "utf8" });
+    spawnSync("docker", ["image", "rm", "--force", webImage, apiImage, adminImage, gateImage], { cwd: root, encoding: "utf8" });
     fs.rmSync(environmentFile, { force: true });
     if (!environmentDirectoryExisted) fs.rmdirSync(environmentDirectory);
   }
 });
 
-test("both Dockerfiles require a source commit and label it where the preflight reads it", () => {
-  for (const [name, file] of [["web", dockerfilePath], ["api", apiDockerfilePath]]) {
+test("all application Dockerfiles require a source commit and label it where the preflight reads it", () => {
+  for (const [name, file] of [["web", dockerfilePath], ["admin", adminDockerfilePath], ["api", apiDockerfilePath], ["review-gate", reviewGateDockerfilePath]]) {
     const dockerfile = fs.readFileSync(file, "utf8");
     // The guard must be REQUIRED, not merely available: an optional provenance label is absent exactly
     // when it matters.
@@ -167,7 +173,7 @@ test("the image build workflow cannot publish without an explicit human decision
   //
   // `uses:` is what makes it a step. Every match is checked, and the count is asserted so that a step
   // silently disappearing is a failure rather than a smaller green loop.
-  for (const [action, expected] of [["docker/login-action", 1], ["actions/attest-build-provenance", 3]]) {
+  for (const [action, expected] of [["docker/login-action", 1], ["actions/attest-build-provenance", 5]]) {
     const needle = `uses: ${action}`;
     const found = [];
     for (let i = workflow.indexOf(needle); i > 0; i = workflow.indexOf(needle, i + 1)) found.push(i);

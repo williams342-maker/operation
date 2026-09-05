@@ -2,9 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { runBetaDeploymentPreflight, serializePreflightReport, withBetaPreflightTemporaryFiles, type BetaDeploymentPreflightInput } from "./betaDeploymentPreflight.js";
-import { agentConfigSchema } from "./config.js";
-import { readJsonFile } from "./forgeAttestation.js";
 import { forgeEvidenceRequested, type ForgeTrustAnchors } from "./forgePreflightEvidence.js";
+import { loadForgeSecurityMaterial } from "./forgeSecurityIdentity.js";
 
 // FIXED, ROOT-OWNED PATHS. Not configurable, not environment-overridable, not relative to the working
 // directory, and not reachable from the operator-supplied input file.
@@ -16,13 +15,10 @@ import { forgeEvidenceRequested, type ForgeTrustAnchors } from "./forgePreflight
 // and the "measured" org/server identity were still operator-substitutable: run the preflight from a
 // directory holding your own agent.local.json and you are the owner.
 //
-// `loadConfig()` is the right helper for the agent daemon, where an override is a development
-// convenience. It is the wrong helper HERE, because this is an authority boundary. Read the identity
-// from the fixed root-owned path the agent design already defines
-// (docs/agent-upgrades.md: "/etc/opsworkbench-agent/agent.json: preserved agent identity and credential
-// configuration") and accept no substitute.
-const AGENT_IDENTITY_PATH = "/etc/opsworkbench-agent/agent.json";
-const TRUSTED_ROOT_PATH = "/etc/opsworkbench-agent/forge-trust-root.json";
+// The daemon configuration is deliberately NOT used here. It is mutable enrollment state owned by the
+// service identity. Forge security identity and trust roots live under a distinct root-owned hierarchy;
+// `loadForgeSecurityMaterial()` validates the complete path, stable-open semantics, machine binding and
+// validity window before returning either one.
 const CONSUMED_NONCE_DIR = "/var/lib/opsworkbench-agent/consumed-preflight-nonces";
 
 type RootOwnedIdentity = { orgId: string; serverId: string; ownerPublicKey: string };
@@ -43,32 +39,19 @@ type RootOwnedIdentity = { orgId: string; serverId: string; ownerPublicKey: stri
  * whoever owns the host -- but it has to be VISIBLE, which is what the reason string is for.
  */
 type IdentityOutcome =
-  | { ok: true; identity: RootOwnedIdentity }
+  | { ok: true; identity: RootOwnedIdentity; anchors: ForgeTrustAnchors }
   | { ok: false; reason: string };
 
 function loadRootOwnedIdentity(): IdentityOutcome {
-  let config: ReturnType<typeof agentConfigSchema.parse>;
   try {
-    config = agentConfigSchema.parse(JSON.parse(fs.readFileSync(AGENT_IDENTITY_PATH, "utf8")));
-  } catch {
-    return { ok: false, reason: `no readable agent configuration at ${AGENT_IDENTITY_PATH}` };
-  }
-  // Named individually. "identity unavailable" sent the last reader to re-derive which of three fields
-  // was missing, and the answer is almost always the same one.
-  const missing = ([["orgId", config.orgId], ["serverId", config.serverId],
-    ["ownerPublicKey", config.ownerPublicKey]] as const)
-    .filter(([, value]) => !value).map(([name]) => name);
-  if (missing.length > 0) {
-    return { ok: false, reason: `${AGENT_IDENTITY_PATH} is missing: ${missing.join(", ")}` };
-  }
-  return { ok: true, identity: { orgId: config.orgId, serverId: config.serverId, ownerPublicKey: config.ownerPublicKey! } };
-}
-
-function loadTrustAnchors(ownerPublicKey: string): ForgeTrustAnchors | undefined {
-  try {
-    return { trustedRoot: readJsonFile(TRUSTED_ROOT_PATH), ownerPublicKey };
-  } catch {
-    return undefined;
+    const material = loadForgeSecurityMaterial();
+    return {
+      ok: true,
+      identity: material.identity,
+      anchors: { trustedRoot: material.trustedRoot, ownerPublicKey: material.identity.ownerPublicKey },
+    };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "Forge security identity is unavailable" };
   }
 }
 
@@ -145,7 +128,7 @@ if (!inputPath) {
       actualOrgId: identity?.orgId,
       actualServerId: identity?.serverId,
     };
-    const anchors = identity ? loadTrustAnchors(identity.ownerPublicKey) : undefined;
+    const anchors = outcome?.ok ? outcome.anchors : undefined;
     const result = await withBetaPreflightTemporaryFiles(input, () => runBetaDeploymentPreflight(input, { anchors, claimNonces }));
     passed = result.status.startsWith("PASS");
     process.stdout.write(serializePreflightReport(result));

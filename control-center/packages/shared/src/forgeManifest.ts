@@ -10,7 +10,7 @@ import { ownerAuthorizationSchema, isTaskExpired, type OwnerAuthorization } from
 // 2026-09-01). A single manifest would have forced Forge to assert a target it cannot know, which also
 // contradicted the authority model: OpsWorkbench owns target identity, not Forge.
 //
-//   forge-build-v1           what Forge built, from what source. NO target. A permanent fact, so it
+//   forge-build-v2           what Forge built, from what source. NO target. A permanent fact, so it
 //                            carries no expiry and no nonce — a six-month-old build is not invalid,
 //                            deploying it without fresh authorization is.
 //   forge-target-binding-v1  composed LATER, once a target is chosen. Binds one build to one target,
@@ -36,7 +36,7 @@ import { ownerAuthorizationSchema, isTaskExpired, type OwnerAuthorization } from
 // deployment preflight BLOCKED into "PASS — awaiting operator approval". It cannot deploy, and it
 // grants no capability.
 
-export const forgeBuildSchemaVersion = "forge-build-v1" as const;
+export const forgeBuildSchemaVersion = "forge-build-v2" as const;
 export const forgeTargetBindingSchemaVersion = "forge-target-binding-v1" as const;
 
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
@@ -50,7 +50,7 @@ const serviceName = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,62}$/);
 const identifier = z.string().min(12).max(64).regex(/^[A-Za-z0-9._:-]+$/);
 
 // ---------------------------------------------------------------------------------------------------
-// forge-build-v1 — source → artifact. No target, no expiry, no nonce.
+// forge-build-v2 — source → all production runtime artifacts. No target, no expiry, no nonce.
 // ---------------------------------------------------------------------------------------------------
 export const forgeBuildManifestSchema = z.object({
   schemaVersion: z.literal(forgeBuildSchemaVersion),
@@ -64,6 +64,8 @@ export const forgeBuildManifestSchema = z.object({
   sourceTag: z.string().regex(/^v[A-Za-z0-9._+-]{1,80}$/).optional(),
   backendImageDigest: imageDigest,
   frontendImageDigest: imageDigest,
+  adminImageDigest: imageDigest,
+  reviewGateImageDigest: imageDigest,
   releaseBundleSha256: sha256Hex.optional(),
   releaseManifestDigest: sha256Hex.optional(),
   // What the attestation must be checked AGAINST. Binding these is what stops a valid attestation from
@@ -72,7 +74,9 @@ export const forgeBuildManifestSchema = z.object({
   builderRunnerEnvironment: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
   issuedAt: z.string().datetime()
 }).strict().superRefine((value, context) => {
-  if (value.backendImageDigest === value.frontendImageDigest) context.addIssue({ code: z.ZodIssueCode.custom, message: "Backend and frontend images are identical" });
+  if (new Set([value.backendImageDigest, value.frontendImageDigest, value.adminImageDigest, value.reviewGateImageDigest]).size !== 4) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "All runtime images must be distinct" });
+  }
 });
 
 export type ForgeBuildManifest = z.infer<typeof forgeBuildManifestSchema>;
@@ -134,7 +138,7 @@ export type ForgeTargetBinding = z.infer<typeof forgeTargetBindingSchema>;
 const BUILD_FIELD_ORDER = [
   "schemaVersion", "buildId",
   "sourceRepository", "sourceCommit", "sourceTree", "sourceTag",
-  "backendImageDigest", "frontendImageDigest", "releaseBundleSha256", "releaseManifestDigest",
+  "backendImageDigest", "frontendImageDigest", "adminImageDigest", "reviewGateImageDigest", "releaseBundleSha256", "releaseManifestDigest",
   "builderIdentity", "builderRunnerEnvironment",
   "issuedAt"
 ] as const satisfies readonly (keyof ForgeBuildManifest)[];
@@ -225,7 +229,7 @@ const SECRET_PATTERNS: RegExp[] = [
   /\bgh[pousr]_[A-Za-z0-9]{20,}/,
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./ // JWT
 ];
-const DIGEST_BEARING_FIELDS = new Set<string>(["buildId", "bindingId", "sourceCommit", "sourceTree", "backendImageDigest", "frontendImageDigest", "releaseBundleSha256", "releaseManifestDigest", "buildDigest", "rollbackBuildDigest", "nonce"]);
+const DIGEST_BEARING_FIELDS = new Set<string>(["buildId", "bindingId", "sourceCommit", "sourceTree", "backendImageDigest", "frontendImageDigest", "adminImageDigest", "reviewGateImageDigest", "releaseBundleSha256", "releaseManifestDigest", "buildDigest", "rollbackBuildDigest", "nonce"]);
 
 export function findSecretShapedField(document: Record<string, unknown>): string | undefined {
   for (const [key, value] of Object.entries(document)) {
