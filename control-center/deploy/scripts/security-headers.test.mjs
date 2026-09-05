@@ -51,9 +51,14 @@ const configs = () => fs.readdirSync(nginx).filter((name) => name.endsWith(".con
 // because it means something specific -- these three are stacked, so a header set twice DUPLICATES.
 //
 // `admin-web.conf` is deliberately not here, and it is not an oversight. The admin console is a
-// SIBLING ORIGIN, not another layer: `opsworkbench-admin-web-1` publishes on `127.0.0.1:18081` while
-// the edge publishes on `127.0.0.1:18080`, so an admin response never traverses the edge and never
-// meets `web.conf`. Both files set the same three headers and both are right to.
+// SIBLING ORIGIN, not another layer: `opsworkbench-admin-web-1` is published on `127.0.0.1:18081` and the
+// edge on `127.0.0.1:18080`, so they are separate listeners serving separate origins, and `web.conf` is
+// never in an admin response's path. Both files set the same three headers and both are right to.
+//
+// The stronger version of this — "an admin response never traverses the edge" — is what an earlier draft
+// said, and separate listeners do not establish it. What reaches 18081 is decided by tunnel ingress held
+// in Cloudflare's control plane, which cannot be read from the host. Nothing here depends on the stronger
+// claim: two listeners is already enough to make these siblings rather than a stack.
 const PUBLIC_SITE_LAYERS = ["staging.conf", "edge-container.conf", "web.conf"];
 
 test("the TLS terminator owns HSTS and nothing else", () => {
