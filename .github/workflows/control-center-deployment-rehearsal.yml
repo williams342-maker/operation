@@ -97,7 +97,7 @@ jobs:
             docker run -d --name "admin-$label" --network "$network" "$ADMIN_IMAGE_ID"
             for name in api gate web admin; do for i in $(seq 1 90); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy; done
             docker run --rm --network "$network" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent "http://api-$label:3000/readyz" >/dev/null
-            docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt "https://gate-$label:3100/healthz" | grep -q 'ENFORCEMENT IS NOT ACTIVE'
+            docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt "https://gate-$label:3100/healthz" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(x.ok!==true||typeof x.advisory!=="string"||!x.advisory.length)process.exit(1)})'
           }
           stop_set() { for name in api gate web admin; do docker rm -f "$name-$1" >/dev/null; done; }
           start_set candidate
@@ -139,6 +139,8 @@ jobs:
           test "$(docker inspect -f '{{.State.Health.Status}}' api-rollback)" = healthy
           test "$(docker inspect -f '{{.State.Health.Status}}' gate-rollback)" = healthy
           test "$(docker inspect -f '{{.Image}}' api-rollback)" = "$ROLLBACK_API_IMAGE_ID"
+          docker run --rm --network "$network" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent http://api-rollback:3000/readyz >/dev/null
+          docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt https://gate-rollback:3100/healthz >/dev/null
           printf 'passed\n' > .rehearsal-proof/rollback_after_partial_switch
       - name: Run real replica-set authority and transaction suites
         working-directory: control-center
