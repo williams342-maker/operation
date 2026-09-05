@@ -195,6 +195,8 @@ jobs:
           context: control-center
           file: control-center/apps/api/Dockerfile
           push: ${{ inputs.publish }}
+          # The label verification below inspects the local Docker image store.
+          load: true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api:${{ inputs.tag }}
           build-args: |
             SOURCE_COMMIT=${{ steps.source.outputs.commit }}
@@ -210,6 +212,7 @@ jobs:
           context: control-center
           file: control-center/apps/web/Dockerfile
           push: ${{ inputs.publish }}
+          load: true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web:${{ inputs.tag }}
           build-args: |
             VITE_API_URL=/api
