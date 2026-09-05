@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import {
   agentSigningKey, signRequest, generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest,
   signOwnerAuthorization, privilegedActionDigest, configurationChangeDigest,
+  configurationDeploymentPayloadSchema, taskPayloadSchema,
 } from "@control-center/shared";
 import { buildApp } from "../src/server.js";
 import { contentDigest, candidateDigest, type CandidateBinding } from "../src/policy.js";
@@ -221,7 +222,15 @@ function controlCenter(tasks: () => unknown[], secret = AGENT_SECRET) {
 let nonceCounter = 0;
 function signedTask(configurationDeployment: unknown,
   taskType: "configuration.apply" | "configuration.rollback", taskId: string) {
-  const core = { projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment };
+  // PARSED, because the real `createTask` does -- it stores `registry.payload.parse(...)` and signs the
+  // envelope over that -- and because a stub that skips a step the control plane takes is where this
+  // file's mistakes come from. The last one was the acknowledgement shape, which this stub accepted in
+  // any form while the real API rejected the refusal result with a 400. Key order is the same class of
+  // thing: `payloadDigest` has no canonicalisation, so a stub that dispatched a hand-built object would
+  // be modelling a control plane that does not exist.
+  const core = taskPayloadSchema.parse({
+    projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment,
+  });
   const expiresAt = new Date(Date.now() + 3600_000).toISOString();
   const nonce = `owner-nonce-${nonceCounter}`;
   const keyVersion = "owner-v1";
@@ -399,7 +408,12 @@ for (const verb of ["apply", "rollback"] as const) {
 
     // The digest the executor claimed is the SUB-payload's, which is what the binder bound — not the
     // outer task's. Sending the wrapper's digest would refuse every privileged task in production.
-    assert.equal(entries[0].actionDigest, privilegedActionDigest(run.configurationDeployment));
+    // Over the PARSE at both ends, which is what the serialization contract requires: the gate binds
+    // the digest of its parse and the executor sends the digest of its own, so key order cannot decide
+    // whether a correct authorization is honoured. This used to compare against the hand-built fixture,
+    // and passed only because that fixture happened to be close enough to schema order.
+    assert.equal(entries[0].actionDigest,
+      privilegedActionDigest(configurationDeploymentPayloadSchema.parse(run.configurationDeployment)));
 
     // STEP 18 — the reconciliation evidence the executor owes the control-center.
     assert.ok(run.cc.acks.length >= 1, `expected an acknowledgement, got ${JSON.stringify(run.cc.acks)}`);

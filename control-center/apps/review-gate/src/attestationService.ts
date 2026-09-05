@@ -399,9 +399,32 @@ export class AttestationService {
         "the payload names a different attestation or lease than this request");
     }
 
+    // THE PARSED PAYLOAD, NOT THE ONE THAT ARRIVED, and that distinction was a live defect.
+    //
+    // `payloadDigest` is `sha256(JSON.stringify(...))` with no canonicalisation, so KEY ORDER decides
+    // it. The control plane stores what `taskPayloadSchema` PARSED, so the executor's digest is always
+    // over schema-declaration order -- but this line digested the JSON body the binder happened to
+    // post. A binder that sent the same fields in a different order therefore bound a digest the
+    // executor could never reproduce, and every acquire was refused `action_digest_mismatch` with
+    // nothing naming the cause. It failed closed, so it was never an opening; it made the protocol
+    // unusable for anyone who had not been told the rule, which is worse than it sounds, because the
+    // way that gets "fixed" in a hurry is by turning enforcement off.
+    //
+    // `validatePayload` already parsed it -- against the same schema, in the same call -- and threw the
+    // result away. Digesting the parse makes the binding a function of the payload's MEANING rather
+    // than of the serialization a client chose. Nothing is weakened: the schema is `.strict()`, so two
+    // bodies that parse to the same object differ only in key order, and the content, verb, change set
+    // and target were all checked above against the reviewed subject.
+    //
     // The same function layer 2 uses, which already excludes the signature field so the digest cannot
     // recurse. Computed here, never supplied.
-    const actionDigest = privilegedActionDigest(input.payload);
+    if (validation.value === undefined) {
+      // Unreachable while both validatePayload branches return their parse, and asserted rather than
+      // assumed because the failure would be silent: privilegedActionDigest(undefined) is the digest of
+      // `{}` -- a perfectly well-formed hex string binding nothing at all.
+      return no("payload_not_validated", "the payload passed validation without producing a parse");
+    }
+    const actionDigest = privilegedActionDigest(validation.value);
     const result = await this.#store.bindAttestation({
       acting: { principalId: principal.principalId, credentialEpoch: principal.credentialEpoch },
       attestationId: input.attestationId,
@@ -712,6 +735,8 @@ export class AttestationService {
 export function validatePayload(
   kind: AttestationKind, subject: CandidateSubject, payload: unknown,
 ): AttestationResult {
+  // RETURNS THE PARSED PAYLOAD on success, and `bind` digests THAT rather than what arrived. See the
+  // note at the `actionDigest` line in `bind` for why that is a fix and not a tidy-up.
   if (kind === "agent.upgrade") {
     if (subject.kind !== "agent.upgrade") return no("subject_kind_mismatch", "wrong subject");
     const parsed = agentUpgradeManifestSchema.safeParse(payload);
@@ -724,7 +749,7 @@ export function validatePayload(
       return no("payload_not_reviewed_content",
         "the payload names a different release manifest than the one reviewed");
     }
-    return yes();
+    return yes(parsed.data);
   }
 
   if (subject.kind !== "configuration.change") return no("subject_kind_mismatch", "wrong subject");
@@ -756,5 +781,5 @@ export function validatePayload(
   // WHAT THIS DELIBERATELY DOES NOT ASSERT: encryptedValues/sealedValues are ciphertext sealed to the
   // agent's key. The gate binds WHICH variables change, how, and to which immutable versionId. It does
   // not and cannot assert what plaintext the agent will receive; that is in the residual trust list.
-  return yes();
+  return yes(parsed.data);
 }
