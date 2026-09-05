@@ -202,14 +202,20 @@ export function verifyCompatibilityEvidence(plan, hooks = {}) {
   const bytes = fs.readFileSync(file);
   if (crypto.createHash("sha256").update(bytes).digest("hex") !== plan.compatibilityEvidence.sha256) throw new Error("compatibility evidence digest mismatch");
   const evidence = JSON.parse(bytes.toString("utf8"));
-  exactKeys(evidence, ["schemaVersion", "candidateTag", "candidateCommit", "rollbackTag", "rollbackCommit", "mongoTopology", "migrationsPresent", "scenarios"], "compatibility evidence");
+  exactKeys(evidence, ["schemaVersion", "candidateTag", "candidateCommit", "rollbackTag", "rollbackCommit", "mongoTopology", "images", "migrationsPresent", "scenarios"], "compatibility evidence");
   if (evidence.schemaVersion !== "opsworkbench-schema-rehearsal-v1" || evidence.candidateTag !== plan.tag || evidence.candidateCommit !== plan.commit || evidence.rollbackTag !== plan.rollback.tag || evidence.rollbackCommit !== plan.rollback.commit || evidence.mongoTopology !== "replica-set") throw new Error("compatibility evidence names a different candidate, rollback, or topology");
   exactKeys(evidence.scenarios, compatibilityScenarios, "compatibility scenarios");
+  exactKeys(evidence.images, ["candidate", "rollback"], "compatibility images");
+  for (const set of ["candidate", "rollback"]) {
+    exactKeys(evidence.images[set], ["api", "web", "admin", "gate"], `${set} compatibility images`);
+    if (new Set(Object.values(evidence.images[set])).size !== 4 || Object.values(evidence.images[set]).some((id) => typeof id !== "string" || !/^sha256:[a-f0-9]{64}$/.test(id))) throw new Error(`${set} compatibility image identities are invalid`);
+  }
+  if (new Set([...Object.values(evidence.images.candidate), ...Object.values(evidence.images.rollback)]).size !== 8) throw new Error("candidate and rollback compatibility image identities are not all distinct");
   for (const [name, result] of Object.entries(evidence.scenarios)) {
     if (result !== "passed" && !(result === "not-applicable-no-migrations" && evidence.migrationsPresent === false && name.includes("migration"))) throw new Error(`compatibility scenario did not pass: ${name}`);
   }
   (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-deployment-rehearsal.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}` });
-  return { ok: true, candidateCommit: evidence.candidateCommit, rollbackCommit: evidence.rollbackCommit, sha256: plan.compatibilityEvidence.sha256 };
+  return { ok: true, candidateCommit: evidence.candidateCommit, rollbackCommit: evidence.rollbackCommit, images: evidence.images, sha256: plan.compatibilityEvidence.sha256 };
 }
 
 export async function deployPreparedRelease(preparation, hooks = {}) {
@@ -219,8 +225,12 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const compatibility = await (hooks.verifyCompatibility ? hooks.verifyCompatibility(plan) : verifyCompatibilityEvidence(plan, hooks));
   if (!compatibility?.ok || compatibility.candidateCommit !== plan.commit || compatibility.rollbackCommit !== plan.rollback.commit) throw new Error("exact candidate/rollback schema compatibility evidence is absent");
   const imageEvidence = [];
-  for (const [role, reference] of Object.entries(plan.candidateImages)) imageEvidence.push({ set: "candidate", ...inspectImmutableImage(reference, { commit: plan.commit, ...imageExpectations[role] }, hooks.images) });
-  for (const [role, reference] of Object.entries(plan.rollback.images)) imageEvidence.push({ set: "rollback", ...inspectImmutableImage(reference, { commit: plan.rollback.commit, ...imageExpectations[role] }, hooks.images) });
+  for (const [role, reference] of Object.entries(plan.candidateImages)) imageEvidence.push({ set: "candidate", role, ...inspectImmutableImage(reference, { commit: plan.commit, ...imageExpectations[role] }, hooks.images) });
+  for (const [role, reference] of Object.entries(plan.rollback.images)) imageEvidence.push({ set: "rollback", role, ...inspectImmutableImage(reference, { commit: plan.rollback.commit, ...imageExpectations[role] }, hooks.images) });
+  for (const image of imageEvidence) {
+    const rehearsalRole = image.role === "reviewGate" ? "gate" : image.role;
+    if (compatibility.images?.[image.set]?.[rehearsalRole] !== image.localImageId) throw new Error(`published ${image.set} ${image.role} image differs from the rehearsed image identity`);
+  }
   const platformEvidence = await (hooks.verifyPlatformImages ? hooks.verifyPlatformImages(plan.platform) : inspectPlatformImages(plan.platform, hooks.platform ?? {}));
   if (!platformEvidence?.ok || platformEvidence.edgeImage !== plan.platform.edgeImage || platformEvidence.mongoImage !== plan.platform.mongoImage) throw new Error("platform image registry evidence is absent or mismatched");
   reverifyPreparedRelease(preparation, hooks);

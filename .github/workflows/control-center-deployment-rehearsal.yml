@@ -53,6 +53,14 @@ jobs:
           }
           build_set . candidate "$CANDIDATE_COMMIT" "$CANDIDATE_TAG"
           build_set ../rollback-source rollback "$ROLLBACK_COMMIT" "$ROLLBACK_TAG"
+          for set in candidate rollback; do
+            for role in api web admin gate; do
+              variable="$(printf '%s_%s_IMAGE_ID' "$set" "$role" | tr '[:lower:]' '[:upper:]')"
+              id="$(docker image inspect "rehearsal-${role}:${set}" --format '{{.Id}}')"
+              test "${id#sha256:}" != "$id"
+              echo "${variable}=${id}" >> "$GITHUB_ENV"
+            done
+          done
       - name: Exercise forward, rollback, partial switch and restart against a replica set
         env:
           CANDIDATE_COMMIT: ${{ steps.source.outputs.candidate }}
@@ -70,10 +78,15 @@ jobs:
           chmod 644 tls/tls.key tls/tls.crt
           start_set() {
             label="$1"
-            docker run -d --name "api-$label" --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' "rehearsal-api:$label"
-            docker run -d --name "gate-$label" --network "$network" -v "$PWD/tls:/run/tls:ro" -e REVIEW_GATE_MONGO_URL='mongodb://rehearsal-mongo:27017/review_gate_rehearsal?replicaSet=rs0' -e REVIEW_GATE_DB_NAME=review_gate_rehearsal -e REVIEW_GATE_BIND=0.0.0.0 -e REVIEW_GATE_TLS_CERTIFICATE_PATH=/run/tls/tls.crt -e REVIEW_GATE_TLS_PRIVATE_KEY_PATH=/run/tls/tls.key "rehearsal-gate:$label"
-            docker run -d --name "web-$label" --network "$network" "rehearsal-web:$label"
-            docker run -d --name "admin-$label" --network "$network" "rehearsal-admin:$label"
+            prefix="$(printf '%s' "$label" | tr '[:lower:]' '[:upper:]')"
+            api_variable="${prefix}_API_IMAGE_ID"; API_IMAGE_ID="${!api_variable}"
+            web_variable="${prefix}_WEB_IMAGE_ID"; WEB_IMAGE_ID="${!web_variable}"
+            admin_variable="${prefix}_ADMIN_IMAGE_ID"; ADMIN_IMAGE_ID="${!admin_variable}"
+            gate_variable="${prefix}_GATE_IMAGE_ID"; GATE_IMAGE_ID="${!gate_variable}"
+            docker run -d --name "api-$label" --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' "$API_IMAGE_ID"
+            docker run -d --name "gate-$label" --network "$network" -v "$PWD/tls:/run/tls:ro" -e REVIEW_GATE_MONGO_URL='mongodb://rehearsal-mongo:27017/review_gate_rehearsal?replicaSet=rs0' -e REVIEW_GATE_DB_NAME=review_gate_rehearsal -e REVIEW_GATE_BIND=0.0.0.0 -e REVIEW_GATE_TLS_CERTIFICATE_PATH=/run/tls/tls.crt -e REVIEW_GATE_TLS_PRIVATE_KEY_PATH=/run/tls/tls.key "$GATE_IMAGE_ID"
+            docker run -d --name "web-$label" --network "$network" "$WEB_IMAGE_ID"
+            docker run -d --name "admin-$label" --network "$network" "$ADMIN_IMAGE_ID"
             for name in api gate web admin; do for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy; done
             docker run --rm --network "$network" curlimages/curl:8.16.0 --fail --silent "http://api-$label:3000/readyz" >/dev/null
             docker run --rm --network "$network" curlimages/curl:8.16.0 --fail --silent --insecure "https://gate-$label:3100/healthz" | grep -q 'ENFORCEMENT IS NOT ACTIVE'
@@ -87,7 +100,7 @@ jobs:
           docker restart api-rollback gate-rollback >/dev/null
           for name in api gate; do for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy; done
           docker rm -f api-rollback >/dev/null
-          docker run -d --name api-candidate --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' rehearsal-api:candidate
+          docker run -d --name api-candidate --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' "$CANDIDATE_API_IMAGE_ID"
           for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy && break; sleep 1; done
           test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy
           test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' api-candidate)" = "$CANDIDATE_COMMIT"
