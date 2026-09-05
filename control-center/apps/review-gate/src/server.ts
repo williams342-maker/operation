@@ -19,6 +19,8 @@ export type ServerConfig = {
   bind: string;
   mongoUrl: string;
   dbName: string;
+  /** Absent = the service default. See `buildApp`. */
+  initialExecutionMs?: number;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
@@ -34,6 +36,17 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
       "and a standalone server cannot satisfy its invariants",
     );
   }
+  // The initial execution window. Absent means the service's own default; present means an operator
+  // chose one, and `AttestationService` refuses a value that would collapse the extension path. Parsed
+  // here rather than read deep in the service so a typo fails at start, not at the first acquire.
+  const rawInitial = env.REVIEW_GATE_INITIAL_EXECUTION_MS;
+  let initialExecutionMs: number | undefined;
+  if (rawInitial !== undefined && rawInitial !== "") {
+    initialExecutionMs = Number(rawInitial);
+    if (!Number.isFinite(initialExecutionMs)) {
+      throw new Error("REVIEW_GATE_INITIAL_EXECUTION_MS must be a number of milliseconds");
+    }
+  }
   return {
     port: Number(env.REVIEW_GATE_PORT ?? 3100),
     // Loopback by default. This is not a public service, and a default of 0.0.0.0 would be a decision
@@ -41,6 +54,7 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
     bind: env.REVIEW_GATE_BIND ?? "127.0.0.1",
     mongoUrl,
     dbName,
+    initialExecutionMs,
   };
 }
 
@@ -81,14 +95,23 @@ export function startExpirySweep(store: ReviewGateStore, options: {
   return { stop: () => clearInterval(timer) };
 }
 
-export function buildApp(store: ReviewGateStore): express.Express {
+/**
+ * `options` carries DEPLOYMENT TUNABLES only — values a real operator sets, not behaviour a caller
+ * injects. Today that is the initial execution window; the store is still constructed by `main()` and
+ * never accepted here, and nothing in this object can substitute a policy, a clock or an identity.
+ * `AttestationService` validates the window against the absolute cap, so a bad value is refused at
+ * construction rather than surfacing as a dead extension path mid-execution.
+ */
+export function buildApp(store: ReviewGateStore, options: {
+  initialExecutionMs?: number;
+} = {}): express.Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
   app.use(buildRouter({
     store,
     service: new ReviewGateService(store),
-    attestations: new AttestationService(store),
+    attestations: new AttestationService(store, { initialExecutionMs: options.initialExecutionMs }),
   }));
   // Anything unhandled is a refusal, not a stack trace: an error path that leaks internals is a data
   // path. The detail goes to the gate's own logs.
@@ -121,13 +144,19 @@ export async function main(): Promise<void> {
   // hold its guarantees, rather than discovering that on the first concurrent write.
   await ensureIndexes(store.database);
 
-  const app = buildApp(store);
+  const app = buildApp(store, { initialExecutionMs: config.initialExecutionMs });
   const sweep = startExpirySweep(store);
   await new Promise<void>((resolve) => {
     const server = app.listen(config.port, config.bind, () => {
       // The advisory sentence is logged at every start, deliberately. It is the honest description of
       // what this process currently is, and it stays until the enforcement point ships.
       console.log(`[review-gate] listening on ${config.bind}:${config.port}`);
+      // Logged only when an operator has overridden it. A non-default execution window changes how
+      // every acquire behaves, and it is the first thing worth knowing when extensions start being
+      // refused -- which is otherwise visible only as a code at the far end of a real execution.
+      if (config.initialExecutionMs !== undefined) {
+        console.log(`[review-gate] initial execution window ${config.initialExecutionMs} ms (configured)`);
+      }
       console.log(`[review-gate] ${ADVISORY_NOTICE}`);
       resolve();
     });

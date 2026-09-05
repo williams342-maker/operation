@@ -1,5 +1,6 @@
-import test, { after } from "node:test";
+import test, { after, type TestContext } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -57,11 +58,8 @@ import { castOf } from "./principals.js";
 //     owner signature, once by the gate comparing the action digest. Both fail closed, and both are
 //     traps for the real offline signing and binding tools. See the note at the parse below.
 //
-// STILL NOT COVERED HERE: step 15. Driving a real extension needs an effect that outlives its window,
-// and the initial window is min(now + 10 min, expiresAt). A test cannot spend ten minutes in a
-// deployment that fails in milliseconds. Extension is covered where it can be measured — through the
-// real service in `attestationService.test.ts`, and through the real client and keeper in the agent
-// suite.
+// STEP 15 IS NOW COVERED HERE TOO, at the bottom of this file, and the long note above those cases
+// records why the first three attempts at it failed.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 process.env.NODE_ENV = "test";
@@ -99,6 +97,9 @@ if (!mongoUrl) {
   const { writeEnforcement, readEnforcement } = await import("../../agent/src/reviewEnforcement.js");
   const { saveConfig, agentConfigSchema, stateDir } = await import("../../agent/src/config.js");
   const { ExecutionJournal } = await import("../../agent/src/executionJournal.js");
+  // The agent's own digest of an environment file, so the payload commits to the same bytes the
+  // deployment will read. Re-deriving it here would be a second implementation of one contract.
+  const { configurationDigest } = await import("../../agent/src/configurationDeployment.js");
 
   const oid = (c: string) => c.repeat(40).slice(0, 40);
   const dig = (c: string) => c.repeat(64).slice(0, 64);
@@ -518,4 +519,395 @@ if (!mongoUrl) {
       `the audit entry must carry the refusal: ${JSON.stringify(completion?.metadata)}`);
     assert.equal(completion?.metadata?.reviewGate, "action_digest_mismatch");
   });
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────────
+  // CHECKLIST §B STEP 15 — "if execution exceeds the initial window, extend with the current
+  // credential and token", driven BY THE CHOREOGRAPHY rather than only by a unit test.
+  //
+  // WHY THE HEADER ABOVE USED TO SAY THIS WAS OUT OF REACH, and what was actually wrong with that.
+  //
+  // The stated obstacle was the ten-minute initial window: a test cannot spend ten minutes. That much
+  // is true, and the window is now a deployment tunable — `AttestationService`'s `initialExecutionMs`,
+  // reachable in production as REVIEW_GATE_INITIAL_EXECUTION_MS — so a short one is available. But
+  // shortening the window ALONE does not produce an extension here, and the reason is invisible from
+  // the gate's side, so it is recorded:
+  //
+  //   THE EFFECT IN THIS FILE FINISHED ABOUT 2 ms AFTER ACQUIRE. Measured. The fixture's health check
+  //   is `http://localhost:8080/health`, which the agent's own SSRF guard refuses inside
+  //   `validateHttpCheckUrl` before one file is touched. The keeper schedules its first tick with
+  //   `setTimeout(..., 0)`; the effect throws inside the same event-loop turn and `keeper.stop()`
+  //   clears that timer before the loop ever reaches a timers phase. The keeper never ran at all — at
+  //   a 20 ms window or a 140 ms one the deadline was never moved and the attestation was left
+  //   EXECUTING. An extension needs an EXECUTION, not merely a short deadline.
+  //
+  // So the deployment below is real: a temporary repository root, a real environment file whose digest
+  // the payload commits to, a real backup, a real atomic write of the rotated secret, and a real
+  // rollback. That is worth having on its own — until now this choreography proved a gate sequence
+  // around an effect that never started.
+  //
+  // WHAT MUST NOT BE REAL IS DOCKER. `docker compose up -d` would be an external mutation on whatever
+  // machine ran the suite, and on CI it would try to pull an image. §14 of the handoff asks for a
+  // stubbed harness that exercises control flow faithfully while preventing real external mutations,
+  // and this is one — placed at the PROCESS boundary, not injected into the executor. A hooks or
+  // timing parameter threaded through `executeTask` is exactly what two earlier review rounds
+  // rejected, and rightly: it would mean the thing under test was configured by the test.
+  //
+  // Instead PATH is replaced, for the duration of the case, by a directory holding one file. So
+  // `execFixed("docker", ...)` resolves through the same `execFile` call it makes in production, with
+  // the same `shell: false`, and finds the stub. The stub is a copy of — or a link to — THE NODE
+  // BINARY, which is not decoration: a shell script needs a shebang and fails on Windows, and Node
+  // refuses to spawn a `.cmd` without a shell. A Node binary needs neither. Its first argument is
+  // always `compose`, and `execFixed` runs it with `cwd` set to the deployment's own repository root,
+  // so the script it executes is `<repositoryRoot>/compose`, which the host fixture writes. That
+  // script records what it was asked to do and what the environment file said at the instant
+  // activation would have happened, sleeps for a fixed time, and exits NON-ZERO — so activation fails,
+  // the deployment rolls back, and no health probe ever leaves the machine. The whole effect is
+  // offline, and its duration is a constant of this file rather than a property of the machine.
+  // ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** How long the stubbed `docker compose` takes. Both the activation and the rollback pay it. */
+  const COMPOSE_MS = 400;
+
+  /**
+   * The gate's initial execution window for the two cases below, chosen with BOTH bounds in view:
+   *
+   *   - it must be comfortably LONGER than the keeper's first extension round trip — one localhost
+   *     fetch, dispatched at the effect's first async yield, single-digit milliseconds — or the
+   *     extension is refused `execution_deadline_passed` and the case proves nothing;
+   *   - it must be comfortably SHORTER than the effect, or redeem would have succeeded with no
+   *     extension at all and the extension is not load-bearing.
+   *
+   * The effect costs at least 2 x COMPOSE_MS, so 250 ms sits about an order of magnitude above the
+   * first bound and about four times below the second.
+   */
+  const GATE_INITIAL_WINDOW_MS = 250;
+
+  const ORIGINAL_ENV = "PUBLIC=value\nDATABASE_URL=old\n";
+  /** Keyed by the `valueRef` of each mutation in MUTATIONS. */
+  const SECRET_VALUES = { "ref-1": "postgres://rotated", "ref-2": "true" };
+
+  /** The envelope the control plane's `encryptDeploymentValues` produces, built here from the key. */
+  function encryptValues(values: Record<string, string>, signingKey: string) {
+    const key = crypto.createHash("sha256").update(`configuration-deployment:${signingKey}`).digest();
+    const nonce = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce);
+    const ciphertext = Buffer.concat([cipher.update(JSON.stringify(values)), cipher.final()]);
+    return {
+      algorithm: "aes-256-gcm" as const, ciphertext: ciphertext.toString("base64"),
+      nonce: nonce.toString("base64"), authTag: cipher.getAuthTag().toString("base64"),
+      keyVersion: "agent-signing-v1",
+    };
+  }
+
+  // Made once for the file. A copy of the Node binary is ~100 MB on some platforms, so a symlink or a
+  // hard link is taken wherever the platform allows one and nothing is copied at all.
+  const STUB_BIN = fs.mkdtempSync(path.join(os.tmpdir(), "choreography-stub-bin-"));
+  const DOCKER_STUB = path.join(STUB_BIN, process.platform === "win32" ? "docker.exe" : "docker");
+  try {
+    fs.symlinkSync(process.execPath, DOCKER_STUB, "file");
+  } catch {
+    try {
+      fs.linkSync(process.execPath, DOCKER_STUB);
+    } catch {
+      fs.copyFileSync(process.execPath, DOCKER_STUB);
+      fs.chmodSync(DOCKER_STUB, 0o755);
+    }
+  }
+  after(() => { fs.rmSync(STUB_BIN, { recursive: true, force: true }); });
+
+  /**
+   * A real host to deploy to.
+   *
+   * The environment file is mode 0600 deliberately: `executeConfigurationDeployment` refuses a file any
+   * group or other can write, and a fixture that tripped that check would die before the effect in
+   * exactly the way the localhost health check did.
+   */
+  function deploymentHost() {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "choreography-host-"));
+    const environmentFilePath = path.join(root, ".env.staging");
+    const composePath = path.join(root, "docker-compose.yml");
+    fs.writeFileSync(environmentFilePath, ORIGINAL_ENV, { mode: 0o600 });
+    fs.chmodSync(environmentFilePath, 0o600);
+    fs.writeFileSync(composePath, "services:\n  web:\n    image: fixture\n");
+    const capturePath = path.join(root, "captured-commands.jsonl");
+    // The script the stubbed `docker` runs. CommonJS, because an extensionless entry point with no
+    // package.json beside it is CommonJS. It is EVIDENCE, not an implementation: the command it was
+    // given, and the environment file as it stood at the instant activation would have happened.
+    fs.writeFileSync(path.join(root, "compose"), [
+      'const fs = require("node:fs");',
+      'const path = require("node:path");',
+      'fs.appendFileSync(path.join(__dirname, "captured-commands.jsonl"), JSON.stringify({',
+      // The FIRST argument the executor passed is `compose`, and Node consumed it as this script's own
+      // path -- which is the whole trick, so it is recorded rather than assumed.
+      '  script: path.basename(process.argv[1]),',
+      "  argv: process.argv.slice(2),",
+      "  cwd: process.cwd(),",
+      '  environmentFile: fs.readFileSync(path.join(__dirname, ".env.staging"), "utf8"),',
+      '}) + "\\n");',
+      "setTimeout(function () { process.exit(1); }, " + COMPOSE_MS + ");",
+      "",
+    ].join("\n"));
+    return {
+      root, environmentFilePath, composePath,
+      captured: () => (fs.existsSync(capturePath) ? fs.readFileSync(capturePath, "utf8") : "")
+        .split("\n").filter(Boolean)
+        .map((line) => JSON.parse(line) as
+          { script: string; argv: string[]; cwd: string; environmentFile: string }),
+      backups: () => fs.readdirSync(root).filter((entry) => entry.includes(".backup-")),
+    };
+  }
+
+  /** Everything §2.6 needs before the poll, for a host that is really going to be deployed to. */
+  async function stageLongExecution(t: TestContext, options: { attestationExpiresInMs: number }) {
+    counter += 1;
+    const agentId = `agent-choreography-15-${counter}`;
+    const orgId = new ObjectId();
+    const serverId = new ObjectId();
+    const now = new Date();
+    await collections.organizations.insertOne({
+      _id: orgId, orgId, name: "Choreography step 15", slug: `choreography-15-${counter}-${process.pid}`,
+      createdAt: now, updatedAt: now,
+    } as never);
+    await collections.servers.insertOne({
+      _id: serverId, orgId, name: "target", hostname: "target-step15.test",
+      agentId, agentSecretHash: agentSigningKey(AGENT_SECRET), credentialVersion: 1,
+      keyProtocolVersion: "agent-v2", migrationState: "dual", legacyCredentialUsable: true,
+      status: "online", createdAt: now, updatedAt: now,
+    } as never);
+
+    const store = new InMemoryReviewGateStore();
+    const scope = [{ orgId: orgId.toHexString(), serverId: serverId.toHexString() }];
+    const cast = await castOf([
+      { principalId: "owner", roles: ["owner"] },
+      { principalId: "claude", roles: ["author"] },
+      { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
+      { principalId: "binder-1", roles: ["binder"], targetScopes: scope },
+      { principalId: agentId, roles: ["executor"], targetScopes: scope },
+    ], store);
+    await releaseCandidate(store, "c1", binding());
+
+    // THE ONLY DIFFERENCE FROM STEP 10's GATE is the initial execution window. Store, routes, service
+    // and policy are the same object graph `main()` builds.
+    const gateServer = buildApp(store, { initialExecutionMs: GATE_INITIAL_WINDOW_MS }).listen(0);
+    await new Promise((resolve) => gateServer.once("listening", resolve));
+    const gateUrl = `http://127.0.0.1:${(gateServer.address() as AddressInfo).port}`;
+
+    const host = deploymentHost();
+    const previousPath = process.env.PATH;
+    // Nothing else on it. A real `docker` further down PATH would otherwise win on a developer machine
+    // that has one — and would then really deploy something.
+    process.env.PATH = STUB_BIN;
+    t.after(async () => {
+      process.env.PATH = previousPath;
+      gateServer.closeAllConnections();
+      await new Promise((resolve) => { gateServer.close(resolve); });
+      fs.rmSync(host.root, { recursive: true, force: true });
+    });
+
+    const minted = await gate(gateUrl, cast.credentialFor("owner"), "/candidates/c1/owner-decision", {
+      attestations: [{
+        kind: "configuration.apply", orgId: orgId.toHexString(), serverId: serverId.toHexString(),
+        audiencePrincipalId: agentId, bindingPrincipalId: "binder-1",
+        expiresAt: new Date(Date.now() + options.attestationExpiresInMs).toISOString(),
+      }],
+    }, { "idempotency-key": `mint-${agentId}` });
+    assert.equal(minted.status, 200, JSON.stringify(minted));
+    const attestationId = (minted.body as unknown as { attestationIds: string[] }).attestationIds[0];
+
+    const reserved = await gate(gateUrl, cast.credentialFor("binder-1"),
+      `/attestations/${attestationId}/reserve`, { leaseSeconds: 900 });
+    assert.equal(reserved.status, 200, JSON.stringify(reserved));
+    const leaseId = (reserved.body as unknown as { leaseId: string }).leaseId;
+
+    // Parsed before anything is bound or signed, for the key-order reason set out at length above.
+    const core = taskPayloadSchema.parse({
+      projects: [], httpHealthChecks: [], mongoChecks: [],
+      configurationDeployment: deployment({
+        reviewAuthorization: { attestationId, leaseId },
+        repositoryRoot: host.root,
+        environmentFilePath: host.environmentFilePath,
+        composePath: host.composePath,
+        // A PUBLIC IP LITERAL, and both halves of that matter. `net.isIP` short-circuits before any
+        // DNS, so validation costs nothing and depends on no resolver; and it is a routable-looking
+        // address, so the SSRF guard passes it instead of refusing the deployment outright the way it
+        // refuses the `localhost` check the other cases use. Nothing ever connects to it: activation
+        // fails at the stub, so neither the deployment nor the rollback reaches a health probe.
+        healthChecks: [{ id: "web", url: "http://203.0.113.10:8080/health", timeoutMs: 100 }],
+        // The values the mutations reference, sealed to THIS agent's signing key.
+        encryptedValues: encryptValues(SECRET_VALUES, agentSigningKey(AGENT_SECRET)),
+        expectedConfigurationDigest: configurationDigest(ORIGINAL_ENV),
+      }),
+    });
+    const configurationDeployment = core.configurationDeployment;
+    const bound = await gate(gateUrl, cast.credentialFor("binder-1"),
+      `/attestations/${attestationId}/bind`, { leaseId, payload: configurationDeployment });
+    assert.equal(bound.status, 200, JSON.stringify(bound));
+
+    const expiresAt = new Date(Date.now() + 3600_000).toISOString();
+    const nonce = `owner-nonce-${agentId}`;
+    const payload = {
+      ...core,
+      ownerAuthorization: {
+        signature: signOwnerAuthorization(owner.signingPrivateKey, {
+          taskType: "configuration.apply", orgId: orgId.toHexString(), serverId: serverId.toHexString(),
+          actionDigest: privilegedActionDigest(core), expiresAt, nonce, keyVersion: "owner-v1",
+        }),
+        issuedAt: new Date().toISOString(), expiresAt, nonce, keyVersion: "owner-v1",
+      },
+    };
+    const task = await createTask({
+      orgId, server: { _id: serverId, orgId, agentId } as never,
+      type: "configuration.apply", payload: payload as never, idempotencyKey: `step15-${agentId}`,
+    });
+
+    fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
+    writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "step 15" });
+    assert.equal(stateDir(), PROCESS_STATE_DIR,
+      "the agent must derive the same state directory this test wrote to");
+    assert.equal(readEnforcement(stateDir()).state, "ENFORCING",
+      "this executor must actually be enforcing before the poll means anything");
+    saveConfig(agentConfigSchema.parse({
+      controlCenterUrl: apiUrl,
+      agentId, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
+      controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
+      reviewGate: { url: gateUrl, credential: cast.credentialFor(agentId), timeoutMs: 5000 },
+    }));
+
+    return { agentId, orgId, store, attestationId, host, task, configurationDeployment };
+  }
+
+  test("§B step 15: an execution that OUTLIVES its initial window is extended, and only then redeems",
+    async (t) => {
+      const staged = await stageLongExecution(t, { attestationExpiresInMs: 3600_000 });
+
+      const pollError = await pollOnce().then(() => null, (error: Error) => error.message);
+
+      const record = await staged.store.loadAttestation(staged.attestationId);
+      const storedTask = await collections.agentTasks.findOne({ _id: staged.task._id });
+      const journal = new ExecutionJournal(path.join(PROCESS_STATE_DIR, "execution-journal")).list();
+      const diagnostic = JSON.stringify({
+        pollError, attestationState: record?.state,
+        acquiredAt: record?.acquiredAt, consumedAt: record?.consumedAt,
+        executionDeadline: record?.executionDeadline,
+        capturedCommands: staged.host.captured().length,
+        journal: journal.map((entry) => ({ outcome: entry.outcome, phase: entry.terminalPhase })),
+        taskState: storedTask?.state, resultSummary: storedTask?.resultSummary,
+      });
+
+      // ── THE EFFECT WAS REAL, AND TOOK REAL TIME ───────────────────────────────────────────────
+      //
+      // Asserted first, because every timing claim below is worthless if the deployment died at a
+      // validation step the way it used to. The stub recorded the environment file as it stood at each
+      // activation: the rotated secret at the first, the original text at the rollback.
+      const captured = staged.host.captured();
+      assert.equal(captured.length, 2,
+        `activation and rollback activation, both through execFixed. ${diagnostic}`);
+      // The exact command the executor's own builder produced, not a paraphrase of it.
+      assert.equal(captured[0].script, "compose", "invoked as `docker compose ...`");
+      assert.deepEqual(captured[0].argv, [
+        "-f", staged.host.composePath, "-p", "app", "up", "-d", "--no-deps", "--force-recreate", "web",
+      ], "and with the activation arguments configurationDeployment.ts builds");
+      assert.equal(captured[0].cwd, fs.realpathSync(staged.host.root),
+        "run in the deployment's own repository root, which is what execFixed passes as cwd");
+      assert.deepEqual(captured[1].argv, captured[0].argv,
+        "the rollback re-runs the same activation, which is why the second capture exists");
+      assert.match(captured[0].environmentFile, /DATABASE_URL=postgres:\/\/rotated/,
+        "the deployment had really written the rotated secret before activation");
+      assert.match(captured[0].environmentFile, /FEATURE_X=true/);
+      assert.equal(captured[1].environmentFile, ORIGINAL_ENV,
+        "and had really restored the original before the rollback activation");
+      assert.equal(fs.readFileSync(staged.host.environmentFilePath, "utf8"), ORIGINAL_ENV,
+        "the host is left as it was found");
+      assert.equal(staged.host.backups().length, 1, "with exactly one backup kept");
+
+      // ── THE GATE SETTLED IT ───────────────────────────────────────────────────────────────────
+      assert.equal(record?.state, "CONSUMED", `expected a settled attestation. ${diagnostic}`);
+
+      const acquiredAt = Date.parse(record!.acquiredAt!);
+      const consumedAt = Date.parse(record!.consumedAt!);
+      const finalDeadline = Date.parse(record!.executionDeadline!);
+
+      // ── STEP 15 ITSELF, IN TWO HALVES ─────────────────────────────────────────────────────────
+      //
+      // FIRST: an extension actually moved the deadline. Acquire clamps to `now + initialExecutionMs`,
+      // so the window this attempt was granted was 250 ms. Nothing but a granted extension can put a
+      // deadline a quarter of an hour out on that record.
+      assert.ok(finalDeadline - acquiredAt > 10 * 60_000,
+        `the deadline must have been extended far beyond the ${GATE_INITIAL_WINDOW_MS} ms acquire ` +
+        `granted, and stood at ${finalDeadline - acquiredAt} ms. ${diagnostic}`);
+      // ...and by ONE extension of the keeper's 15-minute increment, not a run of them: after a grant
+      // the keeper reschedules ten minutes out, so nothing asks again inside this effect.
+      assert.ok(finalDeadline - acquiredAt < 20 * 60_000,
+        `a single 15-minute extension, not a run of them: ${finalDeadline - acquiredAt} ms`);
+      assert.ok(finalDeadline - acquiredAt <= 30 * 60_000,
+        "and never past the absolute cumulative cap");
+
+      // SECOND, AND THIS IS WHAT MAKES IT LOAD-BEARING: the execution genuinely outran the window it
+      // was given. Redeem refuses `execution_deadline_passed` once the deadline has gone by, so
+      // without the extension this redeem would have been refused and the attestation left EXECUTING
+      // — which is precisely what the companion case below demonstrates.
+      assert.ok(consumedAt - acquiredAt > GATE_INITIAL_WINDOW_MS,
+        `the execution must outrun the ${GATE_INITIAL_WINDOW_MS} ms initial window, and took ` +
+        `${consumedAt - acquiredAt} ms. ${diagnostic}`);
+
+      // ── AND THE REST OF THE SEQUENCE STILL HOLDS ──────────────────────────────────────────────
+      assert.equal(journal.length, 1, "exactly one durable attempt on this host");
+      assert.equal(journal[0].attestationId, staged.attestationId);
+      assert.equal(journal[0].actionDigest, privilegedActionDigest(staged.configurationDeployment));
+      assert.ok(journal[0].finishedAt, "settled, not left dangling");
+      assert.ok(storedTask?.claimedAt, "the control plane records that the agent claimed it by polling");
+      assert.ok(["failed", "running", "succeeded"].includes(String(storedTask?.state)),
+        `the control plane recorded an outcome, not a queued task: ${storedTask?.state}`);
+
+      // The extension carries the attempt token, and it is still never written down.
+      const journalDir = path.join(PROCESS_STATE_DIR, "execution-journal");
+      const journalText = fs.readdirSync(journalDir)
+        .map((entry) => fs.readFileSync(path.join(journalDir, entry), "utf8")).join("|");
+      assert.ok(!/attemptToken/i.test(journalText), "the attempt token must not be journalled");
+    });
+
+  test("§B step 15 (control): with extension impossible, the same overrun is REFUSED at redeem",
+    async (t) => {
+      // THE OTHER HALF OF THE CLAIM. The case above shows an extension happening, which on its own is
+      // also consistent with redeem not caring about the deadline at all. This one holds the execution
+      // and the window fixed and removes only the extension, by minting an attestation that expires in
+      // twenty seconds: an extension's absolute bound is `min(acquiredAt + MAX_EXECUTION_MS,
+      // expiresAt)`, so the keeper's request for `now + 15 min` is refused `beyond_absolute_deadline`
+      // and the deadline never moves.
+      //
+      // That is the collapse an earlier review round found when the two windows were equal, reproduced
+      // on purpose: a short-lived attestation makes extension IMPOSSIBLE rather than quick, which is
+      // why shortening `expiresAt` was never a way to test step 15.
+      const staged = await stageLongExecution(t, { attestationExpiresInMs: 20_000 });
+
+      const pollError = await pollOnce().then(() => null, (error: Error) => error.message);
+
+      const record = await staged.store.loadAttestation(staged.attestationId);
+      const journal = new ExecutionJournal(path.join(PROCESS_STATE_DIR, "execution-journal")).list();
+      const diagnostic = JSON.stringify({
+        pollError, state: record?.state, acquiredAt: record?.acquiredAt,
+        executionDeadline: record?.executionDeadline, consumedAt: record?.consumedAt,
+        captured: staged.host.captured().length,
+      });
+
+      // The same real effect ran, and outran the same window.
+      assert.equal(staged.host.captured().length, 2, `the effect ran. ${diagnostic}`);
+
+      const acquiredAt = Date.parse(record!.acquiredAt!);
+      const deadline = Date.parse(record!.executionDeadline!);
+      assert.equal(deadline - acquiredAt, GATE_INITIAL_WINDOW_MS,
+        `the deadline must be exactly what acquire granted — no extension. ${diagnostic}`);
+
+      // AND REDEEM REFUSED IT. Not CONSUMED: the work outlived its authorization, so the record stays
+      // EXECUTING and becomes the reconciliation signal the gate is built around. `settle` swallows the
+      // refusal deliberately — it must not replace a real execution error with a bookkeeping one — so
+      // the attestation state IS the report.
+      assert.equal(record?.state, "EXECUTING",
+        `an overrun with no extension must not settle as CONSUMED. ${diagnostic}`);
+      assert.equal(record?.consumedAt, undefined, "and must not be recorded as consumed");
+
+      // The host still recorded its own attempt, which is what a reconciliation reads.
+      assert.equal(journal.length, 1, "the durable local claim survives the refused redeem");
+      assert.ok(journal[0].finishedAt, "and records how the effect ended");
+    });
 }
