@@ -33,6 +33,13 @@ overshooting in the other direction would be the same mistake:
 
 **Where that chain stops, precisely:**
 
+- **The match is one-directional, and this is not a quibble.** Every file the artifact contains is present
+  and identical; the directory is not therefore the artifact. It holds **two files the artifact does not**,
+  and a live container is built from them (G6). "All artifact-listed files verified" is the claim the
+  evidence supports; "the deployed directory is provenanced" is not. Importing those two files into the
+  repository in PR #63 makes them reviewed **from now on** — it does not retroactively put them inside
+  either attested release.
+
 - **The running images are not bound to that tree.** They are *tagged* with the commit, and a tag is a label
   the builder chose. Nothing relates image bytes to the directory above. This is the largest remaining hole
   and it is why G4 below closes a narrow claim rather than a broad one.
@@ -54,8 +61,9 @@ live `app/`. Compose lives at `/opt/opsworkbench/shared/compose/docker-compose.y
 - `rollback-release.txt` → `/opt/opsworkbench/releases/review-467a3138/app`, which exists;
 - its `release.manifest.json` hashes to `6212564a…`, **exactly the manifest subject digest in the verified
   `v0.1.1-operate` attestation** — so the rollback target's metadata is attested, not merely present;
-- **its tree was compared against that artifact: all 253 files byte-identical**, the same check §1 records
-  for the live release. It carries the same two extra files, with the same digests — see G6;
+- **every one of the artifact's 253 files is byte-identical in it**, the same check §1 records for the live
+  release — and one-directional in the same way: the directory holds the same two extra files, with the same
+  digests, so G6 is present in this release too;
 - three images tagged `control-center-{api,web,admin-web}:467a3138…` are on the host.
 
 **What is NOT established, and each of these is load-bearing:**
@@ -79,7 +87,7 @@ destroys the only rollback artifact it has.
 | G1 | **No enforced deploy-time verification.** Nothing makes prod consume only release-workflow output. | **OPEN.** `control-center/scripts/verify-release-bundle.mjs` exists (offline checksum+manifest, attestation via `gh`, mandatory with `CONTROL_CENTER_REQUIRE_RELEASE_ATTESTATION=1`) but is not wired into a live deploy. The chain in §1 was verified *by hand, after the fact*. |
 | G2 | **Runtime identity was unverified env strings.** | **PARTLY CLOSED.** `resolveBuildIdentity()` binds `/healthz` to the shipped manifest and production reports `source: manifest`. The manifest is still a file the deployer placed there: nothing re-hashes the unpacked tree at startup and compares. Reporting an identity is not verifying one. |
 | G3 | **Tag → audited-line binding is unchecked.** The release workflow will build any pushed `v*.*.*-*` tag. | **OPEN.** An unreviewed commit could still be tagged, attested and shipped, and the attestation would look exactly as convincing. |
-| G4 | **Provenance of the deployed release DIRECTORY.** *(Narrowed 2026-09-05 — it previously read "of the currently-running prod", which this evidence does not reach.)* | **CLOSED** — see §1. |
+| G4 | **Provenance of every ARTIFACT-LISTED file in the deployed directory.** *(Narrowed twice on 2026-09-05. It first read "of the currently-running prod", which the evidence does not reach; then "of the deployed release directory", which it also does not reach, because the match runs one way and the directory holds two files the artifact does not.)* | **CLOSED** — see §1. **Provenance of the directory as a whole stays incomplete under G6**, and that is the honest residue rather than a technicality. |
 | G4b | **Provenance of the running RUNTIME.** Image bytes are not bound to the deployed tree. | **OPEN.** Carved out of G4 rather than closed with it. |
 | G5 | **agent-v2 / key-ceremony prerequisites unmet.** | **OPEN**, unchanged. Keep `CONTROL_CENTER_AGENT_PROTOCOL_V2` off. |
 | G6 | **Nothing checks that the release directory contains ONLY what the manifest names.** | **OPEN, and it has already happened — twice.** `apps/web/Dockerfile.admin` and `deploy/nginx/admin-web.conf`, from no commit in this repository, are in **both** the live release and the rollback target, byte-identical in each. A digest check that iterates the manifest cannot see them: every file the manifest named matched. See PR #63, which brought both under review. |
@@ -91,14 +99,21 @@ destroys the only rollback artifact it has.
 - reject unexpected symlinks and directories, not only unexpected regular files;
 - run **after extraction *and* again immediately before build/start**. The overlay here was written nine
   minutes after extraction, so a check running only at extraction time would have seen nothing wrong;
-- make the later check the one the deploy **refuses on**, so a mutation between verification and start is
-  caught rather than assumed away.
+- make the later check the one the deploy **refuses on**.
+
+**And that still does not close the window, which is worth saying rather than letting the timing imply it.**
+A mutation after the last comparison and before the consumer opens the files is still possible; running the
+check later narrows the race, it does not remove it. Removing it means **the verified object has to be the
+object consumed** — build from an immutable verified snapshot, or package after verification and consume the
+package, or otherwise prevent writes after the check. Timing is the cheap mitigation; identity is the fix.
 
 ## 4. Deployment-readiness gate (all must be TRUE before promotion)
 
-- [x] **G4** Provenance of the deployed release **directory** recovered and matched to an attested artifact.
-- [x] Rollback **artifacts** verified available: target directory present, its tree matched to the attested
-      `v0.1.1-operate` artifact, and its images retained.
+- [x] **G4** Every **artifact-listed** file in the deployed directory matched to an attested artifact.
+      *(Not the directory as a whole — it holds two files the artifact does not; that residue is G6.)*
+- [x] Rollback **artifacts** verified available: target directory present, **all 253 artifact-listed files
+      matched** to the attested `v0.1.1-operate` artifact, and its images retained. *(Same two extras
+      recovered there; same residue.)*
 - [ ] **Documented, tested rollback path.** *(Restored — the previous revision required this and this
       reconciliation wrongly dropped it. Artifact availability is a prerequisite for it, not a substitute.)*
 - [ ] **G4b** Container images bound to the tree they were built from, rather than tagged with its commit.
