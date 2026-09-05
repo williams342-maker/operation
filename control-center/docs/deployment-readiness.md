@@ -104,8 +104,18 @@ destroys the only rollback artifact it has.
 **And that still does not close the window, which is worth saying rather than letting the timing imply it.**
 A mutation after the last comparison and before the consumer opens the files is still possible; running the
 check later narrows the race, it does not remove it. Removing it means **the verified object has to be the
-object consumed** — build from an immutable verified snapshot, or package after verification and consume the
-package, or otherwise prevent writes after the check. Timing is the cheap mitigation; identity is the fix.
+object consumed**, and the examples have to satisfy that literally:
+
+- build from an **immutable snapshot** that was verified;
+- **create the package first, then verify that exact package**, then consume it;
+- verify while **constructing a content-addressed package**, and consume the resulting digest;
+- or prevent writes for the whole of verification *and* consumption.
+
+Note which one is missing: *"package after verification and consume the package"* is **not** sufficient, and
+it was in an earlier draft of this paragraph. The directory can change while it is being read into the
+package, and the package is in any case not the object whose bytes were verified — it only moves the
+boundary one step. Timing is the cheap mitigation; identity is the fix, and identity means the same bytes,
+not a faithful copy of them.
 
 ## 4. Deployment-readiness gate (all must be TRUE before promotion)
 
