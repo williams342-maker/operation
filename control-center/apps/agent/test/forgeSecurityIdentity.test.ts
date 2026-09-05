@@ -5,9 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
-import { forgeSecurityIdentityStatement, loadForgeSecurityMaterial, type SecurityPathPolicy } from "../src/forgeSecurityIdentity.js";
+import { forgeSecurityIdentitySchema, forgeSecurityIdentityStatement, loadForgeSecurityMaterial, type SecurityPathPolicy } from "../src/forgeSecurityIdentity.js";
 
 const digest = (value: string | Buffer) => crypto.createHash("sha256").update(value).digest("hex");
+
+test("security identity fields cannot inject canonical statement separators", () => {
+  const base = { schemaVersion: "forge-security-identity-v1", orgId: "org", serverId: "server", ownerPublicKey: "abc", trustedRootSha256: "a".repeat(64), reviewGateCaSha256: "b".repeat(64), hostname: "host", machineIdSha256: "c".repeat(64), validFrom: "2026-09-01T00:00:00.000Z", validUntil: "2027-09-01T00:00:00.000Z", ownerSignature: "d".repeat(64) };
+  for (const field of ["orgId", "serverId", "hostname"] as const) assert.equal(forgeSecurityIdentitySchema.safeParse({ ...base, [field]: "trusted\nshifted" }).success, false);
+});
 
 function fixture(): { root: string; security: string; identity: string; trustedRoot: string; reviewGateCa: string; policy: SecurityPathPolicy } {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "forge-security-"));

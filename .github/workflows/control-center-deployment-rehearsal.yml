@@ -69,19 +69,20 @@ jobs:
           done
       - name: Exercise forward, rollback, partial switch and restart against a replica set
         env:
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
           CANDIDATE_COMMIT: ${{ steps.source.outputs.candidate }}
           ROLLBACK_COMMIT: ${{ steps.source.outputs.rollback }}
         run: |
           set -euo pipefail
           network="rehearsal-${GITHUB_RUN_ID}"
           docker network create "$network"
-          docker run -d --name rehearsal-mongo --network "$network" mongo:8.0 mongod --bind_ip_all --replSet rs0
+          docker run -d --name rehearsal-mongo --network "$network" mongo@sha256:02a0cc7939f5ed38f30f9bc714ef5f682d49baf9350c54acf302ce833087fe8a mongod --bind_ip_all --replSet rs0
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' >/dev/null 2>&1 && break; sleep 1; done
           docker exec rehearsal-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"rehearsal-mongo:27017"}]})'
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done
           mkdir -m 700 tls
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=review-gate -addext 'subjectAltName=DNS:review-gate,IP:127.0.0.1' -keyout tls/tls.key -out tls/tls.crt >/dev/null 2>&1
-          chmod 644 tls/tls.key tls/tls.crt
+          chmod 600 tls/tls.key; chmod 644 tls/tls.crt
           start_set() {
             label="$1"
             prefix="$(printf '%s' "$label" | tr '[:lower:]' '[:upper:]')"
@@ -94,8 +95,8 @@ jobs:
             docker run -d --name "web-$label" --network "$network" "$WEB_IMAGE_ID"
             docker run -d --name "admin-$label" --network "$network" "$ADMIN_IMAGE_ID"
             for name in api gate web admin; do for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy; done
-            docker run --rm --network "$network" curlimages/curl:8.16.0 --fail --silent "http://api-$label:3000/readyz" >/dev/null
-            docker run --rm --network "$network" curlimages/curl:8.16.0 --fail --silent --insecure "https://gate-$label:3100/healthz" | grep -q 'ENFORCEMENT IS NOT ACTIVE'
+            docker run --rm --network "$network" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent "http://api-$label:3000/readyz" >/dev/null
+            docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt "https://gate-$label:3100/healthz" | grep -q 'ENFORCEMENT IS NOT ACTIVE'
           }
           stop_set() { for name in api gate web admin; do docker rm -f "$name-$1" >/dev/null; done; }
           start_set candidate
@@ -136,7 +137,7 @@ jobs:
           CONTROL_CENTER_RUN_DB_TESTS: "true"
         run: |
           set -euo pipefail
-          docker run -d --name rehearsal-test-mongo -p 27017:27017 mongo:8.0 mongod --bind_ip_all --replSet rs0
+          docker run -d --name rehearsal-test-mongo -p 27017:27017 mongo@sha256:02a0cc7939f5ed38f30f9bc714ef5f682d49baf9350c54acf302ce833087fe8a mongod --bind_ip_all --replSet rs0
           for i in $(seq 1 30); do docker exec rehearsal-test-mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' >/dev/null 2>&1 && break; sleep 1; done
           docker exec rehearsal-test-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
           for i in $(seq 1 30); do docker exec rehearsal-test-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done

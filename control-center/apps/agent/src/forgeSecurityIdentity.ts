@@ -12,10 +12,11 @@ export const FORGE_REVIEW_GATE_CA_PATH = `${FORGE_SECURITY_DIR}/review-gate-ca.p
 
 const sha256 = (value: Buffer | string) => crypto.createHash("sha256").update(value).digest("hex");
 
+const identityText = z.string().min(1).regex(/^[^\u0000-\u001f\u007f]+$/);
 export const forgeSecurityIdentitySchema = z.object({
   schemaVersion: z.literal("forge-security-identity-v1"),
-  orgId: z.string().min(1), serverId: z.string().min(1), ownerPublicKey: z.string().min(1),
-  trustedRootSha256: z.string().regex(/^[a-f0-9]{64}$/), reviewGateCaSha256: z.string().regex(/^[a-f0-9]{64}$/), hostname: z.string().min(1),
+  orgId: identityText, serverId: identityText, ownerPublicKey: z.string().min(1).regex(/^[A-Za-z0-9_-]+$/),
+  trustedRootSha256: z.string().regex(/^[a-f0-9]{64}$/), reviewGateCaSha256: z.string().regex(/^[a-f0-9]{64}$/), hostname: identityText,
   machineIdSha256: z.string().regex(/^[a-f0-9]{64}$/), validFrom: z.string().datetime(), validUntil: z.string().datetime(),
   ownerSignature: z.string().min(64).max(256).regex(/^[A-Za-z0-9_-]+$/),
 }).strict();

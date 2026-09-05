@@ -10,7 +10,6 @@ Group=opsworkbench-agent
 WorkingDirectory=/opt/opsworkbench-agent/current/control-center/apps/agent
 EnvironmentFile=/etc/opsworkbench-agent/enrollment.env
 EnvironmentFile=/etc/opsworkbench-agent/machine-auth.env
-Environment=NODE_EXTRA_CA_CERTS=/etc/opsworkbench-forge/review-gate-ca.pem
 ExecStart=/usr/bin/node /opt/opsworkbench-agent/current/control-center/apps/agent/dist/agent.js
 Restart=always
 RestartSec=10
