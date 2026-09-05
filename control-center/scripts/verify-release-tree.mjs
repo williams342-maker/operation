@@ -77,6 +77,14 @@ export function describeTree(root) {
 // the finding this module is for. A directory allowance permits THAT ENTRY only: its children are not
 // implicitly allowed, because "allow this directory" is otherwise indistinguishable from "allow anything
 // anyone puts in it".
+//
+// SYMLINKS CANNOT BE ALLOWED AT ALL. A typed `symlink` allowance sounds safe and is not: the type would be
+// checked and the TARGET would not, so it permits a link at that path pointing anywhere, inside the tree or
+// out of it. That is the substitution this module exists to refuse, and constraining the target instead
+// would mean a deploy declaring in advance exactly what a link it did not put there should point at. There
+// is no honest use for it here.
+export const ALLOWABLE_TYPES = ["file", "directory"];
+
 function normaliseAllowances(allowExtra) {
   const allowances = new Map();
   for (const entry of allowExtra) {
@@ -86,7 +94,35 @@ function normaliseAllowances(allowExtra) {
         "would permit a symlink where a file was expected."
       );
     }
-    allowances.set(entry.path, entry.type);
+    // Every rejection below is a value that would otherwise become a SILENT NO-OP: it never matches a path
+    // `describeTree` produces, so verification passes while the allowance the caller wrote does nothing.
+    // A no-op allowance is worse than a rejected one, because the caller believes it is in effect.
+    if (!ALLOWABLE_TYPES.includes(entry.type)) {
+      throw new TypeError(
+        `allowExtra type must be one of ${ALLOWABLE_TYPES.join(", ")}; received ${JSON.stringify(entry.type)}` +
+        (entry.type === "symlink"
+          ? ". A symlink allowance would check the type and not the target, permitting a link to anywhere."
+          : "")
+      );
+    }
+    const { path: relative } = entry;
+    if (path.posix.isAbsolute(relative) || /^[A-Za-z]:/.test(relative)) {
+      throw new TypeError(`allowExtra path must be relative to the tree root; received ${JSON.stringify(relative)}`);
+    }
+    if (relative.includes("\\")) {
+      throw new TypeError(`allowExtra path must use "/" separators; received ${JSON.stringify(relative)}`);
+    }
+    if (relative.endsWith("/")) {
+      throw new TypeError(`allowExtra path must not end with a separator; received ${JSON.stringify(relative)}`);
+    }
+    if (relative.split("/").some((segment) => segment === "." || segment === ".." || segment === "")) {
+      throw new TypeError(`allowExtra path must be normalised, with no "." or ".." segments; received ${JSON.stringify(relative)}`);
+    }
+    if (allowances.has(relative)) {
+      // Last-write-wins over two contradictory allowances for one path silently picks a winner. Refuse.
+      throw new TypeError(`allowExtra names ${JSON.stringify(relative)} more than once`);
+    }
+    allowances.set(relative, entry.type);
   }
   return allowances;
 }
@@ -137,27 +173,25 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
 
   for (const [relative, got] of actualEntries) {
     if (expectedEntries.has(relative)) continue;
-    if (got.type === "other") {
-      // Never allowable: an allowance names a type this module can compare, and this is not one of them.
-      extra.push(relative);
-      mismatched.push({ path: relative, reason: "neither file, directory nor symlink; identity cannot be established" });
-      continue;
-    }
+    // `extra` and `mismatched` are DISJOINT: one filesystem entry produces one problem. An earlier version
+    // put an unexpected special node in both and reported "FAILED: 2 problems" for a single node.
     const allowedType = allowances.get(relative);
-    if (allowedType === undefined) {
-      extra.push(relative);
-    } else if (allowedType !== got.type) {
+    if (allowedType !== undefined && allowedType === got.type) {
+      permitted.push(relative);
+    } else if (allowedType !== undefined) {
       mismatched.push({ path: relative, reason: `permitted as ${allowedType}, found ${got.type}` });
     } else {
-      permitted.push(relative);
+      extra.push(relative);
     }
   }
 
+  const extraType = (relative) => actualEntries.get(relative)?.type ?? "unknown";
   const problems = [
     ...missing.map((p) => `missing from the deployed tree: ${p}`),
     // Named separately and worded as content the artifact does not cover, because "extra file" reads as
-    // harmless and this is the one that shipped an unreviewed Dockerfile into production.
-    ...extra.map((p) => `present but NOT in the artifact, so outside its provenance: ${p}`),
+    // harmless and this is the one that shipped an unreviewed Dockerfile into production. The type is
+    // carried because an unexpected symlink or special node is a different problem from an unexpected file.
+    ...extra.map((p) => `present but NOT in the artifact, so outside its provenance: ${p} (${extraType(p)})`),
     ...mismatched.map((m) => `${m.path}: ${m.reason}`)
   ];
 
@@ -171,10 +205,18 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
   };
 }
 
+// Refuses anything it does not recognise. Skipping unknown tokens means `--allow-exrta runtime.log:file`
+// is silently ignored and the run can still exit 0 — a typo in a security allowance that reads as success.
 export function parseAllowExtraArgs(args) {
   const allowances = [];
   for (let i = 0; i < args.length; i += 1) {
-    if (args[i] !== "--allow-extra") continue;
+    if (args[i] !== "--allow-extra") {
+      throw new TypeError(
+        args[i].startsWith("-")
+          ? `unknown option ${JSON.stringify(args[i])}`
+          : `unexpected argument ${JSON.stringify(args[i])}`
+      );
+    }
     const value = args[i + 1];
     if (!value) throw new TypeError("--allow-extra needs a value of the form <path>:<type>");
     // Split on the LAST colon: a path may contain one, a type never does.

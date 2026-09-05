@@ -193,13 +193,51 @@ test("an 'other' node is never equal to another 'other' node at the same path", 
   assert.match(result.mismatched[0].reason, /identity cannot be established/);
 });
 
-test("an UNEXPECTED 'other' node cannot be permitted by an allowance", () => {
-  const result = compareReleaseTree(new Map(), new Map([["sock", { type: "other", mode: 4516 }]]), {
-    allowExtra: [{ path: "sock", type: "other" }]
-  });
+test("an UNEXPECTED 'other' node is reported ONCE, with its type, and cannot be allowed", () => {
+  // `other` is not an allowable type, so there is no way to permit one. It is reported as an extra rather
+  // than as both an extra and a mismatch: an earlier version double-counted and said "2 problems" for one
+  // filesystem entry.
+  const result = compareReleaseTree(new Map(), new Map([["sock", { type: "other", mode: 4516 }]]));
   assert.deepEqual(result.extra, ["sock"]);
-  assert.deepEqual(result.permitted, []);
+  assert.deepEqual(result.mismatched, []);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /outside its provenance: sock \(other\)/);
   assert.equal(result.ok, false);
+});
+
+test("A SYMLINK ALLOWANCE IS REFUSED OUTRIGHT, because the type would be checked and the target would not", () => {
+  // The finding this rejection exists for: `{path, type: "symlink"}` reads as safe and permits a link at
+  // that path pointing ANYWHERE, in the tree or out of it — the exact substitution the module refuses.
+  assert.throws(
+    () => compareReleaseTree(new Map(), new Map(), { allowExtra: [{ path: "link", type: "symlink" }] }),
+    /permitting a link to anywhere/
+  );
+});
+
+// Every value below would otherwise be a SILENT NO-OP: it can never match a path describeTree produces, so
+// verification passes while the caller believes their allowance is in effect. That is worse than a refusal.
+for (const [label, entry, expected] of [
+  ["an unknown type", { path: "runtime.log", type: "regular-file" }, /type must be one of file, directory/],
+  ["an absolute POSIX path", { path: "/runtime.log", type: "file" }, /must be relative/],
+  ["a Windows drive path", { path: "C:/runtime.log", type: "file" }, /must be relative/],
+  ["a backslash separator", { path: "state\\runtime.log", type: "file" }, /must use "\/" separators/],
+  ["a trailing separator", { path: "state/", type: "directory" }, /must not end with a separator/],
+  ["a parent segment", { path: "../runtime.log", type: "file" }, /no "\." or "\.\." segments/],
+  ["a current-directory segment", { path: "./runtime.log", type: "file" }, /no "\." or "\.\." segments/],
+  ["an empty segment", { path: "state//runtime.log", type: "file" }, /no "\." or "\.\." segments/]
+]) {
+  test(`an allowance with ${label} is refused rather than silently doing nothing`, () => {
+    assert.throws(() => compareReleaseTree(new Map(), new Map(), { allowExtra: [entry] }), expected);
+  });
+}
+
+test("two allowances for one path are refused rather than last-write-wins", () => {
+  assert.throws(
+    () => compareReleaseTree(new Map(), new Map(), {
+      allowExtra: [{ path: "runtime.log", type: "file" }, { path: "runtime.log", type: "directory" }]
+    }),
+    /names "runtime\.log" more than once/
+  );
 });
 
 // ── CLI contract ────────────────────────────────────────────────────────────────────────────────────
@@ -265,4 +303,29 @@ test("CLI: a malformed --allow-extra is a usage error, not a silently ignored fl
 
 test("parseAllowExtraArgs splits on the LAST colon so a path may contain one", () => {
   assert.deepEqual(parseAllowExtraArgs(["--allow-extra", "a:b/c.log:file"]), [{ path: "a:b/c.log", type: "file" }]);
+});
+
+test("CLI: a MISTYPED option is exit 2, not silently ignored", () => {
+  // Skipping unknown tokens meant `--allow-exrta runtime.log:file` was quietly dropped and the run could
+  // still exit 0 — a typo in a security allowance reading as success.
+  const expected = artifact();
+  const deployed = copy(expected);
+  write(deployed, "runtime.log", "started\n");
+  const run = captureCli([expected, deployed, "--allow-exrta", "runtime.log:file"]);
+  assert.equal(run.code, 2);
+  assert.match(run.err[0], /unknown option "--allow-exrta"/);
+});
+
+test("CLI: a stray operand is exit 2", () => {
+  const expected = artifact();
+  const run = captureCli([expected, copy(expected), "extra-thing"]);
+  assert.equal(run.code, 2);
+  assert.match(run.err[0], /unexpected argument "extra-thing"/);
+});
+
+test("CLI: a symlink allowance is refused at the command line too", () => {
+  const expected = artifact();
+  const run = captureCli([expected, copy(expected), "--allow-extra", "link:symlink"]);
+  assert.equal(run.code, 2);
+  assert.match(run.err[0], /permitting a link to anywhere/);
 });
