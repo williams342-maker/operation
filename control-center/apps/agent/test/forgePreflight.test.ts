@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { BETA_STARTUP_SAFETY_FLAGS, runBetaDeploymentPreflight, type BetaDeploymentPreflightInput, type ImageInspection } from "../src/betaDeploymentPreflight.js";
 import { forgeBuildDigest, forgeTargetBindingDigest, generateAgentKeyPairs, type ForgeBuildManifest, type ForgeTargetBinding } from "@control-center/shared";
 import type { ForgeEvidenceOutcome } from "../src/forgePreflightEvidence.js";
@@ -308,6 +309,8 @@ test("BLOCKER (round 2): the trust anchors are not reachable from operator input
   for (const forbidden of ["forgeTrustedRootPath", "forgeOwnerPublicKeyPath", "trustedRoot", "ownerPublicKey"]) {
     assert.equal(forbidden in item.input, false, `${forbidden} must not be an input field`);
   }
+  const cli = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/betaDeploymentPreflightCli.ts"), "utf8");
+  assert.match(cli, /if \(forgeRequested\)[\s\S]*trusted-deployer\.mjs/, "the obsolete three-image executable must refuse Forge deployment");
 });
 
 test("BLOCKER (round 2): with no root-owned anchors, evidence is rejected rather than trusted", async () => {

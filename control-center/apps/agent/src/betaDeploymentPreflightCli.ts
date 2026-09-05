@@ -112,6 +112,14 @@ if (!inputPath) {
     // depend on state it never used. `actualOrgId` and `actualServerId` have exactly one consumer -- the
     // Forge binding check -- so nothing outside Forge loses anything by this being conditional.
     const forgeRequested = forgeEvidenceRequested(supplied);
+    // This three-service beta path predates admin-web plus the Review Gate becoming one indivisible
+    // production image set. Its library-level verifier remains for historical evidence tests, but the
+    // executable must never issue an approval for forge-build-v2 while it cannot deploy/rollback and
+    // inspect the Review Gate image. The version-controlled trusted deployer is the sole Forge release
+    // path and binds all four roles for both candidate and rollback.
+    if (forgeRequested) {
+      throw new Error("Forge deployment refused: beta preflight is superseded; use trusted-deployer.mjs so all four runtime images are bound");
+    }
     // Identity is MEASURED from root-owned material. Anything the input file claims about identity or
     // consumed nonces is discarded rather than merged.
     const outcome = forgeRequested ? loadRootOwnedIdentity() : undefined;
@@ -133,8 +141,11 @@ if (!inputPath) {
     passed = result.status.startsWith("PASS");
     process.stdout.write(serializePreflightReport(result));
     process.exitCode = passed ? 0 : 1;
-  } catch {
-    process.stderr.write("Beta deployment preflight could not read the value-free input file.\n");
+  } catch (error) {
+    const message = error instanceof Error && error.message.startsWith("Forge deployment refused:")
+      ? error.message
+      : "Beta deployment preflight could not read the value-free input file.";
+    process.stderr.write(`${message}\n`);
     process.exitCode = 2;
   } finally {
     // A run that did not reach PASS must not burn a legitimate authorization — including when the
