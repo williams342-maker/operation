@@ -12,6 +12,7 @@ import { ExecutionJournal } from "../src/executionJournal.js";
 import { ReviewGateClient } from "../src/reviewGateClient.js";
 import { acquireForEffect, keepExecutionAlive, recordEffect, type Acquired } from "../src/reviewEnforcedExecution.js";
 import http from "node:http";
+import https from "node:https";
 import type { AddressInfo } from "node:net";
 
 process.env.NODE_ENV = "test";
@@ -34,6 +35,16 @@ function source(relative: string): string {
     dir = path.dirname(dir);
   }
   throw new Error(`cannot locate src/${relative} from ${import.meta.url}`);
+}
+
+function repositoryFile(relative: string): Buffer {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let up = 0; up < 8; up++) {
+    const candidate = path.join(dir, relative);
+    if (fs.existsSync(candidate)) return fs.readFileSync(candidate);
+    dir = path.dirname(dir);
+  }
+  throw new Error(`cannot locate ${relative} from ${import.meta.url}`);
 }
 
 const cp = generateAgentKeyPairs();
@@ -265,6 +276,25 @@ test("an unreachable or unreadable gate is a refusal, never a pass", async () =>
 
 test("a real HTTPS gate client cannot start without the owner-bound CA", () => {
   assert.throws(() => new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }), /owner-bound CA/);
+});
+
+test("the real HTTPS gate client uses only its supplied owner-bound CA", async () => {
+  const certificate = repositoryFile("control-center/apps/agent/test/fixtures/review-gate-test-cert.pem");
+  const key = repositoryFile("control-center/apps/agent/test/fixtures/review-gate-test-key.pem");
+  const server = https.createServer({ cert: certificate, key }, (request, response) => {
+    assert.equal(request.headers.authorization, "Bearer executor-only");
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ ok: true, attemptToken: "secret-attempt", executionDeadline: "2026-09-05T18:00:00.000Z" }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address() as AddressInfo;
+    const client = new ReviewGateClient({ url: `https://127.0.0.1:${address.port}`, credential: "executor-only", timeoutMs: 1000 }, undefined, certificate);
+    const outcome = await client.acquire({ attestationId: "a", leaseId: "l", actionDigest: digestOf("a"), orgId: "o", serverId: "s", kind: "k", idempotencyKey: "idem-tls" });
+    assert.equal(outcome.ok, true, outcome.ok ? undefined : outcome.code);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 test("a gate that does not answer promptly is a gate that is unreachable", async () => {

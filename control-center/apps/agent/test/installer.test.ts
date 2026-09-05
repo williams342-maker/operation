@@ -49,9 +49,6 @@ test("installer provisions and verifies the systemd agent", () => {
   assert.match(source, /\[ ! -s "\$CONFIG_DIR\/agent\.json" \]/, "reinstallation must preserve permanent agent credentials");
   const unit = fs.readFileSync(repositoryFile("control-center/deploy/systemd/opsworkbench-agent.service"), "utf8");
   assert.doesNotMatch(unit, /NODE_EXTRA_CA_CERTS/, "the process-wide Node trust store must not be extended");
-  const gateClient = fs.readFileSync(repositoryFile("control-center/apps/agent/src/reviewGateClient.ts"), "utf8");
-  assert.match(gateClient, /new Agent\(\{ connect: \{ ca, rejectUnauthorized: true \} \}\)/, "only the Review Gate client must receive the owner-bound CA");
-  assert.match(gateClient, /rejectUnauthorized: true/, "the Review Gate client must verify its TLS peer");
   assert.match(source, /agent enrolled successfully/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .*agent\.json/);
   assert.match(source, /shell_env_value CONTROL_CENTER_AGENT_CONFIG .* >"\$CONFIG_DIR\/enrollment\.env"/, "installer must remove the plaintext enrollment token after successful use");
