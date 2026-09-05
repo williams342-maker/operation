@@ -68,7 +68,7 @@ test("the internal edge proxy owns nothing", () => {
   assert.deepEqual(headerNames(read("edge-container.conf")), []);
 });
 
-test("no location that proxies also sets a security header", () => {
+test("nothing on a proxying path sets a header the upstream could also set", () => {
   // The same rule one level down, and the level the file-by-file tests above cannot see. A whole config
   // can be the sole owner of its origin's responses and still contain ONE location that hands the
   // response to something else — and nginx appends add_header to a proxied response, so that location
@@ -83,27 +83,33 @@ test("no location that proxies also sets a security header", () => {
   // The fix was structural — the server block owns nothing and each nginx-served location restates the
   // set — so this test is what stops a future edit from putting a header back on the server block and
   // silently reintroducing the duplicate on every proxied path underneath it.
-  // Scoped to SECURITY_HEADERS, and the scope is the point. These describe the RESPONSE CONTENT, which
-  // is what an upstream application also has an opinion about, so these are the ones that stack. HSTS is
-  // not one of them: it describes the TRANSPORT, only the TLS terminator can assert it, and `staging.conf`
-  // both proxies and sets it entirely correctly. Writing this rule over every header instead of these
-  // four failed on exactly that, which is the difference between the two kinds of header rather than an
-  // exception to a rule.
-  const contentHeaders = (text) => headerNames(text).filter((name) => SECURITY_HEADERS.includes(name));
+  // ALLOWLISTED, NOT DENIED, and that is the whole of the second round's finding. The first version of
+  // this rule forbade the four names in SECURITY_HEADERS, which reads as "the content headers" and is
+  // not: `Cache-Control` describes the response too, several API routes set it, and a reviewer put
+  // `add_header Cache-Control "no-store" always;` back on the server block and watched all nine tests
+  // pass. Every enumeration of the headers an application might set is a list that is already out of
+  // date — Permissions-Policy, Cross-Origin-Opener-Policy, whatever is next.
+  //
+  // So the rule is inverted. A proxying location declares NOTHING. A server block that contains one may
+  // declare only headers on this list, which holds exactly the ones no upstream can meaningfully assert
+  // because they describe the TRANSPORT rather than the response. HSTS is the only such header today,
+  // and it is why `staging.conf` both proxies and sets a header entirely correctly. Anything else fails
+  // closed and has to be argued for here.
+  const TRANSPORT_HEADERS = ["Strict-Transport-Security"];
   for (const file of configs()) {
     const text = read(file);
     const proxying = locationBlocks(text).filter((block) => /proxy_pass\s/.test(block));
+    if (proxying.length === 0) continue; // owns every response it serves; the tests above govern it
     for (const block of proxying) {
-      assert.deepEqual(contentHeaders(block), [],
-        `${file}: location '${locationName(block)}' proxies AND sets ${contentHeaders(block).join(", ")}; nginx appends these to the upstream's own copy`);
+      assert.deepEqual(headerNames(block), [],
+        `${file}: location '${locationName(block)}' proxies AND sets ${headerNames(block).join(", ")}; nginx appends these to whatever the upstream already sent`);
     }
-    // A server-level add_header reaches every location that declares none, including the proxying ones,
-    // so for a config that proxies at all the server block must own no content header either.
-    if (proxying.length > 0) {
-      const serverLevel = contentHeaders(text.split(/^\s*location\s/m)[0]);
-      assert.deepEqual(serverLevel, [],
-        `${file} proxies, so its server block must set no content header of its own; found ${serverLevel.join(", ")}`);
-    }
+    // A server-level add_header reaches every location that declares none, the proxying ones included,
+    // so the same rule has to hold one level up or it holds nowhere.
+    const serverLevel = headerNames(text.split(/^\s*location\s/m)[0])
+      .filter((name) => !TRANSPORT_HEADERS.includes(name));
+    assert.deepEqual(serverLevel, [],
+      `${file} proxies, so its server block may set only ${TRANSPORT_HEADERS.join(", ")}; found ${serverLevel.join(", ")}`);
   }
 });
 
