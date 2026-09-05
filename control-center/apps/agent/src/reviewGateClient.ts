@@ -53,10 +53,10 @@ export class ReviewGateClient {
   constructor(gate: GateConfig, fetchImpl: typeof fetch | undefined = undefined, ca?: Buffer) {
     this.#gate = gate;
     this.#fetch = (fetchImpl ?? undiciFetch) as GateFetch;
-    if (!fetchImpl) {
-      if (this.#gate.url.startsWith("https:") && !ca?.length) throw new Error("the Review Gate client requires its owner-bound CA");
-      if (ca?.length) this.#dispatcher = new Agent({ connect: { ca, rejectUnauthorized: true } });
-    }
+    if (!fetchImpl && this.#gate.url.startsWith("https:") && !ca?.length) throw new Error("the Review Gate client requires its owner-bound CA");
+    // Construct this even for an injected transport so the wiring can be tested without committing a
+    // private-key fixture. Production still uses undiciFetch; injected transports exist only in tests.
+    if (ca?.length) this.#dispatcher = new Agent({ connect: { ca, rejectUnauthorized: true } });
   }
 
   async #post(endpoint: string, body: unknown, headers: Record<string, string> = {},
