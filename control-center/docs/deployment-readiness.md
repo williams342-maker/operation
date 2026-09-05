@@ -1,64 +1,107 @@
 # Deployment readiness & release attestation — OpsWorkbench control-center
 
-Baseline: reconciled `main` @ `2277beb6` (accepted UI stream). Goal: define exactly what must be true before
-any production promotion. **Promotion is NOT authorized by this document** — it still requires provenance
-recovery closed ([provenance-recovery-16e14682.md](provenance-recovery-16e14682.md)) **and** explicit owner approval.
+**Reconciled 2026-09-05 against the running host, read-only.** The previous revision was written when
+production was `16e14682` and said production had bypassed tags, attestation and the manifest entirely.
+That was true of `16e14682` and **is no longer true of what is running**; two releases have happened since,
+through the manifest mechanism. Baseline is now `main` @ `a57104c0`. **Promotion is still NOT authorized by
+this document** — it requires explicit owner approval.
 
-## 1. Current state — the attestation pipeline is strong (and was bypassed)
+## 0. What production actually is, measured
 
-The release/attestation machinery already exists and is rigorous:
+| | |
+| --- | --- |
+| host | `Ops-Workbench`, Ubuntu 24.04.4, behind a token-mode Cloudflare Tunnel (`cloudflared.service`) |
+| `/healthz` | `0.1.2-operate`, commit `4c47c7b1…`, `"source":"manifest"` |
+| live release | `/opt/opsworkbench/current` → `releases/review-4c47c7b1/app` |
+| runtime | Docker Compose project `opsworkbench`: `api`, `web`, `admin-web`, `edge` (nginx:1.27-alpine), `mongo` (mongo:8.0), images tagged with the full 40-char commit |
+| ports | edge → `127.0.0.1:18080`; **admin-web → `127.0.0.1:18081`, a separate origin that never traverses the edge** |
+| database | `control_center_staging` (the name is historical), 80 collections, 61,743 audit events, 47 enrollments |
+| distance from `main` | **225 commits** |
 
-- **`control-center-release.yml`** (tag `v*.*.*-*` or dispatch on an existing tag):
-  checks out the **exact annotated tag** (`--verify-tag`); Gitleaks 8.30.1 (checksum-verified) secret scan of
-  the tagged tree; `npm audit --audit-level=high`; `test` + `typecheck` + `lint` + `build`; **deterministic
-  bundle built twice** (`verify-release-artifacts.sh`); **SLSA build-provenance attestation**
-  (`actions/attest-build-provenance@v3`) over the tarball + manifest + `SHA256SUMS`; immutable draft prerelease
-  that **refuses to replace** an existing release; final clean-tree integrity assertions.
-- **`control-center-ci.yml`** builds + verifies an **exact-commit deployment archive** per push
-  (`build-deployment-archive.mjs` → `verify-deployment-archive.mjs`).
-- **`build-deployment-archive.mjs`** requires an exact 40-char SHA, **refuses any commit that does not resolve
-  in the repo**, and emits an integrity manifest binding `archiveSha256` → `commit` → per-file hashes (with
-  protected-shell-file LF enforcement).
+## 1. The chain from reviewed source to the deployed directory VERIFIES
 
-**Implication:** production `16e14682` **could not have been produced by this tooling** — the archive builder
-rejects a commit that does not resolve, and `16e14682` resolves nowhere. Production was deployed **out-of-band**
-from a raw local checkout with an env-declared identity, bypassing tags, attestation, and the manifest entirely.
-The pipeline is not the weakness; the absence of an **enforced path from pipeline → production** is.
+Established 2026-09-05, and worth stating precisely because the previous revision asserted the opposite:
 
-## 2. Readiness gaps (what must change before promotion)
+- `gh attestation verify` on `opsworkbench-control-center-0.1.2-operate.tar.gz` exits 0, binding
+  `gitCommit 4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b` via `refs/tags/v0.1.2-operate`, builder
+  `control-center-release.yml`, runner `github-hosted`;
+- its three subject digests are `a4d89430…` (tarball), `c0eb41b8…` (manifest), `7213968e…` (`SHA256SUMS`);
+- `release.manifest.json` and `incoming.SHA256SUMS` **on the host** hash to `c0eb41b8…` and `7213968e…` —
+  the same bytes the attestation signed;
+- **all 253 files in the artifact are byte-identical in the deployed `app/` directory.**
 
-| # | Gap | Why it matters | Remedy |
-|---|-----|----------------|--------|
-| G1 | **No enforced deploy-time verification.** Nothing makes prod consume only release-workflow output. | This is precisely how `16e14682` happened. | A deploy step that `gh attestation verify` / verifies `SHA256SUMS` + the build-provenance attestation for the bundle, and **refuses to start** otherwise. **Tooling: `control-center/scripts/verify-release-bundle.mjs`** (offline checksum+manifest verification, always; attestation via `gh`, made mandatory with `CONTROL_CENTER_REQUIRE_RELEASE_ATTESTATION=1`). Opt-in; not yet wired into a live deploy. |
-| G2 | **Runtime identity is unverified env strings** (`/healthz` + readiness `build` trusted `BUILD_VERSION`/`GIT_COMMIT`/`GIT_BRANCH`). | The running app cannot be proven to match any attested artifact. | **Implemented: `resolveBuildIdentity()` (`apps/api/src/buildIdentity.ts`)** binds `/healthz` + readiness `build` to the shipped `opsworkbench-release-v1` manifest via `CONTROL_CENTER_RELEASE_MANIFEST`, reporting `source: manifest\|env`. Env fallback keeps current deploys unchanged. Further hardening (startup tree-hash check vs the integrity manifest) can follow. |
-| G3 | **Tag → audited-line binding is unchecked.** The release workflow will build any pushed `v*.*.*-*` tag. | An unreviewed commit (exactly `16e14682`'s situation) could still be tagged and shipped. | Release job asserts the tag's commit is an **ancestor of audited `main`** (or a reviewed release branch), and fails otherwise. |
-| G4 | **Provenance of the currently-running prod is open.** | Cannot attest what is live, cannot safely roll forward/back. | Close via the operator artifact-diff procedure in [provenance-recovery-16e14682.md](provenance-recovery-16e14682.md). |
-| G5 | **agent-v2 / key-ceremony prerequisites unmet.** `CONTROL_CENTER_AGENT_PROTOCOL_V2` off; no CP task-signing key, no owner public key, no persistent staging, no key ceremony. | Prod rollout of the asymmetric protocol is unsafe without these (see security-review). | Provision `CONTROL_CENTER_TASK_SIGNING_PRIVATE_KEY` (CP) + `CONTROL_CENTER_OWNER_PUBLIC_KEY`; agents bootstrap both public keys; run the key ceremony on persistent staging first. Keep flag off until then. |
+So the run-time identity is no longer an env string, and the deployed tree is not merely *claimed* to come
+from `4c47c7b1`.
 
-## 3. Deployment-readiness gate (all must be TRUE before promotion)
+**What is still not proven:** that the running container images were built from that tree. The images are
+tagged with the commit, and a tag is a label the builder chose. Nothing binds image bytes to the tree.
 
-- [ ] **G4** Provenance of live `16e14682` recovered, drift reviewed, and either matched to a reviewed commit or
-      reconstructed into one that is an ancestor of audited `main`.
-- [ ] Release artifact built **only** by `control-center-release.yml` from a **pushed annotated tag** whose commit
+## 2. What the release path is, and what rollback is
+
+Neither was written down anywhere before this revision; both are recovered from the host.
+
+**Release.** `releases/<name>/` holds `app/` plus `release.manifest.json`, `incoming.SHA256SUMS`,
+`app.override.yml`, `rollback-release.txt` and `rollback-admin-image.txt`. `current` is a symlink to the
+live `app/`. Compose lives at `/opt/opsworkbench/shared/compose/docker-compose.yml`; env at
+`shared/compose/env/`. `checkpoints/` retains the compose and env of prior deployments.
+
+**Rollback, verified present rather than assumed:**
+
+- `rollback-release.txt` → `/opt/opsworkbench/releases/review-467a3138/app`, which **exists** and carries a
+  coherent `release.manifest.json` for `v0.1.1-operate` / commit `467a3138…`;
+- that manifest hashes to `6212564a…`, which is **exactly the manifest subject digest in the verified
+  `v0.1.1-operate` attestation** — so the rollback target is itself attested, not merely present;
+- **all three rollback images are still on the host** (`control-center-{api,web,admin-web}:467a3138…`), so a
+  rollback is a retag and `compose up`, not a rebuild.
+
+That last point is the one that is easy to lose: staging has a single `:staging` tag per image, so a rebuild
+there destroys the only rollback artifact. Production does not have that problem today. Keep it that way.
+
+**Untested.** Nothing here executes a rollback; that is a production mutation and needs owner authorization.
+What is established is that the target, its provenance and its images are all intact.
+
+## 3. Readiness gaps
+
+| # | Gap | Status |
+|---|-----|--------|
+| G1 | **No enforced deploy-time verification.** Nothing makes prod consume only release-workflow output. | **OPEN.** `control-center/scripts/verify-release-bundle.mjs` exists (offline checksum+manifest, attestation via `gh`, mandatory with `CONTROL_CENTER_REQUIRE_RELEASE_ATTESTATION=1`) but is not wired into a live deploy. The chain in §1 was verified *by hand, after the fact*. |
+| G2 | **Runtime identity was unverified env strings.** | **PARTLY CLOSED.** `resolveBuildIdentity()` binds `/healthz` to the shipped manifest and production reports `source: manifest`. The manifest is still a file the deployer placed there: nothing re-hashes the unpacked tree at startup and compares. A startup tree-hash check is what would close it. |
+| G3 | **Tag → audited-line binding is unchecked.** The release workflow will build any pushed `v*.*.*-*` tag. | **OPEN.** An unreviewed commit could still be tagged and shipped. |
+| G4 | **Provenance of the currently-running prod is open.** | **CLOSED 2026-09-05** — see §1. Superseded for `4c47c7b1`; `provenance-recovery-16e14682.md` remains the record for the older situation. |
+| G5 | **agent-v2 / key-ceremony prerequisites unmet.** | **OPEN**, unchanged. Keep `CONTROL_CENTER_AGENT_PROTOCOL_V2` off. |
+| G6 | **Nothing checks that the release directory contains ONLY what the manifest names.** | **OPEN, and it has already happened.** Two files a live container is built from — `apps/web/Dockerfile.admin` and `deploy/nginx/admin-web.conf` — were written into the release directory nine minutes after extraction and existed at **no commit in this repository**. A digest check that iterates the manifest cannot see this: every file the manifest names matched. See PR #63, which brought both under review. The remedy is a **set comparison in both directions**, not more digests. |
+
+## 4. Deployment-readiness gate (all must be TRUE before promotion)
+
+- [x] **G4** Provenance of the live release recovered and matched to an attested tag on the audited `main` line.
+- [x] Rollback target retained, **its provenance verified**, and its images still present. *(Documented in §2;
+      the rollback itself has not been executed — that needs owner authorization.)*
+- [ ] Release artifact built **only** by `control-center-release.yml` from a pushed annotated tag whose commit
       is in the audited `main` line (**G3**).
-- [ ] Bundle **SHA256SUMS + SLSA build-provenance attestation verified** at deploy time; deploy refuses on failure (**G1**).
-- [ ] Running app reports **manifest `commit` + `archiveSha256`**, verified against the unpacked tree at startup (**G2**).
-- [ ] Rollback ready: previous immutable bundle retained + verified; documented, tested rollback path; rollback tags current.
-- [ ] agent-v2 decision explicit: flag stays **off** for this promotion unless the full key ceremony (**G5**) has
-      completed on persistent staging with owner sign-off.
+- [ ] Bundle **SHA256SUMS + SLSA build-provenance attestation verified at deploy time**; deploy refuses on
+      failure (**G1**). Verifying by hand afterwards is not this.
+- [ ] Running app verifies the **unpacked tree** against the manifest at startup, not only reports it (**G2**).
+- [ ] Deploy **refuses a release directory containing files the manifest does not name** (**G6**).
+- [ ] Container images bound to the tree they were built from, rather than tagged with its commit (**§1**).
+- [ ] agent-v2 decision explicit: flag stays **off** unless the full key ceremony (**G5**) has completed on
+      persistent staging with owner sign-off.
 - [ ] Secrets/keys handled by the owner (never by the assistant): no prod keys provisioned in code or CI.
 - [ ] **Owner approval** recorded for this specific promotion.
 
-## 4. Recommended implementation order (all non-production, reviewable in PRs)
+## 5. Recommended implementation order (all non-production, reviewable in PRs)
 
-1. **G3** — add the tag→`main`-ancestor assertion to `control-center-release.yml` (cheapest, closes the
-   "unreviewed commit can ship" hole that created `16e14682`).
-2. **G2** — deploy injects manifest `commit`/`archiveSha256`; extend `runtimeIdentity()` to report them + a
-   startup tree-hash check against the shipped manifest.
-3. **G1** — a `verify-before-start` deploy gate (attestation + checksum verification) documented in `deploy/` and
-   wired into the deploy scripts.
-4. **G4/G5** — host-operator + owner actions (provenance closure, key ceremony), tracked separately.
+1. **G6** — cheapest and the only one with a demonstrated exploit path: compare the file sets both ways.
+2. **G3** — the tag→`main`-ancestor assertion in `control-center-release.yml`.
+3. **G2** — startup tree-hash check against the shipped manifest.
+4. **G1** — a verify-before-start deploy gate wired into the deploy scripts.
+5. **G5** — owner actions (key ceremony), tracked separately.
 
-None of items 1–3 touch production or change runtime behavior of the current build; they harden the path that a
-future promotion will use. They should land as normal reviewed PRs against `main`, flag-neutral, before any
-promotion is attempted.
+None of 1–4 touch production or change the runtime behaviour of the current build; they harden the path a
+future promotion will use.
+
+## 6. Migrations
+
+There is **no migration ledger collection** in the production database. Schema state is whatever the
+application has written, and there is no record on the host of which migrations have been applied. This is
+consistent with the known behaviour that nothing calls `migrate()` automatically. Any promotion crossing a
+schema change has to treat that as a manual, recorded step.
