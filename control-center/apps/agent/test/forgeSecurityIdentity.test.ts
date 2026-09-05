@@ -113,3 +113,34 @@ test("refuses an unpinned owner key and a forged host-identity signature", { ski
   fs.writeFileSync(item.identity, `${JSON.stringify(identity)}\n`); fs.chmodSync(item.identity, 0o444);
   assert.throws(() => loadForgeSecurityMaterial(item.policy), /signature is invalid/);
 });
+
+test("REGRESSION: the DEFAULT boundary is the filesystem root, and that is not an escape", () => {
+  // The configuration only PRODUCTION uses, and the only one no other test here exercises: every fixture
+  // above supplies an explicit `ancestorBoundary` inside a temp directory, so the boundary is never the
+  // filesystem root. With it omitted the boundary IS the root, which already ends in a separator — and
+  // appending another built `"//"`, which no absolute path starts with. The guard therefore refused every
+  // production load unconditionally, however correctly the material was provisioned. CI surfaced it as
+  // `Forge security directory escapes its trusted boundary` on the choreography gate.
+  const item = fixture();
+  const defaultBoundary: SecurityPathPolicy = { ...item.policy };
+  delete defaultBoundary.ancestorBoundary;
+  let thrown: Error | undefined;
+  try { loadForgeSecurityMaterial(defaultBoundary); } catch (error) { thrown = error as Error; }
+  // It must still refuse — a temp directory cannot satisfy the root-owned ancestor chain — but it must
+  // refuse for THAT reason, having got past the boundary check rather than being stopped by it.
+  assert.ok(thrown, "a temp-dir fixture cannot satisfy the ancestor chain, so this must still refuse");
+  assert.doesNotMatch(thrown.message, /escapes its trusted boundary/,
+    "a root boundary is not an escape; the default policy must reach the checks that follow it");
+});
+
+test("a directory genuinely outside the boundary is still refused", () => {
+  // The guard had NO positive test, so a change that disabled it entirely would have gone unnoticed —
+  // including the one above. Both halves are asserted so neither can be satisfied by deleting the check.
+  const item = fixture();
+  assert.throws(() => loadForgeSecurityMaterial({ ...item.policy, ancestorBoundary: path.join(item.root, "etc"), directory: path.join(item.root, "elsewhere") }),
+    /escapes its trusted boundary/);
+  // And the separator is load-bearing: `<root>/etcetera` merely SHARES A PREFIX with `<root>/etc` and is
+  // not inside it. A bare `startsWith(boundary)` would wave this through.
+  assert.throws(() => loadForgeSecurityMaterial({ ...item.policy, ancestorBoundary: path.join(item.root, "etc"), directory: `${path.join(item.root, "etc")}etera` }),
+    /escapes its trusted boundary/);
+});

@@ -91,7 +91,7 @@ jobs:
       # merely untested, plus the in-flight shutdown race a second round found in the keeper itself.
       # agent +2 and shared +7: the payload serialization contract -- the executor digesting its own
       # parse and refusing a payload the schema rejects, and the pinned conformance vectors.
-      CI_EXPECTED_TESTS: "431"
+      CI_EXPECTED_TESTS: "433"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -176,8 +176,8 @@ jobs:
       #   review-gate +3  attestationService +2 (bind digests the parse) and
       #                   choreographyDeployedApi +1 (a reordered bind still acquires end to end)
       #   agent       +2  the executor digesting its parse, and refusing a payload the schema rejects
-      CI_EXPECTED_TEST_SUITES: "agent=145,api=133,review-gate=258,shared=153,web=34"
-      CI_EXPECTED_TESTS: "723"
+      CI_EXPECTED_TEST_SUITES: "agent=147,api=133,review-gate=258,shared=153,web=34"
+      CI_EXPECTED_TESTS: "725"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

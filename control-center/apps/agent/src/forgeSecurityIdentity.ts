@@ -89,7 +89,13 @@ export function loadForgeSecurityMaterial(policy: SecurityPathPolicy = {
 }): { identity: ForgeSecurityIdentity; trustedRoot: unknown; reviewGateCaPath: string; reviewGateCa: Buffer } {
   const directory = path.resolve(policy.directory);
   const boundary = path.resolve(policy.ancestorBoundary ?? path.parse(directory).root);
-  if (directory !== boundary && !directory.startsWith(`${boundary}${path.sep}`)) throw new Error("Forge security directory escapes its trusted boundary");
+  // A boundary that IS a filesystem root already ends with the separator, so appending another produced
+  // `"//"` — and no absolute path starts with that. The default policy's boundary is exactly that root, so
+  // this guard refused every production load unconditionally, whatever was provisioned and however
+  // correctly. It never showed up in test because every fixture supplies an explicit `ancestorBoundary`
+  // inside a temp directory; the one configuration only production uses was the one never exercised.
+  const boundaryPrefix = boundary.endsWith(path.sep) ? boundary : `${boundary}${path.sep}`;
+  if (directory !== boundary && !directory.startsWith(boundaryPrefix)) throw new Error("Forge security directory escapes its trusted boundary");
   if ([policy.identityPath, policy.trustedRootPath, policy.reviewGateCaPath].some((file) => path.dirname(path.resolve(file)) !== directory)) {
     throw new Error("Forge security files must be direct children of the fixed security directory");
   }
