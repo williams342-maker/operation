@@ -23,7 +23,11 @@ function plan(root) { return {
 }; }
 
 const tarBlock = (name, type = "0", body = Buffer.alloc(0)) => {
-  const header = Buffer.alloc(512); header.write(name); header.write("0000644\0", 100); header.write("0000000\0", 108); header.write("0000000\0", 116);
+  // DIRECTORIES NEED THE EXECUTE BIT, and this fixture gave every entry 0644 including type "5". A
+  // directory without +x cannot be traversed, so extraction succeeded and the very next step -- walking
+  // the tree to compare it against the archive -- died with EACCES. `git archive`, which produces the
+  // real release tarballs, writes 0755 for directories, so the fixture was the unrealistic part.
+  const header = Buffer.alloc(512); header.write(name); header.write(type === "5" ? "0000755\0" : "0000644\0", 100); header.write("0000000\0", 108); header.write("0000000\0", 116);
   header.write(`${body.length.toString(8).padStart(11, "0")}\0`, 124); header.write("00000000000\0", 136); header.fill(0x20, 148, 156); header[156] = type.charCodeAt(0); header.write("ustar\0", 257); header.write("00", 263);
   header.write(`${header.reduce((sum, byte) => sum + byte, 0).toString(8).padStart(6, "0")}\0 `, 148);
   return Buffer.concat([header, body, Buffer.alloc((512 - body.length % 512) % 512)]);
