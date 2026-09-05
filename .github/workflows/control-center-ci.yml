@@ -117,13 +117,22 @@ jobs:
           const fs = require('node:fs');
           let tests = 0;
           let skipped = 0;
+          let failed = 0;
           for (const file of ['agent.tap', 'api.tap', 'shared.tap']) {
             const text = fs.readFileSync(file, 'utf8');
             tests += Number(text.match(/^# tests (\d+)/m)?.[1] ?? 0);
             skipped += Number(text.match(/^# skipped (\d+)/m)?.[1] ?? 0);
+            // `?? 0` is doing real work on the other two lines and would be a hole on this one: a TAP
+            // file with no fail line is one this check cannot judge, not one with nothing to report.
+            const reported = text.match(/^# fail (\d+)/m);
+            if (!reported) throw new Error(`${file}: no TAP fail-count summary to judge`);
+            failed += Number(reported[1]);
           }
           if (tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${tests}`);
           if (skipped !== Number(process.env.CI_EXPECTED_SKIPS)) throw new Error(`unexpected skipped tests: ${skipped}`);
+          // Read from the TAP rather than left to `set -e` and the runner exit codes above, for the
+          // same reason the Linux gate does it: the artifact is the thing that gets kept and read.
+          if (failed !== 0) throw new Error(`failing tests on Windows: ${failed}`);
           NODE
 
   verify:
@@ -310,19 +319,30 @@ jobs:
           path: /tmp/control-center-db-test-diagnostics.jsonl
           if-no-files-found: ignore
           retention-days: 7
+      # RUNS EVEN AFTER A RED `npm test`, because this step is what writes the evidence the upload
+      # below retains, and a failing run is exactly when a reviewer needs to read it. Skipping it on
+      # failure is how a job that broke leaves behind nothing but a log that ages out.
       - name: Verify Linux test summary has no skips
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           node --test scripts/summarize-tap.test.mjs
-          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap
-          (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap
-          (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap
-          (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap
+          # EVERY suite runs even when an earlier one fails. `set -e` would abandon the step at the
+          # first red suite and the later TAP files -- including review-gate's, the only record that
+          # the Mongo cases reached a replica set -- would never be written at all. The suite exit
+          # codes are collected rather than obeyed, and they are NOT the gate: summarize-tap.mjs reads
+          # `# fail` out of the TAP itself, so what is judged is the artifact that gets retained.
+          status=0
+          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap || status=1
+          (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap || status=1
+          (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap || status=1
+          (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap || status=1
           # REVIEW_GATE_TEST_MONGO_URL is job-level env, so this run reaches the replica set and the
           # Mongo conformance cases execute here too. If it ever silently fell back to skipping, the
           # skip gate below would fail rather than let a smaller suite pass as green.
-          (cd apps/review-gate && node --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap
-          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap review-gate=review-gate.tap shared=shared.tap web=web.tap
+          (cd apps/review-gate && node --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap || status=1
+          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap review-gate=review-gate.tap shared=shared.tap web=web.tap || status=1
+          exit "${status}"
       # RETAINED WHETHER OR NOT THE GATE PASSED, which is the half that matters. The TAP is the only
       # per-case record this job produces: it names every test and its ok/not-ok, so a reviewer can see
       # that a specific case ran rather than inferring it from a count. On a RED run it is the evidence
