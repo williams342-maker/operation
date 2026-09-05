@@ -34,7 +34,8 @@ try {
   for (const name of ["opsworkbench-agent.service", "opsworkbench-agent-updater.service", "opsworkbench-agent-updater.path"]) fs.copyFileSync(path.join(root, "deploy", "systemd", name), path.join(unitDir, name));
   const metadata = { schemaVersion: "opsworkbench-agent-release-v1", tag, commit, tree: execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: repository, encoding: "utf8" }).trim() };
   fs.writeFileSync(path.join(packageRoot, "control-center", "agent-release.json"), `${JSON.stringify(metadata, null, 2)}\n`);
-  const chunks = [];
+  const chunks = []; const pax = Buffer.from(`${Buffer.byteLength(` comment=${commit}\n`) + String(Buffer.byteLength(` comment=${commit}\n`)).length} comment=${commit}\n`);
+  chunks.push(header("pax_global_header", pax.length, 0o644, "g"), pax); if (pax.length % 512) chunks.push(Buffer.alloc(512 - pax.length % 512));
   for (const entry of walk(packageRoot)) { const bytes = entry.directory ? Buffer.alloc(0) : fs.readFileSync(entry.absolute); chunks.push(header(entry.relative, bytes.length, entry.directory ? 0o755 : /\/(agent|main)\.js$/.test(entry.relative) ? 0o755 : 0o644, entry.directory ? "5" : "0"), bytes); const padding = (512 - bytes.length % 512) % 512; if (padding) chunks.push(Buffer.alloc(padding)); }
   chunks.push(Buffer.alloc(1024)); fs.writeFileSync(output, gzipSync(Buffer.concat(chunks), { level: 9, mtime: 0 }), { flag: "wx", mode: 0o600 });
   process.stdout.write(`${crypto.createHash("sha256").update(fs.readFileSync(output)).digest("hex")}\n`);

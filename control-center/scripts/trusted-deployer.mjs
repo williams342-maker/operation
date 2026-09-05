@@ -37,6 +37,7 @@ export function parseDeploymentPlan(value) {
   exactKeys(value.rollback, ["tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
   if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.bundleDirectory) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
   if (path.resolve(value.rollback.releaseDirectory) !== path.resolve(value.releaseRoot, value.rollback.tag, "app") || path.resolve(value.rollback.bundleDirectory) === path.resolve(value.bundleDirectory)) throw new Error("rollback source location is invalid or ambiguous");
+  if (value.rollback.tag === value.tag || value.rollback.commit === value.commit || value.rollback.tree === value.tree) throw new Error("candidate and rollback release identities must be distinct");
   exactKeys(value.rollback.images, ["api", "web", "admin", "reviewGate"], "rollback images");
   for (const [role, reference] of Object.entries(value.rollback.images)) {
     const match = typeof reference === "string" && reference.match(digestReference);
@@ -127,6 +128,7 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     if (!fs.existsSync(compose) || !fs.lstatSync(compose).isFile()) throw new Error("version-controlled production compose file is absent");
     const agentPath = path.join(stage, copiedCheck.manifest.agentArtifact);
     const inspectedAgent = inspectReleaseTarGz(agentPath, { expectedPrefix: "control-center" });
+    if (inspectedAgent.archiveCommit !== plan.commit) throw new Error("agent archive embedded commit differs from the plan");
     const agentExtracted = path.join(stage, "agent-extracted"); fs.mkdirSync(agentExtracted, { mode: 0o700 });
     (hooks.extract ?? ((archive, destination) => execFileSync("tar", ["-xzf", archive, "--no-same-owner", "--no-same-permissions", "-C", destination], { stdio: "pipe" })))(agentPath, agentExtracted);
     const agentTreeCheck = compareReleaseTree(expectedArchiveTree(inspectedAgent.members), describeTree(agentExtracted));
@@ -224,10 +226,10 @@ function readCurrentRelease(releaseRoot) {
 }
 
 function switchCurrentRelease(current, target) {
-  const pending = `${current.link}.reviewed-pending`;
+  const pending = `${current.link}.reviewed-pending-${process.pid}`;
   if (fs.existsSync(pending)) throw new Error("pending current release pointer already exists");
-  fs.symlinkSync(target, pending, process.platform === "win32" ? "junction" : "dir");
-  fs.renameSync(pending, current.link);
+  try { fs.symlinkSync(target, pending, process.platform === "win32" ? "junction" : "dir"); fs.renameSync(pending, current.link); }
+  catch (error) { if (fs.existsSync(pending)) fs.unlinkSync(pending); throw error; }
   return target;
 }
 
@@ -332,6 +334,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   agentControl(["prepare", preparation.agentExtracted, agentBackup]);
   const priorCurrent = readCurrentRelease(plan.releaseRoot);
+  if (priorCurrent.target !== path.resolve(plan.rollback.releaseDirectory)) throw new Error("verified rollback release is not the currently active predecessor");
   const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
   const compose = hooks.compose ?? ((args, env, composeFile = preparation.compose) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", composeFile, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
@@ -339,7 +342,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
   compose(["config", "--quiet"], candidateEnv, preparation.compose);
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
-  let agentActivationAttempted = false;
+  let agentActivationAttempted = false; let currentSwitched = false; let record;
   try {
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv, preparation.compose);
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv, preparation.compose);
@@ -349,7 +352,13 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
       for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
       if (hooks.wait) await hooks.wait();
     }
+    switchCurrentRelease(priorCurrent, preparation.installedControlCenter); currentSwitched = true;
+    record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
+    fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });
   } catch (cause) {
+    if (currentSwitched) {
+      try { switchCurrentRelease(priorCurrent, priorCurrent.target); } catch (pointerCause) { throw new AggregateError([cause, pointerCause], `deployment failed and current release pointer rollback also failed: ${cause.message}; ${pointerCause.message}`, { cause: pointerCause }); }
+    }
     if (agentActivationAttempted) {
       try { agentControl(["rollback", agentBackup]); } catch (agentCause) { throw new AggregateError([cause, agentCause], `deployment failed and agent rollback also failed: ${cause.message}; ${agentCause.message}`, { cause: agentCause }); }
     }
@@ -357,9 +366,6 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`, { cause });
     throw new Error(`deployment failed and was rolled back: ${cause.message}`, { cause });
   }
-  switchCurrentRelease(priorCurrent, preparation.installedControlCenter);
-  const record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
-  fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });
   return { status: "deployed", imageEvidence, platformEvidence, rollbackRecord: rollbackReady.file };
 }
 
