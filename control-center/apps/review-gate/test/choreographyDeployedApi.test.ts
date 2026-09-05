@@ -903,6 +903,7 @@ if (!mongoUrl) {
       const diagnostic = JSON.stringify({
         pollError, state: record?.state, acquiredAt: record?.acquiredAt,
         executionDeadline: record?.executionDeadline, consumedAt: record?.consumedAt,
+        expiresAt: record?.expiresAt, now: new Date().toISOString(),
         captured: staged.host.captured().length,
       });
 
@@ -921,6 +922,15 @@ if (!mongoUrl) {
       assert.equal(record?.state, "EXECUTING",
         `an overrun with no extension must not settle as CONSUMED. ${diagnostic}`);
       assert.equal(record?.consumedAt, undefined, "and must not be recorded as consumed");
+
+      // FOR THE RIGHT REASON, and this discriminator is not decoration. `settle` swallows the redeem
+      // refusal deliberately -- it must not replace a real execution error with a bookkeeping one -- so
+      // the state is all this test can see, and EXECUTING is also what a redeem refused
+      // `attestation_expired` would leave behind. The attestation this case mints lives two minutes
+      // against an eight-second effect, but "unlikely" is not an assertion. If the record is still
+      // inside its own validity, the execution deadline is the only thing redeem can have refused on.
+      assert.ok(Date.now() < Date.parse(record!.expiresAt),
+        `the attestation must still be valid, or this case proves the wrong refusal. ${diagnostic}`);
 
       // The host still recorded its own attempt, which is what a reconciliation reads.
       assert.equal(journal.length, 1, "the durable local claim survives the refused redeem");
