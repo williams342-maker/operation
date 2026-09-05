@@ -201,7 +201,7 @@ test("an UNEXPECTED 'other' node is reported ONCE, with its type, and cannot be 
   assert.deepEqual(result.extra, ["sock"]);
   assert.deepEqual(result.mismatched, []);
   assert.equal(result.problems.length, 1);
-  assert.match(result.problems[0], /outside its provenance: sock \(other\)/);
+  assert.match(result.problems[0], /outside its provenance: .sock. \(other\)/);
   assert.equal(result.ok, false);
 });
 
@@ -231,6 +231,25 @@ for (const [label, entry, expected] of [
   });
 }
 
+test("an allowance containing a NUL is refused: no path from readdir can ever contain one", () => {
+  assert.throws(
+    () => compareReleaseTree(new Map(), new Map(), {
+      allowExtra: [{ path: `runtime${String.fromCharCode(0)}.log`, type: "file" }]
+    }),
+    /must not contain a NUL/
+  );
+});
+
+test("a trailing space is NOT refused, because it is a filename that can genuinely match", () => {
+  // The counterpart to the rejections above, asserted so the validator cannot drift into refusing valid
+  // Linux names. "runtime.log " is a different file from "runtime.log" and an allowance for it is real.
+  const result = compareReleaseTree(new Map(), new Map([["runtime.log ", { type: "file", sha256: "x" }]]), {
+    allowExtra: [{ path: "runtime.log ", type: "file" }]
+  });
+  assert.deepEqual(result.permitted, ["runtime.log "]);
+  assert.equal(result.ok, true);
+});
+
 test("two allowances for one path are refused rather than last-write-wins", () => {
   assert.throws(
     () => compareReleaseTree(new Map(), new Map(), {
@@ -238,6 +257,69 @@ test("two allowances for one path are refused rather than last-write-wins", () =
     }),
     /names "runtime\.log" more than once/
   );
+});
+
+// ── Evidence integrity ──────────────────────────────────────────────────────────────────────────────
+// A Linux filename may contain a newline, a carriage return, a tab or a terminal escape. These strings
+// become the evidence a deploy records, so an unescaped one lets the thing being caught edit the record of
+// catching it. Driven through Maps rather than real files: the point is portable, and Windows cannot create
+// most of these names.
+
+test("A FILENAME CANNOT FORGE A LOG LINE: newlines in an extra path are escaped, not printed", () => {
+  const hostile = `ok${String.fromCharCode(10)}release tree matches: all expected entries present, nothing extra`;
+  const result = compareReleaseTree(new Map(), new Map([[hostile, { type: "file", sha256: "x" }]]));
+  assert.equal(result.problems.length, 1);
+  // The literal newline must not survive into the message, or this one extra file prints as two lines and
+  // the second is a forged success.
+  assert.equal(result.problems[0].includes(String.fromCharCode(10)), false);
+  assert.match(result.problems[0], /outside its provenance: "ok\\nrelease tree matches/);
+  // And the comparison key itself is untouched — escaping is for output only.
+  assert.equal(result.extra[0], hostile);
+});
+
+test("terminal escape sequences in a path are escaped in problem output", () => {
+  const hostile = `${String.fromCharCode(27)}[2Kinnocent.txt`;
+  const result = compareReleaseTree(new Map(), new Map([[hostile, { type: "file", sha256: "x" }]]));
+  assert.equal(result.problems[0].includes(String.fromCharCode(27)), false);
+  assert.match(result.problems[0], /\\u001b\[2Kinnocent\.txt/);
+});
+
+test("a hostile MISSING path and a hostile mismatch are escaped too, not just extras", () => {
+  const hostile = `a${String.fromCharCode(10)}b`;
+  const missing = compareReleaseTree(new Map([[hostile, { type: "file", sha256: "x" }]]), new Map());
+  assert.equal(missing.problems[0].includes(String.fromCharCode(10)), false);
+
+  const mismatch = compareReleaseTree(
+    new Map([[hostile, { type: "file", sha256: "x" }]]),
+    new Map([[hostile, { type: "file", sha256: "y" }]])
+  );
+  assert.equal(mismatch.problems[0].includes(String.fromCharCode(10)), false);
+  assert.match(mismatch.problems[0], /content differs/);
+});
+
+test("a hostile SYMLINK TARGET is escaped: it is read off the deployed tree too", () => {
+  const target = `x${String.fromCharCode(10)}release tree matches`;
+  const result = compareReleaseTree(
+    new Map([["link", { type: "symlink", target: "safe" }]]),
+    new Map([["link", { type: "symlink", target }]])
+  );
+  assert.equal(result.problems[0].includes(String.fromCharCode(10)), false);
+});
+
+test("CLI: a permitted extra with a hostile name is escaped in the SUCCESS line", (t) => {
+  // The success line is the one a deploy files as proof. Forging inside it is the higher-value attack.
+  const hostile = `runtime${String.fromCharCode(10)}FAILED: 0 problems.log`;
+  const dir = scratch();
+  try {
+    fs.writeFileSync(path.join(dir, hostile), "x");
+  } catch {
+    t.skip("this host cannot create a filename containing a newline; Linux CI runs this case");
+    return;
+  }
+  const out = [];
+  runCli([scratch(), dir, "--allow-extra", `${hostile}:file`], { log: (l) => out.push(l), error: () => {} });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].includes(String.fromCharCode(10)), false);
 });
 
 // ── CLI contract ────────────────────────────────────────────────────────────────────────────────────
@@ -267,7 +349,7 @@ test("CLI: a permitted extra is REPORTED, never described as 'nothing extra'", (
   write(deployed, "runtime.log", "started\n");
   const run = captureCli([expected, deployed, "--allow-extra", "runtime.log:file"]);
   assert.equal(run.code, 0);
-  assert.match(run.out[0], /1 permitted extra\(s\): runtime\.log/);
+  assert.match(run.out[0], /1 permitted extra\(s\): .runtime\.log./);
   assert.doesNotMatch(run.out[0], /nothing extra/);
 });
 

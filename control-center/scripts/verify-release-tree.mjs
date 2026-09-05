@@ -115,6 +115,14 @@ function normaliseAllowances(allowExtra) {
     if (relative.endsWith("/")) {
       throw new TypeError(`allowExtra path must not end with a separator; received ${JSON.stringify(relative)}`);
     }
+    // A NUL can never appear in a path Node returns from readdir, so an allowance containing one is
+    // unmatchable by construction. Trailing spaces and other control characters are NOT rejected: they are
+    // valid Linux filenames that genuinely can match, and refusing them would be theatre. NFC/NFD forms are
+    // likewise left alone -- they are distinct paths on Linux, and silently normalising would make an
+    // allowance match something the caller did not write.
+    if (relative.includes(String.fromCharCode(0))) {
+      throw new TypeError(`allowExtra path must not contain a NUL; received ${JSON.stringify(relative)}`);
+    }
     if (relative.split("/").some((segment) => segment === "." || segment === ".." || segment === "")) {
       throw new TypeError(`allowExtra path must be normalised, with no "." or ".." segments; received ${JSON.stringify(relative)}`);
     }
@@ -164,7 +172,11 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
       mismatched.push({ path: relative, reason: "content differs" });
     }
     if (want.type === "symlink" && got.target !== want.target) {
-      mismatched.push({ path: relative, reason: `link target differs: expected ${want.target}, found ${got.target}` });
+      mismatched.push({
+        path: relative,
+        // The TARGET is attacker-controlled too, and it is a string read off the deployed tree.
+        reason: `link target differs: expected ${JSON.stringify(want.target)}, found ${JSON.stringify(got.target)}`
+      });
     }
     if (want.type === "other") {
       mismatched.push({ path: relative, reason: "neither file, directory nor symlink; identity cannot be established" });
@@ -185,14 +197,21 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
     }
   }
 
+  // EVERY PATH IS ESCAPED ON THE WAY OUT, and the comparison keys are left exactly as the filesystem gave
+  // them. A Linux filename may contain a newline, a carriage return, a tab or a terminal escape, and these
+  // strings become the evidence a deploy records. An extra file whose name contains a newline followed by
+  // the text of this module's own success line would otherwise print as two lines, the second of them a
+  // forged pass; a name carrying ANSI escapes could rewrite what an operator sees in the terminal it is
+  // printed to. Either is the thing being caught editing the record of catching it.
+  const show = (relative) => JSON.stringify(relative);
   const extraType = (relative) => actualEntries.get(relative)?.type ?? "unknown";
   const problems = [
-    ...missing.map((p) => `missing from the deployed tree: ${p}`),
+    ...missing.map((p) => `missing from the deployed tree: ${show(p)}`),
     // Named separately and worded as content the artifact does not cover, because "extra file" reads as
     // harmless and this is the one that shipped an unreviewed Dockerfile into production. The type is
     // carried because an unexpected symlink or special node is a different problem from an unexpected file.
-    ...extra.map((p) => `present but NOT in the artifact, so outside its provenance: ${p} (${extraType(p)})`),
-    ...mismatched.map((m) => `${m.path}: ${m.reason}`)
+    ...extra.map((p) => `present but NOT in the artifact, so outside its provenance: ${show(p)} (${extraType(p)})`),
+    ...mismatched.map((m) => `${show(m.path)}: ${m.reason}`)
   ];
 
   return {
@@ -250,7 +269,7 @@ export function runCli(argv, { log = console.log, error = console.error } = {}) 
     // Says what was permitted rather than "nothing extra", which would be false whenever an allowance was
     // used -- and this line is the evidence a deploy would record.
     const extras = result.permitted.length > 0
-      ? `${result.permitted.length} permitted extra(s): ${result.permitted.join(", ")}`
+      ? `${result.permitted.length} permitted extra(s): ${result.permitted.map((p) => JSON.stringify(p)).join(", ")}`
       : "nothing extra";
     log(`release tree matches: all expected entries present, ${extras}`);
     return 0;
