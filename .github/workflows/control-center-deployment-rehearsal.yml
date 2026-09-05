@@ -81,7 +81,7 @@ jobs:
           docker exec rehearsal-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"rehearsal-mongo:27017"}]})'
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done
           mkdir -m 700 tls
-          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=review-gate -addext 'subjectAltName=DNS:review-gate,IP:127.0.0.1' -keyout tls/tls.key -out tls/tls.crt >/dev/null 2>&1
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=review-gate -addext 'subjectAltName=DNS:review-gate,DNS:gate-candidate,DNS:gate-rollback,IP:127.0.0.1' -keyout tls/tls.key -out tls/tls.crt >/dev/null 2>&1
           chmod 600 tls/tls.key; chmod 644 tls/tls.crt
           start_set() {
             label="$1"
