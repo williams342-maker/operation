@@ -12,6 +12,13 @@ export const FORGE_REVIEW_GATE_CA_PATH = `${FORGE_SECURITY_DIR}/review-gate-ca.p
 
 const sha256 = (value: Buffer | string) => crypto.createHash("sha256").update(value).digest("hex");
 
+// Matching control characters is precisely the check here. These fields are joined with newlines into
+// the statement the owner signs, so a value containing one could shift a field boundary and let two
+// different identities produce the same signed bytes. The rule exists to catch control characters
+// reaching a regex by accident; in this line they are the subject of it, and the test named for
+// canonical statement separators asserts the behaviour. The disable must sit immediately above the code
+// it applies to, so it goes last.
+// eslint-disable-next-line no-control-regex
 const identityText = z.string().min(1).refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "control characters are forbidden");
 export const forgeSecurityIdentitySchema = z.object({
   schemaVersion: z.literal("forge-security-identity-v1"),
