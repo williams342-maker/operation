@@ -101,7 +101,7 @@ function installAndVerifyExactTree(source, target, expected) {
   // to tidy up must never replace the reason we are tidying up.
   const makeRemovable = (directory) => {
     try { fs.chmodSync(directory, 0o700); } catch { /* report the original error, not this one */ }
-    let entries = [];
+    let entries;
     try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
       const file = path.join(directory, entry.name);
