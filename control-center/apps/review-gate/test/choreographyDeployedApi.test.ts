@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { ObjectId } from "mongodb";
 import {
@@ -565,36 +566,118 @@ if (!mongoUrl) {
   // offline, and its duration is a constant of this file rather than a property of the machine.
   // ───────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** How long the stubbed `docker compose` takes. Both the activation and the rollback pay it. */
-  const COMPOSE_MS = 4_000;
+  /**
+   * The gate's initial execution window for the two cases below, and the ONE irreducible race in them.
+   *
+   * WHAT IS GUARANTEED. The effect does not end until the keeper's extension request has been ANSWERED
+   * and the original deadline has passed: the stubbed `docker compose` blocks until the recording proxy
+   * below has seen the answer, then sleeps until half a second past the deadline acquire granted. So
+   * `consumedAt > acquiredAt + initialExecutionMs` holds by construction rather than by arithmetic on
+   * two guessed sleeps, and a slower runner cannot shorten it.
+   *
+   * WHAT IS NOT, AND CANNOT BE. The keeper's extension must REACH the gate before that deadline, or the
+   * gate correctly refuses `execution_deadline_passed` and the case fails without a defect. Nothing this
+   * test can do makes a scheduler promise: the keeper's first tick is a `setTimeout(..., 0)` inside the
+   * executor, and neither the gate's clock nor the executor's timing is injectable -- deliberately, since
+   * two earlier review rounds rejected exactly that. A finite window is therefore a tolerance, not a
+   * guarantee, and this comment says so rather than implying otherwise.
+   *
+   * The history is worth keeping. 250 ms came from an unloaded local run, where acquire -> keeper tick ->
+   * localhost fetch is single-digit milliseconds. That is a measurement, not a bound, and it was wrong:
+   * the SAME code passed `verify` on one GitHub runner and failed on another minutes apart (run
+   * `33934596754`, attestation still EXECUTING, `executionDeadline` exactly `acquiredAt + 250 ms` and
+   * never moved, both compose calls captured). An independent review had said so before CI did.
+   *
+   * Twenty seconds is chosen so that exceeding it means the runner is wedged rather than busy -- a stall
+   * that long between acquire and one localhost fetch would break most other things in this job first.
+   * The cases cost about that long each, because the effect must outlive the window and there is no way
+   * to prove an overrun without spending one. When it does fail, it now fails NAMED: the proxy records
+   * the extension exchange, so the assertion says the extension was refused and with which code, rather
+   * than leaving a bare EXECUTING for someone to interpret.
+   */
+  const GATE_INITIAL_WINDOW_MS = 20_000;
+
+  /** How long the effect runs past the deadline before settling. Only needs to be non-zero. */
+  const OVERRUN_MS = 500;
+
+  /** How long the stub waits for the extension to be answered before giving up and failing loudly. */
+  const STUB_WAIT_MS = 60_000;
+
+  type Exchange = {
+    path: string;
+    status: number;
+    /** The gate's refusal code, when it refused. This is the thing `settle` swallows. */
+    code?: string;
+    /** Present on a successful acquire: the deadline the gate granted, verbatim from its answer. */
+    executionDeadline?: string;
+  };
 
   /**
-   * The gate's initial execution window for the two cases below.
+   * A recording proxy in front of the gate, on the path the EXECUTOR uses.
    *
-   * TWO BOUNDS, AND THEY ARE NOT THE SAME KIND OF BOUND — which is what the first version of this
-   * constant got wrong, and what an independent review and then CI both caught:
+   * It exists for two reasons an independent review asked for, and it changes nothing about what runs:
+   * the agent's real `ReviewGateClient` talks to it, it forwards verbatim to the real gate, and it hands
+   * the real answer back. The executor's credential travels through unchanged; the proxy neither mints
+   * nor inspects authority.
    *
-   *   - it must be SHORTER than the effect, or redeem would have succeeded with no extension at all and
-   *     the extension is not load-bearing. This bound is GUARANTEED, not probabilistic: the effect is
-   *     two wall-clock sleeps of COMPOSE_MS, and a sleep cannot finish early. A slower runner makes the
-   *     effect longer, never shorter, so this side is self-correcting.
-   *   - it must be LONGER than the time from acquire to the keeper's extension REACHING the gate — one
-   *     event-loop turn plus one localhost fetch — or the extension is refused
-   *     `execution_deadline_passed` and the case fails for a reason that is not a defect. This side is
-   *     the scheduler's, and it is the one that bit.
-   *
-   * 250 ms was chosen from an unloaded local run, where that path is single-digit milliseconds. That is
-   * a measurement, not a bound. On a two-core GitHub runner also carrying mongod, two Express servers
-   * and tsx transpilation, it was exceeded: the run at `33934596754` failed with the attestation still
-   * EXECUTING, `executionDeadline` exactly `acquiredAt + 250 ms` and never moved, both compose calls
-   * captured. The effect was fine; the keeper simply did not get a turn in time.
-   *
-   * So the window is now seconds rather than milliseconds. Breaking it takes a THREE-SECOND stall
-   * between acquire and the keeper's first fetch, and the effect it must beat is over eight seconds,
-   * which no scheduler can shorten. The cases cost about nine seconds each, and that is the price of a
-   * timing assertion that means something.
+   *   1. IT SAYS WHICH REFUSAL HAPPENED. `settle` swallows the redeem refusal on purpose -- it must not
+   *      replace a real execution error with a bookkeeping one -- so from outside, a redeem refused
+   *      `execution_deadline_passed` and one refused `attestation_expired`, `wrong_audience`,
+   *      `attempt_token_invalid` or `credential_rotated` all leave the same EXECUTING record. The
+   *      previous version of the control case asserted only that state, plus that the attestation was
+   *      still valid, and the comment claimed that made the execution deadline "the only thing redeem
+   *      can have refused on". A reviewer correctly called that an overclaim: it excludes expiry and
+   *      nothing else. Reading the gate's own answer settles it instead of arguing about it.
+   *   2. IT LETS THE EFFECT SYNCHRONISE ON THE EXTENSION rather than race it. The first extension
+   *      exchange -- granted or refused -- releases the stubbed compose, which then runs past the
+   *      original deadline. That is what makes the overrun structural.
    */
-  const GATE_INITIAL_WINDOW_MS = 3_000;
+  function recordingGateProxy(target: string, onExchange: (exchange: Exchange) => void) {
+    const exchanges: Exchange[] = [];
+    const server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        // Hop-by-hop and length headers are the proxy's business, not the client's; everything else --
+        // authorization and idempotency-key included -- is forwarded exactly as it arrived.
+        const headers: Record<string, string> = {};
+        for (const [name, value] of Object.entries(req.headers)) {
+          if (["host", "connection", "content-length"].includes(name)) continue;
+          if (typeof value === "string") headers[name] = value;
+        }
+        void fetch(`${target}${req.url ?? ""}`, {
+          method: req.method, headers, body: chunks.length ? Buffer.concat(chunks) : undefined,
+        }).then(async (upstream) => {
+          const text = await upstream.text();
+          let code: string | undefined;
+          let executionDeadline: string | undefined;
+          try {
+            // `sendAttestation` spreads the result value at the TOP level beside `ok`, so the deadline
+            // is a root field rather than nested. Read from the wire, never recomputed.
+            const parsed = JSON.parse(text) as { code?: string; executionDeadline?: string };
+            code = parsed.code;
+            executionDeadline = parsed.executionDeadline;
+          } catch { /* not JSON; the proxy still records the status */ }
+          const exchange: Exchange = {
+            path: req.url ?? "", status: upstream.status, code, executionDeadline,
+          };
+          exchanges.push(exchange);
+          onExchange(exchange);
+          res.writeHead(upstream.status, { "content-type": "application/json" });
+          res.end(text);
+        }).catch((error: Error) => {
+          res.writeHead(502, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, code: "proxy_error", detail: error.message }));
+        });
+      });
+    });
+    return {
+      server,
+      exchanges,
+      /** The first exchange whose path ends in `suffix`, which is what every assertion here wants. */
+      first: (suffix: string) => exchanges.find((exchange) => exchange.path.endsWith(suffix)),
+    };
+  }
 
   const ORIGINAL_ENV = "PUBLIC=value\nDATABASE_URL=old\n";
   /** Keyed by the `valueRef` of each mutation in MUTATIONS. */
@@ -650,7 +733,9 @@ if (!mongoUrl) {
     fs.writeFileSync(path.join(root, "compose"), [
       'const fs = require("node:fs");',
       'const path = require("node:path");',
-      'fs.appendFileSync(path.join(__dirname, "captured-commands.jsonl"), JSON.stringify({',
+      'const captured = path.join(__dirname, "captured-commands.jsonl");',
+      'const release = path.join(__dirname, "release-at");',
+      "fs.appendFileSync(captured, JSON.stringify({",
       // The FIRST argument the executor passed is `compose`, and Node consumed it as this script's own
       // path -- which is the whole trick, so it is recorded rather than assumed.
       '  script: path.basename(process.argv[1]),',
@@ -658,7 +743,28 @@ if (!mongoUrl) {
       "  cwd: process.cwd(),",
       '  environmentFile: fs.readFileSync(path.join(__dirname, ".env.staging"), "utf8"),',
       '}) + "\\n");',
-      "setTimeout(function () { process.exit(1); }, " + COMPOSE_MS + ");",
+      'var seen = path.join(__dirname, "activation-seen");',
+      "// ONLY THE FIRST INVOCATION WAITS: the activation is the one that must outlive the original",
+      "// deadline, and the rollback that follows it must not pay for the same wait a second time. A",
+      "// marker file rather than a line count, because counting newlines would mean escaping one",
+      "// through two layers of source generation to say something this simple.",
+      'var first = !fs.existsSync(seen);',
+      'fs.writeFileSync(seen, "1");',
+      "if (!first) { process.exit(1); }",
+      // Poll for the release file the harness writes once the gate has ANSWERED the keeper's extension
+      // -- granted or refused. Waiting for the ANSWER rather than for a fixed duration is what makes the
+      // overrun structural instead of a race against the scheduler: the effect cannot end before the
+      // extension has been decided, however slow the runner is.
+      "var waited = 0;",
+      "var timer = setInterval(function () {",
+      "  waited += 25;",
+      "  var until = null;",
+      '  try { until = Number(fs.readFileSync(release, "utf8").trim()); } catch (error) { until = null; }',
+      "  if (until && Date.now() >= until) { clearInterval(timer); process.exit(1); }",
+      // Give up loudly rather than hanging the suite. The assertions then report what the gate actually
+      // answered, which is more use than a timeout with no cause attached.
+      "  if (waited >= " + STUB_WAIT_MS + ") { clearInterval(timer); process.exit(1); }",
+      "}, 25);",
       "",
     ].join("\n"));
     return {
@@ -707,12 +813,40 @@ if (!mongoUrl) {
     const gateUrl = `http://127.0.0.1:${(gateServer.address() as AddressInfo).port}`;
 
     const host = deploymentHost();
+
+    // THE EXECUTOR'S PATH TO THE GATE, recorded. The binder and the owner below still talk to the gate
+    // directly; only the executor goes through the proxy, because it is the executor's conversation --
+    // acquire, extend, redeem -- that the two cases need to read.
+    //
+    // The release file is written on the FIRST extension exchange, granted or refused, and carries the
+    // instant the effect may finish: half a second past the deadline ACQUIRE issued, which the proxy
+    // takes from the acquire response rather than recomputing. That is what turns the overrun from a
+    // race into a construction — the effect cannot end until the gate has decided the extension, and
+    // then cannot end before the original deadline has passed.
+    let acquiredDeadline: string | undefined;
+    let released = false;
+    const proxy = recordingGateProxy(gateUrl, (exchange) => {
+      if (exchange.path.endsWith("/acquire") && exchange.status === 200) {
+        acquiredDeadline = exchange.executionDeadline;
+      }
+      if (exchange.path.endsWith("/extend-execution") && !released && acquiredDeadline) {
+        released = true;
+        fs.writeFileSync(path.join(host.root, "release-at"),
+          String(Date.parse(acquiredDeadline) + OVERRUN_MS));
+      }
+    });
+    proxy.server.listen(0);
+    await new Promise((resolve) => proxy.server.once("listening", resolve));
+    const executorGateUrl = `http://127.0.0.1:${(proxy.server.address() as AddressInfo).port}`;
+
     const previousPath = process.env.PATH;
     // Nothing else on it. A real `docker` further down PATH would otherwise win on a developer machine
     // that has one — and would then really deploy something.
     process.env.PATH = STUB_BIN;
     t.after(async () => {
       process.env.PATH = previousPath;
+      proxy.server.closeAllConnections();
+      await new Promise((resolve) => { proxy.server.close(resolve); });
       gateServer.closeAllConnections();
       await new Promise((resolve) => { gateServer.close(resolve); });
       fs.rmSync(host.root, { recursive: true, force: true });
@@ -784,10 +918,11 @@ if (!mongoUrl) {
       controlCenterUrl: apiUrl,
       agentId, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
       controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
-      reviewGate: { url: gateUrl, credential: cast.credentialFor(agentId), timeoutMs: 5000 },
+      // THE PROXY, not the gate. Same conversation, recorded.
+      reviewGate: { url: executorGateUrl, credential: cast.credentialFor(agentId), timeoutMs: 30_000 },
     }));
 
-    return { agentId, orgId, store, attestationId, host, task, configurationDeployment };
+    return { agentId, orgId, store, attestationId, host, task, configurationDeployment, proxy };
   }
 
   test("§B step 15: an execution that OUTLIVES its initial window is extended, and only then redeems",
@@ -844,8 +979,8 @@ if (!mongoUrl) {
       // ── STEP 15 ITSELF, IN TWO HALVES ─────────────────────────────────────────────────────────
       //
       // FIRST: an extension actually moved the deadline. Acquire clamps to `now + initialExecutionMs`,
-      // so the window this attempt was granted was 250 ms. Nothing but a granted extension can put a
-      // deadline a quarter of an hour out on that record.
+      // so the window this attempt was granted was GATE_INITIAL_WINDOW_MS. Nothing but a granted
+      // extension can put a deadline a quarter of an hour out on that record.
       assert.ok(finalDeadline - acquiredAt > 10 * 60_000,
         `the deadline must have been extended far beyond the ${GATE_INITIAL_WINDOW_MS} ms acquire ` +
         `granted, and stood at ${finalDeadline - acquiredAt} ms. ${diagnostic}`);
@@ -855,6 +990,19 @@ if (!mongoUrl) {
         `a single 15-minute extension, not a run of them: ${finalDeadline - acquiredAt} ms`);
       assert.ok(finalDeadline - acquiredAt <= 30 * 60_000,
         "and never past the absolute cumulative cap");
+
+      // ...and the gate SAID SO, on the executor's own connection. The store shows a deadline that
+      // moved; this shows the request that moved it, answered 200 on the `/extend` route, carrying the
+      // attempt token from memory. Without it the deadline could in principle have been moved by
+      // something other than the keeper.
+      const extension = staged.proxy.first("/extend-execution");
+      assert.ok(extension, `the keeper must have asked for an extension. ${diagnostic}`);
+      assert.equal(extension?.status, 200,
+        `and the gate must have granted it: ${JSON.stringify(extension)}. ${diagnostic}`);
+      assert.equal(extension?.executionDeadline, record!.executionDeadline,
+        "and the deadline on the record is the one the gate returned, not one this executor chose");
+      assert.equal(staged.proxy.first("/redeem")?.status, 200,
+        `and redeem succeeded rather than being refused. ${diagnostic}`);
 
       // SECOND, AND THIS IS WHAT MAKES IT LOAD-BEARING: the execution genuinely outran the window it
       // was given. Redeem refuses `execution_deadline_passed` once the deadline has gone by, so
@@ -923,14 +1071,29 @@ if (!mongoUrl) {
         `an overrun with no extension must not settle as CONSUMED. ${diagnostic}`);
       assert.equal(record?.consumedAt, undefined, "and must not be recorded as consumed");
 
-      // FOR THE RIGHT REASON, and this discriminator is not decoration. `settle` swallows the redeem
-      // refusal deliberately -- it must not replace a real execution error with a bookkeeping one -- so
-      // the state is all this test can see, and EXECUTING is also what a redeem refused
-      // `attestation_expired` would leave behind. The attestation this case mints lives two minutes
-      // against an eight-second effect, but "unlikely" is not an assertion. If the record is still
-      // inside its own validity, the execution deadline is the only thing redeem can have refused on.
+      // FOR THE RIGHT REASON, READ FROM THE GATE'S OWN ANSWER rather than argued from the state.
+      //
+      // `settle` swallows the redeem refusal deliberately -- it must not replace a real execution error
+      // with a bookkeeping one -- so the attestation state is all the store can tell this test, and
+      // EXECUTING is equally what a redeem refused `attestation_expired`, `wrong_audience`,
+      // `attempt_token_invalid`, `credential_rotated`, `claim_not_authorizable` or
+      // `execution_deadline_missing` would leave behind. An earlier version of this case asserted the
+      // state plus "the attestation is still valid" and claimed that made the execution deadline the
+      // only possible cause. An independent review correctly called that an overclaim: it excludes
+      // expiry, and nothing else on that list.
+      //
+      // The proxy in front of the executor recorded the answer, so there is nothing left to infer.
+      const refusedExtension = staged.proxy.first("/extend-execution");
+      assert.ok(refusedExtension, `the keeper must have ASKED for an extension. ${diagnostic}`);
+      assert.equal(refusedExtension?.code, "beyond_absolute_deadline",
+        `and been refused for the reason this case constructs. ${diagnostic}`);
+      const refusedRedeem = staged.proxy.first("/redeem");
+      assert.ok(refusedRedeem, `and redeem must have been attempted. ${diagnostic}`);
+      assert.equal(refusedRedeem?.code, "execution_deadline_passed",
+        `and refused on the DEADLINE specifically, not on expiry or identity. ${diagnostic}`);
+      // Which is only meaningful because the record was still inside its own validity when it happened.
       assert.ok(Date.now() < Date.parse(record!.expiresAt),
-        `the attestation must still be valid, or this case proves the wrong refusal. ${diagnostic}`);
+        `the attestation must not have expired underneath this case. ${diagnostic}`);
 
       // The host still recorded its own attempt, which is what a reconciliation reads.
       assert.equal(journal.length, 1, "the durable local claim survives the refused redeem");
