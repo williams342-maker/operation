@@ -9,7 +9,7 @@ import { forgeSecurityIdentityStatement, loadForgeSecurityMaterial, type Securit
 
 const digest = (value: string | Buffer) => crypto.createHash("sha256").update(value).digest("hex");
 
-function fixture(): { root: string; security: string; identity: string; trustedRoot: string; policy: SecurityPathPolicy } {
+function fixture(): { root: string; security: string; identity: string; trustedRoot: string; reviewGateCa: string; policy: SecurityPathPolicy } {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "forge-security-"));
   const security = path.join(root, "etc", "opsworkbench-forge");
   fs.mkdirSync(security, { recursive: true, mode: 0o755 });
@@ -17,20 +17,24 @@ function fixture(): { root: string; security: string; identity: string; trustedR
   const trustedRoot = path.join(security, "trusted-root.json");
   const trustBytes = `${JSON.stringify({ mediaType: "application/vnd.dev.sigstore.trustedroot+json;version=0.1", tlogs: [] })}\n`;
   fs.writeFileSync(trustedRoot, trustBytes, { mode: 0o444 });
+  const reviewGateCa = path.join(security, "review-gate-ca.pem");
+  const caBytes = "-----BEGIN CERTIFICATE-----\nreviewed-public-ca\n-----END CERTIFICATE-----\n";
+  fs.writeFileSync(reviewGateCa, caBytes, { mode: 0o444 });
   const identity = path.join(security, "identity.json");
   const keys = crypto.generateKeyPairSync("ed25519");
   const publicKey = keys.publicKey.export({ type: "spki", format: "der" }).toString("base64url");
   const unsigned = {
     schemaVersion: "forge-security-identity-v1", orgId: "org-reviewed", serverId: "server-reviewed",
     ownerPublicKey: publicKey,
-    trustedRootSha256: digest(trustBytes), hostname: "reviewed-host", machineIdSha256: digest("reviewed-machine"),
+    trustedRootSha256: digest(trustBytes), reviewGateCaSha256: digest(caBytes), hostname: "reviewed-host", machineIdSha256: digest("reviewed-machine"),
     validFrom: "2026-09-01T00:00:00.000Z", validUntil: "2027-09-01T00:00:00.000Z",
   } as const;
   const ownerSignature = crypto.sign(null, forgeSecurityIdentityStatement(unsigned), keys.privateKey).toString("base64url");
   fs.writeFileSync(identity, `${JSON.stringify({ ...unsigned, ownerSignature })}\n`, { mode: 0o444 });
   const stat = fs.statSync(root);
-  return { root, security, identity, trustedRoot, policy: {
+  return { root, security, identity, trustedRoot, reviewGateCa, policy: {
     directory: security, identityPath: identity, trustedRootPath: trustedRoot,
+    reviewGateCaPath: reviewGateCa,
     expectedUid: stat.uid, expectedGid: stat.gid, directoryMode: 0o755, fileMode: 0o444,
     hostname: "reviewed-host", machineId: "reviewed-machine", now: new Date("2026-09-05T00:00:00.000Z"),
     ancestorBoundary: root,
@@ -88,6 +92,12 @@ test("refuses wrong machine, host, trust digest and stale validity", { skip: pro
   assert.throws(() => loadForgeSecurityMaterial({ ...item.policy, now: new Date("2028-01-01T00:00:00.000Z") }), /not currently valid/);
   fs.chmodSync(item.trustedRoot, 0o644); fs.appendFileSync(item.trustedRoot, " "); fs.chmodSync(item.trustedRoot, 0o444);
   assert.throws(() => loadForgeSecurityMaterial(item.policy), /digest does not match/);
+});
+
+test("refuses a substituted Review Gate CA", { skip: process.platform === "win32" }, () => {
+  const item = fixture();
+  fs.chmodSync(item.reviewGateCa, 0o644); fs.writeFileSync(item.reviewGateCa, "-----BEGIN CERTIFICATE-----\nattacker\n-----END CERTIFICATE-----\n"); fs.chmodSync(item.reviewGateCa, 0o444);
+  assert.throws(() => loadForgeSecurityMaterial(item.policy), /Review Gate CA does not match/);
 });
 
 test("refuses an unpinned owner key and a forged host-identity signature", { skip: process.platform === "win32" }, () => {

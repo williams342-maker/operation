@@ -85,13 +85,13 @@ jobs:
       # PRIVILEGED_FS and DOCKER_DEPLOYMENT are intentionally NOT set. That absence is the point of this
       # job; setting them would make it a duplicate of `verify` and delete the coverage it exists for.
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # agent 140 + api 133 + shared 153 = 426, with exactly 3 skips: the docker-deployment test and two
+      # agent 141 + api 133 + shared 153 = 427, with exactly 3 skips: the docker-deployment test and two
       # privileged linuxDiscovery tests. Both numbers must move together when tests are added.
       # agent +5: the execution keeper, which an independent review found unimplemented rather than
       # merely untested, plus the in-flight shutdown race a second round found in the keeper itself.
       # agent +2 and shared +7: the payload serialization contract -- the executor digesting its own
       # parse and refusing a payload the schema rejects, and the pinned conformance vectors.
-      CI_EXPECTED_TESTS: "426"
+      CI_EXPECTED_TESTS: "427"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -176,8 +176,8 @@ jobs:
       #   review-gate +3  attestationService +2 (bind digests the parse) and
       #                   choreographyDeployedApi +1 (a reordered bind still acquires end to end)
       #   agent       +2  the executor digesting its parse, and refusing a payload the schema rejects
-      CI_EXPECTED_TEST_SUITES: "agent=134,api=133,review-gate=258,shared=153,web=34"
-      CI_EXPECTED_TESTS: "712"
+      CI_EXPECTED_TEST_SUITES: "agent=135,api=133,review-gate=258,shared=153,web=34"
+      CI_EXPECTED_TESTS: "713"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
