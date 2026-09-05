@@ -59,6 +59,34 @@ const MAX_EXECUTION_MS = 30 * 60_000;
 const INITIAL_EXECUTION_MS = 10 * 60_000;
 
 /**
+ * The initial window is a DEPLOYMENT TUNABLE, and the collapse above is the reason it is validated here
+ * rather than merely documented.
+ *
+ * Deployments differ in how long a privileged effect legitimately takes, and the right first window for
+ * a fleet whose deployments settle in seconds is not the right one for a fleet whose deployments take
+ * twenty minutes. What must NOT differ is the relationship between the two windows: if the initial
+ * window reaches the absolute cap, there is no value extension can legally request and the extension
+ * path is dead — silently, and only observably as `deadline_not_extended` at the far end of a real
+ * execution. That is exactly the defect an independent review found when both constants were equal.
+ *
+ * So the constructor refuses the collapse instead of trusting the operator not to configure it. The
+ * absolute cap stays a constant: it is the bound the whole design rests on, and making it adjustable
+ * would let a deployment grant an attempt more cumulative time than the model was reviewed for.
+ */
+function checkedInitialExecutionMs(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error("initialExecutionMs must be a positive number of milliseconds");
+  }
+  if (value >= MAX_EXECUTION_MS) {
+    throw new Error(
+      `initialExecutionMs (${value}) must be strictly less than the absolute execution cap ` +
+      `(${MAX_EXECUTION_MS}); an initial window that reaches the cap leaves extension nothing to ask for`,
+    );
+  }
+  return value;
+}
+
+/**
  * v1 records cannot execute, and are never migrated.
  *
  * Refused by reserve, bind, acquire, execution extension and redeem. Deliberately NOT refused by revoke,
@@ -100,11 +128,23 @@ export class AttestationService {
   readonly #store: ReviewGateStore;
   readonly #clock: () => string;
   readonly #ids: () => string;
+  readonly #initialExecutionMs: number;
 
-  constructor(store: ReviewGateStore, options: { clock?: () => string; ids?: () => string } = {}) {
+  constructor(store: ReviewGateStore, options: {
+    clock?: () => string;
+    ids?: () => string;
+    /** The window acquire grants up front. See `checkedInitialExecutionMs`. */
+    initialExecutionMs?: number;
+  } = {}) {
     this.#store = store;
     this.#clock = options.clock ?? (() => new Date().toISOString());
     this.#ids = options.ids ?? (() => crypto.randomUUID());
+    this.#initialExecutionMs = checkedInitialExecutionMs(options.initialExecutionMs ?? INITIAL_EXECUTION_MS);
+  }
+
+  /** What acquire will grant, before clamping to the attestation's own validity. Read-only. */
+  get initialExecutionMs(): number {
+    return this.#initialExecutionMs;
   }
 
   #idem(principal: AuthenticatedPrincipal, scope: string, key: string, request: unknown) {
@@ -415,7 +455,7 @@ export class AttestationService {
     // INITIAL window, deliberately shorter than the absolute cap, so a long execution has somewhere to
     // extend to. A short-lived attestation still clamps below both.
     const deadline = Math.min(
-      Date.parse(now) + INITIAL_EXECUTION_MS,
+      Date.parse(now) + this.#initialExecutionMs,
       Date.parse(record.expiresAt),
     );
     if (deadline <= Date.parse(now)) return no("attestation_expired", "attestation_expired");

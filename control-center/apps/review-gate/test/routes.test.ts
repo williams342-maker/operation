@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildApp, readConfig } from "../src/server.js";
+import { AttestationService } from "../src/attestationService.js";
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { generateCredential, hashCredential, credentialIndex } from "../src/auth.js";
 import { candidateDigest, type CandidateBinding } from "../src/policy.js";
@@ -268,4 +269,49 @@ test("missing configuration fails loudly", () => {
   assert.throws(() => readConfig({
     REVIEW_GATE_MONGO_URL: "mongodb://h/?replicaSet=rs0",
   } as NodeJS.ProcessEnv), /REVIEW_GATE_DB_NAME/);
+});
+
+test("the initial execution window is a deployment tunable that cannot collapse the extension path", () => {
+  // TWO WINDOWS, AND THEY MUST DIFFER. An independent review found a revision in which
+  // INITIAL_EXECUTION_MS and MAX_EXECUTION_MS were the same constant applied to the same `now`: the
+  // deadline acquire issued was already the absolute bound, so extension had no value it could legally
+  // request and every extension was refused whatever the executor did. The route, the store, the client
+  // and the keeper were all correct and all unreachable.
+  //
+  // Making the initial window configurable puts that collapse one environment variable away, so the
+  // service refuses it at construction rather than trusting an operator not to configure it. The
+  // absolute cap stays a constant and is deliberately NOT configurable: it is the bound the design
+  // rests on, and a deployment that could raise it would grant an attempt more cumulative time than the
+  // model was reviewed for.
+  const store = new InMemoryReviewGateStore();
+  assert.throws(() => new AttestationService(store, { initialExecutionMs: 30 * 60_000 }),
+    /strictly less than the absolute execution cap/,
+    "an initial window that REACHES the cap leaves extension nothing to ask for");
+  assert.throws(() => new AttestationService(store, { initialExecutionMs: 31 * 60_000 }),
+    /strictly less than the absolute execution cap/);
+  assert.throws(() => new AttestationService(store, { initialExecutionMs: 0 }), /positive/);
+  assert.throws(() => new AttestationService(store, { initialExecutionMs: -1 }), /positive/);
+  assert.throws(() => new AttestationService(store, { initialExecutionMs: Number.NaN }), /positive/);
+
+  // And the default is unchanged, which is the other half of "nothing changes in production".
+  assert.equal(new AttestationService(store).initialExecutionMs, 10 * 60_000);
+  assert.equal(new AttestationService(store, { initialExecutionMs: 250 }).initialExecutionMs, 250);
+});
+
+test("REVIEW_GATE_INITIAL_EXECUTION_MS is read at start, or not at all", () => {
+  const base = { REVIEW_GATE_MONGO_URL: "mongodb://h/?replicaSet=rs0", REVIEW_GATE_DB_NAME: "d" };
+  // Absent means the service's own default, which is not the same as zero.
+  assert.equal(readConfig({ ...base } as NodeJS.ProcessEnv).initialExecutionMs, undefined);
+  assert.equal(readConfig({ ...base, REVIEW_GATE_INITIAL_EXECUTION_MS: "" } as NodeJS.ProcessEnv)
+    .initialExecutionMs, undefined);
+  assert.equal(readConfig({ ...base, REVIEW_GATE_INITIAL_EXECUTION_MS: "60000" } as NodeJS.ProcessEnv)
+    .initialExecutionMs, 60_000);
+  // A typo fails at start rather than at the first acquire, where it would look like a gate defect.
+  assert.throws(() => readConfig({
+    ...base, REVIEW_GATE_INITIAL_EXECUTION_MS: "ten minutes",
+  } as NodeJS.ProcessEnv), /number of milliseconds/);
+  // A value the service will refuse is still refused -- by the service, at construction, which is the
+  // one place that knows the cap.
+  assert.throws(() => buildApp(new InMemoryReviewGateStore(), { initialExecutionMs: 60 * 60_000 }),
+    /strictly less than the absolute execution cap/);
 });
