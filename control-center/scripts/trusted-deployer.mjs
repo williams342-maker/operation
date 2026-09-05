@@ -19,7 +19,7 @@ function exactKeys(value, keys, name) {
 }
 
 export function parseDeploymentPlan(value) {
-  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "readiness"], "deployment plan");
+  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "compatibilityEvidence", "readiness"], "deployment plan");
   if (value.schemaVersion !== "opsworkbench-trusted-deployment-v1" || !tagPattern.test(value.tag) || !commitPattern.test(value.commit) || !commitPattern.test(value.tree)) throw new Error("deployment identity is invalid");
   if (!/^[a-z0-9][a-z0-9_-]{0,62}$/.test(value.composeProject)) throw new Error("compose project is invalid");
   for (const field of ["bundleDirectory", "stagingRoot", "releaseRoot"]) if (!path.isAbsolute(value[field])) throw new Error(`${field} must be absolute`);
@@ -42,6 +42,8 @@ export function parseDeploymentPlan(value) {
     if (reference === value.candidateImages[role]) throw new Error(`candidate and rollback ${role} image are identical`);
   }
   if (new Set(Object.values(value.rollback.images)).size !== 4) throw new Error("rollback runtime images are not distinct");
+  exactKeys(value.compatibilityEvidence, ["path", "sha256"], "compatibilityEvidence");
+  if (!path.isAbsolute(value.compatibilityEvidence.path) || !/^[a-f0-9]{64}$/.test(value.compatibilityEvidence.sha256)) throw new Error("compatibility evidence identity is invalid");
   if (!Array.isArray(value.readiness) || value.readiness.length < 3 || value.readiness.some((url) => typeof url !== "string" || !/^https:\/\/[A-Za-z0-9.-]+(?:\/[^\s]*)?$/.test(url))) throw new Error("at least three HTTPS readiness endpoints are required");
   return structuredClone(value);
 }
@@ -150,9 +152,27 @@ const imageExpectations = {
   reviewGate: { role: "review-gate", title: "opsworkbench-review-gate" },
 };
 
+const compatibilityScenarios = ["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"];
+
+export function verifyCompatibilityEvidence(plan, hooks = {}) {
+  const file = plan.compatibilityEvidence.path; const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("compatibility evidence is not a regular file");
+  const bytes = fs.readFileSync(file);
+  if (crypto.createHash("sha256").update(bytes).digest("hex") !== plan.compatibilityEvidence.sha256) throw new Error("compatibility evidence digest mismatch");
+  const evidence = JSON.parse(bytes.toString("utf8"));
+  exactKeys(evidence, ["schemaVersion", "candidateTag", "candidateCommit", "rollbackTag", "rollbackCommit", "mongoTopology", "migrationsPresent", "scenarios"], "compatibility evidence");
+  if (evidence.schemaVersion !== "opsworkbench-schema-rehearsal-v1" || evidence.candidateTag !== plan.tag || evidence.candidateCommit !== plan.commit || evidence.rollbackTag !== plan.rollback.tag || evidence.rollbackCommit !== plan.rollback.commit || evidence.mongoTopology !== "replica-set") throw new Error("compatibility evidence names a different candidate, rollback, or topology");
+  exactKeys(evidence.scenarios, compatibilityScenarios, "compatibility scenarios");
+  for (const [name, result] of Object.entries(evidence.scenarios)) {
+    if (result !== "passed" && !(result === "not-applicable-no-migrations" && evidence.migrationsPresent === false && name.includes("migration"))) throw new Error(`compatibility scenario did not pass: ${name}`);
+  }
+  (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-deployment-rehearsal.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}` });
+  return { ok: true, candidateCommit: evidence.candidateCommit, rollbackCommit: evidence.rollbackCommit, sha256: plan.compatibilityEvidence.sha256 };
+}
+
 export async function deployPreparedRelease(preparation, hooks = {}) {
   const { plan } = preparation;
-  const compatibility = await hooks.verifyCompatibility?.(plan);
+  const compatibility = await (hooks.verifyCompatibility ? hooks.verifyCompatibility(plan) : verifyCompatibilityEvidence(plan, hooks));
   if (!compatibility?.ok || compatibility.candidateCommit !== plan.commit || compatibility.rollbackCommit !== plan.rollback.commit) throw new Error("exact candidate/rollback schema compatibility evidence is absent");
   const imageEvidence = [];
   for (const [role, reference] of Object.entries(plan.candidateImages)) imageEvidence.push({ set: "candidate", ...inspectImmutableImage(reference, { commit: plan.commit, ...imageExpectations[role] }, hooks.images) });
