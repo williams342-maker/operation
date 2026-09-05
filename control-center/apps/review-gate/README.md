@@ -23,6 +23,29 @@ The design, and the six review rounds that shaped it, are in
 - Database credentials **exclusive to the gate**. Sharing a user with the control-center would put the
   authority's storage inside the boundary it exists to draw.
 
+## Configuration
+
+`REVIEW_GATE_MONGO_URL` and `REVIEW_GATE_DB_NAME` are required; `REVIEW_GATE_PORT` (3100) and
+`REVIEW_GATE_BIND` (127.0.0.1 — this is not a public service) have defaults.
+
+One optional knob is worth a paragraph rather than a line:
+
+- **`REVIEW_GATE_INITIAL_EXECUTION_MS`** — the execution window `acquire` grants an attempt up front,
+  in milliseconds. Default 10 minutes. Leave it unset unless a deployment genuinely needs a different
+  one, and note that it is **not** the bound on how long an attempt may run: that is a separate,
+  deliberately longer absolute cap of 30 minutes, which an executor reaches by *extending* while the
+  effect is still going.
+
+  The two must differ. If the initial window reaches the cap, an extension has no value it can legally
+  request, so the whole extension path dies — silently, and visible only as `deadline_not_extended` at
+  the far end of a real execution. An independent review found exactly that when the two were the same
+  constant, so the service now **refuses to start** on a value at or above the cap rather than trusting
+  the setting to be sane. The cap itself is not configurable: raising it would grant an attempt more
+  cumulative time than the model was reviewed for.
+
+  When it is set, the value is logged at start, because an unexpected window is the first thing worth
+  knowing when extensions begin to be refused.
+
 ## Not in this service
 
 - **No credentials are created by this code.** Principals are provisioned by an operator CLI the owner
