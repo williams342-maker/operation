@@ -1,5 +1,7 @@
 import { signWithAgentKey, verifyAgentSignature } from "./agentKeys.js";
 import { payloadDigest, isTaskExpired, taskTypeClassification, type TaskEnvelope, type OwnerAuthorization } from "./tasks.js";
+import { configurationDeploymentPayloadSchema } from "./configurationDeployment.js";
+import { agentUpgradeManifestSchema } from "./agentUpgrades.js";
 
 // Privileged task types require owner authorization (a state-changing managed-server action) and, on an
 // activated executor, an acquired review attestation. Read-only collection/inspection tasks do not.
@@ -114,6 +116,59 @@ export function privilegedSubPayload(taskType: string, payload: unknown): unknow
   if (taskType === "configuration.apply" || taskType === "configuration.rollback") return candidate?.configurationDeployment;
   if (taskType === "agent.upgrade") return candidate?.agentUpgrade;
   return undefined;
+}
+
+/**
+ * The privileged sub-payload as the GATE will see it: located by task type, then parsed, so the key
+ * order is the schema's.
+ *
+ * THIS IS THE ONE A BINDER MUST USE. The gate digests the sub-payload -- `configurationDeployment` or
+ * `agentUpgrade` -- not the task payload that wraps it, and it digests the parsed form. A binder that
+ * hands the gate a hand-built object with the same fields in a different order binds a digest the
+ * executor will never reproduce, and every acquire is refused `action_digest_mismatch` with nothing
+ * naming the reason. See the serialization contract on `payloadDigest`.
+ *
+ * Returns undefined for a task type with no privileged payload, exactly as `privilegedSubPayload` does,
+ * so an unwired type is refused rather than silently signed.
+ */
+export function privilegedSubPayloadForSigning(taskType: string, payload: unknown): unknown {
+  const schema = privilegedSubPayloadSchema(taskType);
+  if (!schema) return undefined;
+  const sub = privilegedSubPayload(taskType, payload);
+  if (sub === undefined) return undefined;
+  // `.parse`, not `.safeParse`: a signing tool handed something unparseable wants the reason, and an
+  // authorization signed over an invalid payload is one nothing will ever accept.
+  return schema.parse(sub);
+}
+
+/** The schema a privileged sub-payload must satisfy for this task type; undefined if unwired. */
+export function privilegedSubPayloadSchema(taskType: string) {
+  if (taskType === "configuration.apply" || taskType === "configuration.rollback") {
+    return configurationDeploymentPayloadSchema;
+  }
+  if (taskType === "agent.upgrade") return agentUpgradeManifestSchema;
+  return undefined;
+}
+
+/**
+ * A privileged sub-payload in the form EVERYTHING digests: parsed, so the key order is the schema's.
+ * `undefined` for an unwired task type or a payload the schema refuses.
+ *
+ * THE EXECUTOR'S HALF OF THE SERIALIZATION CONTRACT. The gate binds the digest of ITS parse; an
+ * executor that digested the bytes it happened to receive would agree only while whoever dispatched the
+ * task also parsed. The real control plane does -- `createTask` stores `registry.payload.parse(...)` --
+ * but making the agreement depend on that is an unstated assumption about a component on the other side
+ * of a trust boundary. Both sides canonicalising makes it hold unconditionally.
+ *
+ * Refusing rather than throwing, because the caller is an enforcing executor deciding whether it may
+ * act: an unparseable privileged payload must become a clean refusal, not an exception that the poll
+ * loop turns into a fabricated deployment failure.
+ */
+export function canonicalPrivilegedPayload(taskType: string, subPayload: unknown): unknown {
+  const schema = privilegedSubPayloadSchema(taskType);
+  if (!schema) return undefined;
+  const parsed = schema.safeParse(subPayload);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /** The layer-3 reference carried inside the privileged payload, or null if absent or malformed. */

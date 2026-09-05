@@ -12,7 +12,7 @@ import { contentDigest, candidateDigest, type CandidateBinding } from "../src/po
 import type { CandidateRecord } from "../src/store.js";
 import type { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { castOf, type Person } from "./principals.js";
-import { configurationChangeDigest } from "@control-center/shared";
+import { configurationChangeDigest, configurationDeploymentPayloadSchema } from "@control-center/shared";
 
 // THE EFFECT POINT, driven through `executeTask` itself.
 //
@@ -256,7 +256,8 @@ test("the digest the executor sends is the one the gate bound — the sub-payloa
 
   // The task payload wraps the deployment and their digests differ. Sending the wrapper's digest would
   // refuse every privileged task in production while every unit test still passed.
-  const bound = privilegedActionDigest(world.configurationDeployment);
+  const bound = privilegedActionDigest(
+    configurationDeploymentPayloadSchema.parse(world.configurationDeployment));
   const wrapper = privilegedActionDigest({ projects: [], httpHealthChecks: [], mongoChecks: [], configurationDeployment: world.configurationDeployment });
   assert.notEqual(bound, wrapper, "the two scopes must actually differ, or this test proves nothing");
   assert.equal(world.journal.list()[0].actionDigest, bound);

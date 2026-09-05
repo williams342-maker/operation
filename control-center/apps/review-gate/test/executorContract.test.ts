@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
-import { configurationChangeDigest, privilegedActionDigest } from "@control-center/shared";
+import { configurationChangeDigest, configurationDeploymentPayloadSchema, privilegedActionDigest }
+  from "@control-center/shared";
 import { buildApp } from "../src/server.js";
 import { AttestationService } from "../src/attestationService.js";
 import { contentDigest, candidateDigest, type CandidateBinding } from "../src/policy.js";
@@ -154,7 +155,9 @@ test("the executor's client and the gate's routes actually agree", async (t) => 
   assert.equal(acquired.refused, false, JSON.stringify(acquired));
   if (acquired.refused) return;
   // The digest the executor computed from the payload it holds is the one the gate bound at review time.
-  assert.equal(acquired.actionDigest, privilegedActionDigest(gate.payload));
+  assert.equal(acquired.actionDigest,
+    privilegedActionDigest(configurationDeploymentPayloadSchema.parse(gate.payload)),
+    "the digest is over the parse at both ends -- see the serialization contract on payloadDigest");
   assert.equal((await gate.store.loadAttestation(gate.attestationId))!.state, "EXECUTING");
 
   const settled = await recordEffect({ gate: gate.client(), journal, acquired, succeeded: true, terminalPhase: "succeeded", at: new Date().toISOString() });
