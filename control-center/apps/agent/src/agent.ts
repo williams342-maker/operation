@@ -67,10 +67,21 @@ export function reviewEnforcement(config: AgentConfig): ReviewEnforcement {
   const directory = stateDir();
   const decision = resolveEnforcement({ stateDir: directory, gate: config.reviewGate });
   if (!decision.enforcing) return { enforcing: false };
-  const security = validateForgeRuntimeIdentity(config);
+  // THE OWNER-BOUND CA IS REQUIRED WHERE IT DOES SOMETHING: an HTTPS gate. The gate URL schema permits
+  // `http:` ONLY for loopback, where there is no TLS to bind and no network between the executor and the
+  // gate for a CA to protect. Requiring root-owned Forge material there coupled the executor to material
+  // it could not use, and `ReviewGateClient` already draws the line in the same place — it refuses an
+  // HTTPS gate with no CA and accepts a loopback one without.
+  //
+  // THE COST, because it is real and not merely theoretical: loading that material is also what binds
+  // `identity.orgId`/`serverId` to the enrolled agent, so a loopback executor no longer gets that check.
+  // Anyone able to run a gate on this host's loopback already has code execution on this host, which is
+  // why that is acceptable HERE and nowhere else. `main()` still requires the material unconditionally at
+  // startup, so a provisioned production host is unaffected by this either way.
+  const security = decision.gate.url.startsWith("https:") ? validateForgeRuntimeIdentity(config) : undefined;
   return {
     enforcing: true,
-    gate: new ReviewGateClient(decision.gate, undefined, security.reviewGateCa),
+    gate: new ReviewGateClient(decision.gate, undefined, security?.reviewGateCa),
     journal: new ExecutionJournal(path.join(directory, "execution-journal")),
   };
 }
