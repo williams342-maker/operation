@@ -276,6 +276,18 @@ async function choreograph(verb: "apply" | "rollback") {
   await new Promise((resolve) => gateServer.once("listening", resolve));
   const gateUrl = `http://127.0.0.1:${(gateServer.address() as AddressInfo).port}`;
 
+  // EVERY EXIT PATH CLOSES BOTH LISTENERS, and the `finally` is the whole point.
+  //
+  // These servers used to be shut down on the success path only. Any throw between here and the end of
+  // the function left a listening socket, `node --test` never saw the event loop drain, and the process
+  // HUNG instead of exiting — so a failing assertion stopped being a red build and became a stalled job
+  // that sat until the six-hour runner timeout, with the actual error invisible because a run in
+  // progress does not publish logs. A gate that cannot fail legibly is worse than one that fails.
+  //
+  // `cc` is declared out here rather than at its construction so the handler can close it even when the
+  // throw happens before it exists.
+  let cc: ReturnType<typeof controlCenter> | undefined;
+  try {
   if (verb === "rollback") {
     // "You may not roll back to content that was never reviewed and released." Reaching GO is NOT
     // release -- release is what the OWNER DECISION does. So the target is released here the only way
@@ -352,16 +364,20 @@ async function choreograph(verb: "apply" | "rollback") {
 
   // STEP 10 — dispatch. The task is placed where a poll will find it; nothing hands it to the agent.
   let dispatched: unknown[] = [claimed];
-  const cc = controlCenter(() => { const next = dispatched; dispatched = []; return next; });
-  cc.server.listen(0);
-  await new Promise((resolve) => cc.server.once("listening", resolve));
+  // Bound to a const for the body so its type stays narrowed; `cc` exists only so the handler below can
+  // close the listener on a throw. Using the outer `let` here would be `possibly undefined` at every use,
+  // and silencing that with a non-null assertion would hide exactly the case the handler is for.
+  const controlPlane = controlCenter(() => { const next = dispatched; dispatched = []; return next; });
+  cc = controlPlane;
+  controlPlane.server.listen(0);
+  await new Promise((resolve) => controlPlane.server.once("listening", resolve));
 
   // STEP 12 — an ENFORCING executor, authenticated ONLY with its configured executor credential. The
   // enforcement record lives at the location the PROCESS derives, so no argument can relocate it.
   fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
   writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "choreography gate" });
   saveConfig(agentConfigSchema.parse({
-    controlCenterUrl: `http://127.0.0.1:${(cc.server.address() as AddressInfo).port}`,
+    controlCenterUrl: `http://127.0.0.1:${(controlPlane.server.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
     // The EXECUTOR's credential. The binder's never appears in this process.
@@ -380,9 +396,11 @@ async function choreograph(verb: "apply" | "rollback") {
 
   const journal = new ExecutionJournal(path.join(PROCESS_STATE_DIR, "execution-journal"));
   const record = await store.loadAttestation(attestationId);
-  await shutDown(gateServer);
-  await shutDown(cc.server);
   return { cc, journal, record, attestationId, configurationDeployment, pollError };
+  } finally {
+    await shutDown(gateServer);
+    if (cc) await shutDown(cc.server);
+  }
 }
 
 for (const verb of ["apply", "rollback"] as const) {
@@ -434,6 +452,9 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   const cc = controlCenter(() => []);
   cc.server.listen(0);
   await new Promise((resolve) => cc.server.once("listening", resolve));
+  // Same reason as `choreograph` above: a failing assertion below must leave a closed socket behind, or
+  // this file stops being able to report a failure at all.
+  try {
   saveConfig(agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(cc.server.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: "b".repeat(64), keyProtocolVersion: "agent-v2",
@@ -445,7 +466,9 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   const error = await pollOnce().then(() => null, (e: Error) => e.message);
   assert.match(String(error), /401/, "a wrong agent secret must fail the poll");
   assert.deepEqual(cc.unauthorized, ["/api/agent/poll"]);
-  await shutDown(cc.server);
+  } finally {
+    await shutDown(cc.server);
+  }
 });
 
 test("§B choreography: this gate does not use the forbidden shortcuts", () => {
