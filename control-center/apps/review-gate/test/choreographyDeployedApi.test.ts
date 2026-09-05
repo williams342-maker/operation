@@ -566,21 +566,35 @@ if (!mongoUrl) {
   // ───────────────────────────────────────────────────────────────────────────────────────────────
 
   /** How long the stubbed `docker compose` takes. Both the activation and the rollback pay it. */
-  const COMPOSE_MS = 400;
+  const COMPOSE_MS = 4_000;
 
   /**
-   * The gate's initial execution window for the two cases below, chosen with BOTH bounds in view:
+   * The gate's initial execution window for the two cases below.
    *
-   *   - it must be comfortably LONGER than the keeper's first extension round trip — one localhost
-   *     fetch, dispatched at the effect's first async yield, single-digit milliseconds — or the
-   *     extension is refused `execution_deadline_passed` and the case proves nothing;
-   *   - it must be comfortably SHORTER than the effect, or redeem would have succeeded with no
-   *     extension at all and the extension is not load-bearing.
+   * TWO BOUNDS, AND THEY ARE NOT THE SAME KIND OF BOUND — which is what the first version of this
+   * constant got wrong, and what an independent review and then CI both caught:
    *
-   * The effect costs at least 2 x COMPOSE_MS, so 250 ms sits about an order of magnitude above the
-   * first bound and about four times below the second.
+   *   - it must be SHORTER than the effect, or redeem would have succeeded with no extension at all and
+   *     the extension is not load-bearing. This bound is GUARANTEED, not probabilistic: the effect is
+   *     two wall-clock sleeps of COMPOSE_MS, and a sleep cannot finish early. A slower runner makes the
+   *     effect longer, never shorter, so this side is self-correcting.
+   *   - it must be LONGER than the time from acquire to the keeper's extension REACHING the gate — one
+   *     event-loop turn plus one localhost fetch — or the extension is refused
+   *     `execution_deadline_passed` and the case fails for a reason that is not a defect. This side is
+   *     the scheduler's, and it is the one that bit.
+   *
+   * 250 ms was chosen from an unloaded local run, where that path is single-digit milliseconds. That is
+   * a measurement, not a bound. On a two-core GitHub runner also carrying mongod, two Express servers
+   * and tsx transpilation, it was exceeded: the run at `33934596754` failed with the attestation still
+   * EXECUTING, `executionDeadline` exactly `acquiredAt + 250 ms` and never moved, both compose calls
+   * captured. The effect was fine; the keeper simply did not get a turn in time.
+   *
+   * So the window is now seconds rather than milliseconds. Breaking it takes a THREE-SECOND stall
+   * between acquire and the keeper's first fetch, and the effect it must beat is over eight seconds,
+   * which no scheduler can shorten. The cases cost about nine seconds each, and that is the price of a
+   * timing assertion that means something.
    */
-  const GATE_INITIAL_WINDOW_MS = 250;
+  const GATE_INITIAL_WINDOW_MS = 3_000;
 
   const ORIGINAL_ENV = "PUBLIC=value\nDATABASE_URL=old\n";
   /** Keyed by the `valueRef` of each mutation in MUTATIONS. */
@@ -871,14 +885,16 @@ if (!mongoUrl) {
       // THE OTHER HALF OF THE CLAIM. The case above shows an extension happening, which on its own is
       // also consistent with redeem not caring about the deadline at all. This one holds the execution
       // and the window fixed and removes only the extension, by minting an attestation that expires in
-      // twenty seconds: an extension's absolute bound is `min(acquiredAt + MAX_EXECUTION_MS,
-      // expiresAt)`, so the keeper's request for `now + 15 min` is refused `beyond_absolute_deadline`
-      // and the deadline never moves.
+      // two minutes: an extension's absolute bound is `min(acquiredAt + MAX_EXECUTION_MS, expiresAt)`,
+      // so the keeper's request for `now + 15 min` is refused `beyond_absolute_deadline` and the
+      // deadline never moves. Two minutes and not twenty seconds so that the margin over the effect is
+      // the same order as the one above -- the attestation must not expire underneath a slow runner, or
+      // this case would refuse for the wrong reason and still look like it passed.
       //
       // That is the collapse an earlier review round found when the two windows were equal, reproduced
       // on purpose: a short-lived attestation makes extension IMPOSSIBLE rather than quick, which is
       // why shortening `expiresAt` was never a way to test step 15.
-      const staged = await stageLongExecution(t, { attestationExpiresInMs: 20_000 });
+      const staged = await stageLongExecution(t, { attestationExpiresInMs: 120_000 });
 
       const pollError = await pollOnce().then(() => null, (error: Error) => error.message);
 

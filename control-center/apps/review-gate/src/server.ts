@@ -97,8 +97,16 @@ export function startExpirySweep(store: ReviewGateStore, options: {
 
 /**
  * `options` carries DEPLOYMENT TUNABLES only — values a real operator sets, not behaviour a caller
- * injects. Today that is the initial execution window; the store is still constructed by `main()` and
- * never accepted here, and nothing in this object can substitute a policy, a clock or an identity.
+ * injects. Today that is the initial execution window, and nothing in this object can substitute a
+ * policy, a clock, an identity or a store.
+ *
+ * The `store` PARAMETER is a separate matter and predates this: `main()` constructs the only store this
+ * process ever uses, and the ten review rounds spent on injectability were about the SERVICE never
+ * handing one back or accepting one after construction. An earlier draft of this comment said the store
+ * was "never accepted here", which is plainly false of a function whose first parameter is one; an
+ * independent review caught it. The options object adds no new injection point, which is the claim that
+ * was actually meant.
+ *
  * `AttestationService` validates the window against the absolute cap, so a bad value is refused at
  * construction rather than surfacing as a dead extension path mid-execution.
  */
