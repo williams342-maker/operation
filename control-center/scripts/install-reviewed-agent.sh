@@ -41,7 +41,8 @@ if [ "$command" = activate ]; then
   for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do install -o root -g root -m 0644 "$candidate/control-center/deploy/systemd/$unit" "$unit_root/$unit"; done
   digest="$(sha256sum "$candidate/control-center/apps/agent/dist/agent.js" | cut -d' ' -f1)"
   node -e 'const fs=require("fs");const p=process.argv[1],v=process.argv[2],d=process.argv[3],s=fs.statSync(p),c=JSON.parse(fs.readFileSync(p));c.agentVersion=v;c.binarySha256=d;const n=p+".reviewed-pending";fs.writeFileSync(n,JSON.stringify(c,null,2)+"\n",{mode:s.mode});fs.chownSync(n,s.uid,s.gid);fs.renameSync(n,p)' "$config_root/agent.json" "$version" "$digest"
-  ln -s -- "$target" "$install_root/current.reviewed-pending"; mv -Tf -- "$install_root/current.reviewed-pending" "$install_root/current"
+  pending="$install_root/current.reviewed-pending-$$"; trap 'rm -f -- "$pending"' EXIT
+  ln -s -- "$target" "$pending"; mv -Tf -- "$pending" "$install_root/current"; trap - EXIT
   systemctl daemon-reload; rm -f /var/lib/opsworkbench-agent/agent/heartbeat.json; systemctl restart "$service"
   for _ in $(seq 1 45); do systemctl is-active --quiet "$service" && node -e 'const fs=require("fs");const h=JSON.parse(fs.readFileSync(process.argv[1]));if(h.agentVersion!==process.argv[2])process.exit(1)' /var/lib/opsworkbench-agent/agent/heartbeat.json "$version" 2>/dev/null && exit 0; sleep 2; done
   fail "candidate agent did not produce its exact heartbeat"
@@ -54,7 +55,8 @@ if [ "$command" = rollback ]; then
   printf '%s  %s\n' "$(cat "$backup/prior-agent.sha256")" "$prior/control-center/apps/agent/dist/agent.js" | sha256sum -c - >/dev/null || fail "rollback agent identity changed"
   cp -a -- "$backup/agent.json" "$config_root/agent.json.rollback-pending"; mv -fT -- "$config_root/agent.json.rollback-pending" "$config_root/agent.json"
   for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do [ ! -f "$backup/units/$unit" ] || install -o root -g root -m 0644 "$backup/units/$unit" "$unit_root/$unit"; done
-  ln -s -- "$prior" "$install_root/current.reviewed-rollback"; mv -Tf -- "$install_root/current.reviewed-rollback" "$install_root/current"
+  pending="$install_root/current.reviewed-rollback-$$"; trap 'rm -f -- "$pending"' EXIT
+  ln -s -- "$prior" "$pending"; mv -Tf -- "$pending" "$install_root/current"; trap - EXIT
   systemctl daemon-reload; systemctl restart "$service"; systemctl is-active --quiet "$service" || fail "rollback agent did not return"
   exit 0
 fi

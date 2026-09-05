@@ -13,7 +13,7 @@ const output = path.resolve(process.argv[2] || "");
 const tag = process.env.RELEASE_TAG;
 if (!output || !tag || !/^v\d+\.\d+\.\d+-operate$/.test(tag)) throw new Error("output and exact operate release tag are required");
 const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repository, encoding: "utf8" }).trim();
-if (execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: repository, encoding: "utf8" }).trim()) throw new Error("tracked worktree changes are not allowed in an agent release build");
+if (execFileSync("git", ["status", "--porcelain", "--untracked-files=normal"], { cwd: repository, encoding: "utf8" }).trim()) throw new Error("worktree changes, including untracked inputs, are not allowed in an agent release build");
 if (execFileSync("git", ["rev-list", "-n", "1", tag], { cwd: repository, encoding: "utf8" }).trim() !== commit) throw new Error("agent release tag does not resolve to HEAD");
 const epoch = Math.floor(Date.parse(execFileSync("git", ["show", "-s", "--format=%cI", commit], { cwd: repository, encoding: "utf8" }).trim()) / 1000);
 const staging = fs.mkdtempSync(path.join(os.tmpdir(), "opsworkbench-release-agent-"));

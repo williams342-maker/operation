@@ -41,6 +41,10 @@ test("parseSha256Sums parses valid lines and flags malformed ones", () => {
   assert.equal(parsed[1], null);
 });
 
+test("SHA256SUMS names cannot escape or create subdirectories", () => {
+  for (const name of ["../outside", "sub/file", "sub\\file", ".", "-option"]) assert.equal(parseSha256Sums(`${"a".repeat(64)}  ${name}\n`)[0], null);
+});
+
 test("a well-formed bundle verifies ok", () => {
   const { dir, tag } = makeBundle();
   const result = verifyReleaseBundle(dir, { expectedTag: tag });
@@ -75,6 +79,13 @@ test("a non-40-char commit is rejected", () => {
   const result = verifyReleaseBundle(dir, { expectedTag: tag });
   assert.equal(result.ok, false);
   assert.ok(result.problems.some((p) => p.includes("40-char SHA")));
+});
+
+test("a manifest without the main artifact is rejected as a verification result", () => {
+  const { dir, tag, manifestName } = makeBundle(); const manifestPath = path.join(dir, manifestName); const manifest = JSON.parse(fs.readFileSync(manifestPath)); delete manifest.artifact;
+  const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`); fs.writeFileSync(manifestPath, bytes);
+  const lines = fs.readFileSync(path.join(dir, "SHA256SUMS"), "utf8").trim().split("\n"); lines[2] = `${sha256Hex(bytes)}  ${manifestName}`; fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${lines.join("\n")}\n`);
+  const result = verifyReleaseBundle(dir, { expectedTag: tag }); assert.equal(result.ok, false); assert.ok(result.problems.some((problem) => problem.includes("manifest artifact")));
 });
 
 test("a missing manifest is rejected", () => {

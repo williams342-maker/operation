@@ -123,6 +123,24 @@ test("deployment establishes rollback first, requires readiness, and restores ro
   assert.equal(calls.at(-1).composeFile, preparation.rollbackCompose, "rollback uses the independently verified rollback compose file");
 });
 
+test("a post-acceptance record failure restores the current pointer and every runtime component", async () => {
+  const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const switches = []; const composeCalls = [];
+  const localId = (reference) => `sha256:${sha(reference)}`;
+  const revision = (reference) => Object.values(item.candidateImages).includes(reference) ? commit : rollbackCommit;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit, images: { candidate: { api: localId(item.candidateImages.api), web: localId(item.candidateImages.web), admin: localId(item.candidateImages.admin), gate: localId(item.candidateImages.reviewGate) }, rollback: { api: localId(item.rollback.images.api), web: localId(item.rollback.images.web), admin: localId(item.rollback.images.admin), gate: localId(item.rollback.images.reviewGate) } } }),
+    images: { remoteInspect: (reference) => `Name: ${reference}\n`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": revision(reference), "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: () => {}, compose: (_args, env, file) => composeCalls.push({ api: env.OPSWORKBENCH_API_IMAGE, file }), readiness: async () => true, acceptancePasses: 1,
+    switchCurrent: (_current, target) => { switches.push(target); }, writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
+  }), /was rolled back/);
+  assert.deepEqual(switches, [preparation.installedControlCenter, preparation.rollbackControlCenter]);
+  assert.equal(composeCalls.at(-1).api, item.rollback.images.api); assert.equal(composeCalls.at(-1).file, preparation.rollbackCompose);
+});
+
 test("schema rehearsal evidence is exact, complete, digest-bound and workflow-attested", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "compatibility-")); const item = plan(root);
   const scenarios = Object.fromEntries(["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"].map((name) => [name, name.includes("migration") ? "not-applicable-no-migrations" : "passed"]));

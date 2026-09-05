@@ -245,6 +245,7 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   const installedTree = compareReleaseTree(preparation.candidateExpectedTree, describeTree(preparation.installedControlCenter));
   if (!installedTree.ok) throw new Error(`installed candidate tree changed before consumption: ${installedTree.problems.join("; ")}`);
   const inspectedAgent = inspectReleaseTarGz(preparation.agentPath, { expectedPrefix: "control-center" });
+  if (inspectedAgent.archiveCommit !== preparation.plan.commit) throw new Error("prepared agent archive commit changed");
   const agentTree = compareReleaseTree(preparation.expectedAgentTree, describeTree(preparation.agentExtracted));
   if (!inspectedAgent.members.size || !agentTree.ok) throw new Error(`prepared agent tree changed before consumption: ${agentTree.problems.join("; ")}`);
   const rollbackCheck = verifyReleaseBundle(preparation.rollbackBundle, { expectedTag: preparation.plan.rollback.tag });
@@ -352,12 +353,12 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
       for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
       if (hooks.wait) await hooks.wait();
     }
-    switchCurrentRelease(priorCurrent, preparation.installedControlCenter); currentSwitched = true;
+    (hooks.switchCurrent ?? switchCurrentRelease)(priorCurrent, preparation.installedControlCenter); currentSwitched = true;
     record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
-    fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });
+    (hooks.writeDeploymentRecord ?? ((file, body) => fs.writeFileSync(file, body, { flag: "wx", mode: 0o400 })))(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
   } catch (cause) {
     if (currentSwitched) {
-      try { switchCurrentRelease(priorCurrent, priorCurrent.target); } catch (pointerCause) { throw new AggregateError([cause, pointerCause], `deployment failed and current release pointer rollback also failed: ${cause.message}; ${pointerCause.message}`, { cause: pointerCause }); }
+      try { (hooks.switchCurrent ?? switchCurrentRelease)(priorCurrent, priorCurrent.target); } catch (pointerCause) { throw new AggregateError([cause, pointerCause], `deployment failed and current release pointer rollback also failed: ${cause.message}; ${pointerCause.message}`, { cause: pointerCause }); }
     }
     if (agentActivationAttempted) {
       try { agentControl(["rollback", agentBackup]); } catch (agentCause) { throw new AggregateError([cause, agentCause], `deployment failed and agent rollback also failed: ${cause.message}; ${agentCause.message}`, { cause: agentCause }); }
