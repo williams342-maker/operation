@@ -77,11 +77,26 @@ function expectedSubtree(members, prefix) {
 }
 
 function installAndVerifyExactTree(source, target, expected) {
-  if (!fs.existsSync(target)) { fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 }); fs.cpSync(source, target, { recursive: true, errorOnExist: true, force: false }); }
+  const makeReadonly = (directory) => { for (const entry of fs.readdirSync(directory, { withFileTypes: true })) { const file = path.join(directory, entry.name); if (entry.isDirectory()) { makeReadonly(file); fs.chmodSync(file, 0o555); } else fs.chmodSync(file, 0o444); } };
+  const validateSealed = (directory) => {
+    if (process.platform !== "linux") return;
+    const visit = (file) => { const stat = fs.lstatSync(file); if (stat.uid !== 0 || stat.gid !== 0 || (stat.mode & 0o222) !== 0) throw new Error(`installed release object is not root-owned and read-only: ${file}`); if (stat.isDirectory()) for (const entry of fs.readdirSync(file)) visit(path.join(file, entry)); };
+    visit(directory);
+  };
+  if (!fs.existsSync(target)) {
+    const parent = path.dirname(target); fs.mkdirSync(parent, { recursive: true, mode: 0o755 });
+    const pending = `${target}.reviewed-pending-${process.pid}`;
+    if (fs.existsSync(pending)) throw new Error("pending installed release tree already exists");
+    try {
+      fs.mkdirSync(pending, { mode: 0o700 }); fs.cpSync(source, pending, { recursive: true, errorOnExist: true, force: false });
+      const pendingCheck = compareReleaseTree(expected, describeTree(pending));
+      if (!pendingCheck.ok) throw new Error(`pending installed release tree is not exact: ${pendingCheck.problems.join("; ")}`);
+      makeReadonly(pending); fs.chmodSync(pending, 0o555); validateSealed(pending); fs.renameSync(pending, target);
+    } catch (error) { if (fs.existsSync(pending)) fs.rmSync(pending, { recursive: true, force: true }); throw error; }
+  }
   const check = compareReleaseTree(expected, describeTree(target));
   if (!check.ok) throw new Error(`installed release tree is not exact: ${check.problems.join("; ")}`);
-  const makeReadonly = (directory) => { for (const entry of fs.readdirSync(directory, { withFileTypes: true })) { const file = path.join(directory, entry.name); if (entry.isDirectory()) { makeReadonly(file); fs.chmodSync(file, 0o555); } else fs.chmodSync(file, 0o444); } };
-  makeReadonly(target); fs.chmodSync(target, 0o555);
+  validateSealed(target);
   return target;
 }
 
