@@ -34,5 +34,5 @@ COPY --from=build --chown=node:node /app/apps/review-gate/package.json ./apps/re
 COPY --from=build --chown=node:node /app/apps/review-gate/dist ./apps/review-gate/dist
 USER node
 EXPOSE 3100
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=4 CMD node -e "const tls=Boolean(process.env.REVIEW_GATE_TLS_CERTIFICATE_PATH);if(tls)process.env.NODE_TLS_REJECT_UNAUTHORIZED='0';fetch((tls?'https':'http')+'://127.0.0.1:3100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=4 CMD node -e "const p=process.env.REVIEW_GATE_TLS_CERTIFICATE_PATH;if(!p){fetch('http://127.0.0.1:3100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1));}else{const fs=require('fs'),https=require('https');https.get({host:'127.0.0.1',port:3100,path:'/healthz',ca:fs.readFileSync(p),servername:'review-gate',rejectUnauthorized:true},r=>process.exit(r.statusCode>=200&&r.statusCode<300?0:1)).on('error',()=>process.exit(1));}"
 CMD ["node", "apps/review-gate/dist/server.js"]

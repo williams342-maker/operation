@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with: { fetch-depth: 0 }
       - name: Pin both exact annotated sources
         id: source
@@ -25,6 +25,7 @@ jobs:
           ROLLBACK_TAG: ${{ inputs.rollback_tag }}
         run: |
           set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           test "$GITHUB_REF" = "refs/tags/$CANDIDATE_TAG"
           for tag in "$CANDIDATE_TAG" "$ROLLBACK_TAG"; do
             test "$(git cat-file -t "$tag")" = tag
@@ -94,15 +95,19 @@ jobs:
             docker run -d --name "gate-$label" --network "$network" -v "$PWD/tls:/run/tls:ro" -e REVIEW_GATE_MONGO_URL='mongodb://rehearsal-mongo:27017/review_gate_rehearsal?replicaSet=rs0' -e REVIEW_GATE_DB_NAME=review_gate_rehearsal -e REVIEW_GATE_BIND=0.0.0.0 -e REVIEW_GATE_TLS_CERTIFICATE_PATH=/run/tls/tls.crt -e REVIEW_GATE_TLS_PRIVATE_KEY_PATH=/run/tls/tls.key "$GATE_IMAGE_ID"
             docker run -d --name "web-$label" --network "$network" "$WEB_IMAGE_ID"
             docker run -d --name "admin-$label" --network "$network" "$ADMIN_IMAGE_ID"
-            for name in api gate web admin; do for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy; done
+            for name in api gate web admin; do for i in $(seq 1 90); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-$label")" = healthy; done
             docker run --rm --network "$network" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent "http://api-$label:3000/readyz" >/dev/null
             docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt "https://gate-$label:3100/healthz" | grep -q 'ENFORCEMENT IS NOT ACTIVE'
           }
           stop_set() { for name in api gate web admin; do docker rm -f "$name-$1" >/dev/null; done; }
           start_set candidate
+          docker exec rehearsal-mongo mongosh --quiet control_center_rehearsal --eval 'db.rehearsal_state.insertOne({_id:"candidate-write",schema:"unchanged",source:"candidate"})' >/dev/null
+          docker exec rehearsal-mongo mongosh --quiet review_gate_rehearsal --eval 'db.rehearsal_state.insertOne({_id:"candidate-write",schema:"unchanged",source:"candidate"})' >/dev/null
           printf 'passed\n' > .rehearsal-proof/forward_compatibility
           stop_set candidate
           start_set rollback
+          test "$(docker exec rehearsal-mongo mongosh --quiet control_center_rehearsal --eval 'db.rehearsal_state.countDocuments({_id:"candidate-write"})')" = 1
+          test "$(docker exec rehearsal-mongo mongosh --quiet review_gate_rehearsal --eval 'db.rehearsal_state.countDocuments({_id:"candidate-write"})')" = 1
           for role in api web admin gate; do
             candidate_variable="CANDIDATE_$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')_IMAGE_ID"; rollback_variable="ROLLBACK_$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')_IMAGE_ID"
             test "$(docker inspect -f '{{.Image}}' "$role-rollback")" = "${!rollback_variable}"
@@ -120,14 +125,20 @@ jobs:
           docker restart rehearsal-mongo >/dev/null
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done
           docker restart api-rollback gate-rollback >/dev/null
-          for name in api gate; do for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy; done
+          for name in api gate; do for i in $(seq 1 90); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy; done
           printf 'passed\n' > .rehearsal-proof/service_restart_during_transition
           docker rm -f api-rollback >/dev/null
           docker run -d --name api-candidate --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' "$CANDIDATE_API_IMAGE_ID"
-          for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy && break; sleep 1; done
+          for i in $(seq 1 90); do test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy && break; sleep 1; done
           test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy
           test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' api-candidate)" = "$CANDIDATE_COMMIT"
           test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' gate-rollback)" = "$ROLLBACK_COMMIT"
+          docker rm -f api-candidate >/dev/null
+          docker run -d --name api-rollback --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' "$ROLLBACK_API_IMAGE_ID"
+          for i in $(seq 1 90); do test "$(docker inspect -f '{{.State.Health.Status}}' api-rollback)" = healthy && break; sleep 1; done
+          test "$(docker inspect -f '{{.State.Health.Status}}' api-rollback)" = healthy
+          test "$(docker inspect -f '{{.State.Health.Status}}' gate-rollback)" = healthy
+          test "$(docker inspect -f '{{.Image}}' api-rollback)" = "$ROLLBACK_API_IMAGE_ID"
           printf 'passed\n' > .rehearsal-proof/rollback_after_partial_switch
       - name: Run real replica-set authority and transaction suites
         working-directory: control-center
@@ -162,9 +173,9 @@ jobs:
           test ! -d ../rollback-source/control-center/migrations
           node scripts/build-rehearsal-evidence.mjs schema-rehearsal.json
       - name: Attest the rehearsal evidence
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with: { subject-path: control-center/schema-rehearsal.json }
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: schema-rehearsal-${{ inputs.candidate_tag }}-from-${{ inputs.rollback_tag }}
           path: control-center/schema-rehearsal.json
@@ -172,5 +183,6 @@ jobs:
       - name: Remove isolated rehearsal resources
         if: always()
         run: |
-          docker ps -aq --filter 'name=^rehearsal-' | xargs -r docker rm -f
+          docker ps -aq --filter "network=rehearsal-${GITHUB_RUN_ID}" | xargs -r docker rm -f
+          docker ps -aq --filter 'name=^rehearsal-test-mongo$' | xargs -r docker rm -f
           docker network ls -q --filter "name=rehearsal-${GITHUB_RUN_ID}" | xargs -r docker network rm
