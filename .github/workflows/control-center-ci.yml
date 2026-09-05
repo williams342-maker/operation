@@ -160,8 +160,11 @@ jobs:
       # round derived 232 where the truth was 231, which is the entire reason this is checked.
       # The Mongo-only cases skip off CI, which is why this suite could not be gated at all before the
       # replica-set step existed.
-      CI_EXPECTED_TEST_SUITES: "agent=132,api=133,review-gate=251,shared=146,web=34"
-      CI_EXPECTED_TESTS: "696"
+      # review-gate +4 for §B step 15: choreographyDeployedApi +2 (the extension, and the control that
+      # shows the same overrun refused without one) and routes +2 (the initial-window tunable and its
+      # environment variable).
+      CI_EXPECTED_TEST_SUITES: "agent=132,api=133,review-gate=255,shared=146,web=34"
+      CI_EXPECTED_TESTS: "700"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
