@@ -16,7 +16,7 @@ function plan(root) { return {
   bundleDirectory: path.join(root, "bundle"), stagingRoot: path.join(root, "stage"), releaseRoot: path.join(root, "releases"), composeProject: "opsworkbench",
   candidateImages: { api: image("api", "1"), web: image("web", "2"), admin: image("admin-web", "3"), reviewGate: image("review-gate", "4") },
   platform: { edgeImage: `docker.io/library/nginx@sha256:${"a".repeat(64)}`, mongoImage: `docker.io/library/mongo@sha256:${"b".repeat(64)}`, mongoVolume: "mongo_verified" },
-  rollback: { tag: "v0.1.9-operate", commit: rollbackCommit, tree: rollbackTree, images: { api: image("api", "5"), web: image("web", "6"), admin: image("admin-web", "7"), reviewGate: image("review-gate", "8") }, releaseDirectory: path.join(root, "rollback"), evidenceSha256: "9".repeat(64) },
+  rollback: { tag: "v0.1.9-operate", commit: rollbackCommit, tree: rollbackTree, images: { api: image("api", "5"), web: image("web", "6"), admin: image("admin-web", "7"), reviewGate: image("review-gate", "8") }, bundleDirectory: path.join(root, "rollback-bundle"), releaseDirectory: path.join(root, "releases", "v0.1.9-operate", "app"), evidenceSha256: "9".repeat(64) },
   forgeEvidence: { candidatePath: path.join(root, "candidate-forge.json"), candidateSha256: "a".repeat(64), rollbackPath: path.join(root, "rollback-forge.json"), rollbackSha256: "b".repeat(64) },
   compatibilityEvidence: { path: path.join(root, "compatibility.json"), sha256: "c".repeat(64) },
   readiness: ["https://example.test/healthz", "https://example.test/", "https://admin.example.test/"],
@@ -29,18 +29,25 @@ const tarBlock = (name, type = "0", body = Buffer.alloc(0)) => {
   return Buffer.concat([header, body, Buffer.alloc((512 - body.length % 512) % 512)]);
 };
 
+function writeReleaseBundle(directory, tag, releaseCommit, releaseTree) {
+  fs.mkdirSync(directory, { recursive: true });
+  const version = tag.slice(1); const prefix = `opsworkbench-control-center-${version}`; const composeName = `${prefix}/control-center/deploy/docker-compose.production.yml`; const compose = Buffer.from("services: {}\n");
+  const pax = Buffer.from(`52 comment=${releaseCommit}\n`); const archive = zlib.gzipSync(Buffer.concat([tarBlock("pax_global_header", "g", pax), tarBlock(`${prefix}/`, "5"), tarBlock(`${prefix}/control-center/`, "5"), tarBlock(`${prefix}/control-center/deploy/`, "5"), tarBlock(composeName, "0", compose), tarBlock(`${prefix}/control-center/scripts/`, "5"), tarBlock(`${prefix}/control-center/scripts/install-reviewed-agent.sh`, "0", Buffer.from("#!/bin/sh\n")), Buffer.alloc(1024)]));
+  const artifact = `opsworkbench-control-center-${version}.tar.gz`; const agentArtifact = `opsworkbench-control-center-${version}-agent-linux-x64.tar.gz`; const manifestName = `opsworkbench-control-center-${version}.manifest.json`;
+  const agentMetadata = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-agent-release-v1", tag, commit: releaseCommit, tree: releaseTree }, null, 2)}\n`);
+  const agent = zlib.gzipSync(Buffer.concat([tarBlock("control-center/", "5"), tarBlock("control-center/apps/", "5"), tarBlock("control-center/apps/agent/", "5"), tarBlock("control-center/apps/agent/dist/", "5"), tarBlock("control-center/apps/agent/dist/agent.js", "0", Buffer.from("agent")), tarBlock("control-center/apps/updater/", "5"), tarBlock("control-center/apps/updater/dist/", "5"), tarBlock("control-center/apps/updater/dist/main.js", "0", Buffer.from("updater")), tarBlock("control-center/deploy/", "5"), tarBlock("control-center/deploy/systemd/", "5"), tarBlock("control-center/deploy/systemd/opsworkbench-agent.service", "0", Buffer.from("unit")), tarBlock("control-center/agent-release.json", "0", agentMetadata), Buffer.alloc(1024)]));
+  const manifest = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-release-v1", tag, commit: releaseCommit, artifact, agentArtifact, source: "test", reproducible: true }, null, 2)}\n`);
+  fs.writeFileSync(path.join(directory, artifact), archive); fs.writeFileSync(path.join(directory, agentArtifact), agent); fs.writeFileSync(path.join(directory, manifestName), manifest);
+  fs.writeFileSync(path.join(directory, "SHA256SUMS"), `${sha(archive)}  ${artifact}\n${sha(agent)}  ${agentArtifact}\n${sha(manifest)}  ${manifestName}\n`);
+  return { prefix, composeName, compose, archiveSha256: sha(archive) };
+}
+
 function releaseFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-deploy-")); const item = plan(root);
-  fs.mkdirSync(item.bundleDirectory); fs.mkdirSync(item.stagingRoot); fs.mkdirSync(item.releaseRoot); fs.mkdirSync(item.rollback.releaseDirectory);
-  const prefix = "opsworkbench-control-center-0.2.0-operate"; const composeName = `${prefix}/control-center/deploy/docker-compose.production.yml`; const compose = Buffer.from("services: {}\n");
-  const pax = Buffer.from(`52 comment=${commit}\n`); const archive = zlib.gzipSync(Buffer.concat([tarBlock("pax_global_header", "g", pax), tarBlock(`${prefix}/`, "5"), tarBlock(`${prefix}/control-center/`, "5"), tarBlock(`${prefix}/control-center/deploy/`, "5"), tarBlock(composeName, "0", compose), tarBlock(`${prefix}/control-center/scripts/`, "5"), tarBlock(`${prefix}/control-center/scripts/install-reviewed-agent.sh`, "0", Buffer.from("#!/bin/sh\n")), Buffer.alloc(1024)]));
-  const artifact = `opsworkbench-control-center-0.2.0-operate.tar.gz`; const agentArtifact = `opsworkbench-control-center-0.2.0-operate-agent-linux-x64.tar.gz`; const manifestName = `opsworkbench-control-center-0.2.0-operate.manifest.json`;
-  const agentMetadata = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-agent-release-v1", tag: item.tag, commit, tree }, null, 2)}\n`);
-  const agent = zlib.gzipSync(Buffer.concat([tarBlock("control-center/", "5"), tarBlock("control-center/apps/", "5"), tarBlock("control-center/apps/agent/", "5"), tarBlock("control-center/apps/agent/dist/", "5"), tarBlock("control-center/apps/agent/dist/agent.js", "0", Buffer.from("agent")), tarBlock("control-center/apps/updater/", "5"), tarBlock("control-center/apps/updater/dist/", "5"), tarBlock("control-center/apps/updater/dist/main.js", "0", Buffer.from("updater")), tarBlock("control-center/deploy/", "5"), tarBlock("control-center/deploy/systemd/", "5"), tarBlock("control-center/deploy/systemd/opsworkbench-agent.service", "0", Buffer.from("unit")), tarBlock("control-center/agent-release.json", "0", agentMetadata), Buffer.alloc(1024)]));
-  const manifest = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-release-v1", tag: item.tag, commit, artifact, agentArtifact, source: "test", reproducible: true }, null, 2)}\n`);
-  fs.writeFileSync(path.join(item.bundleDirectory, artifact), archive); fs.writeFileSync(path.join(item.bundleDirectory, agentArtifact), agent); fs.writeFileSync(path.join(item.bundleDirectory, manifestName), manifest);
-  fs.writeFileSync(path.join(item.bundleDirectory, "SHA256SUMS"), `${sha(archive)}  ${artifact}\n${sha(agent)}  ${agentArtifact}\n${sha(manifest)}  ${manifestName}\n`);
-  return { item, prefix, composeName, compose };
+  fs.mkdirSync(item.stagingRoot); fs.mkdirSync(item.releaseRoot);
+  const candidate = writeReleaseBundle(item.bundleDirectory, item.tag, commit, tree);
+  const rollback = writeReleaseBundle(item.rollback.bundleDirectory, item.rollback.tag, rollbackCommit, rollbackTree); item.rollback.evidenceSha256 = rollback.archiveSha256;
+  return { item, ...candidate };
 }
 
 test("the deployment plan requires exact fields, role-correct immutable images and a real rollback", () => {
@@ -102,13 +109,14 @@ test("deployment establishes rollback first, requires readiness, and restores ro
     } }),
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: (args) => { calls.push({ args: ["agent", ...args], api: "agent", rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
-    compose: (args, env) => { if (env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
+    compose: (args, env, composeFile) => { if (env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
     readiness: async () => rolledBack, acceptancePasses: 1,
   }), /was rolled back/);
   assert.equal(calls.filter((call) => call.args[0] !== "agent" || call.args[1] !== "prepare").every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
   const prepareCall = calls.find((call) => call.args[0] === "agent" && call.args[1] === "prepare"); const activateCall = calls.find((call) => call.args[0] === "agent" && call.args[1] === "activate"); const rollbackCall = calls.find((call) => call.args[0] === "agent" && call.args[1] === "rollback");
   assert.equal(prepareCall.rollbackExists, false, "agent predecessor snapshot is taken before mutation authority"); assert.equal(activateCall.rollbackExists, true); assert.equal(rollbackCall.rollbackExists, true);
   assert.equal(calls.at(-1).api, item.rollback.images.api, "last mutation restores immutable rollback images");
+  assert.equal(calls.at(-1).composeFile, preparation.rollbackCompose, "rollback uses the independently verified rollback compose file");
 });
 
 test("schema rehearsal evidence is exact, complete, digest-bound and workflow-attested", () => {

@@ -34,8 +34,9 @@ export function parseDeploymentPlan(value) {
   exactKeys(value.platform, ["edgeImage", "mongoImage", "mongoVolume"], "platform");
   for (const field of ["edgeImage", "mongoImage"]) if (typeof value.platform[field] !== "string" || !/^[a-z0-9][a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/.test(value.platform[field])) throw new Error(`platform ${field} is not digest-pinned`);
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(value.platform.mongoVolume)) throw new Error("platform mongoVolume is invalid");
-  exactKeys(value.rollback, ["tag", "commit", "tree", "images", "releaseDirectory", "evidenceSha256"], "rollback");
-  if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
+  exactKeys(value.rollback, ["tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
+  if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.bundleDirectory) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
+  if (path.resolve(value.rollback.releaseDirectory) !== path.resolve(value.releaseRoot, value.rollback.tag, "app") || path.resolve(value.rollback.bundleDirectory) === path.resolve(value.bundleDirectory)) throw new Error("rollback source location is invalid or ambiguous");
   exactKeys(value.rollback.images, ["api", "web", "admin", "reviewGate"], "rollback images");
   for (const [role, reference] of Object.entries(value.rollback.images)) {
     const match = typeof reference === "string" && reference.match(digestReference);
@@ -69,6 +70,21 @@ function expectedArchiveTree(members) {
   return new Map([...members].map(([name, item]) => [name, item.type === "file" ? { type: "file", sha256: item.sha256 } : { type: "directory" }]));
 }
 
+function expectedSubtree(members, prefix) {
+  const result = new Map();
+  for (const [name, item] of members) if (name.startsWith(`${prefix}/`)) result.set(name.slice(prefix.length + 1), item.type === "file" ? { type: "file", sha256: item.sha256 } : { type: "directory" });
+  return result;
+}
+
+function installAndVerifyExactTree(source, target, expected) {
+  if (!fs.existsSync(target)) { fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 }); fs.cpSync(source, target, { recursive: true, errorOnExist: true, force: false }); }
+  const check = compareReleaseTree(expected, describeTree(target));
+  if (!check.ok) throw new Error(`installed release tree is not exact: ${check.problems.join("; ")}`);
+  const makeReadonly = (directory) => { for (const entry of fs.readdirSync(directory, { withFileTypes: true })) { const file = path.join(directory, entry.name); if (entry.isDirectory()) { makeReadonly(file); fs.chmodSync(file, 0o555); } else fs.chmodSync(file, 0o444); } };
+  makeReadonly(target); fs.chmodSync(target, 0o555);
+  return target;
+}
+
 export function prepareReviewedRelease(rawPlan, hooks = {}) {
   const plan = parseDeploymentPlan(rawPlan);
   const sourceCheck = verifyReleaseBundle(plan.bundleDirectory, { expectedTag: plan.tag });
@@ -90,7 +106,9 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     const treeCheck = compareReleaseTree(expectedArchiveTree(inspected.members), describeTree(extracted));
     if (!treeCheck.ok) throw new Error(`extracted release tree failed verification: ${treeCheck.problems.join("; ")}`);
     const controlCenter = path.join(extracted, prefix, "control-center");
-    const compose = path.join(controlCenter, "deploy", "docker-compose.production.yml");
+    const candidateExpectedTree = expectedSubtree(inspected.members, `${prefix}/control-center`);
+    const installedControlCenter = installAndVerifyExactTree(controlCenter, path.join(plan.releaseRoot, plan.tag, "app"), candidateExpectedTree);
+    const compose = path.join(installedControlCenter, "deploy", "docker-compose.production.yml");
     if (!fs.existsSync(compose) || !fs.lstatSync(compose).isFile()) throw new Error("version-controlled production compose file is absent");
     const agentPath = path.join(stage, copiedCheck.manifest.agentArtifact);
     const inspectedAgent = inspectReleaseTarGz(agentPath, { expectedPrefix: "control-center" });
@@ -102,9 +120,28 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     exactKeys(agentMetadata, ["schemaVersion", "tag", "commit", "tree"], "agent release metadata");
     if (agentMetadata.schemaVersion !== "opsworkbench-agent-release-v1" || agentMetadata.tag !== plan.tag || agentMetadata.commit !== plan.commit || agentMetadata.tree !== plan.tree) throw new Error("agent artifact names a different release identity");
     for (const required of ["apps/agent/dist/agent.js", "apps/updater/dist/main.js", "deploy/systemd/opsworkbench-agent.service"]) if (!fs.lstatSync(path.join(agentExtracted, "control-center", required)).isFile()) throw new Error(`agent artifact is missing ${required}`);
+    const rollbackBundle = path.join(stage, "rollback-bundle"); fs.mkdirSync(rollbackBundle, { mode: 0o700 });
+    const rollbackCheck = verifyReleaseBundle(plan.rollback.bundleDirectory, { expectedTag: plan.rollback.tag });
+    if (!rollbackCheck.ok || rollbackCheck.manifest.commit !== plan.rollback.commit) throw new Error("rollback release bundle failed verification");
+    const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(plan.rollback.bundleDirectory, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
+    for (const name of ["SHA256SUMS", ...rollbackListed]) copyStableRegular(path.join(plan.rollback.bundleDirectory, name), path.join(rollbackBundle, name));
+    (hooks.verifyAttestation ?? verifyAttestation)(rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: plan.rollback.commit, sourceRef: `refs/tags/${plan.rollback.tag}` });
+    const rollbackArchivePath = path.join(rollbackBundle, rollbackCheck.manifest.artifact); const rollbackPrefix = `opsworkbench-control-center-${plan.rollback.tag.slice(1)}`;
+    if (crypto.createHash("sha256").update(fs.readFileSync(rollbackArchivePath)).digest("hex") !== plan.rollback.evidenceSha256) throw new Error("rollback artifact digest differs from the deployment plan");
+    const rollbackInspected = inspectReleaseTarGz(rollbackArchivePath, { expectedPrefix: rollbackPrefix });
+    if (rollbackInspected.archiveCommit !== plan.rollback.commit) throw new Error("rollback archive embedded commit differs from the plan");
+    const rollbackExtracted = path.join(stage, "rollback-extracted"); fs.mkdirSync(rollbackExtracted, { mode: 0o700 });
+    (hooks.extract ?? ((archive, destination) => execFileSync("tar", ["-xzf", archive, "--no-same-owner", "--no-same-permissions", "-C", destination], { stdio: "pipe" })))(rollbackArchivePath, rollbackExtracted);
+    const rollbackArchiveTree = expectedArchiveTree(rollbackInspected.members);
+    const rollbackTreeCheck = compareReleaseTree(rollbackArchiveTree, describeTree(rollbackExtracted));
+    if (!rollbackTreeCheck.ok) throw new Error(`rollback extraction failed verification: ${rollbackTreeCheck.problems.join("; ")}`);
+    const rollbackExpectedTree = expectedSubtree(rollbackInspected.members, `${rollbackPrefix}/control-center`);
+    const rollbackControlCenter = installAndVerifyExactTree(path.join(rollbackExtracted, rollbackPrefix, "control-center"), plan.rollback.releaseDirectory, rollbackExpectedTree);
+    const rollbackCompose = path.join(rollbackControlCenter, "deploy", "docker-compose.production.yml");
+    if (!fs.lstatSync(rollbackCompose).isFile()) throw new Error("rollback production compose file is absent");
     const evidence = { schemaVersion: "opsworkbench-deployment-preparation-v1", tag: plan.tag, commit: plan.commit, tree: plan.tree, preparedAt: new Date().toISOString(), hostname: os.hostname(), artifactSha256: crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex"), agentArtifactSha256: crypto.createHash("sha256").update(fs.readFileSync(agentPath)).digest("hex"), candidateImages: plan.candidateImages, rollback: plan.rollback };
     fs.writeFileSync(path.join(stage, "preparation.json"), `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o400 });
-    return { stage, extracted, controlCenter, compose, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
+    return { stage, extracted, controlCenter: installedControlCenter, compose, installedControlCenter, candidateExpectedTree, rollbackBundle, rollbackExtracted, rollbackControlCenter, rollbackCompose, rollbackExpectedTree, rollbackArchiveTree, rollbackPrefix, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
   } catch (error) {
     fs.writeFileSync(path.join(stage, "FAILED"), `${error.message}\n`, { flag: "wx", mode: 0o400 });
     throw error;
@@ -161,6 +198,24 @@ export function establishRollbackBeforeMutation(preparation, imageEvidence, { no
   return { file, record };
 }
 
+function readCurrentRelease(releaseRoot) {
+  const link = path.join(path.dirname(releaseRoot), "current");
+  if (!fs.existsSync(link)) return { link, target: null };
+  const stat = fs.lstatSync(link);
+  if (!stat.isSymbolicLink()) throw new Error("current release pointer is not a symbolic link");
+  const target = fs.realpathSync(link);
+  if (!path.isAbsolute(target) || !target.startsWith(`${path.resolve(releaseRoot)}${path.sep}`) || !fs.lstatSync(target).isDirectory()) throw new Error("current release pointer escaped the verified release root");
+  return { link, target };
+}
+
+function switchCurrentRelease(current, target) {
+  const pending = `${current.link}.reviewed-pending`;
+  if (fs.existsSync(pending)) throw new Error("pending current release pointer already exists");
+  fs.symlinkSync(target, pending, process.platform === "win32" ? "junction" : "dir");
+  fs.renameSync(pending, current.link);
+  return target;
+}
+
 export function reverifyPreparedRelease(preparation, hooks = {}) {
   const check = verifyReleaseBundle(preparation.stage, { expectedTag: preparation.plan.tag });
   if (!check.ok || check.manifest.commit !== preparation.plan.commit) throw new Error("prepared bundle failed immediate re-verification");
@@ -170,10 +225,19 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   if (inspected.archiveCommit !== preparation.plan.commit) throw new Error("prepared archive commit changed");
   const tree = compareReleaseTree(preparation.expectedTree, describeTree(preparation.extracted));
   if (!tree.ok) throw new Error(`prepared tree changed before consumption: ${tree.problems.join("; ")}`);
+  const installedTree = compareReleaseTree(preparation.candidateExpectedTree, describeTree(preparation.installedControlCenter));
+  if (!installedTree.ok) throw new Error(`installed candidate tree changed before consumption: ${installedTree.problems.join("; ")}`);
   const inspectedAgent = inspectReleaseTarGz(preparation.agentPath, { expectedPrefix: "control-center" });
   const agentTree = compareReleaseTree(preparation.expectedAgentTree, describeTree(preparation.agentExtracted));
   if (!inspectedAgent.members.size || !agentTree.ok) throw new Error(`prepared agent tree changed before consumption: ${agentTree.problems.join("; ")}`);
-  return { bundle: check, tree, agentTree };
+  const rollbackCheck = verifyReleaseBundle(preparation.rollbackBundle, { expectedTag: preparation.plan.rollback.tag });
+  if (!rollbackCheck.ok || rollbackCheck.manifest.commit !== preparation.plan.rollback.commit) throw new Error("rollback bundle changed before consumption");
+  const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(preparation.rollbackBundle, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
+  (hooks.verifyAttestation ?? verifyAttestation)(preparation.rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.rollback.commit, sourceRef: `refs/tags/${preparation.plan.rollback.tag}` });
+  const rollbackTree = compareReleaseTree(preparation.rollbackArchiveTree, describeTree(preparation.rollbackExtracted));
+  const installedRollbackTree = compareReleaseTree(preparation.rollbackExpectedTree, describeTree(preparation.rollbackControlCenter));
+  if (!rollbackTree.ok || !installedRollbackTree.ok) throw new Error("rollback source tree changed before consumption");
+  return { bundle: check, tree, installedTree, agentTree, rollbackTree, installedRollbackTree };
 }
 
 const imageExpectations = {
@@ -252,17 +316,18 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const agentBackup = path.join(preparation.stage, "agent-rollback");
   const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   agentControl(["prepare", preparation.agentExtracted, agentBackup]);
-  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }]);
+  const priorCurrent = readCurrentRelease(plan.releaseRoot);
+  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
-  const compose = hooks.compose ?? ((args, env) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", preparation.compose, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+  const compose = hooks.compose ?? ((args, env, composeFile = preparation.compose) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", composeFile, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
   const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
-  compose(["config", "--quiet"], candidateEnv);
+  compose(["config", "--quiet"], candidateEnv, preparation.compose);
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
   let agentActivationAttempted = false;
   try {
-    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv);
-    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv);
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv, preparation.compose);
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv, preparation.compose);
     agentActivationAttempted = true;
     agentControl(["activate", preparation.agentExtracted, plan.tag, plan.commit, agentBackup]);
     for (let pass = 0; pass < (hooks.acceptancePasses ?? 3); pass += 1) {
@@ -273,10 +338,11 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     if (agentActivationAttempted) {
       try { agentControl(["rollback", agentBackup]); } catch (agentCause) { throw new AggregateError([cause, agentCause], `deployment failed and agent rollback also failed: ${cause.message}; ${agentCause.message}`, { cause: agentCause }); }
     }
-    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate", "edge"], rollbackEnv);
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate", "edge"], rollbackEnv, preparation.rollbackCompose);
     for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`, { cause });
     throw new Error(`deployment failed and was rolled back: ${cause.message}`, { cause });
   }
+  switchCurrentRelease(priorCurrent, preparation.installedControlCenter);
   const record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
   fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });
   return { status: "deployed", imageEvidence, platformEvidence, rollbackRecord: rollbackReady.file };
@@ -293,10 +359,36 @@ function loadPlanFile(file) {
   } finally { fs.closeSync(fd); }
 }
 
+function assertRootOwnedPathChain(target, { directory = false } = {}) {
+  if (process.platform !== "linux" || process.getuid?.() !== 0) throw new Error("trusted deployment requires Linux root");
+  const resolved = path.resolve(target);
+  if (fs.realpathSync(resolved) !== resolved) throw new Error(`trusted deployment path traverses a symlink: ${resolved}`);
+  const components = resolved.split(path.sep).filter(Boolean); let cursor = path.parse(resolved).root;
+  for (const component of components) {
+    cursor = path.join(cursor, component); const stat = fs.lstatSync(cursor);
+    if (stat.isSymbolicLink() || (cursor !== resolved && !stat.isDirectory())) throw new Error(`trusted deployment path has an unsafe component: ${cursor}`);
+    if (stat.uid !== 0 || stat.gid !== 0 || (stat.mode & 0o022) !== 0) throw new Error(`trusted deployment path is not root-owned and non-writable: ${cursor}`);
+  }
+  const leaf = fs.lstatSync(resolved);
+  if ((directory && !leaf.isDirectory()) || (!directory && !leaf.isFile())) throw new Error("trusted deployment path has the wrong type");
+}
+
+function assertProductionPlanLocations(planFile, plan) {
+  const deployerRoot = "/var/lib/opsworkbench-deployer"; const inbox = `${deployerRoot}/inbox`; const plans = `${deployerRoot}/plans`;
+  if (path.resolve(plan.releaseRoot) !== "/opt/opsworkbench/releases" || path.resolve(plan.stagingRoot) !== deployerRoot) throw new Error("production deployment roots are not the fixed trusted roots");
+  for (const [name, location] of [["plan", planFile], ["candidate bundle", plan.bundleDirectory], ["rollback bundle", plan.rollback.bundleDirectory]]) {
+    const allowed = name === "plan" ? plans : inbox; const resolved = path.resolve(location);
+    if (!resolved.startsWith(`${allowed}${path.sep}`)) throw new Error(`${name} is outside its fixed trusted root`);
+    assertRootOwnedPathChain(resolved, { directory: name !== "plan" });
+  }
+  assertRootOwnedPathChain(plan.stagingRoot, { directory: true }); assertRootOwnedPathChain(plan.releaseRoot, { directory: true });
+}
+
 async function main() {
   const command = process.argv[2]; const planIndex = process.argv.indexOf("--plan");
   if (!['prepare', 'deploy'].includes(command) || planIndex < 0 || !process.argv[planIndex + 1]) throw new Error("usage: trusted-deployer.mjs <prepare|deploy> --plan <absolute-plan.json>");
-  const preparation = prepareReviewedRelease(loadPlanFile(process.argv[planIndex + 1]));
+  const planFile = path.resolve(process.argv[planIndex + 1]); const plan = loadPlanFile(planFile); assertProductionPlanLocations(planFile, plan);
+  const preparation = prepareReviewedRelease(plan);
   if (command === "prepare") process.stdout.write(`${JSON.stringify({ status: "prepared", stage: preparation.stage, commit: preparation.plan.commit, tree: preparation.plan.tree })}\n`);
   else process.stdout.write(`${JSON.stringify(await deployPreparedRelease(preparation))}\n`);
 }
