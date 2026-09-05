@@ -1,64 +1,191 @@
 # Deployment readiness & release attestation — OpsWorkbench control-center
 
-Baseline: reconciled `main` @ `2277beb6` (accepted UI stream). Goal: define exactly what must be true before
-any production promotion. **Promotion is NOT authorized by this document** — it still requires provenance
-recovery closed ([provenance-recovery-16e14682.md](provenance-recovery-16e14682.md)) **and** explicit owner approval.
+**Reconciled 2026-09-05 against the running host, read-only.** The previous revision was written when
+production was `16e14682` and said production had bypassed tags, attestation and the manifest entirely.
+That was true of `16e14682` and **is no longer true of what is running**; two releases have happened since,
+through the manifest mechanism. Baseline is now `main` @ `b5105c20`. **Promotion is still NOT authorized by
+this document** — it requires explicit owner approval.
 
-## 1. Current state — the attestation pipeline is strong (and was bypassed)
+## 0. What production actually is, measured
 
-The release/attestation machinery already exists and is rigorous:
+| | |
+| --- | --- |
+| host | `Ops-Workbench`, Ubuntu 24.04.4, behind a token-mode Cloudflare Tunnel (`cloudflared.service`) |
+| `/healthz` | `0.1.2-operate`, commit `4c47c7b1…`, `"source":"manifest"` |
+| live release | `/opt/opsworkbench/current` → `releases/review-4c47c7b1/app` |
+| runtime | Docker Compose project `opsworkbench`: `api`, `web`, `admin-web`, `edge` (nginx:1.27-alpine), `mongo` (mongo:8.0), images tagged with the full 40-char commit |
+| listeners | edge published on `127.0.0.1:18080`; **admin-web on `127.0.0.1:18081` — observed as a separate listener, so a separate origin.** Whether public admin traffic reaches it directly is *not* established: the tunnel ingress is control-plane-managed and unreadable from the host |
+| database | `control_center_staging` (the name is historical), 80 collections, 61,743 audit events, 47 enrollments |
+| distance from `main` | **225 commits** |
 
-- **`control-center-release.yml`** (tag `v*.*.*-*` or dispatch on an existing tag):
-  checks out the **exact annotated tag** (`--verify-tag`); Gitleaks 8.30.1 (checksum-verified) secret scan of
-  the tagged tree; `npm audit --audit-level=high`; `test` + `typecheck` + `lint` + `build`; **deterministic
-  bundle built twice** (`verify-release-artifacts.sh`); **SLSA build-provenance attestation**
-  (`actions/attest-build-provenance@v3`) over the tarball + manifest + `SHA256SUMS`; immutable draft prerelease
-  that **refuses to replace** an existing release; final clean-tree integrity assertions.
-- **`control-center-ci.yml`** builds + verifies an **exact-commit deployment archive** per push
-  (`build-deployment-archive.mjs` → `verify-deployment-archive.mjs`).
-- **`build-deployment-archive.mjs`** requires an exact 40-char SHA, **refuses any commit that does not resolve
-  in the repo**, and emits an integrity manifest binding `archiveSha256` → `commit` → per-file hashes (with
-  protected-shell-file LF enforcement).
+## 1. Source → release artifact → deployed directory verifies. The runtime does not.
 
-**Implication:** production `16e14682` **could not have been produced by this tooling** — the archive builder
-rejects a commit that does not resolve, and `16e14682` resolves nowhere. Production was deployed **out-of-band**
-from a raw local checkout with an env-declared identity, bypassing tags, attestation, and the manifest entirely.
-The pipeline is not the weakness; the absence of an **enforced path from pipeline → production** is.
+Established 2026-09-05, and stated with its boundary because the previous revision asserted the opposite and
+overshooting in the other direction would be the same mistake:
 
-## 2. Readiness gaps (what must change before promotion)
+- `gh attestation verify` on `opsworkbench-control-center-0.1.2-operate.tar.gz` exits 0, binding
+  `gitCommit 4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b` via `refs/tags/v0.1.2-operate`, builder
+  `control-center-release.yml`, runner `github-hosted`;
+- its three subject digests are `a4d89430…` (tarball), `c0eb41b8…` (manifest), `7213968e…` (`SHA256SUMS`);
+- `release.manifest.json` and `incoming.SHA256SUMS` **on the host** hash to `c0eb41b8…` and `7213968e…` —
+  the same bytes the attestation signed;
+- **all 253 files in the artifact are byte-identical in the deployed `app/` directory.**
 
-| # | Gap | Why it matters | Remedy |
-|---|-----|----------------|--------|
-| G1 | **No enforced deploy-time verification.** Nothing makes prod consume only release-workflow output. | This is precisely how `16e14682` happened. | A deploy step that `gh attestation verify` / verifies `SHA256SUMS` + the build-provenance attestation for the bundle, and **refuses to start** otherwise. **Tooling: `control-center/scripts/verify-release-bundle.mjs`** (offline checksum+manifest verification, always; attestation via `gh`, made mandatory with `CONTROL_CENTER_REQUIRE_RELEASE_ATTESTATION=1`). Opt-in; not yet wired into a live deploy. |
-| G2 | **Runtime identity is unverified env strings** (`/healthz` + readiness `build` trusted `BUILD_VERSION`/`GIT_COMMIT`/`GIT_BRANCH`). | The running app cannot be proven to match any attested artifact. | **Implemented: `resolveBuildIdentity()` (`apps/api/src/buildIdentity.ts`)** binds `/healthz` + readiness `build` to the shipped `opsworkbench-release-v1` manifest via `CONTROL_CENTER_RELEASE_MANIFEST`, reporting `source: manifest\|env`. Env fallback keeps current deploys unchanged. Further hardening (startup tree-hash check vs the integrity manifest) can follow. |
-| G3 | **Tag → audited-line binding is unchecked.** The release workflow will build any pushed `v*.*.*-*` tag. | An unreviewed commit (exactly `16e14682`'s situation) could still be tagged and shipped. | Release job asserts the tag's commit is an **ancestor of audited `main`** (or a reviewed release branch), and fails otherwise. |
-| G4 | **Provenance of the currently-running prod is open.** | Cannot attest what is live, cannot safely roll forward/back. | Close via the operator artifact-diff procedure in [provenance-recovery-16e14682.md](provenance-recovery-16e14682.md). |
-| G5 | **agent-v2 / key-ceremony prerequisites unmet.** `CONTROL_CENTER_AGENT_PROTOCOL_V2` off; no CP task-signing key, no owner public key, no persistent staging, no key ceremony. | Prod rollout of the asymmetric protocol is unsafe without these (see security-review). | Provision `CONTROL_CENTER_TASK_SIGNING_PRIVATE_KEY` (CP) + `CONTROL_CENTER_OWNER_PUBLIC_KEY`; agents bootstrap both public keys; run the key ceremony on persistent staging first. Keep flag off until then. |
+**Where that chain stops, precisely:**
 
-## 3. Deployment-readiness gate (all must be TRUE before promotion)
+- **The match is one-directional, and this is not a quibble.** Every file the artifact contains is present
+  and identical; the directory is not therefore the artifact. It holds **two files the artifact does not**,
+  and a live container is built from them (G6). "All artifact-listed files verified" is the claim the
+  evidence supports; "the deployed directory is provenanced" is not. Importing those two files into the
+  repository in PR #63 makes them reviewed **from now on** — it does not retroactively put them inside
+  either attested release.
 
-- [ ] **G4** Provenance of live `16e14682` recovered, drift reviewed, and either matched to a reviewed commit or
-      reconstructed into one that is an ancestor of audited `main`.
-- [ ] Release artifact built **only** by `control-center-release.yml` from a **pushed annotated tag** whose commit
+- **The running images are not bound to that tree.** They are *tagged* with the commit, and a tag is a label
+  the builder chose. Nothing relates image bytes to the directory above. This is the largest remaining hole
+  and it is why G4 below closes a narrow claim rather than a broad one.
+- **The tag is not bound to the audited line.** The attestation proves *this artifact was built from the
+  commit that tag points at*. It does not prove that commit was ever reviewed or is an ancestor of `main` —
+  that is G3, still open. "Reviewed source" is therefore not a phrase this chain has yet earned.
+
+## 2. What the release path is, and what rollback is
+
+Neither was written down anywhere before this revision; both are recovered from the host.
+
+**Release.** `releases/<name>/` holds `app/` plus `release.manifest.json`, `incoming.SHA256SUMS`,
+`app.override.yml`, `rollback-release.txt` and `rollback-admin-image.txt`. `current` is a symlink to the
+live `app/`. Compose lives at `/opt/opsworkbench/shared/compose/docker-compose.yml`; env at
+`shared/compose/env/`. `checkpoints/` retains the compose and env of prior deployments.
+
+**The thing that produces all of that was not found, and the search has a stated edge.** Nothing under
+`control-center/` deploys the control-center: `verify-release-bundle.mjs` has exactly one caller, its own
+test, and `control-center/deploy/` is material a host consumes — compose, nginx, systemd — not a deployer.
+That much is exhaustive for this repository. On the host the search was **scoped**: no script under
+`shared/`, `/usr/local/bin` or `/root` references the release layout or the two overlay files in G6.
+
+**What that supports, and no more:** no deployment mechanism was found in this repository or in the host
+paths searched, and its execution location and version-control status are **unidentified**. It was not
+ruled out in systemd units or timers, cron, a container, CI, another repository, or an operator's own
+machine — and any of those would explain the layout equally well. Finding it is part of G0.
+
+**That is why G1 and G6 cannot be CLOSED by writing code here — which is not the same as saying nothing can
+be written.** Their remedies are checks a deploy performs, and no deploy has been found to put them in, so
+enforcement waits on G0. The reusable primitive does not: `verify-release-tree.mjs` implements and tests the
+bidirectional comparison G6 needs, and ships with **no caller**, exactly as `verify-release-bundle.mjs` does
+for G1. Landing a validated primitive ahead of its caller is not the same mistake as landing a second
+unvalidated one.
+
+Still, a reader looking for "where do I wire this in" will not find anywhere, and should be told that before
+they start rather than after.
+
+**Rollback. What is established, and nothing beyond it:**
+
+- `rollback-release.txt` → `/opt/opsworkbench/releases/review-467a3138/app`, which exists;
+- its `release.manifest.json` hashes to `6212564a…`, **exactly the manifest subject digest in the verified
+  `v0.1.1-operate` attestation** — so the rollback target's metadata is attested, not merely present;
+- **every one of the artifact's 253 files is byte-identical in it**, the same check §1 records for the live
+  release — and one-directional in the same way: the directory holds the same two extra files, with the same
+  digests, so G6 is present in this release too;
+- three images tagged `control-center-{api,web,admin-web}:467a3138…` are on the host.
+
+**What is NOT established, and each of these is load-bearing:**
+
+- that those image bytes were built from that directory — the same unbound-tag problem as §1;
+- that the current database and schema state is compatible with `v0.1.1-operate`;
+- that retagging and `compose up` produces a *working* system. **No rollback has been executed.** Doing so is
+  a production mutation and needs owner authorization.
+
+So this is a rollback whose **artifacts are verified available**, not a rollback path shown to work. That
+distinction is the whole of the readiness items in §4.
+
+One operational fact worth not losing: production retains a distinct image tag per release, so a rollback
+would be a retag rather than a rebuild. Staging has a single `:staging` tag per image, so a rebuild there
+destroys the only rollback artifact it has.
+
+## 3. Readiness gaps
+
+| # | Gap | Status |
+|---|-----|--------|
+| G0 | **The deployment mechanism is not identified or represented in this repository.** Whatever creates release directories, writes the overlay in G6 and moves `current` was not found here or in the host paths searched; where it runs and whether it is version-controlled anywhere is unknown. | **OPEN, and it blocks ENFORCEMENT of G1 and G6** — their checks need a deploy to run in. It does not block implementing their primitives: see `verify-release-tree.mjs`. See §2. |
+| G1 | **No enforced deploy-time verification.** Nothing makes prod consume only release-workflow output. | **OPEN.** `control-center/scripts/verify-release-bundle.mjs` exists (offline checksum+manifest, attestation via `gh`, mandatory with `CONTROL_CENTER_REQUIRE_RELEASE_ATTESTATION=1`) but is not wired into a live deploy. The chain in §1 was verified *by hand, after the fact*. |
+| G2 | **Runtime identity was unverified env strings.** | **PARTLY CLOSED.** `resolveBuildIdentity()` binds `/healthz` to the shipped manifest and production reports `source: manifest`. The manifest is still a file the deployer placed there: nothing re-hashes the unpacked tree at startup and compares. Reporting an identity is not verifying one. |
+| G3 | **Tag → audited-line binding is unchecked.** The release workflow will build any pushed `v*.*.*-*` tag. | **OPEN.** An unreviewed commit could still be tagged, attested and shipped, and the attestation would look exactly as convincing. |
+| G4 | **Provenance of every ARTIFACT-LISTED file in the deployed directory.** *(Narrowed twice on 2026-09-05. It first read "of the currently-running prod", which the evidence does not reach; then "of the deployed release directory", which it also does not reach, because the match runs one way and the directory holds two files the artifact does not.)* | **CLOSED** — see §1. **Provenance of the directory as a whole stays incomplete under G6**, and that is the honest residue rather than a technicality. |
+| G4b | **Provenance of the running RUNTIME.** Image bytes are not bound to the deployed tree. | **OPEN.** Carved out of G4 rather than closed with it. |
+| G5 | **agent-v2 / key-ceremony prerequisites unmet.** | **OPEN**, unchanged. Keep `CONTROL_CENTER_AGENT_PROTOCOL_V2` off. |
+| G6 | **Nothing checks that the release directory contains ONLY what the manifest names.** | **OPEN, and it has already happened — twice.** `apps/web/Dockerfile.admin` and `deploy/nginx/admin-web.conf`, from no commit in this repository, are in **both** the live release and the rollback target, byte-identical in each. A digest check that iterates the manifest cannot see them: every file the manifest named matched. See PR #63, which brought both under review. |
+
+**G6's remedy, in the detail it needs — a naïve version has the same shape of hole it is closing:**
+
+- compare **normalized relative paths *and* filesystem types**, in both directions — a name-only check
+  passes a symlink where a file is expected;
+- reject unexpected symlinks and directories, not only unexpected regular files;
+- run **after extraction *and* again immediately before build/start**. The overlay here was written nine
+  minutes after extraction, so a check running only at extraction time would have seen nothing wrong;
+- make the later check the one the deploy **refuses on**.
+
+**And that still does not close the window, which is worth saying rather than letting the timing imply it.**
+A mutation after the last comparison and before the consumer opens the files is still possible; running the
+check later narrows the race, it does not remove it. Removing it means **the verified object has to be the
+object consumed**, and the examples have to satisfy that literally:
+
+- build from an **immutable snapshot** that was verified;
+- **create the package first, make it immutable or content-addressed, verify that exact package**, then
+  consume it **by its verified identity** — creating it first only fixes the directory-to-package race, and
+  a mutable package can still change after it has been verified;
+- verify while **constructing a content-addressed package**, and consume the resulting digest;
+- or prevent writes for the whole of verification *and* consumption.
+
+Note which one is missing: *"package after verification and consume the package"* is **not** sufficient, and
+it was in an earlier draft of this paragraph. The directory can change while it is being read into the
+package, and the package is in any case not the object whose bytes were verified — it only moves the
+boundary one step. Timing is the cheap mitigation; identity is the fix, and identity means the same bytes,
+not a faithful copy of them.
+
+## 4. Deployment-readiness gate (all must be TRUE before promotion)
+
+- [x] **G4** Every **artifact-listed** file in the deployed directory matched to an attested artifact.
+      *(Not the directory as a whole — it holds two files the artifact does not; that residue is G6.)*
+- [x] Rollback **artifacts** verified available: target directory present, **all 253 artifact-listed files
+      matched** to the attested `v0.1.1-operate` artifact, and its images retained. *(Same two extras
+      recovered there; same residue.)*
+- [ ] **Documented, tested rollback path.** *(Restored — the previous revision required this and this
+      reconciliation wrongly dropped it. Artifact availability is a prerequisite for it, not a substitute.)*
+- [ ] **G4b** Container images bound to the tree they were built from, rather than tagged with its commit.
+- [ ] Release artifact built **only** by `control-center-release.yml` from a pushed annotated tag whose commit
       is in the audited `main` line (**G3**).
-- [ ] Bundle **SHA256SUMS + SLSA build-provenance attestation verified** at deploy time; deploy refuses on failure (**G1**).
-- [ ] Running app reports **manifest `commit` + `archiveSha256`**, verified against the unpacked tree at startup (**G2**).
-- [ ] Rollback ready: previous immutable bundle retained + verified; documented, tested rollback path; rollback tags current.
-- [ ] agent-v2 decision explicit: flag stays **off** for this promotion unless the full key ceremony (**G5**) has
-      completed on persistent staging with owner sign-off.
+- [ ] Bundle **SHA256SUMS + SLSA build-provenance attestation verified at deploy time**; deploy refuses on
+      failure (**G1**). Verifying by hand afterwards is not this.
+- [ ] Running app verifies the **unpacked tree** against the manifest at startup, not only reports it (**G2**).
+- [ ] Deploy **refuses a release directory containing files the manifest does not name**, checked
+      immediately before start as well as after extraction (**G6**).
+- [ ] **G0** The deployment mechanism identified, and represented under version control where the checks
+      below can run inside it.
+- [ ] agent-v2 decision explicit: flag stays **off** unless the full key ceremony (**G5**) has completed on
+      persistent staging with owner sign-off.
 - [ ] Secrets/keys handled by the owner (never by the assistant): no prod keys provisioned in code or CI.
 - [ ] **Owner approval** recorded for this specific promotion.
 
-## 4. Recommended implementation order (all non-production, reviewable in PRs)
+## 5. Recommended implementation order (all non-production, reviewable in PRs)
 
-1. **G3** — add the tag→`main`-ancestor assertion to `control-center-release.yml` (cheapest, closes the
-   "unreviewed commit can ship" hole that created `16e14682`).
-2. **G2** — deploy injects manifest `commit`/`archiveSha256`; extend `runtimeIdentity()` to report them + a
-   startup tree-hash check against the shipped manifest.
-3. **G1** — a `verify-before-start` deploy gate (attestation + checksum verification) documented in `deploy/` and
-   wired into the deploy scripts.
-4. **G4/G5** — host-operator + owner actions (provenance closure, key ceremony), tracked separately.
+1. **G0** — first, because everything downstream is enforcement that needs somewhere to run. This is
+   identification and recovery of an existing process, not a new design: something already creates these
+   directories correctly enough that 253 of 255 files match an attested artifact.
+2. **G6** — the only gap with a demonstrated instance. Its primitive is already implemented and tested
+   (`verify-release-tree.mjs`); what remains is a caller, which is G0.
+3. **G3** — the tag→`main`-ancestor assertion in `control-center-release.yml`.
+4. **G2** — startup tree-hash check against the shipped manifest.
+5. **G1** — a verify-before-start deploy gate wired into the deploy scripts.
+6. **G4b / G5** — image binding, and the owner-run key ceremony, tracked separately.
 
-None of items 1–3 touch production or change runtime behavior of the current build; they harden the path that a
-future promotion will use. They should land as normal reviewed PRs against `main`, flag-neutral, before any
-promotion is attempted.
+None of 2–5 mutates production while it is being built. They **do** change how a future promotion behaves —
+that is their purpose: a startup tree-integrity check and a verify-before-start gate exist to *refuse* a
+deploy that today would proceed. Saying they change nothing would be the same kind of overclaim this
+revision exists to remove.
+
+## 6. Migrations
+
+There is **no migration ledger collection** in the production database. Schema state is whatever the
+application has written, and there is no record on the host of which migrations have been applied. This is
+consistent with the known behaviour that nothing calls `migrate()` automatically. Any promotion crossing a
+schema change has to treat that as a manual, recorded step — and it is also why rollback compatibility in
+§2 is unknown rather than merely untested.
