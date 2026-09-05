@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { establishRollbackBeforeMutation, inspectImmutableImage, parseDeploymentPlan, prepareReviewedRelease } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, parseDeploymentPlan, prepareReviewedRelease } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -15,6 +15,7 @@ function plan(root) { return {
   schemaVersion: "opsworkbench-trusted-deployment-v1", tag: "v0.2.0-operate", commit, tree,
   bundleDirectory: path.join(root, "bundle"), stagingRoot: path.join(root, "stage"), releaseRoot: path.join(root, "releases"), composeProject: "opsworkbench",
   candidateImages: { api: image("api", "1"), web: image("web", "2"), admin: image("admin-web", "3"), reviewGate: image("review-gate", "4") },
+  platform: { edgeImage: `docker.io/library/nginx@sha256:${"a".repeat(64)}`, mongoImage: `docker.io/library/mongo@sha256:${"b".repeat(64)}`, mongoVolume: "mongo_verified" },
   rollback: { tag: "v0.1.9-operate", commit: rollbackCommit, tree: rollbackTree, images: { api: image("api", "5"), web: image("web", "6"), admin: image("admin-web", "7"), reviewGate: image("review-gate", "8") }, releaseDirectory: path.join(root, "rollback"), evidenceSha256: "9".repeat(64) },
   readiness: ["https://example.test/healthz", "https://example.test/", "https://admin.example.test/"],
 }; }
@@ -72,4 +73,24 @@ test("rollback eligibility is durably recorded before mutation authority exists"
   const result = establishRollbackBeforeMutation(preparation, [{ role: "api", localImageId: `sha256:${"9".repeat(64)}` }]);
   assert.equal(result.record.runtimeMutationAuthorized, false); assert.equal(fs.existsSync(result.file), true);
   assert.throws(() => establishRollbackBeforeMutation(preparation, []), /exist/i);
+});
+
+test("deployment establishes rollback first, requires readiness, and restores rollback images on failure", async () => {
+  const { item, prefix, compose: composeBytes } = releaseFixture();
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }), extract: (_archive, destination) => { const target = path.join(destination, prefix, "control-center", "deploy"); fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, "docker-compose.production.yml"), composeBytes); } });
+  const calls = [];
+  let rolledBack = false;
+  const imageHooks = {
+    remoteInspect: (reference) => `Name: ${reference}\n`, pull: () => undefined,
+    localInspect: (reference) => ({ Id: `sha256:${sha(reference)}`, RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": reference.includes("@sha256:1") || reference.includes("@sha256:2") || reference.includes("@sha256:3") || reference.includes("@sha256:4") ? commit : rollbackCommit, "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }),
+  };
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), images: imageHooks,
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit }),
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    compose: (args, env) => { if (env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
+    readiness: async () => rolledBack, acceptancePasses: 1,
+  }), /was rolled back/);
+  assert.equal(calls.every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
+  assert.equal(calls.at(-1).api, item.rollback.images.api, "last mutation restores immutable rollback images");
 });

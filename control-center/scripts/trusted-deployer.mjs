@@ -19,7 +19,7 @@ function exactKeys(value, keys, name) {
 }
 
 export function parseDeploymentPlan(value) {
-  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "rollback", "readiness"], "deployment plan");
+  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "readiness"], "deployment plan");
   if (value.schemaVersion !== "opsworkbench-trusted-deployment-v1" || !tagPattern.test(value.tag) || !commitPattern.test(value.commit) || !commitPattern.test(value.tree)) throw new Error("deployment identity is invalid");
   if (!/^[a-z0-9][a-z0-9_-]{0,62}$/.test(value.composeProject)) throw new Error("compose project is invalid");
   for (const field of ["bundleDirectory", "stagingRoot", "releaseRoot"]) if (!path.isAbsolute(value[field])) throw new Error(`${field} must be absolute`);
@@ -30,6 +30,9 @@ export function parseDeploymentPlan(value) {
     if (!match || match[1] !== roles[role]) throw new Error(`candidate ${role} image is not the expected immutable repository`);
   }
   if (new Set(Object.values(value.candidateImages)).size !== 4) throw new Error("candidate runtime images are not distinct");
+  exactKeys(value.platform, ["edgeImage", "mongoImage", "mongoVolume"], "platform");
+  for (const field of ["edgeImage", "mongoImage"]) if (typeof value.platform[field] !== "string" || !/^[a-z0-9][a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/.test(value.platform[field])) throw new Error(`platform ${field} is not digest-pinned`);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(value.platform.mongoVolume)) throw new Error("platform mongoVolume is invalid");
   exactKeys(value.rollback, ["tag", "commit", "tree", "images", "releaseDirectory", "evidenceSha256"], "rollback");
   if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
   exactKeys(value.rollback.images, ["api", "web", "admin", "reviewGate"], "rollback images");
@@ -85,7 +88,7 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     if (!fs.existsSync(compose) || !fs.lstatSync(compose).isFile()) throw new Error("version-controlled production compose file is absent");
     const evidence = { schemaVersion: "opsworkbench-deployment-preparation-v1", tag: plan.tag, commit: plan.commit, tree: plan.tree, preparedAt: new Date().toISOString(), hostname: os.hostname(), artifactSha256: crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex"), candidateImages: plan.candidateImages, rollback: plan.rollback };
     fs.writeFileSync(path.join(stage, "preparation.json"), `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o400 });
-    return { stage, extracted, controlCenter, compose, evidence };
+    return { stage, extracted, controlCenter, compose, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), prefix };
   } catch (error) {
     fs.writeFileSync(path.join(stage, "FAILED"), `${error.message}\n`, { flag: "wx", mode: 0o400 });
     throw error;
@@ -126,4 +129,57 @@ export function establishRollbackBeforeMutation(preparation, imageEvidence, { no
   const fd = fs.openSync(file, "wx", 0o400);
   try { fs.writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   return { file, record };
+}
+
+export function reverifyPreparedRelease(preparation, hooks = {}) {
+  const check = verifyReleaseBundle(preparation.stage, { expectedTag: preparation.plan.tag });
+  if (!check.ok || check.manifest.commit !== preparation.plan.commit) throw new Error("prepared bundle failed immediate re-verification");
+  const listed = parseSha256Sums(fs.readFileSync(path.join(preparation.stage, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
+  (hooks.verifyAttestation ?? verifyAttestation)(preparation.stage, listed, { required: true });
+  const inspected = inspectReleaseTarGz(path.join(preparation.stage, check.manifest.artifact), { expectedPrefix: preparation.prefix });
+  if (inspected.archiveCommit !== preparation.plan.commit) throw new Error("prepared archive commit changed");
+  const tree = compareReleaseTree(preparation.expectedTree, describeTree(preparation.extracted));
+  if (!tree.ok) throw new Error(`prepared tree changed before consumption: ${tree.problems.join("; ")}`);
+  return { bundle: check, tree };
+}
+
+const imageExpectations = {
+  api: { role: "api", title: "opsworkbench-control-center-api" },
+  web: { role: "web", title: "opsworkbench-control-center-web" },
+  admin: { role: "admin", title: "opsworkbench-control-center-admin-web" },
+  reviewGate: { role: "review-gate", title: "opsworkbench-review-gate" },
+};
+
+export async function deployPreparedRelease(preparation, hooks = {}) {
+  const { plan } = preparation;
+  const compatibility = await hooks.verifyCompatibility?.(plan);
+  if (!compatibility?.ok || compatibility.candidateCommit !== plan.commit || compatibility.rollbackCommit !== plan.rollback.commit) throw new Error("exact candidate/rollback schema compatibility evidence is absent");
+  const imageEvidence = [];
+  for (const [role, reference] of Object.entries(plan.candidateImages)) imageEvidence.push({ set: "candidate", ...inspectImmutableImage(reference, { commit: plan.commit, ...imageExpectations[role] }, hooks.images) });
+  for (const [role, reference] of Object.entries(plan.rollback.images)) imageEvidence.push({ set: "rollback", ...inspectImmutableImage(reference, { commit: plan.rollback.commit, ...imageExpectations[role] }, hooks.images) });
+  const platformEvidence = await hooks.verifyPlatformImages?.(plan.platform);
+  if (!platformEvidence?.ok || platformEvidence.edgeImage !== plan.platform.edgeImage || platformEvidence.mongoImage !== plan.platform.mongoImage) throw new Error("platform image registry evidence is absent or mismatched");
+  reverifyPreparedRelease(preparation, hooks);
+  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence]);
+  const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
+  const compose = hooks.compose ?? ((args, env) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", preparation.compose, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+  const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
+  const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
+  compose(["config", "--quiet"], candidateEnv);
+  // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
+  try {
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv);
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv);
+    for (let pass = 0; pass < (hooks.acceptancePasses ?? 3); pass += 1) {
+      for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
+      if (hooks.wait) await hooks.wait();
+    }
+  } catch (cause) {
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate", "edge"], rollbackEnv);
+    for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`);
+    throw new Error(`deployment failed and was rolled back: ${cause.message}`);
+  }
+  const record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
+  fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });
+  return { status: "deployed", imageEvidence, platformEvidence, rollbackRecord: rollbackReady.file };
 }
