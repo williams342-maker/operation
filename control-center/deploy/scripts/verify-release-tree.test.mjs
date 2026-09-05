@@ -201,7 +201,7 @@ test("an UNEXPECTED 'other' node is reported ONCE, with its type, and cannot be 
   assert.deepEqual(result.extra, ["sock"]);
   assert.deepEqual(result.mismatched, []);
   assert.equal(result.problems.length, 1);
-  assert.match(result.problems[0], /outside its provenance: \"sock\" \(other\)/);
+  assert.match(result.problems[0], /outside its provenance: "sock" \(other\)/);
   assert.equal(result.ok, false);
 });
 
@@ -367,7 +367,7 @@ test("CLI: a permitted extra is REPORTED, never described as 'nothing extra'", (
   write(deployed, "runtime.log", "started\n");
   const run = captureCli([expected, deployed, "--allow-extra", "runtime.log:file"]);
   assert.equal(run.code, 0);
-  assert.match(run.out[0], /1 permitted extra\(s\): \"runtime\.log\"/);
+  assert.match(run.out[0], /1 permitted extra\(s\): "runtime\.log"/);
   assert.doesNotMatch(run.out[0], /nothing extra/);
 });
 
