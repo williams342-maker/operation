@@ -107,7 +107,9 @@ check later narrows the race, it does not remove it. Removing it means **the ver
 object consumed**, and the examples have to satisfy that literally:
 
 - build from an **immutable snapshot** that was verified;
-- **create the package first, then verify that exact package**, then consume it;
+- **create the package first, make it immutable or content-addressed, verify that exact package**, then
+  consume it **by its verified identity** — creating it first only fixes the directory-to-package race, and
+  a mutable package can still change after it has been verified;
 - verify while **constructing a content-addressed package**, and consume the resulting digest;
 - or prevent writes for the whole of verification *and* consumption.
 
