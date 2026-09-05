@@ -30,6 +30,7 @@ test("bootstrap and rollback scripts avoid direct execution and preserve fixed p
   assert.match(bootstrap, /rm -f -- "\$heartbeat" "\$heartbeat\.pending"[\s\S]*systemctl restart "\$AGENT_SERVICE"/);
   assert.match(builder, /"typescript", "bin", "tsc".*"packages", "shared", "tsconfig\.json"/);
   assert.match(reviewed, /sha256sum .*prior-agent\.sha256/); assert.match(reviewed, /rollback agent identity changed/); assert.match(reviewed, /agent rollback snapshot is absent/); assert.match(reviewed, /systemctl restart "\$service"/);
+  assert.match(reviewed, /candidate\/control-center\/apps\/agent\/dist\/agent\.js/); assert.match(reviewed, /ln -s -- "\$target" "\$install_root\/current\.reviewed-pending"/);
 });
 
 test("rollback reuses only the parent's exact inherited lock", { skip: process.platform === "win32" }, () => {

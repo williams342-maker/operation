@@ -251,7 +251,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   if (!fs.existsSync(agentScript) || !fs.lstatSync(agentScript).isFile()) throw new Error("version-controlled reviewed agent installer is absent");
   const agentBackup = path.join(preparation.stage, "agent-rollback");
   const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
-  agentControl(["prepare", path.join(preparation.agentExtracted, "control-center"), agentBackup]);
+  agentControl(["prepare", preparation.agentExtracted, agentBackup]);
   const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }]);
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
   const compose = hooks.compose ?? ((args, env) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", preparation.compose, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
@@ -264,7 +264,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv);
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv);
     agentActivationAttempted = true;
-    agentControl(["activate", path.join(preparation.agentExtracted, "control-center"), plan.tag, plan.commit, agentBackup]);
+    agentControl(["activate", preparation.agentExtracted, plan.tag, plan.commit, agentBackup]);
     for (let pass = 0; pass < (hooks.acceptancePasses ?? 3); pass += 1) {
       for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
       if (hooks.wait) await hooks.wait();

@@ -14,7 +14,7 @@ command="${1:-}"; shift || true
 
 if [ "$command" = prepare ]; then
   candidate="${1:-}"; backup="${2:-}"; safe_stage "$candidate"; safe_stage "$(dirname "$backup")"
-  [ -f "$candidate/agent-release.json" ] && [ -f "$candidate/apps/agent/dist/agent.js" ] || fail "verified agent candidate is incomplete"
+  [ -f "$candidate/control-center/agent-release.json" ] && [ -f "$candidate/control-center/apps/agent/dist/agent.js" ] || fail "verified agent candidate is incomplete"
   if [ -L "$install_root/current" ]; then prior="$(readlink -f -- "$install_root/current")"; elif [ -d "$install_root/source" ]; then prior="$install_root/source"; else fail "current agent release is unavailable"; fi
   [ -f "$config_root/agent.json" ] || fail "enrolled agent configuration is absent"
   [ ! -e "$backup" ] || fail "agent rollback snapshot already exists"
@@ -34,12 +34,12 @@ if [ "$command" = activate ]; then
   [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-operate$ ]] || fail "release tag is invalid"
   [[ "$commit" =~ ^[a-f0-9]{40}$ ]] || fail "release commit is invalid"
   [ -s "$backup/current-target" ] && [ -s "$backup/agent.json" ] || fail "agent rollback snapshot is absent"
-  node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1]));if(m.schemaVersion!=="opsworkbench-agent-release-v1"||m.tag!==process.argv[2]||m.commit!==process.argv[3])process.exit(1)' "$candidate/agent-release.json" "$tag" "$commit" || fail "agent candidate identity mismatch"
+  node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1]));if(m.schemaVersion!=="opsworkbench-agent-release-v1"||m.tag!==process.argv[2]||m.commit!==process.argv[3])process.exit(1)' "$candidate/control-center/agent-release.json" "$tag" "$commit" || fail "agent candidate identity mismatch"
   version="${tag#v}"; target="$install_root/releases/$version"; pending="$target.pending"
   [ ! -e "$target" ] && [ ! -e "$pending" ] || fail "agent candidate target already exists"
   mkdir -p "$install_root/releases"; cp -a -- "$candidate" "$pending"; chown -R root:root "$pending"; mv -- "$pending" "$target"
-  for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do install -o root -g root -m 0644 "$candidate/deploy/systemd/$unit" "$unit_root/$unit"; done
-  digest="$(sha256sum "$candidate/apps/agent/dist/agent.js" | cut -d' ' -f1)"
+  for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do install -o root -g root -m 0644 "$candidate/control-center/deploy/systemd/$unit" "$unit_root/$unit"; done
+  digest="$(sha256sum "$candidate/control-center/apps/agent/dist/agent.js" | cut -d' ' -f1)"
   node -e 'const fs=require("fs");const p=process.argv[1],v=process.argv[2],d=process.argv[3],s=fs.statSync(p),c=JSON.parse(fs.readFileSync(p));c.agentVersion=v;c.binarySha256=d;const n=p+".reviewed-pending";fs.writeFileSync(n,JSON.stringify(c,null,2)+"\n",{mode:s.mode});fs.chownSync(n,s.uid,s.gid);fs.renameSync(n,p)' "$config_root/agent.json" "$version" "$digest"
   ln -s -- "$target" "$install_root/current.reviewed-pending"; mv -Tf -- "$install_root/current.reviewed-pending" "$install_root/current"
   systemctl daemon-reload; rm -f /var/lib/opsworkbench-agent/agent/heartbeat.json; systemctl restart "$service"
