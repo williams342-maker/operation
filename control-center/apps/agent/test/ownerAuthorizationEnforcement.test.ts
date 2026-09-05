@@ -6,7 +6,7 @@ import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuth
 // agent.ts is the agent entrypoint (guards main() on NODE_ENV==="test"). Set it before dynamically
 // importing so importing verifyTask does not launch the agent poll loop.
 process.env.NODE_ENV = "test";
-const { verifyTask } = await import("../src/agent.js");
+const { verifyTask, validateForgeRuntimeIdentity } = await import("../src/agent.js");
 
 // Staging key model: the agent receives ONLY public keys — the control-plane transport public key and
 // the owner public key. The control-plane task-signing private key and the owner private key are never
@@ -38,4 +38,11 @@ test("agent config carries only PUBLIC control-plane and owner keys — never th
   assert.equal(keys.some((k) => /taskSigningPrivate|ownerPrivate|controlPlanePrivate/i.test(k)), false);
   // The ONLY private keys an agent holds are its OWN credential keys.
   assert.deepEqual(keys.filter((k) => /privateKey/i.test(k)).sort(), ["encryptionPrivateKey", "signingPrivateKey"]);
+});
+
+test("agent startup binds the enrolled target to validated Forge security material", () => {
+  const enrolled = agentConfigSchema.parse({ ...config, orgId: "org-1", serverId: "server-1" });
+  const load = () => ({ identity: { orgId: "org-1", serverId: "server-1" }, trustedRoot: {}, reviewGateCaPath: "/fixed/ca.pem" }) as never;
+  assert.doesNotThrow(() => validateForgeRuntimeIdentity(enrolled, load));
+  assert.throws(() => validateForgeRuntimeIdentity(enrolled, () => ({ identity: { orgId: "other", serverId: "server-1" } }) as never), /does not match/);
 });

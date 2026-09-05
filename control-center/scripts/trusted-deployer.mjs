@@ -266,6 +266,7 @@ const imageExpectations = {
 };
 
 const compatibilityScenarios = ["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"];
+const migrationScenarios = new Set(["migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration"]);
 
 function verifyOneForgeBuild(file, expectedSha256, identity, images, hooks = {}) {
   const stat = fs.lstatSync(file);
@@ -307,7 +308,7 @@ export function verifyCompatibilityEvidence(plan, hooks = {}) {
   }
   if (new Set([...Object.values(evidence.images.candidate), ...Object.values(evidence.images.rollback)]).size !== 8) throw new Error("candidate and rollback compatibility image identities are not all distinct");
   for (const [name, result] of Object.entries(evidence.scenarios)) {
-    if (result !== "passed" && !(result === "not-applicable-no-migrations" && evidence.migrationsPresent === false && name.includes("migration"))) throw new Error(`compatibility scenario did not pass: ${name}`);
+    if (result !== "passed" && !(result === "not-applicable-no-migrations" && evidence.migrationsPresent === false && migrationScenarios.has(name))) throw new Error(`compatibility scenario did not pass: ${name}`);
   }
   (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-deployment-rehearsal.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}` });
   return { ok: true, candidateCommit: evidence.candidateCommit, rollbackCommit: evidence.rollbackCommit, images: evidence.images, sha256: plan.compatibilityEvidence.sha256 };
@@ -402,6 +403,10 @@ function assertProductionPlanLocations(planFile, plan) {
     const allowed = name === "plan" ? plans : inbox; const resolved = path.resolve(location);
     if (!resolved.startsWith(`${allowed}${path.sep}`)) throw new Error(`${name} is outside its fixed trusted root`);
     assertRootOwnedPathChain(resolved, { directory: name !== "plan" });
+  }
+  for (const [name, location] of [["candidate Forge evidence", plan.forgeEvidence.candidatePath], ["rollback Forge evidence", plan.forgeEvidence.rollbackPath], ["compatibility evidence", plan.compatibilityEvidence.path]]) {
+    const resolved = path.resolve(location); if (!resolved.startsWith(`${inbox}${path.sep}`)) throw new Error(`${name} is outside the fixed trusted inbox`);
+    assertRootOwnedPathChain(resolved);
   }
   assertRootOwnedPathChain(plan.stagingRoot, { directory: true }); assertRootOwnedPathChain(plan.releaseRoot, { directory: true });
 }

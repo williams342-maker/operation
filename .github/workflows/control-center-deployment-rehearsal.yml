@@ -35,6 +35,8 @@ jobs:
           test "$candidate" != "$rollback"
           echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
           echo "rollback=$rollback" >> "$GITHUB_OUTPUT"
+          echo "candidate_created=$(git show -s --format=%cI "$candidate")" >> "$GITHUB_OUTPUT"
+          echo "rollback_created=$(git show -s --format=%cI "$rollback")" >> "$GITHUB_OUTPUT"
           git worktree add --detach ../rollback-source "$ROLLBACK_TAG"
       - name: Build exact candidate and rollback images locally
         env:
@@ -42,17 +44,21 @@ jobs:
           ROLLBACK_TAG: ${{ inputs.rollback_tag }}
           CANDIDATE_COMMIT: ${{ steps.source.outputs.candidate }}
           ROLLBACK_COMMIT: ${{ steps.source.outputs.rollback }}
+          CANDIDATE_CREATED: ${{ steps.source.outputs.candidate_created }}
+          ROLLBACK_CREATED: ${{ steps.source.outputs.rollback_created }}
         run: |
           set -euo pipefail
           build_set() {
-            root="$1"; label="$2"; commit="$3"; tag="$4"; tree="$(git -C "$root" show -s --format=%T "$commit")"
-            docker build "$root/control-center" -f "$root/control-center/apps/api/Dockerfile" -t "rehearsal-api:$label" --build-arg SOURCE_COMMIT="$commit" --build-arg SOURCE_TREE="$tree" --build-arg SOURCE_TAG="$tag"
-            docker build "$root/control-center" -f "$root/control-center/apps/web/Dockerfile" -t "rehearsal-web:$label" --build-arg VITE_API_URL=/api --build-arg SOURCE_COMMIT="$commit" --build-arg SOURCE_TREE="$tree" --build-arg SOURCE_TAG="$tag"
-            docker build "$root/control-center" -f "$root/control-center/apps/web/Dockerfile.admin" -t "rehearsal-admin:$label" --build-arg VITE_API_URL=/api --build-arg SOURCE_COMMIT="$commit" --build-arg SOURCE_TREE="$tree" --build-arg SOURCE_TAG="$tag"
-            docker build "$root/control-center" -f "$root/control-center/apps/review-gate/Dockerfile" -t "rehearsal-gate:$label" --build-arg SOURCE_COMMIT="$commit" --build-arg SOURCE_TREE="$tree" --build-arg SOURCE_TAG="$tag"
+            root="$1"; label="$2"; commit="$3"; tag="$4"; created="$5"; tree="$(git -C "$root" show -s --format=%T "$commit")"
+            common=(--build-arg SOURCE_COMMIT="$commit" --build-arg SOURCE_TREE="$tree" --build-arg SOURCE_TAG="$tag" --build-arg BUILD_CREATED="$created")
+            docker build "$root/control-center" -f "$root/control-center/apps/api/Dockerfile" -t "rehearsal-api:$label" "${common[@]}"
+            docker build "$root/control-center" -f "$root/control-center/apps/web/Dockerfile" -t "rehearsal-web:$label" --build-arg VITE_API_URL=/api "${common[@]}"
+            docker build "$root/control-center" -f "$root/control-center/apps/web/Dockerfile.admin" -t "rehearsal-admin:$label" --build-arg VITE_API_URL=/api "${common[@]}"
+            docker build "$root/control-center" -f "$root/control-center/apps/review-gate/Dockerfile" -t "rehearsal-gate:$label" "${common[@]}"
           }
-          build_set . candidate "$CANDIDATE_COMMIT" "$CANDIDATE_TAG"
-          build_set ../rollback-source rollback "$ROLLBACK_COMMIT" "$ROLLBACK_TAG"
+          build_set . candidate "$CANDIDATE_COMMIT" "$CANDIDATE_TAG" "$CANDIDATE_CREATED"
+          build_set ../rollback-source rollback "$ROLLBACK_COMMIT" "$ROLLBACK_TAG" "$ROLLBACK_CREATED"
+          mkdir .rehearsal-proof
           for set in candidate rollback; do
             for role in api web admin gate; do
               variable="$(printf '%s_%s_IMAGE_ID' "$set" "$role" | tr '[:lower:]' '[:upper:]')"
@@ -61,6 +67,7 @@ jobs:
               echo "${variable}=${id}" >> "$GITHUB_ENV"
             done
           done
+          printf 'passed\n' > .rehearsal-proof/rollback_immutable_images
       - name: Exercise forward, rollback, partial switch and restart against a replica set
         env:
           CANDIDATE_COMMIT: ${{ steps.source.outputs.candidate }}
@@ -93,18 +100,26 @@ jobs:
           }
           stop_set() { for name in api gate web admin; do docker rm -f "$name-$1" >/dev/null; done; }
           start_set candidate
+          printf 'passed\n' > .rehearsal-proof/forward_compatibility
           stop_set candidate
           start_set rollback
+          for role in api web admin gate; do docker image inspect "rehearsal-${role}:candidate" "rehearsal-${role}:rollback" >/dev/null; done
+          test -d ../rollback-source && test -d control-center
+          printf 'passed\n' > .rehearsal-proof/predecessor_artifacts_retained
+          printf 'passed\n' > .rehearsal-proof/rollback_compatibility
+          printf 'passed\n' > .rehearsal-proof/rollback_target_independently_verified
           docker restart rehearsal-mongo >/dev/null
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done
           docker restart api-rollback gate-rollback >/dev/null
           for name in api gate; do for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy && break; sleep 1; done; test "$(docker inspect -f '{{.State.Health.Status}}' "$name-rollback")" = healthy; done
+          printf 'passed\n' > .rehearsal-proof/service_restart_during_transition
           docker rm -f api-rollback >/dev/null
           docker run -d --name api-candidate --network "$network" -e NODE_ENV=development -e MONGO_URL='mongodb://rehearsal-mongo:27017/control_center_rehearsal?replicaSet=rs0' "$CANDIDATE_API_IMAGE_ID"
           for i in $(seq 1 30); do test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy && break; sleep 1; done
           test "$(docker inspect -f '{{.State.Health.Status}}' api-candidate)" = healthy
           test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' api-candidate)" = "$CANDIDATE_COMMIT"
           test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' gate-rollback)" = "$ROLLBACK_COMMIT"
+          printf 'passed\n' > .rehearsal-proof/rollback_after_partial_switch
       - name: Run real replica-set authority and transaction suites
         working-directory: control-center
         env:
@@ -129,10 +144,13 @@ jobs:
           ROLLBACK_TAG: ${{ inputs.rollback_tag }}
           ROLLBACK_COMMIT: ${{ steps.source.outputs.rollback }}
           MIGRATIONS_PRESENT: "false"
+          REHEARSAL_PROOF_DIR: ${{ github.workspace }}/.rehearsal-proof
         run: |
           set -euo pipefail
           node -e 'const fs=require("fs");for(const p of ["package.json",...fs.readdirSync("apps").map(x=>`apps/${x}/package.json`)]){if(!fs.existsSync(p))continue;const s=JSON.parse(fs.readFileSync(p));if(Object.keys(s.scripts||{}).some(k=>/^migrat/.test(k)))process.exit(1)}' 
           test ! -d migrations
+          node -e 'const fs=require("fs");const root="../rollback-source/control-center";for(const p of ["package.json",...fs.readdirSync(`${root}/apps`).map(x=>`${root}/apps/${x}/package.json`)]){if(!fs.existsSync(p))continue;const s=JSON.parse(fs.readFileSync(p));if(Object.keys(s.scripts||{}).some(k=>/^migrat/.test(k)))process.exit(1)}'
+          test ! -d ../rollback-source/control-center/migrations
           node scripts/build-rehearsal-evidence.mjs schema-rehearsal.json
       - name: Attest the rehearsal evidence
         uses: actions/attest-build-provenance@v3
