@@ -263,6 +263,10 @@ test("an unreachable or unreadable gate is a refusal, never a pass", async () =>
   assert.equal(unreadable.ok === false && unreadable.code, "gate_unreadable");
 });
 
+test("a real HTTPS gate client cannot start without the owner-bound CA", () => {
+  assert.throws(() => new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }), /owner-bound CA/);
+});
+
 test("a gate that does not answer promptly is a gate that is unreachable", async () => {
   const hanging = new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 120 }, (_input, init) =>
     new Promise((_resolve, reject) => {

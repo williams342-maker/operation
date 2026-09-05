@@ -85,7 +85,7 @@ export function loadForgeSecurityMaterial(policy: SecurityPathPolicy = {
   reviewGateCaPath: FORGE_REVIEW_GATE_CA_PATH,
   expectedUid: 0, expectedGid: 0, directoryMode: 0o755, fileMode: 0o444,
   hostname: os.hostname(), machineId: readMachineId(), mountInfoPath: "/proc/self/mountinfo",
-}): { identity: ForgeSecurityIdentity; trustedRoot: unknown; reviewGateCaPath: string } {
+}): { identity: ForgeSecurityIdentity; trustedRoot: unknown; reviewGateCaPath: string; reviewGateCa: Buffer } {
   const directory = path.resolve(policy.directory);
   const boundary = path.resolve(policy.ancestorBoundary ?? path.parse(directory).root);
   if (directory !== boundary && !directory.startsWith(`${boundary}${path.sep}`)) throw new Error("Forge security directory escapes its trusted boundary");
@@ -118,5 +118,5 @@ export function loadForgeSecurityMaterial(policy: SecurityPathPolicy = {
   if (identity.machineIdSha256 !== sha256(policy.machineId)) throw new Error("Forge security identity is bound to a different machine");
   const now = (policy.now ?? new Date()).getTime();
   if (Date.parse(identity.validFrom) > now || Date.parse(identity.validUntil) <= now) throw new Error("Forge security identity is not currently valid");
-  return { identity, trustedRoot, reviewGateCaPath: policy.reviewGateCaPath };
+  return { identity, trustedRoot, reviewGateCaPath: policy.reviewGateCaPath, reviewGateCa: reviewGateCaBytes };
 }

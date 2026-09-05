@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:22-alpine AS build
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/review-gate/package.json apps/review-gate/package.json
@@ -12,7 +12,7 @@ RUN npm prune --omit=dev --workspaces --include-workspace-root
 ARG SOURCE_COMMIT
 RUN printf '%s' "$SOURCE_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || { echo "SOURCE_COMMIT build-arg is required." >&2; exit 1; }
 
-FROM node:22-alpine AS runtime
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime
 ARG SOURCE_COMMIT
 ARG SOURCE_TREE=""
 ARG SOURCE_REPOSITORY="https://github.com/williams342-maker/operation"

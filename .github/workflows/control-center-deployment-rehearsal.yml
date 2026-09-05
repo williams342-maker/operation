@@ -67,7 +67,6 @@ jobs:
               echo "${variable}=${id}" >> "$GITHUB_ENV"
             done
           done
-          printf 'passed\n' > .rehearsal-proof/rollback_immutable_images
       - name: Exercise forward, rollback, partial switch and restart against a replica set
         env:
           CANDIDATE_COMMIT: ${{ steps.source.outputs.candidate }}
@@ -103,10 +102,19 @@ jobs:
           printf 'passed\n' > .rehearsal-proof/forward_compatibility
           stop_set candidate
           start_set rollback
-          for role in api web admin gate; do docker image inspect "rehearsal-${role}:candidate" "rehearsal-${role}:rollback" >/dev/null; done
-          test -d ../rollback-source && test -d control-center
+          for role in api web admin gate; do
+            candidate_variable="CANDIDATE_$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')_IMAGE_ID"; rollback_variable="ROLLBACK_$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')_IMAGE_ID"
+            test "$(docker inspect -f '{{.Image}}' "$role-rollback")" = "${!rollback_variable}"
+            docker image inspect "${!candidate_variable}" "${!rollback_variable}" >/dev/null
+            test "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$role-rollback")" = "$ROLLBACK_COMMIT"
+          done
+          test "$(git -C ../rollback-source rev-parse HEAD)" = "$ROLLBACK_COMMIT"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_COMMIT"
           printf 'passed\n' > .rehearsal-proof/predecessor_artifacts_retained
+          printf 'passed\n' > .rehearsal-proof/rollback_immutable_images
           printf 'passed\n' > .rehearsal-proof/rollback_compatibility
+          test "$(git cat-file -t "$ROLLBACK_TAG")" = tag
+          test "$(git rev-list -n1 "$ROLLBACK_TAG")" = "$ROLLBACK_COMMIT"
           printf 'passed\n' > .rehearsal-proof/rollback_target_independently_verified
           docker restart rehearsal-mongo >/dev/null
           for i in $(seq 1 30); do docker exec rehearsal-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true && break; sleep 1; done

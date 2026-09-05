@@ -67,9 +67,10 @@ export function reviewEnforcement(config: AgentConfig): ReviewEnforcement {
   const directory = stateDir();
   const decision = resolveEnforcement({ stateDir: directory, gate: config.reviewGate });
   if (!decision.enforcing) return { enforcing: false };
+  const security = validateForgeRuntimeIdentity(config);
   return {
     enforcing: true,
-    gate: new ReviewGateClient(decision.gate),
+    gate: new ReviewGateClient(decision.gate, undefined, security.reviewGateCa),
     journal: new ExecutionJournal(path.join(directory, "execution-journal")),
   };
 }
@@ -316,9 +317,10 @@ async function main() {
   await pollOnce();
 }
 
-export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): void {
+export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
   const security = load();
   if (security.identity.orgId !== config.orgId || security.identity.serverId !== config.serverId) throw new Error("Forge security identity does not match this enrolled agent runtime");
+  return security;
 }
 
 if (process.env.NODE_ENV !== "test") {
