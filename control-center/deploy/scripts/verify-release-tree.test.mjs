@@ -3,7 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { compareReleaseTree, describeTree } from "../../scripts/verify-release-tree.mjs";
+import {
+  compareReleaseTree,
+  describeTree,
+  parseAllowExtraArgs,
+  runCli
+} from "../../scripts/verify-release-tree.mjs";
 
 // Gap G6 — the check that would have caught the production overlay.
 //
@@ -33,12 +38,23 @@ const copy = (from) => {
   fs.cpSync(from, dir, { recursive: true });
   return dir;
 };
+// Symlink creation needs privilege or developer mode on Windows. Returns false when it is unavailable so a
+// case can skip VISIBLY rather than returning early and reporting itself as passed.
+const trySymlink = (target, at) => {
+  try {
+    fs.symlinkSync(target, at);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 test("an untouched copy matches", () => {
   const expected = artifact();
   const result = compareReleaseTree(expected, copy(expected));
   assert.deepEqual(result.problems, []);
   assert.equal(result.ok, true);
+  assert.deepEqual(result.permitted, []);
 });
 
 test("THE PRODUCTION CASE: every expected file present and identical, plus one the artifact never had", () => {
@@ -77,17 +93,16 @@ test("edited content is caught even though the path is unchanged", () => {
   assert.deepEqual(result.mismatched, [{ path: "apps/api/src/server.ts", reason: "content differs" }]);
 });
 
-test("A SYMLINK WHERE A FILE WAS is a type mismatch, not a match on the name", () => {
+test("A SYMLINK WHERE A FILE WAS is a type mismatch, not a match on the name", (t) => {
   // The reason the comparison carries types at all. A name-only check accepts this, and a symlink is an
   // instruction to read something else entirely — including something outside the tree.
   const expected = artifact();
   const deployed = copy(expected);
   const target = path.join(deployed, "package.json");
   fs.rmSync(target);
-  try {
-    fs.symlinkSync(path.join(deployed, "apps/api/src/server.ts"), target);
-  } catch {
-    return; // unprivileged Windows cannot create symlinks; the Linux CI run covers this
+  if (!trySymlink(path.join(deployed, "apps/api/src/server.ts"), target)) {
+    t.skip("this host cannot create symlinks; Linux CI runs this case");
+    return;
   }
   const result = compareReleaseTree(expected, deployed);
   assert.deepEqual(result.mismatched, [{ path: "package.json", reason: "expected file, found symlink" }]);
@@ -111,16 +126,53 @@ test("an extra DIRECTORY is reported, not only extra files", () => {
   assert.deepEqual(result.extra, ["vendor"]);
 });
 
-test("allowExtra permits a known addition and nothing else", () => {
+test("allowExtra permits a known addition, records it, and still refuses another", () => {
   // The escape hatch a real caller needs — a runtime-written file, say — and the assertion that it is an
   // allowlist rather than a mute button.
   const expected = artifact();
   const deployed = copy(expected);
   write(deployed, "runtime.log", "started\n");
   write(deployed, "unexpected.conf", "\n");
-  const result = compareReleaseTree(expected, deployed, { allowExtra: ["runtime.log"] });
+  const result = compareReleaseTree(expected, deployed, { allowExtra: [{ path: "runtime.log", type: "file" }] });
   assert.deepEqual(result.extra, ["unexpected.conf"]);
+  assert.deepEqual(result.permitted, ["runtime.log"]);
   assert.equal(result.ok, false);
+});
+
+test("AN ALLOWANCE IS TYPED: the permitted path arriving as a symlink is a mismatch, not a pass", (t) => {
+  // The finding that made allowances typed. A bare path would have let `runtime.log` arrive as a symlink
+  // pointing anywhere — the exact substitution the type comparison exists to catch, waved through by the
+  // escape hatch.
+  const expected = artifact();
+  const deployed = copy(expected);
+  if (!trySymlink(path.join(deployed, "package.json"), path.join(deployed, "runtime.log"))) {
+    t.skip("this host cannot create symlinks; Linux CI runs this case");
+    return;
+  }
+  const result = compareReleaseTree(expected, deployed, { allowExtra: [{ path: "runtime.log", type: "file" }] });
+  assert.deepEqual(result.permitted, []);
+  assert.deepEqual(result.mismatched, [{ path: "runtime.log", reason: "permitted as file, found symlink" }]);
+  assert.equal(result.ok, false);
+});
+
+test("an allowed DIRECTORY does not implicitly allow what is inside it", () => {
+  // "Allow this directory" is otherwise indistinguishable from "allow anything anyone puts in it".
+  const expected = artifact();
+  const deployed = copy(expected);
+  fs.mkdirSync(path.join(deployed, "state"));
+  write(deployed, "state/secret.env", "TOKEN=x\n");
+  const result = compareReleaseTree(expected, deployed, { allowExtra: [{ path: "state", type: "directory" }] });
+  assert.deepEqual(result.permitted, ["state"]);
+  assert.deepEqual(result.extra, ["state/secret.env"]);
+  assert.equal(result.ok, false);
+});
+
+test("a bare string allowance is refused outright rather than silently weakened", () => {
+  const expected = artifact();
+  assert.throws(
+    () => compareReleaseTree(expected, copy(expected), { allowExtra: ["runtime.log"] }),
+    /must be \{path, type\}/
+  );
 });
 
 test("describeTree records POSIX-separated paths so a Windows tree compares to a Linux one", () => {
@@ -129,4 +181,88 @@ test("describeTree records POSIX-separated paths so a Windows tree compares to a
   const entries = describeTree(artifact());
   assert.ok(entries.has("apps/api/src/server.ts"));
   assert.equal([...entries.keys()].some((key) => key.includes("\\")), false);
+});
+
+test("an 'other' node is never equal to another 'other' node at the same path", () => {
+  // Sockets, fifos and devices. Nothing here establishes their identity, and "same unknown kind" is not
+  // "same thing", so the comparison must refuse rather than accept by type equality.
+  const expected = new Map([["dev/thing", { type: "other", mode: 4516 }]]);
+  const actual = new Map([["dev/thing", { type: "other", mode: 4516 }]]);
+  const result = compareReleaseTree(expected, actual);
+  assert.equal(result.ok, false);
+  assert.match(result.mismatched[0].reason, /identity cannot be established/);
+});
+
+test("an UNEXPECTED 'other' node cannot be permitted by an allowance", () => {
+  const result = compareReleaseTree(new Map(), new Map([["sock", { type: "other", mode: 4516 }]]), {
+    allowExtra: [{ path: "sock", type: "other" }]
+  });
+  assert.deepEqual(result.extra, ["sock"]);
+  assert.deepEqual(result.permitted, []);
+  assert.equal(result.ok, false);
+});
+
+// ── CLI contract ────────────────────────────────────────────────────────────────────────────────────
+// Exercised through `runCli` rather than a subprocess: `node --test` already spawns per file and has died
+// with EPERM inside review sandboxes, so a CLI whose only test is a subprocess is one that quietly goes
+// unverified there.
+
+const captureCli = (argv) => {
+  const out = [];
+  const err = [];
+  const code = runCli(argv, { log: (line) => out.push(line), error: (line) => err.push(line) });
+  return { code, out, err };
+};
+
+test("CLI: exit 0 and a truthful success line when the trees match", () => {
+  const expected = artifact();
+  const run = captureCli([expected, copy(expected)]);
+  assert.equal(run.code, 0);
+  assert.match(run.out[0], /release tree matches: all expected entries present, nothing extra/);
+});
+
+test("CLI: a permitted extra is REPORTED, never described as 'nothing extra'", () => {
+  // The success line is the evidence a deploy would record. Saying "nothing extra" while an allowance was
+  // used would put a false claim of exact equality into that record.
+  const expected = artifact();
+  const deployed = copy(expected);
+  write(deployed, "runtime.log", "started\n");
+  const run = captureCli([expected, deployed, "--allow-extra", "runtime.log:file"]);
+  assert.equal(run.code, 0);
+  assert.match(run.out[0], /1 permitted extra\(s\): runtime\.log/);
+  assert.doesNotMatch(run.out[0], /nothing extra/);
+});
+
+test("CLI: exit 1 and the offending path on a real difference", () => {
+  const expected = artifact();
+  const deployed = copy(expected);
+  write(deployed, "deploy/nginx/admin-web.conf", "server { listen 8080; }\n");
+  const run = captureCli([expected, deployed]);
+  assert.equal(run.code, 1);
+  assert.ok(run.err.some((line) => line.includes("deploy/nginx/admin-web.conf")));
+  assert.match(run.err.at(-1), /FAILED: 1 problem/);
+});
+
+test("CLI: exit 2 for usage, which must not be confused with a clean tree", () => {
+  const run = captureCli([]);
+  assert.equal(run.code, 2);
+  assert.match(run.err[0], /^usage:/);
+  assert.deepEqual(run.out, []);
+});
+
+test("CLI: exit 2 when the tree cannot be read, rather than reporting it as a difference", () => {
+  const run = captureCli([path.join(os.tmpdir(), "release-tree-does-not-exist"), artifact()]);
+  assert.equal(run.code, 2);
+  assert.match(run.err[0], /could not run/);
+});
+
+test("CLI: a malformed --allow-extra is a usage error, not a silently ignored flag", () => {
+  const expected = artifact();
+  const run = captureCli([expected, copy(expected), "--allow-extra", "runtime.log"]);
+  assert.equal(run.code, 2);
+  assert.match(run.err[0], /could not run: .*<path>:<type>/);
+});
+
+test("parseAllowExtraArgs splits on the LAST colon so a path may contain one", () => {
+  assert.deepEqual(parseAllowExtraArgs(["--allow-extra", "a:b/c.log:file"]), [{ path: "a:b/c.log", type: "file" }]);
 });

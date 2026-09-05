@@ -22,8 +22,10 @@
 //     overlay landed AFTER extraction; a check that runs only at extraction time would have seen nothing.
 //     Running it again immediately before start narrows that race, it does not close it -- closing it means
 //     the verified object must BE the object consumed. See §2 and G6 of docs/deployment-readiness.md.
-//
-// Pure and offline. Never throws on a verification failure; it collects problems so a caller can decide.
+//   - Hardlinks are compared as ordinary files: their bytes are verified, their link topology is not.
+//   - On a CASE-INSENSITIVE filesystem two artifact paths differing only in case cannot both exist in an
+//     extracted expected tree, so such an artifact cannot be faithfully checked there. Production
+//     verification runs on Linux, where they can.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -35,7 +37,12 @@ export function sha256File(filePath) {
 
 // One entry per path, with its TYPE as well as its bytes. Type matters: a name-only comparison accepts a
 // symlink where the artifact had a regular file, and a symlink is an instruction to read something else.
-// `lstat`, not `stat`, so a link is reported as a link rather than as whatever it points at.
+// `lstat`, not `stat`, so a link is reported as a link rather than as whatever it points at -- which is also
+// why the walk cannot follow a symlinked directory out of the tree or around a cycle.
+//
+// Filesystem errors are NOT collected here; they throw. That is deliberate and it is the one place this
+// module does throw: a tree it cannot read is a tree it cannot vouch for, and a caller about to deploy
+// should stop rather than receive a report with holes in it.
 export function describeTree(root) {
   const entries = new Map();
   const walk = (dir) => {
@@ -54,9 +61,10 @@ export function describeTree(root) {
       } else if (stats.isFile()) {
         entries.set(relative, { type: "file", sha256: sha256File(absolute) });
       } else {
-        // Sockets, fifos, devices. Not expected in a release tree, and silently ignoring one would be the
-        // same class of hole this file exists to close.
-        entries.set(relative, { type: "other" });
+        // Sockets, fifos, devices. Recorded with the raw mode so the refusal below can say what it found;
+        // two such nodes at the same path are NEVER treated as equal, because nothing here establishes
+        // their identity and "same unknown kind" is not "same thing".
+        entries.set(relative, { type: "other", mode: stats.mode });
       }
     }
   };
@@ -64,23 +72,47 @@ export function describeTree(root) {
   return entries;
 }
 
+// Allowances are TYPED. A bare path would permit `runtime.log` to arrive as a symlink pointing anywhere,
+// which is precisely the substitution the type comparison exists to catch -- an escape hatch that silences
+// the finding this module is for. A directory allowance permits THAT ENTRY only: its children are not
+// implicitly allowed, because "allow this directory" is otherwise indistinguishable from "allow anything
+// anyone puts in it".
+function normaliseAllowances(allowExtra) {
+  const allowances = new Map();
+  for (const entry of allowExtra) {
+    if (typeof entry === "string" || !entry?.path || !entry?.type) {
+      throw new TypeError(
+        `allowExtra entries must be {path, type}; received ${JSON.stringify(entry)}. A path without a type ` +
+        "would permit a symlink where a file was expected."
+      );
+    }
+    allowances.set(entry.path, entry.type);
+  }
+  return allowances;
+}
+
 /**
  * Compare a deployed directory against the tree an artifact expands to.
  *
  * `expected` and `actual` are either directory paths or Maps from `describeTree`.
+ * `allowExtra` is a list of `{path, type}`.
  *
- * Returns `{ ok, problems, missing, extra, mismatched }`. `extra` is the finding that motivated this file
- * and it is a PROBLEM, not a note: a release directory holding files the artifact does not is a directory
- * whose provenance chain covers only part of it.
+ * Returns `{ ok, problems, missing, extra, mismatched, permitted }`. `extra` is the finding that motivated
+ * this file and it is a PROBLEM, not a note: a release directory holding files the artifact does not is a
+ * directory whose provenance chain covers only part of it.
+ *
+ * Comparison mismatches are collected, never thrown. Unreadable trees and malformed allowances do throw --
+ * those are conditions under which no report would be trustworthy.
  */
 export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
   const expectedEntries = expected instanceof Map ? expected : describeTree(expected);
   const actualEntries = actual instanceof Map ? actual : describeTree(actual);
-  const permitted = new Set(allowExtra);
+  const allowances = normaliseAllowances(allowExtra);
 
   const missing = [];
   const extra = [];
   const mismatched = [];
+  const permitted = [];
 
   for (const [relative, want] of expectedEntries) {
     const got = actualEntries.get(relative);
@@ -98,10 +130,27 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
     if (want.type === "symlink" && got.target !== want.target) {
       mismatched.push({ path: relative, reason: `link target differs: expected ${want.target}, found ${got.target}` });
     }
+    if (want.type === "other") {
+      mismatched.push({ path: relative, reason: "neither file, directory nor symlink; identity cannot be established" });
+    }
   }
 
-  for (const relative of actualEntries.keys()) {
-    if (!expectedEntries.has(relative) && !permitted.has(relative)) extra.push(relative);
+  for (const [relative, got] of actualEntries) {
+    if (expectedEntries.has(relative)) continue;
+    if (got.type === "other") {
+      // Never allowable: an allowance names a type this module can compare, and this is not one of them.
+      extra.push(relative);
+      mismatched.push({ path: relative, reason: "neither file, directory nor symlink; identity cannot be established" });
+      continue;
+    }
+    const allowedType = allowances.get(relative);
+    if (allowedType === undefined) {
+      extra.push(relative);
+    } else if (allowedType !== got.type) {
+      mismatched.push({ path: relative, reason: `permitted as ${allowedType}, found ${got.type}` });
+    } else {
+      permitted.push(relative);
+    }
   }
 
   const problems = [
@@ -112,32 +161,62 @@ export function compareReleaseTree(expected, actual, { allowExtra = [] } = {}) {
     ...mismatched.map((m) => `${m.path}: ${m.reason}`)
   ];
 
-  return { ok: problems.length === 0, problems, missing: missing.sort(), extra: extra.sort(), mismatched };
+  return {
+    ok: problems.length === 0,
+    problems,
+    missing: missing.sort(),
+    extra: extra.sort(),
+    mismatched,
+    permitted: permitted.sort()
+  };
 }
 
-function main() {
-  const [expectedDir, actualDir, ...rest] = process.argv.slice(2);
+export function parseAllowExtraArgs(args) {
+  const allowances = [];
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] !== "--allow-extra") continue;
+    const value = args[i + 1];
+    if (!value) throw new TypeError("--allow-extra needs a value of the form <path>:<type>");
+    // Split on the LAST colon: a path may contain one, a type never does.
+    const cut = value.lastIndexOf(":");
+    if (cut <= 0) throw new TypeError(`--allow-extra needs <path>:<type>, received ${JSON.stringify(value)}`);
+    allowances.push({ path: value.slice(0, cut), type: value.slice(cut + 1) });
+    i += 1;
+  }
+  return allowances;
+}
+
+// Separated from the process so it can be tested without spawning one -- `node --test` already spawns per
+// file and has died with EPERM inside review sandboxes, so a CLI whose only test is a subprocess is a CLI
+// that quietly goes unverified there.
+export function runCli(argv, { log = console.log, error = console.error } = {}) {
+  const [expectedDir, actualDir, ...rest] = argv;
   if (!expectedDir || !actualDir) {
-    console.error("usage: verify-release-tree.mjs <expected-tree> <deployed-tree> [--allow-extra <path>]...");
-    process.exit(2);
+    error("usage: verify-release-tree.mjs <expected-tree> <deployed-tree> [--allow-extra <path>:<type>]...");
+    return 2;
   }
-  const allowExtra = [];
-  for (let i = 0; i < rest.length; i += 1) {
-    if (rest[i] === "--allow-extra" && rest[i + 1]) {
-      allowExtra.push(rest[i + 1]);
-      i += 1;
-    }
+  let result;
+  try {
+    result = compareReleaseTree(expectedDir, actualDir, { allowExtra: parseAllowExtraArgs(rest) });
+  } catch (cause) {
+    // Usage and unreadable-tree errors, which are not comparison outcomes and must not read as one.
+    error(`release tree verification could not run: ${cause.message}`);
+    return 2;
   }
-  const result = compareReleaseTree(expectedDir, actualDir, { allowExtra });
-  for (const problem of result.problems) console.error(problem);
+  for (const problem of result.problems) error(problem);
   if (result.ok) {
-    console.log(`release tree matches: ${describeTree(expectedDir).size} entries, nothing extra`);
-    process.exit(0);
+    // Says what was permitted rather than "nothing extra", which would be false whenever an allowance was
+    // used -- and this line is the evidence a deploy would record.
+    const extras = result.permitted.length > 0
+      ? `${result.permitted.length} permitted extra(s): ${result.permitted.join(", ")}`
+      : "nothing extra";
+    log(`release tree matches: all expected entries present, ${extras}`);
+    return 0;
   }
-  console.error(`release tree verification FAILED: ${result.problems.length} problem(s)`);
-  process.exit(1);
+  error(`release tree verification FAILED: ${result.problems.length} problem(s)`);
+  return 1;
 }
 
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("verify-release-tree.mjs")) {
-  main();
+  process.exit(runCli(process.argv.slice(2)));
 }
