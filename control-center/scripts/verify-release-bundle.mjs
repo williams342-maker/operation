@@ -84,6 +84,7 @@ export function verifyReleaseBundle(dir, { expectedTag } = {}) {
     if (manifest.artifact && !entries.some((entry) => entry && entry.name === manifest.artifact)) {
       problems.push(`manifest artifact ${manifest.artifact} is not covered by SHA256SUMS`);
     }
+    if (!manifest.agentArtifact || !entries.some((entry) => entry && entry.name === manifest.agentArtifact)) problems.push("manifest agentArtifact is not covered by SHA256SUMS");
   }
 
   return { ok: problems.length === 0, problems, manifest };

@@ -92,9 +92,19 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     const controlCenter = path.join(extracted, prefix, "control-center");
     const compose = path.join(controlCenter, "deploy", "docker-compose.production.yml");
     if (!fs.existsSync(compose) || !fs.lstatSync(compose).isFile()) throw new Error("version-controlled production compose file is absent");
-    const evidence = { schemaVersion: "opsworkbench-deployment-preparation-v1", tag: plan.tag, commit: plan.commit, tree: plan.tree, preparedAt: new Date().toISOString(), hostname: os.hostname(), artifactSha256: crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex"), candidateImages: plan.candidateImages, rollback: plan.rollback };
+    const agentPath = path.join(stage, copiedCheck.manifest.agentArtifact);
+    const inspectedAgent = inspectReleaseTarGz(agentPath, { expectedPrefix: "control-center" });
+    const agentExtracted = path.join(stage, "agent-extracted"); fs.mkdirSync(agentExtracted, { mode: 0o700 });
+    (hooks.extract ?? ((archive, destination) => execFileSync("tar", ["-xzf", archive, "--no-same-owner", "--no-same-permissions", "-C", destination], { stdio: "pipe" })))(agentPath, agentExtracted);
+    const agentTreeCheck = compareReleaseTree(expectedArchiveTree(inspectedAgent.members), describeTree(agentExtracted));
+    if (!agentTreeCheck.ok) throw new Error(`agent release tree failed verification: ${agentTreeCheck.problems.join("; ")}`);
+    const agentMetadata = JSON.parse(fs.readFileSync(path.join(agentExtracted, "control-center", "agent-release.json"), "utf8"));
+    exactKeys(agentMetadata, ["schemaVersion", "tag", "commit", "tree"], "agent release metadata");
+    if (agentMetadata.schemaVersion !== "opsworkbench-agent-release-v1" || agentMetadata.tag !== plan.tag || agentMetadata.commit !== plan.commit || agentMetadata.tree !== plan.tree) throw new Error("agent artifact names a different release identity");
+    for (const required of ["apps/agent/dist/agent.js", "apps/updater/dist/main.js", "deploy/systemd/opsworkbench-agent.service"]) if (!fs.lstatSync(path.join(agentExtracted, "control-center", required)).isFile()) throw new Error(`agent artifact is missing ${required}`);
+    const evidence = { schemaVersion: "opsworkbench-deployment-preparation-v1", tag: plan.tag, commit: plan.commit, tree: plan.tree, preparedAt: new Date().toISOString(), hostname: os.hostname(), artifactSha256: crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex"), agentArtifactSha256: crypto.createHash("sha256").update(fs.readFileSync(agentPath)).digest("hex"), candidateImages: plan.candidateImages, rollback: plan.rollback };
     fs.writeFileSync(path.join(stage, "preparation.json"), `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o400 });
-    return { stage, extracted, controlCenter, compose, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), prefix };
+    return { stage, extracted, controlCenter, compose, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
   } catch (error) {
     fs.writeFileSync(path.join(stage, "FAILED"), `${error.message}\n`, { flag: "wx", mode: 0o400 });
     throw error;
@@ -160,7 +170,10 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   if (inspected.archiveCommit !== preparation.plan.commit) throw new Error("prepared archive commit changed");
   const tree = compareReleaseTree(preparation.expectedTree, describeTree(preparation.extracted));
   if (!tree.ok) throw new Error(`prepared tree changed before consumption: ${tree.problems.join("; ")}`);
-  return { bundle: check, tree };
+  const inspectedAgent = inspectReleaseTarGz(preparation.agentPath, { expectedPrefix: "control-center" });
+  const agentTree = compareReleaseTree(preparation.expectedAgentTree, describeTree(preparation.agentExtracted));
+  if (!inspectedAgent.members.size || !agentTree.ok) throw new Error(`prepared agent tree changed before consumption: ${agentTree.problems.join("; ")}`);
+  return { bundle: check, tree, agentTree };
 }
 
 const imageExpectations = {
@@ -234,24 +247,35 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const platformEvidence = await (hooks.verifyPlatformImages ? hooks.verifyPlatformImages(plan.platform) : inspectPlatformImages(plan.platform, hooks.platform ?? {}));
   if (!platformEvidence?.ok || platformEvidence.edgeImage !== plan.platform.edgeImage || platformEvidence.mongoImage !== plan.platform.mongoImage) throw new Error("platform image registry evidence is absent or mismatched");
   reverifyPreparedRelease(preparation, hooks);
-  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence]);
+  const agentScript = path.join(preparation.controlCenter, "scripts", "install-reviewed-agent.sh");
+  if (!fs.existsSync(agentScript) || !fs.lstatSync(agentScript).isFile()) throw new Error("version-controlled reviewed agent installer is absent");
+  const agentBackup = path.join(preparation.stage, "agent-rollback");
+  const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+  agentControl(["prepare", path.join(preparation.agentExtracted, "control-center"), agentBackup]);
+  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }]);
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
   const compose = hooks.compose ?? ((args, env) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", preparation.compose, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
   const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
   compose(["config", "--quiet"], candidateEnv);
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
+  let agentActivationAttempted = false;
   try {
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv);
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv);
+    agentActivationAttempted = true;
+    agentControl(["activate", path.join(preparation.agentExtracted, "control-center"), plan.tag, plan.commit, agentBackup]);
     for (let pass = 0; pass < (hooks.acceptancePasses ?? 3); pass += 1) {
       for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
       if (hooks.wait) await hooks.wait();
     }
   } catch (cause) {
+    if (agentActivationAttempted) {
+      try { agentControl(["rollback", agentBackup]); } catch (agentCause) { throw new AggregateError([cause, agentCause], `deployment failed and agent rollback also failed: ${cause.message}; ${agentCause.message}`, { cause: agentCause }); }
+    }
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate", "edge"], rollbackEnv);
-    for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`);
-    throw new Error(`deployment failed and was rolled back: ${cause.message}`);
+    for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`, { cause });
+    throw new Error(`deployment failed and was rolled back: ${cause.message}`, { cause });
   }
   const record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
   fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });

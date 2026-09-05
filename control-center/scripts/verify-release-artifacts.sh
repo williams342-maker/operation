@@ -13,5 +13,6 @@ RELEASE_TAG="$tag" RELEASE_OUTPUT_DIR="$second" bash "$repository_root/control-c
 diff -u "$first/SHA256SUMS" "$second/SHA256SUMS"
 cmp "$first/opsworkbench-control-center-${tag#v}.tar.gz" "$second/opsworkbench-control-center-${tag#v}.tar.gz"
 cmp "$first/opsworkbench-control-center-${tag#v}.manifest.json" "$second/opsworkbench-control-center-${tag#v}.manifest.json"
+cmp "$first/opsworkbench-control-center-${tag#v}-agent-linux-x64.tar.gz" "$second/opsworkbench-control-center-${tag#v}-agent-linux-x64.tar.gz"
 (cd "$first" && sha256sum --check SHA256SUMS)
 echo "Deterministic release artifact verification passed for $tag"

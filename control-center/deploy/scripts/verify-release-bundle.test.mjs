@@ -14,14 +14,18 @@ function makeBundle({ tag = "v1.2.3-rc1", commit = "a".repeat(40), tamper = null
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "relbundle-"));
   const version = tag.slice(1);
   const artifact = `opsworkbench-control-center-${version}.tar.gz`;
+  const agentArtifact = `opsworkbench-control-center-${version}-agent-linux-x64.tar.gz`;
   const manifestName = `opsworkbench-control-center-${version}.manifest.json`;
   const tarballBytes = Buffer.from("fake-deterministic-tarball-bytes");
-  const manifest = { schemaVersion: schema, tag, commit, artifact, source: "test", reproducible: true };
+  const agentBytes = Buffer.from("fake-agent-bundle");
+  const manifest = { schemaVersion: schema, tag, commit, artifact, agentArtifact, source: "test", reproducible: true };
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
   fs.writeFileSync(path.join(dir, artifact), tarballBytes);
+  fs.writeFileSync(path.join(dir, agentArtifact), agentBytes);
   fs.writeFileSync(path.join(dir, manifestName), manifestBytes);
   const sums =
     `${sha256Hex(tarballBytes)}  ${artifact}\n` +
+    `${sha256Hex(agentBytes)}  ${agentArtifact}\n` +
     `${sha256Hex(manifestBytes)}  ${manifestName}\n`;
   fs.writeFileSync(path.join(dir, "SHA256SUMS"), sums);
   if (tamper === "tarball") fs.writeFileSync(path.join(dir, artifact), Buffer.from("MUTATED"));

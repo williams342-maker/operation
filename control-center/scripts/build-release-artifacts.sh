@@ -22,20 +22,23 @@ mkdir -p "$output_dir"
 bundle="${output_dir}/${prefix}.tar.gz"
 manifest="${output_dir}/${prefix}.manifest.json"
 checksums="${output_dir}/SHA256SUMS"
+agent_bundle="${output_dir}/${prefix}-agent-linux-x64.tar.gz"
 
 git -C "$repository_root" archive --format=tar --prefix="${prefix}/" "$commit" control-center | gzip -n -9 > "$bundle"
+RELEASE_TAG="$tag" node "$repository_root/control-center/scripts/build-release-agent.mjs" "$agent_bundle" >/dev/null
 node -e '
   const fs = require("node:fs");
-  const [file, tag, commit] = process.argv.slice(1);
+  const [file, tag, commit, agentArtifact] = process.argv.slice(1);
   fs.writeFileSync(file, JSON.stringify({
     schemaVersion: "opsworkbench-release-v1",
     tag,
     commit,
     artifact: "opsworkbench-control-center-" + tag.slice(1) + ".tar.gz",
+    agentArtifact,
     source: "git archive of the tracked control-center path at the tagged commit",
     reproducible: true
   }, null, 2) + "\n");
-' "$manifest" "$tag" "$commit"
+' "$manifest" "$tag" "$commit" "$(basename "$agent_bundle")"
 
-(cd "$output_dir" && sha256sum "$(basename "$bundle")" "$(basename "$manifest")" > "$(basename "$checksums")")
+(cd "$output_dir" && sha256sum "$(basename "$bundle")" "$(basename "$agent_bundle")" "$(basename "$manifest")" > "$(basename "$checksums")")
 printf '%s\\n' "$bundle" "$manifest" "$checksums"

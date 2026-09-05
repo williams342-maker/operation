@@ -33,11 +33,13 @@ function releaseFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-deploy-")); const item = plan(root);
   fs.mkdirSync(item.bundleDirectory); fs.mkdirSync(item.stagingRoot); fs.mkdirSync(item.releaseRoot); fs.mkdirSync(item.rollback.releaseDirectory);
   const prefix = "opsworkbench-control-center-0.2.0-operate"; const composeName = `${prefix}/control-center/deploy/docker-compose.production.yml`; const compose = Buffer.from("services: {}\n");
-  const pax = Buffer.from(`52 comment=${commit}\n`); const archive = zlib.gzipSync(Buffer.concat([tarBlock("pax_global_header", "g", pax), tarBlock(`${prefix}/`, "5"), tarBlock(`${prefix}/control-center/`, "5"), tarBlock(`${prefix}/control-center/deploy/`, "5"), tarBlock(composeName, "0", compose), Buffer.alloc(1024)]));
-  const artifact = `opsworkbench-control-center-0.2.0-operate.tar.gz`; const manifestName = `opsworkbench-control-center-0.2.0-operate.manifest.json`;
-  const manifest = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-release-v1", tag: item.tag, commit, artifact, source: "test", reproducible: true }, null, 2)}\n`);
-  fs.writeFileSync(path.join(item.bundleDirectory, artifact), archive); fs.writeFileSync(path.join(item.bundleDirectory, manifestName), manifest);
-  fs.writeFileSync(path.join(item.bundleDirectory, "SHA256SUMS"), `${sha(archive)}  ${artifact}\n${sha(manifest)}  ${manifestName}\n`);
+  const pax = Buffer.from(`52 comment=${commit}\n`); const archive = zlib.gzipSync(Buffer.concat([tarBlock("pax_global_header", "g", pax), tarBlock(`${prefix}/`, "5"), tarBlock(`${prefix}/control-center/`, "5"), tarBlock(`${prefix}/control-center/deploy/`, "5"), tarBlock(composeName, "0", compose), tarBlock(`${prefix}/control-center/scripts/`, "5"), tarBlock(`${prefix}/control-center/scripts/install-reviewed-agent.sh`, "0", Buffer.from("#!/bin/sh\n")), Buffer.alloc(1024)]));
+  const artifact = `opsworkbench-control-center-0.2.0-operate.tar.gz`; const agentArtifact = `opsworkbench-control-center-0.2.0-operate-agent-linux-x64.tar.gz`; const manifestName = `opsworkbench-control-center-0.2.0-operate.manifest.json`;
+  const agentMetadata = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-agent-release-v1", tag: item.tag, commit, tree }, null, 2)}\n`);
+  const agent = zlib.gzipSync(Buffer.concat([tarBlock("control-center/", "5"), tarBlock("control-center/apps/", "5"), tarBlock("control-center/apps/agent/", "5"), tarBlock("control-center/apps/agent/dist/", "5"), tarBlock("control-center/apps/agent/dist/agent.js", "0", Buffer.from("agent")), tarBlock("control-center/apps/updater/", "5"), tarBlock("control-center/apps/updater/dist/", "5"), tarBlock("control-center/apps/updater/dist/main.js", "0", Buffer.from("updater")), tarBlock("control-center/deploy/", "5"), tarBlock("control-center/deploy/systemd/", "5"), tarBlock("control-center/deploy/systemd/opsworkbench-agent.service", "0", Buffer.from("unit")), tarBlock("control-center/agent-release.json", "0", agentMetadata), Buffer.alloc(1024)]));
+  const manifest = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-release-v1", tag: item.tag, commit, artifact, agentArtifact, source: "test", reproducible: true }, null, 2)}\n`);
+  fs.writeFileSync(path.join(item.bundleDirectory, artifact), archive); fs.writeFileSync(path.join(item.bundleDirectory, agentArtifact), agent); fs.writeFileSync(path.join(item.bundleDirectory, manifestName), manifest);
+  fs.writeFileSync(path.join(item.bundleDirectory, "SHA256SUMS"), `${sha(archive)}  ${artifact}\n${sha(agent)}  ${agentArtifact}\n${sha(manifest)}  ${manifestName}\n`);
   return { item, prefix, composeName, compose };
 }
 
@@ -49,10 +51,8 @@ test("the deployment plan requires exact fields, role-correct immutable images a
 });
 
 test("preparation copies, re-verifies, safely inspects and bidirectionally checks before consumption", () => {
-  const { item, prefix, compose } = releaseFixture(); let attested = false;
-  const result = prepareReviewedRelease(item, { verifyAttestation: (_dir, names, options) => { attested = options.required && names.length === 2; return { verified: true }; }, extract: (_archive, destination) => {
-    const target = path.join(destination, prefix, "control-center", "deploy"); fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, "docker-compose.production.yml"), compose);
-  } });
+  const { item } = releaseFixture(); let attested = false;
+  const result = prepareReviewedRelease(item, { verifyAttestation: (_dir, names, options) => { attested = options.required && names.length === 3; return { verified: true }; } });
   assert.equal(attested, true); assert.equal(fs.existsSync(result.compose), true);
   if (process.platform !== "win32") assert.equal(fs.statSync(result.stage).mode & 0o777, 0o700);
   assert.equal(result.evidence.commit, commit);
@@ -77,16 +77,16 @@ test("platform images independently bind registry digest and local content ident
 });
 
 test("rollback eligibility is durably recorded before mutation authority exists", () => {
-  const { item, prefix, compose } = releaseFixture();
-  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }), extract: (_archive, destination) => { const target = path.join(destination, prefix, "control-center", "deploy"); fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, "docker-compose.production.yml"), compose); } });
+  const { item } = releaseFixture();
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   const result = establishRollbackBeforeMutation(preparation, [{ role: "api", localImageId: `sha256:${"9".repeat(64)}` }]);
   assert.equal(result.record.runtimeMutationAuthorized, false); assert.equal(fs.existsSync(result.file), true);
   assert.throws(() => establishRollbackBeforeMutation(preparation, []), /exist/i);
 });
 
 test("deployment establishes rollback first, requires readiness, and restores rollback images on failure", async () => {
-  const { item, prefix, compose: composeBytes } = releaseFixture();
-  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }), extract: (_archive, destination) => { const target = path.join(destination, prefix, "control-center", "deploy"); fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, "docker-compose.production.yml"), composeBytes); } });
+  const { item } = releaseFixture();
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   const calls = [];
   let rolledBack = false;
   const imageHooks = {
@@ -101,10 +101,13 @@ test("deployment establishes rollback first, requires readiness, and restores ro
       rollback: { api: `sha256:${sha(item.rollback.images.api)}`, web: `sha256:${sha(item.rollback.images.web)}`, admin: `sha256:${sha(item.rollback.images.admin)}`, gate: `sha256:${sha(item.rollback.images.reviewGate)}` },
     } }),
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: (args) => { calls.push({ args: ["agent", ...args], api: "agent", rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
     compose: (args, env) => { if (env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
     readiness: async () => rolledBack, acceptancePasses: 1,
   }), /was rolled back/);
-  assert.equal(calls.every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
+  assert.equal(calls.filter((call) => call.args[0] !== "agent" || call.args[1] !== "prepare").every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
+  const prepareCall = calls.find((call) => call.args[0] === "agent" && call.args[1] === "prepare"); const activateCall = calls.find((call) => call.args[0] === "agent" && call.args[1] === "activate"); const rollbackCall = calls.find((call) => call.args[0] === "agent" && call.args[1] === "rollback");
+  assert.equal(prepareCall.rollbackExists, false, "agent predecessor snapshot is taken before mutation authority"); assert.equal(activateCall.rollbackExists, true); assert.equal(rollbackCall.rollbackExists, true);
   assert.equal(calls.at(-1).api, item.rollback.images.api, "last mutation restores immutable rollback images");
 });
 
