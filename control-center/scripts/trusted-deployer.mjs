@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { inspectReleaseTarGz } from "./safe-release-archive.mjs";
 import { parseSha256Sums, verifyAttestation, verifyReleaseBundle } from "./verify-release-bundle.mjs";
 import { compareReleaseTree, describeTree } from "./verify-release-tree.mjs";
@@ -19,7 +20,7 @@ function exactKeys(value, keys, name) {
 }
 
 export function parseDeploymentPlan(value) {
-  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "compatibilityEvidence", "readiness"], "deployment plan");
+  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness"], "deployment plan");
   if (value.schemaVersion !== "opsworkbench-trusted-deployment-v1" || !tagPattern.test(value.tag) || !commitPattern.test(value.commit) || !commitPattern.test(value.tree)) throw new Error("deployment identity is invalid");
   if (!/^[a-z0-9][a-z0-9_-]{0,62}$/.test(value.composeProject)) throw new Error("compose project is invalid");
   for (const field of ["bundleDirectory", "stagingRoot", "releaseRoot"]) if (!path.isAbsolute(value[field])) throw new Error(`${field} must be absolute`);
@@ -42,6 +43,9 @@ export function parseDeploymentPlan(value) {
     if (reference === value.candidateImages[role]) throw new Error(`candidate and rollback ${role} image are identical`);
   }
   if (new Set(Object.values(value.rollback.images)).size !== 4) throw new Error("rollback runtime images are not distinct");
+  exactKeys(value.forgeEvidence, ["candidatePath", "candidateSha256", "rollbackPath", "rollbackSha256"], "forgeEvidence");
+  for (const field of ["candidatePath", "rollbackPath"]) if (!path.isAbsolute(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} must be absolute`);
+  for (const field of ["candidateSha256", "rollbackSha256"]) if (!/^[a-f0-9]{64}$/.test(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} is invalid`);
   exactKeys(value.compatibilityEvidence, ["path", "sha256"], "compatibilityEvidence");
   if (!path.isAbsolute(value.compatibilityEvidence.path) || !/^[a-f0-9]{64}$/.test(value.compatibilityEvidence.sha256)) throw new Error("compatibility evidence identity is invalid");
   if (!Array.isArray(value.readiness) || value.readiness.length < 3 || value.readiness.some((url) => typeof url !== "string" || !/^https:\/\/[A-Za-z0-9.-]+(?:\/[^\s]*)?$/.test(url))) throw new Error("at least three HTTPS readiness endpoints are required");
@@ -120,6 +124,20 @@ export function inspectImmutableImage(reference, expectation, hooks = {}) {
   return { reference, registryDigest: expectedDigest, localImageId: id, revision: labels["org.opencontainers.image.revision"], title: labels["org.opencontainers.image.title"] };
 }
 
+export function inspectPlatformImages(platform, hooks = {}) {
+  const inspect = (reference) => {
+    const remote = (hooks.remoteInspect ?? ((ref) => execFileSync("docker", ["buildx", "imagetools", "inspect", ref], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })))(reference);
+    const remoteName = String(remote).split(/\r?\n/).map((line) => line.match(/^Name:\s+(\S+)$/)?.[1]).find(Boolean);
+    if (remoteName !== reference) throw new Error(`platform registry inspection did not bind ${reference}`);
+    (hooks.pull ?? ((ref) => execFileSync("docker", ["pull", ref], { stdio: "pipe" })))(reference);
+    const local = (hooks.localInspect ?? ((ref) => JSON.parse(execFileSync("docker", ["image", "inspect", ref, "--format", "{{json .}}"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }))))(reference);
+    if (!Array.isArray(local.RepoDigests) || !local.RepoDigests.includes(reference) || !/^sha256:[a-f0-9]{64}$/.test(local.Id ?? "")) throw new Error(`platform local image identity is not digest-bound: ${reference}`);
+    return { reference, localImageId: local.Id };
+  };
+  const edge = inspect(platform.edgeImage); const mongo = inspect(platform.mongoImage);
+  return { ok: true, edgeImage: edge.reference, mongoImage: mongo.reference, localImageIds: { edge: edge.localImageId, mongo: mongo.localImageId } };
+}
+
 export function establishRollbackBeforeMutation(preparation, imageEvidence, { now = new Date(), hostname = os.hostname() } = {}) {
   const file = path.join(preparation.stage, "rollback-ready.json");
   const record = {
@@ -154,6 +172,30 @@ const imageExpectations = {
 
 const compatibilityScenarios = ["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"];
 
+function verifyOneForgeBuild(file, expectedSha256, identity, images, hooks = {}) {
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Forge build evidence is not a regular file");
+  const bytes = fs.readFileSync(file);
+  if (crypto.createHash("sha256").update(bytes).digest("hex") !== expectedSha256) throw new Error("Forge build evidence digest mismatch");
+  const document = JSON.parse(bytes.toString("utf8"));
+  const required = ["schemaVersion", "buildId", "sourceRepository", "sourceCommit", "sourceTree", "sourceTag", "backendImageDigest", "frontendImageDigest", "adminImageDigest", "reviewGateImageDigest", "builderIdentity", "builderRunnerEnvironment", "issuedAt"];
+  const optional = ["releaseBundleSha256", "releaseManifestDigest"];
+  if (!document || typeof document !== "object" || required.some((key) => !(key in document)) || Object.keys(document).some((key) => !required.includes(key) && !optional.includes(key))) throw new Error("Forge build evidence has missing or unknown fields");
+  if (document.schemaVersion !== "forge-build-v2" || document.sourceRepository !== "https://github.com/williams342-maker/operation" || document.sourceCommit !== identity.commit || document.sourceTree !== identity.tree || document.sourceTag !== identity.tag || document.builderRunnerEnvironment !== "github-hosted" || document.builderIdentity !== `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${identity.tag}`) throw new Error("Forge build evidence has the wrong source or builder identity");
+  const bound = { api: document.backendImageDigest, web: document.frontendImageDigest, admin: document.adminImageDigest, reviewGate: document.reviewGateImageDigest };
+  if (JSON.stringify(bound) !== JSON.stringify(images)) throw new Error("deployment images differ from the Forge build evidence");
+  (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-images.yml", sourceDigest: identity.commit, sourceRef: `refs/tags/${identity.tag}` });
+  const verifyImageAttestation = hooks.verifyImageAttestation ?? ((reference) => execFileSync("gh", ["attestation", "verify", `oci://${reference}`, "--repo", "williams342-maker/operation", "--signer-workflow", "williams342-maker/operation/.github/workflows/control-center-images.yml", "--source-digest", identity.commit, "--source-ref", `refs/tags/${identity.tag}`], { stdio: "pipe" }));
+  for (const reference of Object.values(images)) verifyImageAttestation(reference, identity);
+  return { sha256: expectedSha256, buildId: document.buildId, images: bound };
+}
+
+export function verifyForgeEvidence(plan, hooks = {}) {
+  const candidate = verifyOneForgeBuild(plan.forgeEvidence.candidatePath, plan.forgeEvidence.candidateSha256, { tag: plan.tag, commit: plan.commit, tree: plan.tree }, plan.candidateImages, hooks);
+  const rollback = verifyOneForgeBuild(plan.forgeEvidence.rollbackPath, plan.forgeEvidence.rollbackSha256, { tag: plan.rollback.tag, commit: plan.rollback.commit, tree: plan.rollback.tree }, plan.rollback.images, hooks);
+  return { ok: true, candidate, rollback };
+}
+
 export function verifyCompatibilityEvidence(plan, hooks = {}) {
   const file = plan.compatibilityEvidence.path; const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("compatibility evidence is not a regular file");
@@ -172,12 +214,14 @@ export function verifyCompatibilityEvidence(plan, hooks = {}) {
 
 export async function deployPreparedRelease(preparation, hooks = {}) {
   const { plan } = preparation;
+  const forge = await (hooks.verifyForge ? hooks.verifyForge(plan) : verifyForgeEvidence(plan, hooks.forge ?? {}));
+  if (!forge.ok) throw new Error("exact candidate/rollback Forge evidence is absent");
   const compatibility = await (hooks.verifyCompatibility ? hooks.verifyCompatibility(plan) : verifyCompatibilityEvidence(plan, hooks));
   if (!compatibility?.ok || compatibility.candidateCommit !== plan.commit || compatibility.rollbackCommit !== plan.rollback.commit) throw new Error("exact candidate/rollback schema compatibility evidence is absent");
   const imageEvidence = [];
   for (const [role, reference] of Object.entries(plan.candidateImages)) imageEvidence.push({ set: "candidate", ...inspectImmutableImage(reference, { commit: plan.commit, ...imageExpectations[role] }, hooks.images) });
   for (const [role, reference] of Object.entries(plan.rollback.images)) imageEvidence.push({ set: "rollback", ...inspectImmutableImage(reference, { commit: plan.rollback.commit, ...imageExpectations[role] }, hooks.images) });
-  const platformEvidence = await hooks.verifyPlatformImages?.(plan.platform);
+  const platformEvidence = await (hooks.verifyPlatformImages ? hooks.verifyPlatformImages(plan.platform) : inspectPlatformImages(plan.platform, hooks.platform ?? {}));
   if (!platformEvidence?.ok || platformEvidence.edgeImage !== plan.platform.edgeImage || platformEvidence.mongoImage !== plan.platform.mongoImage) throw new Error("platform image registry evidence is absent or mismatched");
   reverifyPreparedRelease(preparation, hooks);
   const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence]);
@@ -203,3 +247,25 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   fs.writeFileSync(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`, { flag: "wx", mode: 0o400 });
   return { status: "deployed", imageEvidence, platformEvidence, rollbackRecord: rollbackReady.file };
 }
+
+function loadPlanFile(file) {
+  const resolved = path.resolve(file); const before = fs.lstatSync(resolved);
+  if (!before.isFile() || before.isSymbolicLink()) throw new Error("deployment plan is not a regular file");
+  const fd = fs.openSync(resolved, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  try {
+    const opened = fs.fstatSync(fd); const bytes = fs.readFileSync(fd); const after = fs.fstatSync(fd);
+    if (before.dev !== opened.dev || before.ino !== opened.ino || opened.dev !== after.dev || opened.ino !== after.ino || opened.size !== after.size || opened.mtimeMs !== after.mtimeMs) throw new Error("deployment plan changed while being read");
+    return JSON.parse(bytes.toString("utf8"));
+  } finally { fs.closeSync(fd); }
+}
+
+async function main() {
+  const command = process.argv[2]; const planIndex = process.argv.indexOf("--plan");
+  if (!['prepare', 'deploy'].includes(command) || planIndex < 0 || !process.argv[planIndex + 1]) throw new Error("usage: trusted-deployer.mjs <prepare|deploy> --plan <absolute-plan.json>");
+  const preparation = prepareReviewedRelease(loadPlanFile(process.argv[planIndex + 1]));
+  if (command === "prepare") process.stdout.write(`${JSON.stringify({ status: "prepared", stage: preparation.stage, commit: preparation.plan.commit, tree: preparation.plan.tree })}\n`);
+  else process.stdout.write(`${JSON.stringify(await deployPreparedRelease(preparation))}\n`);
+}
+
+const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) main().catch((error) => { process.stderr.write(`trusted deployment refused: ${error.message}\n`); process.exitCode = 1; });

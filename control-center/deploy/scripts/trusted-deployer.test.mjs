@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -17,6 +17,7 @@ function plan(root) { return {
   candidateImages: { api: image("api", "1"), web: image("web", "2"), admin: image("admin-web", "3"), reviewGate: image("review-gate", "4") },
   platform: { edgeImage: `docker.io/library/nginx@sha256:${"a".repeat(64)}`, mongoImage: `docker.io/library/mongo@sha256:${"b".repeat(64)}`, mongoVolume: "mongo_verified" },
   rollback: { tag: "v0.1.9-operate", commit: rollbackCommit, tree: rollbackTree, images: { api: image("api", "5"), web: image("web", "6"), admin: image("admin-web", "7"), reviewGate: image("review-gate", "8") }, releaseDirectory: path.join(root, "rollback"), evidenceSha256: "9".repeat(64) },
+  forgeEvidence: { candidatePath: path.join(root, "candidate-forge.json"), candidateSha256: "a".repeat(64), rollbackPath: path.join(root, "rollback-forge.json"), rollbackSha256: "b".repeat(64) },
   compatibilityEvidence: { path: path.join(root, "compatibility.json"), sha256: "c".repeat(64) },
   readiness: ["https://example.test/healthz", "https://example.test/", "https://admin.example.test/"],
 }; }
@@ -68,6 +69,13 @@ test("registry and daemon inspection bind digest, source, revision, role and loc
   assert.throws(() => inspectImmutableImage(reference, { commit, role: "api", title: "OpsWorkbench Control Center API" }, { remoteInspect: () => "Name: mutable:latest\n" }), /did not bind/);
 });
 
+test("platform images independently bind registry digest and local content identity", () => {
+  const item = plan("C:\\safe");
+  const result = inspectPlatformImages(item.platform, { remoteInspect: (ref) => `Name: ${ref}\n`, pull: () => {}, localInspect: (ref) => ({ RepoDigests: [ref], Id: `sha256:${"d".repeat(64)}` }) });
+  assert.equal(result.ok, true); assert.equal(result.edgeImage, item.platform.edgeImage); assert.equal(result.mongoImage, item.platform.mongoImage);
+  assert.throws(() => inspectPlatformImages(item.platform, { remoteInspect: () => "Name: wrong@sha256:00\n" }), /did not bind/);
+});
+
 test("rollback eligibility is durably recorded before mutation authority exists", () => {
   const { item, prefix, compose } = releaseFixture();
   const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }), extract: (_archive, destination) => { const target = path.join(destination, prefix, "control-center", "deploy"); fs.mkdirSync(target, { recursive: true }); fs.writeFileSync(path.join(target, "docker-compose.production.yml"), compose); } });
@@ -87,6 +95,7 @@ test("deployment establishes rollback first, requires readiness, and restores ro
   };
   await assert.rejects(() => deployPreparedRelease(preparation, {
     verifyAttestation: () => ({ verified: true }), images: imageHooks,
+    verifyForge: async () => ({ ok: true }),
     verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit }),
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     compose: (args, env) => { if (env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
@@ -106,4 +115,15 @@ test("schema rehearsal evidence is exact, complete, digest-bound and workflow-at
   assert.equal(result.ok, true); assert.equal(attestationOptions.sourceDigest, commit); assert.match(attestationOptions.signerWorkflow, /deployment-rehearsal/);
   const changed = JSON.parse(bytes); changed.scenarios.forward_compatibility = "failed"; fs.writeFileSync(item.compatibilityEvidence.path, JSON.stringify(changed)); item.compatibilityEvidence.sha256 = sha(fs.readFileSync(item.compatibilityEvidence.path));
   assert.throws(() => verifyCompatibilityEvidence(item, { verifyAttestation: () => ({ verified: true }) }), /did not pass/);
+});
+
+test("Forge evidence binds exact source, builder, four images and image attestations", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "forge-evidence-")); const item = plan(root); let images = 0;
+  const write = (file, identity, refs) => { const bytes = Buffer.from(`${JSON.stringify({ schemaVersion: "forge-build-v2", buildId: `build-${identity.tag}`, sourceRepository: "https://github.com/williams342-maker/operation", sourceCommit: identity.commit, sourceTree: identity.tree, sourceTag: identity.tag, backendImageDigest: refs.api, frontendImageDigest: refs.web, adminImageDigest: refs.admin, reviewGateImageDigest: refs.reviewGate, builderIdentity: `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${identity.tag}`, builderRunnerEnvironment: "github-hosted", issuedAt: "2026-09-05T00:00:00Z" }, null, 2)}\n`); fs.writeFileSync(file, bytes); return sha(bytes); };
+  item.forgeEvidence.candidateSha256 = write(item.forgeEvidence.candidatePath, item, item.candidateImages);
+  item.forgeEvidence.rollbackSha256 = write(item.forgeEvidence.rollbackPath, item.rollback, item.rollback.images);
+  const result = verifyForgeEvidence(item, { verifyAttestation: () => ({ verified: true }), verifyImageAttestation: () => { images += 1; } });
+  assert.equal(result.ok, true); assert.equal(images, 8);
+  const changed = JSON.parse(fs.readFileSync(item.forgeEvidence.candidatePath)); changed.backendImageDigest = item.rollback.images.api; fs.writeFileSync(item.forgeEvidence.candidatePath, JSON.stringify(changed)); item.forgeEvidence.candidateSha256 = sha(fs.readFileSync(item.forgeEvidence.candidatePath));
+  assert.throws(() => verifyForgeEvidence(item, { verifyAttestation: () => ({ verified: true }), verifyImageAttestation: () => {} }), /differ/);
 });
