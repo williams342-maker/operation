@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0, fetch-tags: true }
       - name: Pin both exact annotated sources
         id: source
         env:
@@ -25,6 +25,8 @@ jobs:
           ROLLBACK_TAG: ${{ inputs.rollback_tag }}
         run: |
           set -euo pipefail
+          [[ "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-operate$ ]]
+          [[ "$ROLLBACK_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-operate$ ]]
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           test "$GITHUB_REF" = "refs/tags/$CANDIDATE_TAG"
           for tag in "$CANDIDATE_TAG" "$ROLLBACK_TAG"; do
@@ -140,7 +142,7 @@ jobs:
           test "$(docker inspect -f '{{.State.Health.Status}}' gate-rollback)" = healthy
           test "$(docker inspect -f '{{.Image}}' api-rollback)" = "$ROLLBACK_API_IMAGE_ID"
           docker run --rm --network "$network" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent http://api-rollback:3000/readyz >/dev/null
-          docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt https://gate-rollback:3100/healthz >/dev/null
+          docker run --rm --network "$network" -v "$PWD/tls:/tls:ro" curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 --fail --silent --cacert /tls/tls.crt https://gate-rollback:3100/healthz | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(x.ok!==true||typeof x.advisory!=="string"||!x.advisory.length)process.exit(1)})'
           printf 'passed\n' > .rehearsal-proof/rollback_after_partial_switch
       - name: Run real replica-set authority and transaction suites
         working-directory: control-center

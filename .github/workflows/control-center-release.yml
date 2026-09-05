@@ -3,7 +3,7 @@ name: Control Center Release
 on:
   push:
     tags:
-      - "v*.*.*-*"
+      - "v*.*.*-operate"
   workflow_dispatch:
     inputs:
       tag:
