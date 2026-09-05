@@ -5,11 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import { generateAgentKeyPairs } from "@control-center/shared";
 
-// WHERE THE FORGE SECURITY MATERIAL IS REQUIRED, and where it is not.
-//
-// `reviewEnforcement()` loads root-owned material from a fixed path to obtain the owner-bound Review Gate
-// CA. That CA authenticates an HTTPS gate. The gate URL schema permits `http:` only for loopback, where
-// there is no TLS to bind — so the material is required for an HTTPS gate and not for a loopback one.
+// Every enforcing transport requires the real fixed-path identity loader. This file has no module mock:
+// missing material or a mismatched enrolled target must refuse before the gate client is constructed.
 //
 // This file exists because the production shape is the one that must not regress. An earlier defect in
 // this subsystem survived precisely because every fixture exercised a convenient configuration and never
@@ -47,7 +44,7 @@ const enforcing = () => {
   writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "forge ca scope" });
 };
 
-test("PRODUCTION SHAPE: an HTTPS gate still requires the Forge security material", () => {
+test("PRODUCTION SHAPE: all accepted HTTPS spellings require the Forge security material", () => {
   enforcing();
   // ASSERTING *WHY* IT THROWS, not merely that it does. `ReviewGateClient` independently refuses an HTTPS
   // gate with no CA, so a bare `assert.throws` passes even if this function stops loading the material
@@ -56,17 +53,18 @@ test("PRODUCTION SHAPE: an HTTPS gate still requires the Forge security material
   // The message differs by host and both are correct: unprovisioned it cannot read the fixed path,
   // provisioned it refuses an identity bound to a different enrolled target. What identifies the WRONG
   // refusal is the client's own message, so that is what is excluded.
-  assert.throws(() => reviewEnforcement(configFor("https://gate.test")), (error: Error) => {
+  for (const url of ["https://gate.test", "HTTPS://gate.test", "hTtPs://gate.test", " https://gate.test "]) {
+  assert.throws(() => reviewEnforcement(configFor(url)), (error: Error) => {
     assert.doesNotMatch(error.message, /requires its owner-bound CA/,
       "must refuse while loading the security material, not later at the client");
     return true;
   });
+  }
 });
 
-test("a LOOPBACK HTTP gate does not require it, because there is no TLS for the CA to bind", () => {
+test("a LOOPBACK HTTP gate still requires the bound host identity", () => {
   enforcing();
-  const enforcement = reviewEnforcement(configFor("http://127.0.0.1:9"));
-  assert.equal(enforcement.enforcing, true);
+  assert.throws(() => reviewEnforcement(configFor("http://127.0.0.1:9")));
 });
 
 test("a non-enforcing executor loads nothing at all", () => {

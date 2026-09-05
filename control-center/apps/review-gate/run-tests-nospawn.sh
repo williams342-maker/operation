@@ -34,7 +34,7 @@ for f in build-tests/apps/review-gate/test/*.test.js; do
   # The exit STATUS is captured, not discarded. node:test exits non-zero when tests fail, so a non-zero
   # status alongside failures is expected — a non-zero status alongside NO failures is not, and that
   # combination is what a file crashing after its footer looks like.
-  if out=$(node "$f" 2>&1); then status=0; else status=$?; fi
+  if out=$(node --experimental-test-module-mocks "$f" 2>&1); then status=0; else status=$?; fi
 
   t=$(count "$out" tests)
   if [ -z "$t" ]; then

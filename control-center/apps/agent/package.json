@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "test:emit": "tsc -p tsconfig.emit-tests.json",
     "test:nospawn": "sh run-tests-nospawn.sh",
-    "test": "tsx --test test/*.test.ts",
+    "test": "node --experimental-test-module-mocks --import tsx --test test/*.test.ts",
     "preflight:beta": "tsx src/betaDeploymentPreflightCli.ts"
   },
   "dependencies": {

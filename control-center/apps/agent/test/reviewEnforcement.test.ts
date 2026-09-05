@@ -264,7 +264,9 @@ test("an unreachable or unreadable gate is a refusal, never a pass", async () =>
 });
 
 test("a real HTTPS gate client cannot start without the owner-bound CA", () => {
-  assert.throws(() => new ReviewGateClient({ url: "https://gate.test", credential: "c", timeoutMs: 1000 }), /owner-bound CA/);
+  for (const url of ["https://gate.test", "HTTPS://gate.test", "hTtPs://gate.test", " https://gate.test "]) {
+    assert.throws(() => new ReviewGateClient({ url, credential: "c", timeoutMs: 1000 }), /owner-bound CA/);
+  }
 });
 
 test("the HTTPS request carries its scoped owner-bound TLS dispatcher", async () => {

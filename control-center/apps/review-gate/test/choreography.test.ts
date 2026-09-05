@@ -16,6 +16,7 @@ import { contentDigest, candidateDigest, type CandidateBinding } from "../src/po
 import type { CandidateRecord } from "../src/store.js";
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { castOf } from "./principals.js";
+import { fixtureForgeSecurity } from "../../agent/test/fixtureForgeSecurity.js";
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // CHECKLIST §B — the public-interface choreography gate.
@@ -76,6 +77,7 @@ process.env.CONTROL_CENTER_AGENT_CONFIG = path.join(PROCESS_HOME, "agent.json");
 const PROCESS_STATE_DIR = path.join(PROCESS_HOME, "agent-state");
 
 // Dynamic, and load-bearing: a static import is hoisted above the assignment above it.
+await fixtureForgeSecurity({ orgId: "org-1", serverId: "server-1" });
 const { pollOnce } = await import("../../agent/src/agent.js");
 const { writeEnforcement } = await import("../../agent/src/reviewEnforcement.js");
 const { saveConfig, agentConfigSchema } = await import("../../agent/src/config.js");
@@ -379,6 +381,7 @@ async function choreograph(verb: "apply" | "rollback") {
   saveConfig(agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(controlPlane.server.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
+    orgId: "org-1", serverId: "server-1",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
     // The EXECUTOR's credential. The binder's never appears in this process.
     reviewGate: { url: gateUrl, credential: cast.credentialFor("agent-1"), timeoutMs: 5000 },
@@ -458,6 +461,7 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   saveConfig(agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(cc.server.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: "b".repeat(64), keyProtocolVersion: "agent-v2",
+    orgId: "org-1", serverId: "server-1",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
     // Gate configuration must be present and usable, or an ENFORCING executor refuses to START and the
     // poll never happens -- correct behaviour, but a different property than the one under test here.

@@ -67,21 +67,14 @@ export function reviewEnforcement(config: AgentConfig): ReviewEnforcement {
   const directory = stateDir();
   const decision = resolveEnforcement({ stateDir: directory, gate: config.reviewGate });
   if (!decision.enforcing) return { enforcing: false };
-  // THE OWNER-BOUND CA IS REQUIRED WHERE IT DOES SOMETHING: an HTTPS gate. The gate URL schema permits
-  // `http:` ONLY for loopback, where there is no TLS to bind and no network between the executor and the
-  // gate for a CA to protect. Requiring root-owned Forge material there coupled the executor to material
-  // it could not use, and `ReviewGateClient` already draws the line in the same place — it refuses an
-  // HTTPS gate with no CA and accepts a loopback one without.
-  //
-  // THE COST, because it is real and not merely theoretical: loading that material is also what binds
-  // `identity.orgId`/`serverId` to the enrolled agent, so a loopback executor no longer gets that check.
-  // Anyone able to run a gate on this host's loopback already has code execution on this host, which is
-  // why that is acceptable HERE and nowhere else. `main()` still requires the material unconditionally at
-  // startup, so a provisioned production host is unaffected by this either way.
-  const security = decision.gate.url.startsWith("https:") ? validateForgeRuntimeIdentity(config) : undefined;
+  // Host identity and its validity window apply to every enforced poll and effect, including loopback.
+  // Only TLS attachment depends on the transport. Parse the protocol as the URL schema does: an HTTPS
+  // scheme is case-insensitive, so checking the original string can bypass the owner-bound CA.
+  const security = validateForgeRuntimeIdentity(config);
+  const ca = new URL(decision.gate.url).protocol === "https:" ? security.reviewGateCa : undefined;
   return {
     enforcing: true,
-    gate: new ReviewGateClient(decision.gate, undefined, security?.reviewGateCa),
+    gate: new ReviewGateClient(decision.gate, undefined, ca),
     journal: new ExecutionJournal(path.join(directory, "execution-journal")),
   };
 }
