@@ -85,11 +85,13 @@ jobs:
       # PRIVILEGED_FS and DOCKER_DEPLOYMENT are intentionally NOT set. That absence is the point of this
       # job; setting them would make it a duplicate of `verify` and delete the coverage it exists for.
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # agent 132 + api 133 + shared 146 = 411, with exactly 3 skips: the docker-deployment test and two
+      # agent 134 + api 133 + shared 153 = 420, with exactly 3 skips: the docker-deployment test and two
       # privileged linuxDiscovery tests. Both numbers must move together when tests are added.
       # agent +5: the execution keeper, which an independent review found unimplemented rather than
       # merely untested, plus the in-flight shutdown race a second round found in the keeper itself.
-      CI_EXPECTED_TESTS: "411"
+      # agent +2 and shared +7: the payload serialization contract -- the executor digesting its own
+      # parse and refusing a payload the schema rejects, and the pinned conformance vectors.
+      CI_EXPECTED_TESTS: "420"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -115,13 +117,22 @@ jobs:
           const fs = require('node:fs');
           let tests = 0;
           let skipped = 0;
+          let failed = 0;
           for (const file of ['agent.tap', 'api.tap', 'shared.tap']) {
             const text = fs.readFileSync(file, 'utf8');
             tests += Number(text.match(/^# tests (\d+)/m)?.[1] ?? 0);
             skipped += Number(text.match(/^# skipped (\d+)/m)?.[1] ?? 0);
+            // `?? 0` is doing real work on the other two lines and would be a hole on this one: a TAP
+            // file with no fail line is one this check cannot judge, not one with nothing to report.
+            const reported = text.match(/^# fail (\d+)/m);
+            if (!reported) throw new Error(`${file}: no TAP fail-count summary to judge`);
+            failed += Number(reported[1]);
           }
           if (tests !== Number(process.env.CI_EXPECTED_TESTS)) throw new Error(`unexpected test count: ${tests}`);
           if (skipped !== Number(process.env.CI_EXPECTED_SKIPS)) throw new Error(`unexpected skipped tests: ${skipped}`);
+          // Read from the TAP rather than left to `set -e` and the runner exit codes above, for the
+          // same reason the Linux gate does it: the artifact is the thing that gets kept and read.
+          if (failed !== 0) throw new Error(`failing tests on Windows: ${failed}`);
           NODE
 
   verify:
@@ -160,11 +171,13 @@ jobs:
       # round derived 232 where the truth was 231, which is the entire reason this is checked.
       # The Mongo-only cases skip off CI, which is why this suite could not be gated at all before the
       # replica-set step existed.
-      # review-gate +4 for §B step 15: choreographyDeployedApi +2 (the extension, and the control that
-      # shows the same overrun refused without one) and routes +2 (the initial-window tunable and its
-      # environment variable).
-      CI_EXPECTED_TEST_SUITES: "agent=132,api=133,review-gate=255,shared=146,web=34"
-      CI_EXPECTED_TESTS: "700"
+      # +12 over the step 15 branch, all of it the payload serialization contract:
+      #   shared      +7  serializationContract -- the pinned digest vectors
+      #   review-gate +3  attestationService +2 (bind digests the parse) and
+      #                   choreographyDeployedApi +1 (a reordered bind still acquires end to end)
+      #   agent       +2  the executor digesting its parse, and refusing a payload the schema rejects
+      CI_EXPECTED_TEST_SUITES: "agent=134,api=133,review-gate=258,shared=153,web=34"
+      CI_EXPECTED_TESTS: "712"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
@@ -260,6 +273,42 @@ jobs:
             echo "::error::refuses rather than passing on an audit that never happened."
           fi
           exit "${status}"
+      # WHAT THE RUN ACTUALLY TALKED TO, captured before the suites rather than asserted after them.
+      #
+      # An independent reviewer asked for a retained, independently inspectable record of the MongoDB
+      # run, and the reason is specific: this job's whole claim rests on the review-gate suite reaching a
+      # REPLICA SET. Against a standalone mongod every method of the durable store is a multi-document
+      # transaction and can only skip, so a green run against the wrong topology looks identical to a
+      # green run against the right one from outside. The skip gate below catches that today -- but only
+      # by inference, and only for whoever reads the log while it is still there.
+      #
+      # This writes what a third party would otherwise have to take on trust: the server version, the
+      # replica-set name and members as the DRIVER will read them for topology discovery, whether this
+      # member is actually writable, and the URI the suites were handed.
+      - name: Record the MongoDB topology this run used
+        working-directory: .
+        run: |
+          set -euo pipefail
+          docker exec mongo-rs mongosh --quiet --eval '
+            JSON.stringify({
+              capturedAt: new Date().toISOString(),
+              serverVersion: db.version(),
+              hello: {
+                setName: db.hello().setName,
+                isWritablePrimary: db.hello().isWritablePrimary,
+                hosts: db.hello().hosts,
+                maxWireVersion: db.hello().maxWireVersion,
+              },
+              config: { _id: rs.conf()._id, members: rs.conf().members.map((m) => m.host) },
+              status: rs.status().members.map((m) => ({ name: m.name, stateStr: m.stateStr })),
+            }, null, 2)
+          ' > "${RUNNER_TEMP}/mongo-topology.json"
+          # Echoed as well as retained: the artifact is for a reviewer, the log is for whoever is
+          # looking at a red run right now.
+          cat "${RUNNER_TEMP}/mongo-topology.json"
+          # The URI the suites are given, recorded beside the topology so the two can be compared
+          # without knowing this workflow. It carries no credentials -- see the env block above.
+          echo "$REVIEW_GATE_TEST_MONGO_URL" > "${RUNNER_TEMP}/review-gate-mongo-url.txt"
       - name: Test with disposable MongoDB
         run: npm test
       - name: Retain value-safe database timeout diagnostics
@@ -270,19 +319,47 @@ jobs:
           path: /tmp/control-center-db-test-diagnostics.jsonl
           if-no-files-found: ignore
           retention-days: 7
+      # RUNS EVEN AFTER A RED `npm test`, because this step is what writes the evidence the upload
+      # below retains, and a failing run is exactly when a reviewer needs to read it. Skipping it on
+      # failure is how a job that broke leaves behind nothing but a log that ages out.
       - name: Verify Linux test summary has no skips
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           node --test scripts/summarize-tap.test.mjs
-          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap
-          (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap
-          (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap
-          (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap
+          # EVERY suite runs even when an earlier one fails. `set -e` would abandon the step at the
+          # first red suite and the later TAP files -- including review-gate's, the only record that
+          # the Mongo cases reached a replica set -- would never be written at all. The suite exit
+          # codes are collected rather than obeyed, and they are NOT the gate: summarize-tap.mjs reads
+          # `# fail` out of the TAP itself, so what is judged is the artifact that gets retained.
+          status=0
+          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap || status=1
+          (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap || status=1
+          (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap || status=1
+          (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap || status=1
           # REVIEW_GATE_TEST_MONGO_URL is job-level env, so this run reaches the replica set and the
           # Mongo conformance cases execute here too. If it ever silently fell back to skipping, the
           # skip gate below would fail rather than let a smaller suite pass as green.
-          (cd apps/review-gate && node --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap
-          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap review-gate=review-gate.tap shared=shared.tap web=web.tap
+          (cd apps/review-gate && node --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap || status=1
+          node scripts/summarize-tap.mjs agent=agent.tap api=api.tap review-gate=review-gate.tap shared=shared.tap web=web.tap || status=1
+          exit "${status}"
+      # RETAINED WHETHER OR NOT THE GATE PASSED, which is the half that matters. The TAP is the only
+      # per-case record this job produces: it names every test and its ok/not-ok, so a reviewer can see
+      # that a specific case ran rather than inferring it from a count. On a RED run it is the evidence
+      # of which case failed and how, after the log has aged out. The counts above are a summary of this
+      # file; retaining only the summary is how a suite that quietly stopped running a case still looks
+      # green.
+      - name: Retain the Linux TAP output and the MongoDB topology it ran against
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-test-evidence
+          path: |
+            control-center/*.tap
+            ${{ runner.temp }}/mongo-topology.json
+            ${{ runner.temp }}/review-gate-mongo-url.txt
+          if-no-files-found: warn
+          retention-days: 30
       - name: Linux agent upgrade and rollback dry run
         run: bash scripts/linux-agent-upgrade-dry-run.sh
       - name: Install Playwright Chromium

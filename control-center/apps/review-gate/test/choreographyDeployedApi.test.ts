@@ -521,6 +521,143 @@ if (!mongoUrl) {
     assert.equal(completion?.metadata?.reviewGate, "action_digest_mismatch");
   });
 
+
+  test("a binder that posts the sub-payload in a different KEY ORDER still binds the digest the executor computes",
+    async (t) => {
+      // THE TRAP THE STEP 10 NOTE ABOVE DESCRIBES, now closed rather than only documented.
+      //
+      // `payloadDigest` is `sha256(JSON.stringify(...))` with no canonicalisation, so key order decides
+      // it. The control plane stores what `taskPayloadSchema` PARSED and signs the envelope over that,
+      // and the envelope's own `payloadDigest` check is what forces the executor's copy to be in the
+      // same order -- a wire payload in any other order fails envelope verification before anything
+      // else. So the executor's action digest is always over schema-declaration order.
+      //
+      // `bind` used to digest the JSON body the BINDER posted. A binder that sent the same fields in a
+      // different order therefore bound a digest the executor could never reproduce, and every acquire
+      // was refused `action_digest_mismatch` with nothing naming the cause. It failed closed, so it was
+      // never an opening -- but a correct authorization that is refused for an unreportable reason is
+      // an unusable protocol, and the way that gets "fixed" in a hurry is by turning enforcement off.
+      //
+      // `bind` now digests the payload `validatePayload` parsed, in the same call, against the same
+      // schema. This case is the end-to-end proof: the binder posts a scrambled body, and the executor
+      // -- which knows nothing about that -- acquires and redeems.
+      const agentId = "agent-choreography-reordered";
+      const orgId = new ObjectId();
+      const serverId = new ObjectId();
+      const now = new Date();
+      await collections.organizations.insertOne({
+        _id: orgId, orgId, name: "Choreography reorder", slug: `choreography-reorder-${process.pid}`,
+        createdAt: now, updatedAt: now,
+      } as never);
+      await collections.servers.insertOne({
+        _id: serverId, orgId, name: "target", hostname: "target-reordered.test",
+        agentId, agentSecretHash: agentSigningKey(AGENT_SECRET), credentialVersion: 1,
+        keyProtocolVersion: "agent-v2", migrationState: "dual", legacyCredentialUsable: true,
+        status: "online", createdAt: now, updatedAt: now,
+      } as never);
+
+      const store = new InMemoryReviewGateStore();
+      const scope = [{ orgId: orgId.toHexString(), serverId: serverId.toHexString() }];
+      const cast = await castOf([
+        { principalId: "owner", roles: ["owner"] },
+        { principalId: "claude", roles: ["author"] },
+        { principalId: "codex", roles: ["reviewer"], reviewerClasses: ["independent"] },
+        { principalId: "binder-1", roles: ["binder"], targetScopes: scope },
+        { principalId: agentId, roles: ["executor"], targetScopes: scope },
+      ], store);
+      await releaseCandidate(store, "c1", binding());
+
+      const gateServer = buildApp(store).listen(0);
+      await new Promise((resolve) => gateServer.once("listening", resolve));
+      const gateUrl = `http://127.0.0.1:${(gateServer.address() as AddressInfo).port}`;
+      t.after(async () => {
+        gateServer.closeAllConnections();
+        await new Promise((resolve) => { gateServer.close(resolve); });
+      });
+
+      const minted = await gate(gateUrl, cast.credentialFor("owner"), "/candidates/c1/owner-decision", {
+        attestations: [{
+          kind: "configuration.apply", orgId: orgId.toHexString(), serverId: serverId.toHexString(),
+          audiencePrincipalId: agentId, bindingPrincipalId: "binder-1",
+          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        }],
+      }, { "idempotency-key": "mint-reordered" });
+      assert.equal(minted.status, 200, JSON.stringify(minted));
+      const attestationId = (minted.body as unknown as { attestationIds: string[] }).attestationIds[0];
+      const reserved = await gate(gateUrl, cast.credentialFor("binder-1"),
+        `/attestations/${attestationId}/reserve`, { leaseSeconds: 900 });
+      const leaseId = (reserved.body as unknown as { leaseId: string }).leaseId;
+
+      const core = taskPayloadSchema.parse({
+        projects: [], httpHealthChecks: [], mongoChecks: [],
+        configurationDeployment: deployment({ reviewAuthorization: { attestationId, leaseId } }),
+      });
+      const configurationDeployment = core.configurationDeployment as Record<string, unknown>;
+
+      // THE SAME SUB-PAYLOAD, one pair of keys swapped. Identical as an object; different bytes.
+      const scrambled = {
+        action: configurationDeployment.action,
+        schemaVersion: configurationDeployment.schemaVersion,
+        ...Object.fromEntries(Object.entries(configurationDeployment)
+          .filter(([key]) => key !== "action" && key !== "schemaVersion")),
+      };
+      assert.notEqual(JSON.stringify(scrambled), JSON.stringify(configurationDeployment),
+        "the bodies must really differ as bytes, or this proves nothing");
+      assert.deepEqual(scrambled, configurationDeployment, "and be the same object");
+
+      const bound = await gate(gateUrl, cast.credentialFor("binder-1"),
+        `/attestations/${attestationId}/bind`, { leaseId, payload: scrambled });
+      assert.equal(bound.status, 200, JSON.stringify(bound));
+      // The gate bound the digest of the PARSE, which is the one the executor will compute -- not the
+      // digest of what was posted.
+      assert.equal((bound.body as unknown as { actionDigest: string }).actionDigest,
+        privilegedActionDigest(configurationDeployment),
+        "the bound digest must be the parsed payload's");
+
+      // The control plane dispatches the payload it parsed, exactly as it always does.
+      const expiresAt = new Date(Date.now() + 3600_000).toISOString();
+      const payload = {
+        ...core,
+        ownerAuthorization: {
+          signature: signOwnerAuthorization(owner.signingPrivateKey, {
+            taskType: "configuration.apply", orgId: orgId.toHexString(),
+            serverId: serverId.toHexString(), actionDigest: privilegedActionDigest(core),
+            expiresAt, nonce: "owner-nonce-reordered", keyVersion: "owner-v1",
+          }),
+          issuedAt: new Date().toISOString(), expiresAt, nonce: "owner-nonce-reordered",
+          keyVersion: "owner-v1",
+        },
+      };
+      const task = await createTask({
+        orgId, server: { _id: serverId, orgId, agentId } as never,
+        type: "configuration.apply", payload: payload as never,
+        idempotencyKey: "choreography-reordered-1",
+      });
+
+      fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
+      writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "reorder case" });
+      saveConfig(agentConfigSchema.parse({
+        controlCenterUrl: apiUrl,
+        agentId, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
+        controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
+        reviewGate: { url: gateUrl, credential: cast.credentialFor(agentId), timeoutMs: 5000 },
+      }));
+      assert.equal(readEnforcement(stateDir()).state, "ENFORCING");
+
+      const pollError = await pollOnce().then(() => null, (error: Error) => error.message);
+
+      const record = await store.loadAttestation(attestationId);
+      const storedTask = await collections.agentTasks.findOne({ _id: task._id });
+      const result = storedTask?.result as Record<string, unknown> | undefined;
+      // ACQUIRED AND SETTLED. Before the fix this was `RESERVED_BOUND` with the control plane recording
+      // `reviewGate: action_digest_mismatch` -- the shape of the refusal case above, for a payload
+      // nobody had substituted.
+      assert.equal(record?.state, "CONSUMED",
+        `a reordered bind must not refuse a correct executor. pollError=${pollError} ` +
+        `result=${JSON.stringify(result)}`);
+      assert.notEqual(result?.reviewGate, "action_digest_mismatch");
+    });
+
   // ───────────────────────────────────────────────────────────────────────────────────────────────
   // CHECKLIST §B STEP 15 — "if execution exceeds the initial window, extend with the current
   // credential and token", driven BY THE CHOREOGRAPHY rather than only by a unit test.

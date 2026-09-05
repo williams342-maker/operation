@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
-import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuthorization, privilegedActionDigest, privilegedSubPayload, readReviewAuthorization } from "@control-center/shared";
+import { generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest, signOwnerAuthorization, privilegedActionDigest, privilegedSubPayload, readReviewAuthorization, configurationDeploymentPayloadSchema } from "@control-center/shared";
 import { agentConfigSchema } from "../src/config.js";
 import { readEnforcement, writeEnforcement, resolveEnforcement } from "../src/reviewEnforcement.js";
 import { ExecutionJournal } from "../src/executionJournal.js";
@@ -68,6 +68,35 @@ function privilegedTask(
 }
 
 const REVIEW = { attestationId: "att-1", leaseId: "lease-1" };
+
+/**
+ * A SCHEMA-VALID privileged sub-payload, which the direct `acquireForEffect` cases below now need.
+ *
+ * They used to pass `{ configurationDeployment: { planId: "plan-1" }, reviewAuthorization: REVIEW }`,
+ * which is wrong twice over and was wrong before this fixture existed: it is a TASK-payload shape, and
+ * `acquireForEffect` is documented to take the SUB-payload; and no schema would ever accept it, so an
+ * acquisition that "succeeded" with it was asserting something that cannot happen — the deployment
+ * would have been refused by `executeConfigurationDeployment` moments later.
+ *
+ * It matters now because `acquireForEffect` digests the PARSE, so that the gate and the executor agree
+ * on key order without either trusting the other's serialization. A payload the schema refuses cannot
+ * be canonicalised, and is refused before the gate is called.
+ */
+const subPayload = (over: Record<string, unknown> = {}) => ({
+  schemaVersion: "configuration-deployment-v1", action: "configuration.apply.v1",
+  planId: "plan-00000000001", planRevision: 1, deploymentId: "deploy-000000001",
+  environmentId: "env-000000000001", environmentKind: "staging", protected: false,
+  targetProfileId: "profile-00000001", targetProfileRevision: 3, repositoryRoot: "/srv/app",
+  environmentFilePath: "/srv/app/.env", composePath: "/srv/app/docker-compose.yml",
+  composeProject: "app", statelessServices: ["web"], protectedServices: [],
+  healthChecks: [{ id: "web", url: "https://health.example.test/healthz", timeoutMs: 1000 }],
+  mutations: [{ name: "DATABASE_URL", versionId: "v-000000000001", secret: true,
+    operation: "update" as const, valueRef: "ref-1" }],
+  encryptedValues: { algorithm: "aes-256-gcm", ciphertext: "Y2lwaGVy", nonce: "bm9uY2U=",
+    authTag: "dGFn", keyVersion: "agent-signing-v1" },
+  expectedConfigurationDigest: "e".repeat(64), reviewAuthorization: REVIEW,
+  automaticRollback: true, ...over,
+});
 /** The journal treats an action digest as a filename, so it insists on a real sha256 hex. */
 const digestOf = (label: string) => crypto.createHash("sha256").update(label).digest("hex");
 
@@ -279,29 +308,77 @@ test("a payload with no review authorization never reaches the gate", async () =
 
 test("acquisition sends the digest of the payload ABOUT TO BE APPLIED", async () => {
   const gate = fakeGate({});
-  const payload = { configurationDeployment: { planId: "plan-1" }, reviewAuthorization: REVIEW };
+  const payload = subPayload();
   const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(tmp()), payload, taskType: "configuration.apply", orgId: "org-1", serverId: "server-1", at: new Date().toISOString() });
   assert.equal(outcome.refused, false);
-  // Computed here from the bytes, with the same function layer 2 signs — not taken from the control-center.
+  // Computed here, with the same function layer 2 signs — not taken from the control-center.
   assert.equal(gate.calls[0].body.actionDigest, privilegedActionDigest(payload));
   assert.deepEqual([gate.calls[0].body.orgId, gate.calls[0].body.serverId, gate.calls[0].body.kind], ["org-1", "server-1", "configuration.apply"]);
+});
+
+test("the digest is over the PARSE, so a reordered payload still acquires the same action", async () => {
+  // THE SERIALIZATION CONTRACT, on the executor's side. `payloadDigest` is
+  // `sha256(JSON.stringify(...))` with no canonicalisation, so key order decides it. The gate binds the
+  // digest of ITS parse; an executor that digested whatever bytes reached it would agree only while
+  // whoever dispatched the task also parsed. The real control plane does -- `createTask` stores
+  // `registry.payload.parse(...)` -- but that is an assumption about a component on the far side of a
+  // trust boundary, and this removes the need for it.
+  const ordered = subPayload();
+  const scrambled = {
+    action: ordered.action, schemaVersion: ordered.schemaVersion,
+    ...Object.fromEntries(Object.entries(ordered)
+      .filter(([key]) => key !== "action" && key !== "schemaVersion")),
+  };
+  assert.notEqual(JSON.stringify(scrambled), JSON.stringify(ordered),
+    "the two must really differ as bytes, or this proves nothing");
+  assert.notEqual(privilegedActionDigest(scrambled), privilegedActionDigest(ordered),
+    "and their raw digests must differ, which is the trap");
+
+  const gate = fakeGate({});
+  const outcome = await acquireForEffect({
+    gate: gate.client(), journal: new ExecutionJournal(tmp()), payload: scrambled,
+    taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString(),
+  });
+  assert.equal(outcome.refused, false);
+  assert.equal(gate.calls[0].body.actionDigest,
+    privilegedActionDigest(configurationDeploymentPayloadSchema.parse(scrambled)),
+    "the executor must send the digest of the parse");
+  assert.equal(gate.calls[0].body.actionDigest, privilegedActionDigest(ordered),
+    "which is the same digest the schema-ordered payload produces, and the one the gate bound");
+});
+
+test("a privileged payload the schema refuses never reaches the gate", async () => {
+  // Refused BEFORE the gate is called and before anything on this host is claimed. It would have been
+  // refused later anyway -- `executeConfigurationDeployment` parses with the same schema -- but by then
+  // the attestation is EXECUTING and this host holds a durable claim, so the honest outcome would be an
+  // INDETERMINATE record needing human reconciliation for an action that could never have run.
+  const gate = fakeGate({});
+  const dir = tmp();
+  const outcome = await acquireForEffect({
+    gate: gate.client(), journal: new ExecutionJournal(dir),
+    payload: { ...subPayload(), planRevision: "one" },
+    taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString(),
+  });
+  assert.equal(outcome.refused === true && outcome.code, "malformed_privileged_payload");
+  assert.equal(gate.calls.length, 0, "the gate must not be asked");
+  assert.equal(fs.existsSync(dir) ? fs.readdirSync(dir).length : 0, 0, "and nothing claimed locally");
 });
 
 test("when the GATE refuses, this host's journal is left untouched", async () => {
   const dir = tmp();
   const gate = fakeGate({ acquire: { status: 409, body: { ok: false, code: "attestation_revoked" } } });
-  const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(dir), payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  const outcome = await acquireForEffect({ gate: gate.client(), journal: new ExecutionJournal(dir), payload: subPayload(), taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
   assert.equal(outcome.refused === true && outcome.code, "attestation_revoked");
   // A refusal must not poison the journal: the action never had permission, and a later authorized
   // attempt must not find a claim standing in its way.
   assert.equal(fs.existsSync(dir) ? fs.readdirSync(dir).length : 0, 0);
-  const retry = await acquireForEffect({ gate: fakeGate({}).client(), journal: new ExecutionJournal(dir), payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  const retry = await acquireForEffect({ gate: fakeGate({}).client(), journal: new ExecutionJournal(dir), payload: subPayload(), taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
   assert.equal(retry.refused, false);
 });
 
 test("a prior unresolved attempt on this host refuses AFTER the gate has moved to EXECUTING", async () => {
   const dir = tmp();
-  const payload = { configurationDeployment: { planId: "plan-1" }, reviewAuthorization: REVIEW };
+  const payload = subPayload();
   const first = fakeGate({});
   await acquireForEffect({ gate: first.client(), journal: new ExecutionJournal(dir), payload, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
 
@@ -319,7 +396,7 @@ test("the journal is written BEFORE the gate is told", async () => {
   const dir = tmp();
   const journal = new ExecutionJournal(dir);
   const gate = fakeGate({});
-  const acquired = await acquireForEffect({ gate: gate.client(), journal, payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  const acquired = await acquireForEffect({ gate: gate.client(), journal, payload: subPayload(), taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
   assert.equal(acquired.refused, false);
   if (acquired.refused) return;
 
@@ -338,7 +415,7 @@ test("a failed redeem does not un-apply anything — it leaves the record for a 
   const dir = tmp();
   const journal = new ExecutionJournal(dir);
   const gate = fakeGate({ redeem: { status: 503, body: { ok: false, code: "gate_unavailable" } } });
-  const acquired = await acquireForEffect({ gate: gate.client(), journal, payload: { reviewAuthorization: REVIEW }, taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
+  const acquired = await acquireForEffect({ gate: gate.client(), journal, payload: subPayload(), taskType: "configuration.apply", orgId: "o", serverId: "s", at: new Date().toISOString() });
   if (acquired.refused) return assert.fail("acquisition should have succeeded");
   const settled = await recordEffect({ gate: gate.client(), journal, acquired, succeeded: true, at: new Date().toISOString() });
   assert.equal(settled.redeemed, false);

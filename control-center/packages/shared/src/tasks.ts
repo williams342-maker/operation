@@ -83,8 +83,54 @@ export type TaskEnvelope = z.infer<typeof taskEnvelopeSchema>;
 export type TaskPayload = z.infer<typeof taskPayloadSchema>;
 export type TaskAck = z.infer<typeof taskAckSchema>;
 
+/**
+ * THE SERIALIZATION CONTRACT. Normative, not descriptive — read this before building anything that
+ * signs, binds or verifies a task payload offline.
+ *
+ * This is `sha256(JSON.stringify(payload))` with NO canonicalisation, so **KEY ORDER DECIDES THE
+ * DIGEST**. `{a:1,b:2}` and `{b:2,a:1}` are the same object and different digests. Three places take a
+ * digest of a payload — the transport envelope, the owner authorization, and the review gate's action
+ * binding — and all three inherit that sensitivity.
+ *
+ * WHAT MAKES IT WORKABLE is that every one of them digests the ZOD-PARSED payload, and zod emits keys in
+ * SCHEMA-DECLARATION ORDER regardless of what order the input arrived in. So the contract is one
+ * sentence:
+ *
+ *     PARSE THROUGH THE SCHEMA, THEN DIGEST WHAT THE PARSE RETURNED. Never digest an object you built
+ *     by hand, however correct its fields are.
+ *
+ * `taskPayloadForSigning` and `privilegedSubPayloadForSigning` below ARE that step. Use them rather
+ * than reimplementing it; `test/serializationContract.test.ts` pins the exact digests they produce, so
+ * an independent tool in another language can check itself against fixed vectors instead of against
+ * this implementation.
+ *
+ * IT FAILS CLOSED, WHICH IS WHY THIS IS DOCUMENTATION AND NOT A FIX. A hand-built payload with the
+ * fields in a different order is refused twice over — once by the control plane verifying the owner
+ * signature, once by the gate comparing the action digest — so a wrong order never authorizes
+ * anything. What it does instead is refuse a CORRECT authorization while reporting only
+ * "Owner authorization invalid" or `action_digest_mismatch`, which names the symptom and not the
+ * cause. Both traps were hit while writing the choreography in `apps/review-gate`.
+ *
+ * WHY NOT JUST CANONICALISE. A sorted-key or JCS digest would remove the trap, and it would also change
+ * every digest this protocol has ever produced: envelopes in flight, any owner authorization signed
+ * offline against the current rule, and every stored `payloadDigest`. That is a versioned protocol
+ * migration with a dual-verify window, not a patch, and it is deliberately not bundled with the review
+ * gate's activation. If it is done later it must arrive as a NEW digest version carried in the envelope
+ * — never as a silent change of meaning for `payloadDigest`.
+ */
 export function payloadDigest(payload: unknown) {
   return sha256(JSON.stringify(payload ?? {}));
+}
+
+/**
+ * The task payload as everything that digests it will see it: parsed, so the key order is the schema's.
+ *
+ * This is the step an offline signing tool must not skip. It also validates, which is the other half of
+ * the point -- a payload that cannot be parsed can never be dispatched, so signing one produces an
+ * authorization nothing will ever accept.
+ */
+export function taskPayloadForSigning(raw: unknown): TaskPayload {
+  return taskPayloadSchema.parse(raw);
 }
 
 export function taskSigningBase(envelope: Omit<TaskEnvelope, "signature">) {

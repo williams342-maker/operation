@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { configurationChangeDigest, privilegedActionDigest } from "@control-center/shared";
+import {
+  agentUpgradeManifestSchema, configurationChangeDigest, configurationDeploymentPayloadSchema,
+  privilegedActionDigest,
+} from "@control-center/shared";
 import { AttestationService, validatePayload } from "../src/attestationService.js";
 import type { AuthenticatedPrincipal } from "../src/auth.js";
 import type { InMemoryReviewGateStore } from "../src/memoryStore.js";
@@ -510,7 +513,12 @@ test("the gate computes actionDigest; it never accepts one", async () => {
   const bound = await svc.bind(who("binder-1"), { attestationId, leaseId, payload });
   assert.equal(bound.ok, true, JSON.stringify(bound));
   const { actionDigest } = valueOf<{ actionDigest: string }>(bound);
-  assert.equal(actionDigest, privilegedActionDigest(payload),
+  // The same function layer 2 signs, computed here rather than trusted -- over the PARSED payload, which
+  // is what the executor will digest. This assertion used to compare against the raw fixture and passed
+  // only because that fixture happened to be close enough to schema order; see the key-order test below
+  // for the defect that hid behind it.
+  assert.equal(actionDigest,
+    privilegedActionDigest(configurationDeploymentPayloadSchema.parse(payload)),
     "the same function layer 2 signs, computed here rather than trusted");
   assert.equal((await store.loadAttestation(attestationId))!.actionDigest, actionDigest);
 });
@@ -687,4 +695,88 @@ test("NOT_APPLIED terminates the attestation and it is never reopened", async ()
   assert.equal((await store.loadAttestation(attestationId))!.state, "ABORTED");
   const retry = await svc.reserve(who("binder-1"), { attestationId, leaseSeconds: 60 });
   assert.equal(retry.ok, false, "a retry needs a fresh attestation through the whole sequence");
+});
+
+test("bind digests the PARSED payload, so key order cannot decide the action digest", async () => {
+  // THE DEFECT THIS REPLACES. `payloadDigest` is `sha256(JSON.stringify(...))` with no canonicalisation,
+  // so key order decides it. The control plane stores what `taskPayloadSchema` PARSED, so an executor's
+  // digest is always over schema-declaration order -- but `bind` used to digest the JSON body the binder
+  // posted. A binder that sent the same fields in a different order bound a digest the executor could
+  // never reproduce, and every acquire was refused `action_digest_mismatch` with nothing naming the
+  // cause. It failed closed, so it was never an opening; it made the protocol unusable for anyone who
+  // had not been told the rule.
+  //
+  // `validatePayload` was already parsing the payload in the same call and discarding the result.
+  const inSchemaOrder = await minted();
+  const orderedLease = valueOf<{ leaseId: string }>(
+    await inSchemaOrder.svc.reserve(inSchemaOrder.who("binder-1"),
+      { attestationId: inSchemaOrder.attestationId, leaseSeconds: 3600 }));
+  const orderedPayload = configPayload({
+    reviewAuthorization: {
+      attestationId: inSchemaOrder.attestationId, leaseId: orderedLease.leaseId,
+    },
+  });
+  const orderedBind = await inSchemaOrder.svc.bind(inSchemaOrder.who("binder-1"), {
+    attestationId: inSchemaOrder.attestationId, leaseId: orderedLease.leaseId, payload: orderedPayload,
+  });
+  const orderedDigest = valueOf<{ actionDigest: string }>(orderedBind).actionDigest;
+
+  // The SAME payload, one pair of keys swapped. Identical as an object; a different JSON.stringify.
+  const scrambled = await minted();
+  const scrambledLease = valueOf<{ leaseId: string }>(
+    await scrambled.svc.reserve(scrambled.who("binder-1"),
+      { attestationId: scrambled.attestationId, leaseSeconds: 3600 }));
+  const source = configPayload({
+    reviewAuthorization: { attestationId: scrambled.attestationId, leaseId: scrambledLease.leaseId },
+  }) as Record<string, unknown>;
+  const scrambledPayload = {
+    action: source.action, schemaVersion: source.schemaVersion,
+    ...Object.fromEntries(Object.entries(source)
+      .filter(([key]) => key !== "action" && key !== "schemaVersion")),
+  };
+  assert.notEqual(JSON.stringify(scrambledPayload), JSON.stringify(source),
+    "the two bodies must really differ as bytes, or this test proves nothing");
+
+  const scrambledBind = await scrambled.svc.bind(scrambled.who("binder-1"), {
+    attestationId: scrambled.attestationId, leaseId: scrambledLease.leaseId,
+    payload: scrambledPayload,
+  });
+  const scrambledDigest = valueOf<{ actionDigest: string }>(scrambledBind).actionDigest;
+
+  // The reviewAuthorization ids differ between the two attestations, so the digests cannot be compared
+  // directly. What must hold is that each equals the digest of its OWN parsed payload -- which is what
+  // the executor computes -- rather than of the bytes that arrived.
+  assert.equal(orderedDigest,
+    privilegedActionDigest(configurationDeploymentPayloadSchema.parse(orderedPayload)));
+  assert.equal(scrambledDigest,
+    privilegedActionDigest(configurationDeploymentPayloadSchema.parse(scrambledPayload)));
+  // And the scrambled body's own bytes digest to something else, which is what used to be bound.
+  assert.notEqual(scrambledDigest, privilegedActionDigest(scrambledPayload),
+    "binding the bytes as posted is the defect; if these are equal the fix is gone");
+});
+
+test("validatePayload hands back the parse, because bind depends on getting one", () => {
+  // Not an implementation detail: `privilegedActionDigest(undefined)` is the digest of `{}`, a
+  // well-formed hex string that binds nothing. A branch that returned ok with no parse would bind that
+  // silently, so bind refuses it -- and this is the check that the branches actually produce one.
+  const configuration = validatePayload("configuration.apply", configSubject(), configPayload());
+  assert.equal(configuration.ok, true);
+  assert.deepEqual((configuration as { value: unknown }).value,
+    configurationDeploymentPayloadSchema.parse(configPayload()));
+
+  const subject = { kind: "agent.upgrade" as const,
+    artifactSha256: dig("5"), releaseManifestDigest: dig("6") };
+  const manifest = {
+    schemaVersion: "agent-upgrade-v1", upgradeId: "up-1", serverId: "server-000000001",
+    expectedAgentId: "agent-1", expectedCurrentVersion: "0.1.0", targetVersion: "0.2.0",
+    releaseId: "rel-1", artifactSha256: dig("5"), artifactSignature: "s".repeat(90),
+    signatureKeyId: "key-1", releaseManifestDigest: dig("6"), planDigest: dig("7"),
+    operatingSystem: "linux", architecture: "x64", packageType: "tar",
+    requiredCapabilities: [], expiresAt: "2026-09-02T06:00:00.000Z", nonce: "n".repeat(20),
+  };
+  const upgrade = validatePayload("agent.upgrade", subject, manifest);
+  assert.equal(upgrade.ok, true, JSON.stringify(upgrade));
+  assert.deepEqual((upgrade as { value: unknown }).value,
+    agentUpgradeManifestSchema.parse(manifest),
+    "the agent.upgrade branch must return its parse too, or bind would digest nothing");
 });

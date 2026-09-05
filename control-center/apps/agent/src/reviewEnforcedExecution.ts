@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readReviewAuthorization, privilegedActionDigest } from "@control-center/shared";
+import { canonicalPrivilegedPayload, readReviewAuthorization, privilegedActionDigest }
+  from "@control-center/shared";
 import { ExecutionJournal, type JournalEntry } from "./executionJournal.js";
 import type { ReviewGateClient } from "./reviewGateClient.js";
 
@@ -191,7 +192,24 @@ export async function acquireForEffect(input: {
     return refuse("review_authorization_missing",
       "an enforcing executor requires the payload to name an attestation and a lease");
   }
-  const actionDigest = privilegedActionDigest(input.payload);
+  // THE PARSE, NOT WHAT ARRIVED, and the reason is the serialization contract in
+  // `@control-center/shared`'s `payloadDigest`: the digest is `sha256(JSON.stringify(...))` with no
+  // canonicalisation, so KEY ORDER decides it. The gate binds the digest of ITS parse. Digesting the
+  // bytes this executor happened to receive agrees with that only while whoever dispatched the task
+  // also parsed -- which the real control plane does, and which is an unstated assumption about a
+  // component on the far side of a trust boundary. Both sides canonicalising makes it unconditional.
+  //
+  // A payload the schema refuses becomes a refusal here, BEFORE the gate is called and before anything
+  // on this host is claimed. It would have been refused later anyway -- `executeConfigurationDeployment`
+  // parses with the same schema -- but by then the attestation is EXECUTING and this host has a durable
+  // claim, so the honest outcome would be an INDETERMINATE record needing reconciliation for an action
+  // that could never have run.
+  const canonical = canonicalPrivilegedPayload(input.taskType, input.payload);
+  if (canonical === undefined) {
+    return refuse("malformed_privileged_payload",
+      "the privileged payload does not satisfy the schema its task type requires");
+  }
+  const actionDigest = privilegedActionDigest(canonical);
 
   // THE GATE FIRST. It is the scarce resource and the authority: if it refuses, nothing local should be
   // written, or a refusal would poison this host's journal for an action that never had permission.
