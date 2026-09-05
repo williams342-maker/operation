@@ -79,10 +79,35 @@ function expectedSubtree(members, prefix) {
 
 function installAndVerifyExactTree(source, target, expected) {
   const makeReadonly = (directory) => { for (const entry of fs.readdirSync(directory, { withFileTypes: true })) { const file = path.join(directory, entry.name); if (entry.isDirectory()) { makeReadonly(file); fs.chmodSync(file, 0o555); } else fs.chmodSync(file, 0o444); } };
+  // The mode half is universal; the OWNERSHIP half is only assertable by root, and this deployer refuses
+  // to run as anything else — `assertRootOwnedPathChain` throws unless `getuid() === 0`, and it runs over
+  // the plan and both roots before any release is prepared. So in production this is always the full
+  // check, unchanged. Off that path (a test, which cannot chown to root) the read-only half still
+  // applies, which is the half that does not depend on who is asking.
   const validateSealed = (directory) => {
     if (process.platform !== "linux") return;
-    const visit = (file) => { const stat = fs.lstatSync(file); if (stat.uid !== 0 || stat.gid !== 0 || (stat.mode & 0o222) !== 0) throw new Error(`installed release object is not root-owned and read-only: ${file}`); if (stat.isDirectory()) for (const entry of fs.readdirSync(file)) visit(path.join(file, entry)); };
+    const requireRootOwner = process.getuid?.() === 0;
+    const visit = (file) => {
+      const stat = fs.lstatSync(file);
+      if (requireRootOwner && (stat.uid !== 0 || stat.gid !== 0)) throw new Error(`installed release object is not root-owned: ${file}`);
+      if ((stat.mode & 0o222) !== 0) throw new Error(`installed release object is writable: ${file}`);
+      if (stat.isDirectory()) for (const entry of fs.readdirSync(file)) visit(path.join(file, entry));
+    };
     visit(directory);
+  };
+  // CLEANUP HAS TO BE ABLE TO REMOVE WHAT SEALING JUST CREATED. `makeReadonly` strips write from every
+  // directory, so the failure handler's `rm -r` then died with EACCES and reported THAT instead of the
+  // error it was cleaning up after — the real refusal was invisible. Best-effort throughout: a failure
+  // to tidy up must never replace the reason we are tidying up.
+  const makeRemovable = (directory) => {
+    try { fs.chmodSync(directory, 0o700); } catch { /* report the original error, not this one */ }
+    let entries = [];
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) makeRemovable(file);
+      else try { fs.chmodSync(file, 0o600); } catch { /* as above */ }
+    }
   };
   if (!fs.existsSync(target)) {
     const parent = path.dirname(target); fs.mkdirSync(parent, { recursive: true, mode: 0o755 });
@@ -93,7 +118,7 @@ function installAndVerifyExactTree(source, target, expected) {
       const pendingCheck = compareReleaseTree(expected, describeTree(pending));
       if (!pendingCheck.ok) throw new Error(`pending installed release tree is not exact: ${pendingCheck.problems.join("; ")}`);
       makeReadonly(pending); fs.chmodSync(pending, 0o555); validateSealed(pending); fs.renameSync(pending, target);
-    } catch (error) { if (fs.existsSync(pending)) fs.rmSync(pending, { recursive: true, force: true }); throw error; }
+    } catch (error) { if (fs.existsSync(pending)) { makeRemovable(pending); fs.rmSync(pending, { recursive: true, force: true }); } throw error; }
   }
   const check = compareReleaseTree(expected, describeTree(target));
   if (!check.ok) throw new Error(`installed release tree is not exact: ${check.problems.join("; ")}`);
