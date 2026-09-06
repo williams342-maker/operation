@@ -262,6 +262,14 @@ test("the service binds to loopback unless told otherwise", () => {
     REVIEW_GATE_MONGO_URL: "mongodb://h/?replicaSet=rs0", REVIEW_GATE_DB_NAME: "d",
   } as NodeJS.ProcessEnv);
   assert.equal(config.bind, "127.0.0.1");
+  assert.throws(() => readConfig({
+    REVIEW_GATE_MONGO_URL: "mongodb://h/?replicaSet=rs0", REVIEW_GATE_DB_NAME: "d", REVIEW_GATE_BIND: "0.0.0.0",
+  } as NodeJS.ProcessEnv), /must use TLS/);
+  assert.throws(() => readConfig({
+    REVIEW_GATE_MONGO_URL: "mongodb://h/?replicaSet=rs0", REVIEW_GATE_DB_NAME: "d", REVIEW_GATE_TLS_CERTIFICATE_PATH: "/cert",
+  } as NodeJS.ProcessEnv), /required together/);
+  const tls = readConfig({ REVIEW_GATE_MONGO_URL: "mongodb://h/?replicaSet=rs0", REVIEW_GATE_DB_NAME: "d", REVIEW_GATE_BIND: "0.0.0.0", REVIEW_GATE_TLS_CERTIFICATE_PATH: "/cert", REVIEW_GATE_TLS_PRIVATE_KEY_PATH: "/key" } as NodeJS.ProcessEnv);
+  assert.deepEqual(tls.tls, { certificatePath: "/cert", privateKeyPath: "/key" });
 });
 
 test("missing configuration fails loudly", () => {

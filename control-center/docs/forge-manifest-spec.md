@@ -1,4 +1,4 @@
-# Forge manifest specification — `forge-build-v1` + `forge-target-binding-v1`
+# Forge manifest specification — `forge-build-v2` + `forge-target-binding-v1`
 
 **Status: DRAFT SPECIFICATION. No implementation exists.** This document defines a format and a
 verification procedure. It authorizes nothing, deploys nothing, and adds no execution authority to any
@@ -10,7 +10,7 @@ component. Work-order item W5 in [handoff work order 2026-09-01](handoff-work-or
    where Forge may run and what key material it may hold (§7.4). Short version: Forge holds **no
    signing key at all**.
 2. **`targetServerId` is not knowable at build time, so the manifest is split** into
-   `forge-build-v1` and `forge-target-binding-v1` (§5). This fixed a design error, not only an
+   `forge-build-v2` and `forge-target-binding-v1` (§5). This fixed a design error, not only an
    ergonomic one — see §5.0.
 
 ## 1. Why this document exists
@@ -92,7 +92,7 @@ Two limits keep it from closing the gap on its own:
 2. **Nothing consults it.** `resolveBuildIdentity()` shape-checks the manifest JSON at runtime and never
    verifies the attestation that covers that very manifest.
 
-**Producer status (2026-09-01).** `control-center-images.yml` now also composes a `forge-build-v1`
+**Producer status (2026-09-05).** `control-center-images.yml` composes a `forge-build-v2`
 document from the real image digests and attests **the document itself**, so its sha256 becomes a signed
 in-toto subject — which is exactly what the preflight compares its own computed hash against. Generation
 is gated on `publish` for a substantive reason rather than symmetry: a build-only run has no image
@@ -165,7 +165,7 @@ retires that shape — and doing so fixed a design error rather than merely an i
 to OpsWorkbench, not to Forge. The one-document design quietly required the party with the least
 authority over targets to name one.
 
-| | `forge-build-v1` | `forge-target-binding-v1` |
+| | `forge-build-v2` | `forge-target-binding-v1` |
 |---|---|---|
 | Says | what was built, from what source | which build goes to which target, until when |
 | Produced by | **Forge**, at build time | **OpsWorkbench**, once a target exists |
@@ -193,11 +193,11 @@ The owner authorization (§7.2) travels **alongside** the binding as a detached 
 nested field. This keeps the binding flat and keeps the signature outside the thing it signs — the
 separation `privilegedActionDigest()` already makes by deleting `ownerAuthorization` before digesting.
 
-### 5.2 `forge-build-v1`
+### 5.2 `forge-build-v2`
 
 | Field | Type | Binds |
 |---|---|---|
-| `schemaVersion` | literal `"forge-build-v1"` | format identity |
+| `schemaVersion` | literal `"forge-build-v2"` | format identity |
 | `buildId` | `^[A-Za-z0-9._:-]{1,160}$` | this build |
 | `sourceRepository` | HTTPS URL | which repository |
 | `sourceCommit` | `^[0-9a-f]{40}$` | exact commit |
@@ -205,6 +205,8 @@ separation `privilegedActionDigest()` already makes by deleting `ownerAuthorizat
 | `sourceTag` | `^v.+`, optional | the reviewed release tag, when one exists |
 | `backendImageDigest` | `…@sha256:[a-f0-9]{64}` | immutable backend image |
 | `frontendImageDigest` | same | immutable frontend image |
+| `adminImageDigest` | same | immutable admin-web image |
+| `reviewGateImageDigest` | same | immutable Review Gate image |
 | `releaseBundleSha256` | `^[a-f0-9]{64}$`, optional | the attested release bundle (§2.1) |
 | `releaseManifestDigest` | `^[a-f0-9]{64}$`, optional | ties to `opsworkbench-release-v1` (§8.3) |
 | `builderIdentity` | HTTPS URL | the OIDC workflow identity that must appear as the attestation's `builder.id` and certificate SAN |
@@ -292,7 +294,7 @@ signature covers.
 list of fields in a fixed documented order, exactly as `ownerAuthorizationMessage()` already does:
 
 ```js
-["forge-build-v1", buildId, sourceRepository, sourceCommit, sourceTree, ...].join("
+["forge-build-v2", buildId, sourceRepository, sourceCommit, sourceTree, ...].join("
 ")
 ["forge-target-binding-v1", bindingId, buildDigest, rollbackBuildDigest, ...].join("
 ")
@@ -422,7 +424,7 @@ Two manifests with different jobs; do not merge them.
 - `opsworkbench-release-v1` (`scripts/build-release-artifacts.sh`) describes **what was built** — schema,
   tag, commit, artifact name, reproducibility. It is covered by the attestation of §2.1 and is what
   `resolveBuildIdentity()` reads at runtime.
-- `forge-build-v1` describes **what Forge built** — source, tree, image digests, builder identity.
+- `forge-build-v2` describes **what Forge built** — source, tree, all three runtime image digests, builder identity.
 - `forge-target-binding-v1` describes **what may be deployed where, until when** — target, rollback
   build, capabilities, expiry, nonce.
 
@@ -520,7 +522,7 @@ Three of the four original questions are now closed.
 - ~~**Where does Forge run, given CI key custody?**~~ **Closed as a consequence** — see §7.4. Keyless
   attestation means no key enters CI, so the constraint is satisfied rather than negotiated.
 - ~~**Is `targetServerId` knowable at build time?**~~ **Closed by owner decision, 2026-09-01: no.**
-  The manifest is split into `forge-build-v1` and `forge-target-binding-v1` — see §5.0.
+  The manifest is split into `forge-build-v2` and `forge-target-binding-v1` — see §5.0.
 
 - ~~**Rollback command shape.**~~ **Closed by owner decision, 2026-09-01: option 1**, and implemented —
   see §8.4.
@@ -532,7 +534,7 @@ whether anything is deployed at all.
 
 1. ~~Owner resolves the blocking questions in §11.~~ Two of three closed; only the rollback command
    shape remains, and it does not block the schema.
-2. ~~`forge-build-v1` / `forge-target-binding-v1` schemas and ordered-join canonical digests land in
+2. ~~`forge-build-v2` / `forge-target-binding-v1` schemas and ordered-join canonical digests land in
    `packages/shared`, with flatness enforced at schema level.~~ **Done.**
 3. ~~Verification module wired into the preflight as the check group of §8.2, inert when no build is
    supplied.~~ **Done.** Inert by default, partial evidence never passes, and the preflight hashes the

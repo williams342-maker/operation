@@ -32,7 +32,7 @@ export function parseSha256Sums(text) {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => {
-      const match = line.match(/^([0-9a-f]{64})\s+\*?(.+)$/);
+      const match = line.match(/^([0-9a-f]{64})\s+\*?([A-Za-z0-9][A-Za-z0-9._-]*)$/);
       return match ? { hash: match[1], name: match[2] } : null;
     });
 }
@@ -81,9 +81,8 @@ export function verifyReleaseBundle(dir, { expectedTag } = {}) {
     if (expectedTag && manifest.tag !== expectedTag) {
       problems.push(`manifest tag ${manifest.tag} != expected ${expectedTag}`);
     }
-    if (manifest.artifact && !entries.some((entry) => entry && entry.name === manifest.artifact)) {
-      problems.push(`manifest artifact ${manifest.artifact} is not covered by SHA256SUMS`);
-    }
+    if (!manifest.artifact || !entries.some((entry) => entry && entry.name === manifest.artifact)) problems.push("manifest artifact is not covered by SHA256SUMS");
+    if (!manifest.agentArtifact || !entries.some((entry) => entry && entry.name === manifest.agentArtifact)) problems.push("manifest agentArtifact is not covered by SHA256SUMS");
   }
 
   return { ok: problems.length === 0, problems, manifest };
@@ -100,13 +99,17 @@ export function ghAvailable() {
 
 // Verify the SLSA build-provenance attestation for each listed file via `gh attestation verify`.
 // Separated from the pure check so offline unit tests never touch the network.
-export function verifyAttestation(dir, fileNames, { repo = REPOSITORY, required = false } = {}) {
+export function verifyAttestation(dir, fileNames, { repo = REPOSITORY, required = false, signerWorkflow, sourceDigest, sourceRef } = {}) {
   if (!ghAvailable()) {
     if (required) throw new Error("gh CLI is unavailable but attestation verification is required");
     return { verified: false, skipped: true, reason: "gh CLI unavailable" };
   }
   for (const name of fileNames) {
-    execFileSync("gh", ["attestation", "verify", path.join(dir, name), "--repo", repo], { stdio: "pipe" });
+    const args = ["attestation", "verify", path.join(dir, name), "--repo", repo];
+    if (signerWorkflow) args.push("--signer-workflow", signerWorkflow);
+    if (sourceDigest) args.push("--source-digest", sourceDigest);
+    if (sourceRef) args.push("--source-ref", sourceRef);
+    execFileSync("gh", args, { stdio: "pipe" });
   }
   return { verified: true, skipped: false };
 }

@@ -33,7 +33,7 @@ const sha = (value: string) => crypto.createHash("sha256").update(value).digest(
 
 function build(overrides: Partial<ForgeBuildManifest> = {}): ForgeBuildManifest {
   return {
-    schemaVersion: "forge-build-v1",
+    schemaVersion: "forge-build-v2",
     buildId: "forge-build-20260901-0001",
     sourceRepository: "https://github.com/williams342-maker/operation",
     sourceCommit: COMMIT,
@@ -41,6 +41,8 @@ function build(overrides: Partial<ForgeBuildManifest> = {}): ForgeBuildManifest 
     sourceTag: "v0.1.2-operate",
     backendImageDigest: img("backend", "a"),
     frontendImageDigest: img("frontend", "b"),
+    adminImageDigest: img("admin", "e"),
+    reviewGateImageDigest: img("review-gate", "f"),
     builderIdentity: BUILDER,
     builderRunnerEnvironment: "github-hosted",
     issuedAt: new Date(NOW).toISOString(),
@@ -49,7 +51,7 @@ function build(overrides: Partial<ForgeBuildManifest> = {}): ForgeBuildManifest 
 }
 
 function priorBuild(overrides: Partial<ForgeBuildManifest> = {}): ForgeBuildManifest {
-  return build({ buildId: "forge-build-20260808-0001", sourceCommit: PRIOR_COMMIT, sourceTree: "f599b3a2b078aa0d4c0c1cbb0a2f2ab5f4e6d7c8", sourceTag: "v0.1.1-operate", backendImageDigest: img("backend", "c"), frontendImageDigest: img("frontend", "d"), ...overrides });
+  return build({ buildId: "forge-build-20260808-0001", sourceCommit: PRIOR_COMMIT, sourceTree: "f599b3a2b078aa0d4c0c1cbb0a2f2ab5f4e6d7c8", sourceTag: "v0.1.1-operate", backendImageDigest: img("backend", "c"), frontendImageDigest: img("frontend", "d"), adminImageDigest: img("admin", "e"), reviewGateImageDigest: img("review-gate", "f"), ...overrides });
 }
 
 function binding(candidate: ForgeBuildManifest, rollback: ForgeBuildManifest, overrides: Partial<ForgeTargetBinding> = {}): ForgeTargetBinding {
@@ -62,7 +64,7 @@ function binding(candidate: ForgeBuildManifest, rollback: ForgeBuildManifest, ov
     targetOrgId: "org-000000000001",
     targetServerId: "server-000000000001",
     composeProjectName: "opsworkbench-beta",
-    authorizedServices: ["backend", "frontend"],
+    authorizedServices: ["backend", "frontend", "admin"],
     requiredCapabilities: ["docker", "compose", "dockerComposeActivation"],
     issuedAt: new Date(NOW).toISOString(),
     expiresAt: new Date(NOW + HOUR).toISOString(),
@@ -156,7 +158,7 @@ test("canonical statements are ordered joins, stable under key reordering", () =
   const b = build();
   const reorderedBuild = Object.fromEntries(Object.entries(b).reverse()) as ForgeBuildManifest;
   assert.equal(forgeBuildDigest(b), forgeBuildDigest(reorderedBuild));
-  assert.equal(forgeBuildStatement(b).split("\n").length, 13);
+  assert.equal(forgeBuildStatement(b).split("\n").length, 15);
 
   const bind = binding(b, priorBuild());
   const reorderedBinding = Object.fromEntries(Object.entries(bind).reverse()) as ForgeTargetBinding;
@@ -366,7 +368,7 @@ test("images must be digest-pinned; a mutable tag is not representable", () => {
   assert.equal(forgeBuildManifestSchema.safeParse(build({ backendImageDigest: "ghcr.io/williams342-maker/backend:v0.1.2" })).success, false);
 });
 
-test("a build whose backend and frontend images are identical is rejected", () => {
+test("a build whose runtime images are not distinct is rejected", () => {
   assert.equal(forgeBuildManifestSchema.safeParse(build({ frontendImageDigest: img("backend", "a") })).success, false);
 });
 

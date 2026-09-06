@@ -10,6 +10,7 @@ import { handoffUpgrade } from "./upgradeHandoff.js";
 import { ExecutionJournal } from "./executionJournal.js";
 import { ReviewGateClient } from "./reviewGateClient.js";
 import { resolveEnforcement } from "./reviewEnforcement.js";
+import { loadForgeSecurityMaterial } from "./forgeSecurityIdentity.js";
 import { acquireForEffect, keepExecutionAlive, recordEffect, type Acquired } from "./reviewEnforcedExecution.js";
 
 const advertisedCapabilities = ["system", "docker", "compose", "git", "http", "mongo", "environmentDiscovery", "configurationFingerprinting", "encryptedSecretDelivery", "environmentFileWrite", "dockerComposeActivation", "configurationValidation", "configurationRollback", "agentUpgrade", "upgradeManifestHandoff"] as const;
@@ -66,9 +67,14 @@ export function reviewEnforcement(config: AgentConfig): ReviewEnforcement {
   const directory = stateDir();
   const decision = resolveEnforcement({ stateDir: directory, gate: config.reviewGate });
   if (!decision.enforcing) return { enforcing: false };
+  // Host identity and its validity window apply to every enforced poll and effect, including loopback.
+  // Only TLS attachment depends on the transport. Parse the protocol as the URL schema does: an HTTPS
+  // scheme is case-insensitive, so checking the original string can bypass the owner-bound CA.
+  const security = validateForgeRuntimeIdentity(config);
+  const ca = new URL(decision.gate.url).protocol === "https:" ? security.reviewGateCa : undefined;
   return {
     enforcing: true,
-    gate: new ReviewGateClient(decision.gate),
+    gate: new ReviewGateClient(decision.gate, undefined, ca),
     journal: new ExecutionJournal(path.join(directory, "execution-journal")),
   };
 }
@@ -299,6 +305,7 @@ async function reportUpdaterResults(config: AgentConfig, resultsDirectory = "/va
 
 async function main() {
   const config = await maybeEnroll();
+  validateForgeRuntimeIdentity(config);
   // Resolved once here as well as per poll, so an ENFORCING executor with unusable gate configuration
   // fails to START rather than logging a poll error every interval while looking alive.
   reviewEnforcement(config);
@@ -312,6 +319,12 @@ async function main() {
       });
   }, Math.max(10_000, delay + Math.floor(Math.random() * 2500)));
   await pollOnce();
+}
+
+export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
+  const security = load();
+  if (security.identity.orgId !== config.orgId || security.identity.serverId !== config.serverId) throw new Error("Forge security identity does not match this enrolled agent runtime");
+  return security;
 }
 
 if (process.env.NODE_ENV !== "test") {

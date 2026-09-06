@@ -85,13 +85,13 @@ jobs:
       # PRIVILEGED_FS and DOCKER_DEPLOYMENT are intentionally NOT set. That absence is the point of this
       # job; setting them would make it a duplicate of `verify` and delete the coverage it exists for.
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
-      # agent 134 + api 133 + shared 153 = 420, with exactly 3 skips: the docker-deployment test and two
+      # agent 145 + api 133 + shared 153 = 431, with exactly 3 skips: the docker-deployment test and two
       # privileged linuxDiscovery tests. Both numbers must move together when tests are added.
       # agent +5: the execution keeper, which an independent review found unimplemented rather than
       # merely untested, plus the in-flight shutdown race a second round found in the keeper itself.
       # agent +2 and shared +7: the payload serialization contract -- the executor digesting its own
       # parse and refusing a payload the schema rejects, and the pinned conformance vectors.
-      CI_EXPECTED_TESTS: "420"
+      CI_EXPECTED_TESTS: "438"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -110,7 +110,7 @@ jobs:
       - name: Verify capability-gated tests skip rather than fail when the capability is absent
         run: |
           set -euo pipefail
-          node --import tsx --test --test-reporter=tap apps/agent/test/*.test.ts > agent.tap
+          node --experimental-test-module-mocks --import tsx --test --test-reporter=tap apps/agent/test/*.test.ts > agent.tap
           node --import tsx --test --test-reporter=tap apps/api/test/*.test.ts > api.tap
           node --import tsx --test --test-reporter=tap packages/shared/test/*.test.ts > shared.tap
           node - <<'NODE'
@@ -151,7 +151,7 @@ jobs:
       CONTROL_CENTER_RUN_DOCKER_DEPLOYMENT_TESTS: "true"
       MONGO_URL_TEST: mongodb://127.0.0.1:27017/control_center_test_ci
       CONTROL_CENTER_DB_TEST_DIAGNOSTICS_FILE: /tmp/control-center-db-test-diagnostics.jsonl
-      # Linux TAP inventory: agent 127 + api 133 + shared 146 + web 34 = 440, 0 skips. Measured on the
+      # Linux TAP inventory: agent 145 + api 133 + review-gate 258 + shared 153 + web 34 = 723, 0 skips. Measured on the
       # candidate, not derived. The line this replaces read "agent 64 + API 108 + shared 79 + web 34
       # = 285" while the gate below already required api=133 and 310, so that comment had been stale
       # since the buildIdentity work; do not read it as history.
@@ -176,8 +176,8 @@ jobs:
       #   review-gate +3  attestationService +2 (bind digests the parse) and
       #                   choreographyDeployedApi +1 (a reordered bind still acquires end to end)
       #   agent       +2  the executor digesting its parse, and refusing a payload the schema rejects
-      CI_EXPECTED_TEST_SUITES: "agent=134,api=133,review-gate=258,shared=153,web=34"
-      CI_EXPECTED_TESTS: "712"
+      CI_EXPECTED_TEST_SUITES: "agent=152,api=133,review-gate=258,shared=153,web=34"
+      CI_EXPECTED_TESTS: "730"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
@@ -333,14 +333,14 @@ jobs:
           # codes are collected rather than obeyed, and they are NOT the gate: summarize-tap.mjs reads
           # `# fail` out of the TAP itself, so what is judged is the artifact that gets retained.
           status=0
-          (cd apps/agent && node --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap || status=1
+          (cd apps/agent && node --experimental-test-module-mocks --import tsx --test --test-reporter=tap test/*.test.ts) > agent.tap || status=1
           (cd apps/api && node --import tsx --test --test-reporter=tap test/*.test.ts) > api.tap || status=1
           (cd packages/shared && node --import tsx --test --test-reporter=tap test/*.test.ts) > shared.tap || status=1
           (cd apps/web && node --import tsx --test --test-reporter=tap test/*.test.ts test/*.test.tsx) > web.tap || status=1
           # REVIEW_GATE_TEST_MONGO_URL is job-level env, so this run reaches the replica set and the
           # Mongo conformance cases execute here too. If it ever silently fell back to skipping, the
           # skip gate below would fail rather than let a smaller suite pass as green.
-          (cd apps/review-gate && node --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap || status=1
+          (cd apps/review-gate && node --experimental-test-module-mocks --import tsx --test --test-reporter=tap test/*.test.ts) > review-gate.tap || status=1
           node scripts/summarize-tap.mjs agent=agent.tap api=api.tap review-gate=review-gate.tap shared=shared.tap web=web.tap || status=1
           exit "${status}"
       # RETAINED WHETHER OR NOT THE GATE PASSED, which is the half that matters. The TAP is the only

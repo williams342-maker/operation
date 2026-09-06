@@ -67,7 +67,7 @@ jobs:
       run:
         working-directory: control-center
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
@@ -77,10 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="$INPUT_TAG"
-          case "$tag" in
-            v[0-9]*.[0-9]*.[0-9]*-*) ;;
-            *) echo "Tag must be an exact semantic-version prerelease tag" >&2; exit 1 ;;
-          esac
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-operate$ ]] || { echo "Tag must be an exact operate release tag" >&2; exit 1; }
           test "$(git cat-file -t "$tag")" = "tag" || { echo "Tag must be annotated" >&2; exit 1; }
           commit="$(git rev-parse "${tag}^{commit}")"
           test "$(git rev-parse HEAD)" = "$commit" || { echo "Checkout does not match the tag" >&2; exit 1; }
@@ -177,12 +174,12 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       # Gated: pushing requires a registry credential, so do not even authenticate on a build-only run.
       - name: Log in to the container registry
         if: inputs.publish
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -190,7 +187,7 @@ jobs:
 
       - name: Build the API image
         id: api
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: control-center
           file: control-center/apps/api/Dockerfile
@@ -207,7 +204,7 @@ jobs:
 
       - name: Build the web image
         id: web
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: control-center
           file: control-center/apps/web/Dockerfile
@@ -216,6 +213,39 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web:${{ inputs.tag }}
           build-args: |
             VITE_API_URL=/api
+            SOURCE_COMMIT=${{ steps.source.outputs.commit }}
+            SOURCE_TREE=${{ steps.source.outputs.tree }}
+            SOURCE_REPOSITORY=${{ steps.source.outputs.repository }}
+            SOURCE_TAG=${{ inputs.tag }}
+            BUILD_CREATED=${{ steps.source.outputs.created }}
+
+      - name: Build the admin image
+        id: admin
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: control-center
+          file: control-center/apps/web/Dockerfile.admin
+          push: ${{ inputs.publish }}
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-admin-web:${{ inputs.tag }}
+          build-args: |
+            VITE_API_URL=/api
+            SOURCE_COMMIT=${{ steps.source.outputs.commit }}
+            SOURCE_TREE=${{ steps.source.outputs.tree }}
+            SOURCE_REPOSITORY=${{ steps.source.outputs.repository }}
+            SOURCE_TAG=${{ inputs.tag }}
+            BUILD_CREATED=${{ steps.source.outputs.created }}
+
+      - name: Build the review-gate image
+        id: review_gate
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: control-center
+          file: control-center/apps/review-gate/Dockerfile
+          push: ${{ inputs.publish }}
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/review-gate:${{ inputs.tag }}
+          build-args: |
             SOURCE_COMMIT=${{ steps.source.outputs.commit }}
             SOURCE_TREE=${{ steps.source.outputs.tree }}
             SOURCE_REPOSITORY=${{ steps.source.outputs.repository }}
@@ -233,8 +263,10 @@ jobs:
           set -euo pipefail
           expected="$SOURCE_COMMIT"
           for image in \
-            "${REGISTRY}/${REPOSITORY}/control-center-api:${INPUT_TAG}" \
-            "${REGISTRY}/${REPOSITORY}/control-center-web:${INPUT_TAG}"; do
+             "${REGISTRY}/${REPOSITORY}/control-center-api:${INPUT_TAG}" \
+             "${REGISTRY}/${REPOSITORY}/control-center-web:${INPUT_TAG}" \
+             "${REGISTRY}/${REPOSITORY}/control-center-admin-web:${INPUT_TAG}" \
+             "${REGISTRY}/${REPOSITORY}/review-gate:${INPUT_TAG}"; do
             revision="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
             tree="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opsworkbench.source.tree" }}')"
             test "$revision" = "$expected" || { echo "$image revision label $revision != $expected" >&2; exit 1; }
@@ -244,13 +276,13 @@ jobs:
 
       # THE PRODUCER — the half that was missing. Two independent-review rounds found the workflow
       # attesting OCI image digests while the preflight verifier requires a bundle whose signed in-toto
-      # subject covers the exact bytes of a forge-build-v1 JSON document. Nothing created that document,
+      # subject covers the exact bytes of a forge-build-v2 JSON document. Nothing created that document,
       # so the legitimate path could not work and only a forged one could.
       #
       # Gated on publish for a substantive reason, not symmetry: a build-only run has no image manifest
       # digests to pin, and a forge-build document without digest-pinned images is not a provenance
       # record — it is a wish.
-      - name: Compose the forge-build-v1 document
+      - name: Compose the forge-build-v2 document
         if: inputs.publish
         env:
           FORGE_BUILD_ID: forge-build-${{ github.run_id }}-${{ github.run_attempt }}
@@ -260,6 +292,8 @@ jobs:
           FORGE_SOURCE_TAG: ${{ inputs.tag }}
           FORGE_BACKEND_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api@${{ steps.api.outputs.digest }}
           FORGE_FRONTEND_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web@${{ steps.web.outputs.digest }}
+          FORGE_ADMIN_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-admin-web@${{ steps.admin.outputs.digest }}
+          FORGE_REVIEW_GATE_IMAGE_DIGEST: ${{ env.REGISTRY }}/${{ github.repository }}/review-gate@${{ steps.review_gate.outputs.digest }}
           # The workflow's OWN OIDC identity. This is what the certificate SAN will be, so it is what the
           # verifier can prove. A document naming any other workflow is unverifiable by construction.
           FORGE_BUILDER_IDENTITY: ${{ github.server_url }}/${{ github.workflow_ref }}
@@ -274,7 +308,7 @@ jobs:
         # never collected. The step below is the only consumer.
         id: attest_document
         if: inputs.publish
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-path: control-center/forge-build.json
 
@@ -303,7 +337,7 @@ jobs:
 
       - name: Publish the forge build document and its bundle
         if: inputs.publish
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: forge-build-${{ inputs.tag }}
           path: |
@@ -315,7 +349,7 @@ jobs:
       # Gated: an attestation is a permanent public transparency-log entry.
       - name: Attest the API image
         if: inputs.publish
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-api
           subject-digest: ${{ steps.api.outputs.digest }}
@@ -323,10 +357,26 @@ jobs:
 
       - name: Attest the web image
         if: inputs.publish
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-web
           subject-digest: ${{ steps.web.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the admin image
+        if: inputs.publish
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/control-center-admin-web
+          subject-digest: ${{ steps.admin.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the review-gate image
+        if: inputs.publish
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/review-gate
+          subject-digest: ${{ steps.review_gate.outputs.digest }}
           push-to-registry: true
 
       - name: Record the published digests
@@ -340,6 +390,8 @@ jobs:
             echo "| --- | --- |"
             echo "| control-center-api | \`${{ steps.api.outputs.digest }}\` |"
             echo "| control-center-web | \`${{ steps.web.outputs.digest }}\` |"
+            echo "| control-center-admin-web | \`${{ steps.admin.outputs.digest }}\` |"
+            echo "| review-gate | \`${{ steps.review_gate.outputs.digest }}\` |"
             echo ""
-            echo "These digests are what a \`forge-build-v1\` document pins as \`backendImageDigest\` and \`frontendImageDigest\`."
+            echo "These digests are what a \`forge-build-v2\` document pins as the API, web, admin-web and Review Gate image digests."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -3,7 +3,7 @@ name: Control Center Release
 on:
   push:
     tags:
-      - "v*.*.*-*"
+      - "v*.*.*-operate"
   workflow_dispatch:
     inputs:
       tag:
@@ -25,7 +25,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
           fetch-depth: 0
@@ -35,6 +35,8 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           release_commit="$(git rev-parse HEAD)"
+          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG" || { echo "Release attestations require dispatch from the exact tag ref." >&2; exit 1; }
+          test "$GITHUB_SHA" = "$release_commit" || { echo "Dispatch identity differs from the checked-out release commit." >&2; exit 1; }
           if ! git merge-base --is-ancestor "$release_commit" refs/remotes/origin/main; then
             echo "Release commit $release_commit is NOT an ancestor of origin/main." >&2
             echo "Refusing to build a release from an unreviewed commit outside the audited main line." >&2
@@ -59,7 +61,7 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${asset}" -C "$tool_dir" gitleaks
           git archive --format=tar HEAD | tar -xf - -C "$scan_dir"
           "$tool_dir/gitleaks" dir "$scan_dir" --no-banner --redact --exit-code 1
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: npm
@@ -78,14 +80,14 @@ jobs:
       - name: Build publishable deployment bundle
         run: bash scripts/build-release-artifacts.sh
       - name: Attest deployment bundle provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-path: |
             release-output/opsworkbench-control-center-*.tar.gz
             release-output/opsworkbench-control-center-*.manifest.json
             release-output/SHA256SUMS
       - name: Upload signed workflow artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: opsworkbench-control-center-${{ env.RELEASE_TAG }}
           path: release-output/

@@ -16,6 +16,7 @@ import { contentDigest, candidateDigest, type CandidateBinding } from "../src/po
 import type { CandidateRecord } from "../src/store.js";
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { castOf } from "./principals.js";
+import { fixtureForgeSecurity } from "../../agent/test/fixtureForgeSecurity.js";
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // CHECKLIST §B STEP 10 — the choreography, through the DEPLOYED control-center.
@@ -94,6 +95,7 @@ if (!mongoUrl) {
   const { app } = await import("../../api/src/server.js");
   const { connectDb, collections, client } = await import("../../api/src/db.js");
   const { createTask } = await import("../../api/src/tasks.js");
+  const security = await fixtureForgeSecurity({ orgId: "unassigned", serverId: "unassigned" });
   const { pollOnce } = await import("../../agent/src/agent.js");
   const { writeEnforcement, readEnforcement } = await import("../../agent/src/reviewEnforcement.js");
   const { saveConfig, agentConfigSchema, stateDir } = await import("../../agent/src/config.js");
@@ -316,7 +318,9 @@ if (!mongoUrl) {
       "the agent must derive the same state directory this test wrote to");
     assert.equal(readEnforcement(stateDir()).state, "ENFORCING",
       "this executor must actually be enforcing before the poll means anything");
+    security.setTarget({ orgId: orgId.toHexString(), serverId: serverId.toHexString() });
     saveConfig(agentConfigSchema.parse({
+      orgId: orgId.toHexString(), serverId: serverId.toHexString(),
       controlCenterUrl: apiUrl,
       agentId: AGENT_ID, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
       controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
@@ -481,7 +485,9 @@ if (!mongoUrl) {
 
     fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
     writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "refusal case" });
+    security.setTarget({ orgId: orgId.toHexString(), serverId: serverId.toHexString() });
     saveConfig(agentConfigSchema.parse({
+      orgId: orgId.toHexString(), serverId: serverId.toHexString(),
       controlCenterUrl: apiUrl,
       agentId, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
       controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
@@ -636,7 +642,9 @@ if (!mongoUrl) {
 
       fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
       writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "reorder case" });
+      security.setTarget({ orgId: orgId.toHexString(), serverId: serverId.toHexString() });
       saveConfig(agentConfigSchema.parse({
+        orgId: orgId.toHexString(), serverId: serverId.toHexString(),
         controlCenterUrl: apiUrl,
         agentId, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
         controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
@@ -1051,7 +1059,9 @@ if (!mongoUrl) {
       "the agent must derive the same state directory this test wrote to");
     assert.equal(readEnforcement(stateDir()).state, "ENFORCING",
       "this executor must actually be enforcing before the poll means anything");
+    security.setTarget({ orgId: orgId.toHexString(), serverId: serverId.toHexString() });
     saveConfig(agentConfigSchema.parse({
+      orgId: orgId.toHexString(), serverId: serverId.toHexString(),
       controlCenterUrl: apiUrl,
       agentId, agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
       controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,

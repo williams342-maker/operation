@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Produces a `forge-build-v1` document — see docs/forge-manifest-spec.md §5.2.
+// Produces a `forge-build-v2` document — see docs/forge-manifest-spec.md §5.2.
 //
 // THIS IS THE MISSING PRODUCER. Two rounds of independent review found that the images workflow
 // attested OCI image digests while the preflight verifier requires a bundle whose signed in-toto
-// subject covers the exact bytes of a forge-build-v1 JSON document. Nothing created that document, so
+// subject covers the exact bytes of a forge-build-v2 JSON document. Nothing created that document, so
 // the legitimate path could not work and only a forged one could. This closes that half.
 //
 // It runs in CI with no dependencies so the images workflow needs no npm install. The real zod schema
@@ -23,6 +23,8 @@ const REQUIRED = [
   "FORGE_SOURCE_TREE",
   "FORGE_BACKEND_IMAGE_DIGEST",
   "FORGE_FRONTEND_IMAGE_DIGEST",
+  "FORGE_ADMIN_IMAGE_DIGEST",
+  "FORGE_REVIEW_GATE_IMAGE_DIGEST",
   "FORGE_BUILDER_IDENTITY",
   "FORGE_BUILDER_RUNNER_ENVIRONMENT",
   "FORGE_ISSUED_AT"
@@ -37,6 +39,8 @@ const SHAPES = {
   // deciding which bytes run.
   FORGE_BACKEND_IMAGE_DIGEST: /^[a-z0-9][a-z0-9._\-/]*(:[0-9]+)?\/?[a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/,
   FORGE_FRONTEND_IMAGE_DIGEST: /^[a-z0-9][a-z0-9._\-/]*(:[0-9]+)?\/?[a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/,
+  FORGE_ADMIN_IMAGE_DIGEST: /^[a-z0-9][a-z0-9._\-/]*(:[0-9]+)?\/?[a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/,
+  FORGE_REVIEW_GATE_IMAGE_DIGEST: /^[a-z0-9][a-z0-9._\-/]*(:[0-9]+)?\/?[a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/,
   FORGE_BUILDER_IDENTITY: /^https:\/\/\S+$/,
   FORGE_BUILDER_RUNNER_ENVIRONMENT: /^[a-z][a-z0-9-]{0,39}$/,
   FORGE_ISSUED_AT: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
@@ -50,13 +54,13 @@ export function buildForgeDocument(env) {
     const value = env[name]?.trim();
     if (value && !shape.test(value)) throw new Error(`Malformed build provenance input: ${name}`);
   }
-  if (env.FORGE_BACKEND_IMAGE_DIGEST.trim() === env.FORGE_FRONTEND_IMAGE_DIGEST.trim()) {
-    throw new Error("Backend and frontend images are identical");
+  if (new Set([env.FORGE_BACKEND_IMAGE_DIGEST.trim(), env.FORGE_FRONTEND_IMAGE_DIGEST.trim(), env.FORGE_ADMIN_IMAGE_DIGEST.trim(), env.FORGE_REVIEW_GATE_IMAGE_DIGEST.trim()]).size !== 4) {
+    throw new Error("Runtime images are not distinct");
   }
   // Key order here is cosmetic — the canonical digest is an explicit ordered field join, not a
   // serialization of this object — but keeping it in spec order makes the artifact readable in review.
   const document = {
-    schemaVersion: "forge-build-v1",
+    schemaVersion: "forge-build-v2",
     buildId: env.FORGE_BUILD_ID.trim(),
     sourceRepository: env.FORGE_SOURCE_REPOSITORY.trim(),
     sourceCommit: env.FORGE_SOURCE_COMMIT.trim(),
@@ -64,6 +68,8 @@ export function buildForgeDocument(env) {
     ...(env.FORGE_SOURCE_TAG?.trim() ? { sourceTag: env.FORGE_SOURCE_TAG.trim() } : {}),
     backendImageDigest: env.FORGE_BACKEND_IMAGE_DIGEST.trim(),
     frontendImageDigest: env.FORGE_FRONTEND_IMAGE_DIGEST.trim(),
+    adminImageDigest: env.FORGE_ADMIN_IMAGE_DIGEST.trim(),
+    reviewGateImageDigest: env.FORGE_REVIEW_GATE_IMAGE_DIGEST.trim(),
     ...(env.FORGE_RELEASE_BUNDLE_SHA256?.trim() ? { releaseBundleSha256: env.FORGE_RELEASE_BUNDLE_SHA256.trim() } : {}),
     ...(env.FORGE_RELEASE_MANIFEST_DIGEST?.trim() ? { releaseManifestDigest: env.FORGE_RELEASE_MANIFEST_DIGEST.trim() } : {}),
     builderIdentity: env.FORGE_BUILDER_IDENTITY.trim(),
