@@ -118,7 +118,12 @@ function installAndVerifyExactTree(source, target, expected) {
       const pendingCheck = compareReleaseTree(expected, describeTree(pending));
       if (!pendingCheck.ok) throw new Error(`pending installed release tree is not exact: ${pendingCheck.problems.join("; ")}`);
       makeReadonly(pending); fs.chmodSync(pending, 0o555); validateSealed(pending); fs.renameSync(pending, target);
-    } catch (error) { if (fs.existsSync(pending)) { makeRemovable(pending); fs.rmSync(pending, { recursive: true, force: true }); } throw error; }
+    } catch (error) {
+      try {
+        if (fs.existsSync(pending)) { makeRemovable(pending); fs.rmSync(pending, { recursive: true, force: true }); }
+      } catch { /* A leftover pending tree must not replace the installation refusal. */ }
+      throw error;
+    }
   }
   const check = compareReleaseTree(expected, describeTree(target));
   if (!check.ok) throw new Error(`installed release tree is not exact: ${check.problems.join("; ")}`);
@@ -185,7 +190,8 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     fs.writeFileSync(path.join(stage, "preparation.json"), `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o400 });
     return { stage, extracted, controlCenter: installedControlCenter, compose, installedControlCenter, candidateExpectedTree, rollbackBundle, rollbackExtracted, rollbackControlCenter, rollbackCompose, rollbackExpectedTree, rollbackArchiveTree, rollbackPrefix, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
   } catch (error) {
-    fs.writeFileSync(path.join(stage, "FAILED"), `${error.message}\n`, { flag: "wx", mode: 0o400 });
+    try { fs.writeFileSync(path.join(stage, "FAILED"), `${error.message}\n`, { flag: "wx", mode: 0o400 }); }
+    catch { /* Preserve the refusal even if the private stage cannot accept its diagnostic. */ }
     throw error;
   }
 }

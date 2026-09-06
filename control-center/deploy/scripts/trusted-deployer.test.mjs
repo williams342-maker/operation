@@ -71,6 +71,43 @@ test("preparation copies, re-verifies, safely inspects and bidirectionally check
   assert.equal(result.evidence.commit, commit);
 });
 
+for (const secondaryFailure of ["cleanup", "failure record"]) {
+  test(`preparation preserves its refusal when ${secondaryFailure} also fails`, (t) => {
+    const { item, prefix } = releaseFixture();
+    const original = new Error("injected installation refusal");
+    let secondaryReached = false;
+    t.mock.method(fs, "cpSync", () => { throw original; });
+    const realRemove = fs.rmSync;
+    const realWrite = fs.writeFileSync;
+    if (secondaryFailure === "cleanup") t.mock.method(fs, "rmSync", (file, options) => {
+      if (String(file).includes(".reviewed-pending-")) {
+        secondaryReached = true;
+        throw new Error("injected cleanup failure");
+      }
+      return realRemove(file, options);
+    });
+    else t.mock.method(fs, "writeFileSync", (file, ...args) => {
+      if (path.basename(String(file)) === "FAILED") {
+        secondaryReached = true;
+        throw new Error("injected failure-record error");
+      }
+      return realWrite(file, ...args);
+    });
+    assert.throws(() => prepareReviewedRelease(item, {
+      verifyAttestation: () => ({ verified: true }),
+      // Match the source fixture exactly without relying on a platform-specific tar command.
+      extract: (_archive, destination) => {
+        const source = path.join(destination, prefix, "control-center");
+        fs.mkdirSync(path.join(source, "deploy"), { recursive: true });
+        fs.mkdirSync(path.join(source, "scripts"));
+        fs.writeFileSync(path.join(source, "deploy", "docker-compose.production.yml"), "services: {}\n");
+        fs.writeFileSync(path.join(source, "scripts", "install-reviewed-agent.sh"), "#!/bin/sh\n");
+      },
+    }), (error) => error === original);
+    assert.equal(secondaryReached, true);
+  });
+}
+
 test("registry and daemon inspection bind digest, source, revision, role and local image ID", () => {
   const reference = image("api", "1");
   const result = inspectImmutableImage(reference, { commit, role: "api", title: "OpsWorkbench Control Center API" }, {
