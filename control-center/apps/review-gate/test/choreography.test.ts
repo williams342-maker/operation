@@ -5,7 +5,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AddressInfo } from "node:net";
+import type { AddressInfo, Socket } from "node:net";
 import {
   agentSigningKey, signRequest, generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest,
   signOwnerAuthorization, privilegedActionDigest, configurationChangeDigest,
@@ -170,6 +170,45 @@ type Call = { status: number; body: Record<string, unknown> };
  * holds its sockets open with keep-alive — so the suite finished green and the process still would not
  * exit. Dropping the connections first is what actually releases the handle.
  */
+/**
+ * Accepted sockets, per server.
+ *
+ * `closeAllConnections()` is the only public way to end them, so when IT is the thing that fails there
+ * is otherwise no handle on the sockets at all -- and a single accepted socket keeps the process alive
+ * long after every listener has stopped. Measured at the previous revision: cleanup returned after
+ * 5,008ms with both listeners down, one server socket still open and two referenced handles remaining,
+ * and an unreferenced watchdog then fired a second later, proving the process was still running.
+ * Bounding the wait had converted a hang inside cleanup into a hang after it.
+ *
+ * Note also what does NOT prove termination: the listening port becomes rebindable immediately, so a
+ * successful rebind says nothing about whether the process can exit.
+ */
+const ACCEPTED = new WeakMap<http.Server, Set<Socket>>();
+
+/** Must be called before the server can accept anything, so at construction or immediately after. */
+function trackConnections<T extends http.Server>(server: T): T {
+  const sockets = new Set<Socket>();
+  ACCEPTED.set(server, sockets);
+  server.on("connection", (socket: Socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  });
+  return server;
+}
+
+/**
+ * How many accepted sockets are still ALIVE. 0 is the only value that permits the process to exit.
+ *
+ * Counting the set would be wrong: destroy() marks the socket synchronously but its "close" event --
+ * which is what removes it from the set -- fires a tick later, so a correctly cleaned-up server would
+ * still report 1 to any caller that asked immediately.
+ */
+function remainingConnections(server: http.Server) {
+  let alive = 0;
+  for (const socket of ACCEPTED.get(server) ?? []) if (!socket.destroyed) alive += 1;
+  return alive;
+}
+
 /** How long to wait for close() to COMPLETE before giving up on it and reporting. */
 const CLOSE_COMPLETION_MS = 5_000;
 
@@ -191,6 +230,19 @@ async function shutDown(server: http.Server) {
     server.closeAllConnections();
   } catch (error) {
     record(error);
+  }
+
+  // The remedy, not just the report. When closeAllConnections succeeds this is a no-op -- the set is
+  // already empty. When it throws, this is the only thing that ends the sockets it did not, and without
+  // it close() never completes, the bound below expires, and the process stays alive holding a socket
+  // nobody can reach. Destroying is safe here because shutDown is teardown: there is no case where this
+  // file wants to keep a connection that a caller has asked it to stop serving.
+  for (const socket of ACCEPTED.get(server) ?? []) {
+    try {
+      socket.destroy();
+    } catch (error) {
+      record(error);
+    }
   }
 
   // close() releases the LISTENER synchronously; its callback then waits for open connections to end.
@@ -275,7 +327,7 @@ function controlCenter(tasks: () => unknown[], secret = AGENT_SECRET) {
   const acks: { taskId?: string; event?: string; message?: string }[] = [];
   const polls: unknown[] = [];
   const unauthorized: string[] = [];
-  const server = http.createServer((req, res) => {
+  const server = trackConnections(http.createServer((req, res) => {
     let body = "";
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
@@ -293,7 +345,7 @@ function controlCenter(tasks: () => unknown[], secret = AGENT_SECRET) {
       if (req.url === "/api/agent/tasks/ack") { acks.push(JSON.parse(body)); return send(200, {}); }
       return send(404, {});
     });
-  });
+  }));
   return { server, acks, polls, unauthorized };
 }
 
@@ -351,7 +403,7 @@ async function choreograph(verb: "apply" | "rollback") {
   await releaseCandidate(store, "c1", applyBinding);
   const candidateId = verb === "apply" ? "c1" : "c2";
 
-  const gateServer = buildApp(store).listen(0);
+  const gateServer = trackConnections(buildApp(store).listen(0));
   await new Promise((resolve) => gateServer.once("listening", resolve));
   const gateUrl = `http://127.0.0.1:${(gateServer.address() as AddressInfo).port}`;
 
@@ -564,10 +616,10 @@ test("§B choreography: cleanup closes every listener and never replaces the bod
   // awaited one close and then the next, so a throw in the first left the second listening -- exactly
   // the leak the try/finally was added to prevent, reproduced inside the fix. An independent review
   // found it by injecting this throw; it is a test now so the next edit cannot reintroduce it.
-  const healthy = http.createServer();
+  const healthy = trackConnections(http.createServer());
   healthy.listen(0);
   await new Promise((resolve) => healthy.once("listening", resolve));
-  const unclosable = http.createServer();
+  const unclosable = trackConnections(http.createServer());
   unclosable.listen(0);
   await new Promise((resolve) => unclosable.once("listening", resolve));
   unclosable.closeAllConnections = () => { throw new Error("injected close failure"); };
@@ -612,10 +664,10 @@ test("§B choreography: a server holding a live connection does not stall the ot
   // held socket stop every later server from beginning to close at all -- cleanup pending, listener up.
   // Isolating the REJECTION was not enough; the problem was DURATION. Measured before the fix:
   // { closeListenersCompleted: false, SECOND_STILL_LISTENING: true }.
-  const held = http.createServer(() => { /* never responds, so the connection stays open */ });
+  const held = trackConnections(http.createServer(() => { /* never responds, so the connection stays open */ }));
   held.listen(0);
   await new Promise((resolve) => held.once("listening", resolve));
-  const behind = http.createServer();
+  const behind = trackConnections(http.createServer());
   behind.listen(0);
   await new Promise((resolve) => behind.once("listening", resolve));
 
@@ -642,11 +694,27 @@ test("§B choreography: a server holding a live connection does not stall the ot
   // asserted, and passed either way: shutDown bounds its wait, so the sequential version also finishes
   // -- five seconds later. Duration was the defect, so duration is what has to be measured. What
   // separates the two is WHEN `behind` stops listening: immediately, or only after `held` gives up.
+  // Deliberately NOT awaited yet. The first version of this test awaited the whole cleanup and then
+  // asserted, and passed either way: shutDown bounds its wait, so the sequential version also finishes
+  // -- five seconds later. Duration was the defect, so duration is what has to be measured. What
+  // separates the two is WHEN `behind` stops listening: immediately, or only after `held` gives up.
+  //
+  // No sleep: both closes are started synchronously, before closeListeners returns its promise, so the
+  // difference is observable on the very next line. A time threshold here would only be a flake on a
+  // slow machine -- a reviewer was right to object to the 250ms one that used to be here.
   const cleanup = closeListeners(true, held, behind);
-  await new Promise((resolve) => { setTimeout(resolve, 250).unref(); });
   assert.equal(behind.listening, false,
     "a server stuck waiting on a live connection must not stop the ones after it from STARTING to close");
   await cleanup;
+
+  // And the property the bound alone does not give: cleanup must LEAVE nothing that keeps the process
+  // alive. The previous revision returned with the accepted socket still open, so the hang moved from
+  // inside cleanup to after it. This assertion runs BEFORE the teardown below -- which destroys the
+  // request and would otherwise conceal exactly this, as it did for two rounds of review.
+  assert.equal(remainingConnections(held), 0,
+    "cleanup must end the accepted connections, not merely stop waiting for them");
+  assert.equal(remainingConnections(behind), 0,
+    "and must leave nothing behind on the servers that closed cleanly");
 });
 
 test("§B choreography: this gate does not use the forbidden shortcuts", () => {
