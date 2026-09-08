@@ -171,8 +171,23 @@ type Call = { status: number; body: Record<string, unknown> };
  * exit. Dropping the connections first is what actually releases the handle.
  */
 async function shutDown(server: http.Server) {
-  server.closeAllConnections();
-  await new Promise((resolve) => { server.close(resolve); });
+  // Both steps are attempted, and the FIRST error is the one reported. Terminating connections and
+  // stopping the listener are independent operations, and writing them as two statements meant a throw
+  // from the first skipped the second -- so the server this call exists to stop stayed listening, and
+  // the caller was told about a failure it could no longer do anything about. Reporting a leak is not
+  // closing it: the process still does not exit.
+  let failure: unknown;
+  try {
+    server.closeAllConnections();
+  } catch (error) {
+    failure = error;
+  }
+  try {
+    await new Promise((resolve) => { server.close(resolve); });
+  } catch (error) {
+    failure ??= error;
+  }
+  if (failure !== undefined) throw failure;
 }
 
 /**
@@ -201,7 +216,12 @@ async function closeListeners(bodyFailed: boolean, ...servers: Array<http.Server
   if (failures.length === 0) return;
   if (bodyFailed) {
     for (const failure of failures) {
-      console.error("[choreography] a listener could not be closed; the failure reported above is the cause:", failure);
+      // Guarded for the same reason the whole branch exists: this path runs only when something else
+      // is already being reported, so a throw from the LOGGING would replace the very error it is
+      // annotating. Suppressing here suppresses nothing that was going to be seen anyway.
+      try {
+        console.error("[choreography] a listener could not be closed; the failure reported above is the cause:", failure);
+      } catch { /* the body's error is the diagnosis; this is a footnote */ }
     }
     return;
   }
@@ -533,8 +553,15 @@ test("§B choreography: cleanup closes every listener and never replaces the bod
   // the failure mode the whole fix exists to remove. Registered BEFORE the first assertion, and calling
   // close() directly because closeAllConnections is the method deliberately broken above.
   t.after(async () => {
-    await new Promise((resolve) => { healthy.close(resolve); });
-    await new Promise((resolve) => { unclosable.close(resolve); });
+    // Not two awaits: a synchronous throw from the first close rejects its promise and would skip the
+    // second, which is the defect under test reproduced inside the test's own teardown. Both promises
+    // are constructed before either is awaited, so both closes are attempted whatever the other does.
+    const closed = await Promise.allSettled([
+      new Promise((resolve) => { healthy.close(resolve); }),
+      new Promise((resolve) => { unclosable.close(resolve); }),
+    ]);
+    const failed = closed.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+    if (failed.length) throw new AggregateError(failed, "teardown could not close a listener");
   });
 
   // The body already failed. The close error must be suppressed -- it would otherwise stand in for the
@@ -542,6 +569,11 @@ test("§B choreography: cleanup closes every listener and never replaces the bod
   await closeListeners(true, unclosable, healthy);
   assert.equal(healthy.listening, false,
     "a server that fails to close must not stop the ones after it from closing");
+  // The half the first version of this test missed. It asserted only that the OTHER server closed, and
+  // its own teardown then closed this one with close() directly -- which concealed the leak rather than
+  // detecting it. An independent review found it by asking the question this line now asks.
+  assert.equal(unclosable.listening, false,
+    "the server whose close FAILED must itself have stopped listening");
 
   // The body passed. Now nothing else is reporting, so the close failure must surface rather than be
   // swallowed: a suppression rule that also applies to passing runs hides real leaks.
