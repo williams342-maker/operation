@@ -27,7 +27,18 @@ try {
   try { execFileSync("git", ["archive", "--format=tar", "HEAD", "control-center"], { cwd: repository, stdio: ["ignore", archiveFd, "pipe"] }); } finally { fs.closeSync(archiveFd); }
   execFileSync("tar", ["-xf", archivePath, "-C", sourceRoot], { stdio: "pipe" });
   const cleanControlCenter = path.join(sourceRoot, "control-center");
-  execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["ci", "--ignore-scripts"], { cwd: cleanControlCenter, stdio: "pipe" });
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  execFileSync(npm, ["ci", "--ignore-scripts"], { cwd: cleanControlCenter, stdio: "pipe" });
+  // @control-center/shared resolves to dist/index.js, which only exists once its own build has run --
+  // so without this esbuild cannot resolve the package and the bundle fails with eight unresolved
+  // imports. Every CI job that touches the agent builds it first; this path did not, and no release had
+  // been cut since the agent bundle was added here, so the failure could not surface until one was.
+  //
+  // This is the workspace's OWN build script, not a dependency install script: --ignore-scripts above
+  // is about not executing third-party lifecycle hooks, and running tsc on our own source does not
+  // weaken that. tsc output is deterministic for identical input, which the twice-build comparison in
+  // verify-release-artifacts.sh checks.
+  execFileSync(npm, ["run", "build", "--workspace", "@control-center/shared"], { cwd: cleanControlCenter, stdio: "pipe" });
   const { build } = await import(pathToFileURL(path.join(cleanControlCenter, "node_modules", "esbuild", "lib", "main.js")).href);
   const packageRoot = path.join(staging, "package");
   const agentOut = path.join(packageRoot, "control-center", "apps", "agent", "dist", "agent.js");
