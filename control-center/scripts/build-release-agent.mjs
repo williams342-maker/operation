@@ -40,12 +40,18 @@ try {
   // verify-release-artifacts.sh checks.
   execFileSync(npm, ["run", "build", "--workspace", "@control-center/shared"], { cwd: cleanControlCenter, stdio: "pipe" });
   const { build } = await import(pathToFileURL(path.join(cleanControlCenter, "node_modules", "esbuild", "lib", "main.js")).href);
+  // absWorkingDir is what makes the bundle REPRODUCIBLE. esbuild writes a comment naming each module,
+  // computed relative to the working directory -- and the working directory here is wherever the release
+  // script was invoked, while the sources live under a mkdtemp path whose name is random per run. That
+  // put 586 lines of random temp path into the bundle, so building twice produced two different digests
+  // and the determinism check compared them and failed. Pinned to the staged root, every recorded path
+  // is relative to a fixed point and the bytes no longer depend on where the build happened to run.
   const packageRoot = path.join(staging, "package");
   const agentOut = path.join(packageRoot, "control-center", "apps", "agent", "dist", "agent.js");
   const updaterOut = path.join(packageRoot, "control-center", "apps", "updater", "dist", "main.js");
   fs.mkdirSync(path.dirname(agentOut), { recursive: true }); fs.mkdirSync(path.dirname(updaterOut), { recursive: true });
-  await build({ entryPoints: [path.join(cleanControlCenter, "apps", "agent", "src", "agent.ts")], outfile: agentOut, bundle: true, platform: "node", format: "cjs", target: "node22", legalComments: "none", logLevel: "silent" });
-  await build({ entryPoints: [path.join(cleanControlCenter, "apps", "updater", "src", "main.ts")], outfile: updaterOut, bundle: true, platform: "node", format: "esm", target: "node22", legalComments: "none", logLevel: "silent" });
+  await build({ absWorkingDir: cleanControlCenter, entryPoints: [path.join(cleanControlCenter, "apps", "agent", "src", "agent.ts")], outfile: agentOut, bundle: true, platform: "node", format: "cjs", target: "node22", legalComments: "none", logLevel: "silent" });
+  await build({ absWorkingDir: cleanControlCenter, entryPoints: [path.join(cleanControlCenter, "apps", "updater", "src", "main.ts")], outfile: updaterOut, bundle: true, platform: "node", format: "esm", target: "node22", legalComments: "none", logLevel: "silent" });
   fs.writeFileSync(path.join(packageRoot, "control-center", "package.json"), '{"private":true,"type":"module"}\n');
   fs.writeFileSync(path.join(packageRoot, "control-center", "apps", "agent", "package.json"), '{"private":true,"type":"commonjs"}\n');
   const unitDir = path.join(packageRoot, "control-center", "deploy", "systemd"); fs.mkdirSync(unitDir, { recursive: true });
