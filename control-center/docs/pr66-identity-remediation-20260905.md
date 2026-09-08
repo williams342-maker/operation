@@ -32,5 +32,5 @@ the real verifier's validity-window tests remain responsible for detecting expir
 Expected counts increase by exactly two: agent 150→152, quick 436→438, full Linux 728→730. Skip
 expectations do not change. Ordinary CI and deployment readiness remain separate verdicts.
 
-Owner authorization to proceed and the waiver of an additional human security reviewer remain in force.
-Neither is represented as an independent review of this new implementation.
+This document describes the implementation only. It records no review verdict and should not be read as
+one: this work is unreviewed until an independent reviewer says otherwise.
