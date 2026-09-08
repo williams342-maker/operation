@@ -23,12 +23,14 @@ test("bootstrap build is reproducible, signed, schema-bound, and secret-free", {
 });
 
 test("bootstrap and rollback scripts avoid direct execution and preserve fixed policy", () => {
-  const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8"); const builder = fs.readFileSync(path.join(root, "scripts", "build-agent-bootstrap.mjs"), "utf8");
+  const bootstrap = fs.readFileSync(path.join(root, "scripts", "bootstrap-agent-release.sh"), "utf8"); const rollback = fs.readFileSync(path.join(root, "scripts", "rollback-agent-bootstrap.sh"), "utf8"); const builder = fs.readFileSync(path.join(root, "scripts", "build-agent-bootstrap.mjs"), "utf8"); const reviewed = fs.readFileSync(path.join(root, "scripts", "install-reviewed-agent.sh"), "utf8");
   assert.doesNotMatch(bootstrap, /curl[^\n]*\|[^\n]*(?:bash|sh)/); assert.match(bootstrap, /manifest signature verification failed/); assert.match(bootstrap, /artifact signature verification failed/); assert.match(bootstrap, /agentId\|\|!c\.agentSecret/); assert.match(bootstrap, /bootstrap validation failed and rollback was requested/); assert.match(bootstrap, /current_version.*0\.1\.0/); assert.match(rollback, /backup marker escaped the backup root/); assert.match(bootstrap, /chmod 0600 "\$curl_config"/); assert.match(bootstrap, /} >"\$curl_config"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /CONTROL_CENTER_ENROLLMENT_TOKEN=/);
   assert.match(bootstrap, /install -d -o root -g root -m 0711 "\$STATE_ROOT"/); assert.match(rollback, /install -d -o root -g root -m 0711 "\$STATE_ROOT"/); assert.doesNotMatch(`${bootstrap}\n${rollback}`, /chown -R[^\n]*STATE_ROOT|chmod 0?777/);
   assert.match(bootstrap, /OPSWORKBENCH_BOOTSTRAP_LOCK_HELD=1/); assert.match(rollback, /\/proc\/\$\$\/fd\/9/); assert.match(rollback, /inherited bootstrap lock is invalid/);
   assert.match(bootstrap, /rm -f -- "\$heartbeat" "\$heartbeat\.pending"[\s\S]*systemctl restart "\$AGENT_SERVICE"/);
   assert.match(builder, /"typescript", "bin", "tsc".*"packages", "shared", "tsconfig\.json"/);
+  assert.match(reviewed, /sha256sum .*prior-agent\.sha256/); assert.match(reviewed, /rollback agent identity changed/); assert.match(reviewed, /agent rollback snapshot is absent/); assert.match(reviewed, /systemctl restart "\$service"/);
+    assert.match(reviewed, /candidate\/control-center\/apps\/agent\/dist\/agent\.js/); assert.match(reviewed, /current\.reviewed-pending-\$\$/); assert.match(reviewed, /trap 'rm -f -- "\$pending"'/);
 });
 
 test("rollback reuses only the parent's exact inherited lock", { skip: process.platform === "win32" }, () => {
@@ -44,4 +46,4 @@ test("rollback reuses only the parent's exact inherited lock", { skip: process.p
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
-test("bootstrap scripts pass bash syntax validation when bash is available", { skip: process.platform === "win32" }, () => { for (const name of ["bootstrap-agent-release.sh", "rollback-agent-bootstrap.sh"]) { const result = spawnSync("bash", ["-n", path.join(root, "scripts", name)], { encoding: "utf8" }); assert.equal(result.status, 0, result.stderr); } });
+test("bootstrap scripts pass bash syntax validation when bash is available", { skip: process.platform === "win32" }, () => { for (const name of ["bootstrap-agent-release.sh", "rollback-agent-bootstrap.sh", "install-reviewed-agent.sh"]) { const result = spawnSync("bash", ["-n", path.join(root, "scripts", name)], { encoding: "utf8" }); assert.equal(result.status, 0, result.stderr); } });

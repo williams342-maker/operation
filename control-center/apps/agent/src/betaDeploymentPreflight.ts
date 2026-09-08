@@ -41,8 +41,10 @@ export type BetaDeploymentPreflightInput = {
   serviceEnvironmentReferencePath?: string;
   authorizedBackendImage: string;
   authorizedFrontendImage: string;
+  authorizedAdminImage: string;
   rollbackBackendImage: string;
   rollbackFrontendImage: string;
+  rollbackAdminImage: string;
   authorizedServices: string[];
   allowedComposeServices: string[];
   allowedHostnames: string[];
@@ -182,12 +184,11 @@ function collectDestinations(value: unknown, found: Set<string>) {
   else if (value && typeof value === "object") for (const item of Object.values(value)) collectDestinations(item, found);
 }
 
-// Parameterised over the expected pair so the deployment override and the rollback override are held to
-// the SAME rule: exactly two services, exactly one `image` key each, exactly the expected references.
-function validateImageOverride(raw: string, expected: { backend: string; frontend: string }) {
+// Parameterised over the expected image set so deployment and rollback are held to the same closed plan.
+function validateImageOverride(raw: string, expected: { backend: string; frontend: string; admin: string }) {
   const parsed = JSON.parse(raw) as { services?: Record<string, Record<string, unknown>> };
   const services = parsed.services || {};
-  if (Object.keys(parsed).length !== 1 || Object.keys(services).sort().join(",") !== "backend,frontend") throw new Error("Image override must contain exactly backend and frontend services");
+  if (Object.keys(parsed).length !== 1 || Object.keys(services).sort().join(",") !== Object.keys(expected).sort().join(",")) throw new Error("Image override must contain exactly the authorized services");
   for (const [name, image] of Object.entries(expected)) {
     const service = services[name];
     if (!service || Object.keys(service).join(",") !== "image" || service.image !== image) throw new Error(`Image override is invalid for ${name}`);
@@ -214,12 +215,12 @@ export async function withBetaPreflightTemporaryFiles<T>(input: BetaDeploymentPr
     // 0600, never overwriting an existing path, and removed in the finally block below. The rollback
     // override is a deployment input too, and a weaker rule on it would be the weakest link.
     for (const [label, target, images] of [
-      ["Image override", override, { backend: input.authorizedBackendImage, frontend: input.authorizedFrontendImage }],
-      ...(rollbackOverride ? [["Rollback image override", rollbackOverride, { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage }] as const] : [])
+      ["Image override", override, { backend: input.authorizedBackendImage, frontend: input.authorizedFrontendImage, admin: input.authorizedAdminImage }],
+      ...(rollbackOverride ? [["Rollback image override", rollbackOverride, { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage, admin: input.rollbackAdminImage }] as const] : [])
     ] as const) {
       if (!target.startsWith(`${workingDirectory}${path.sep}`)) throw new Error(`${label} must be inside the Compose working directory`);
       if (fs.existsSync(target)) throw new Error(`${label} path already exists`);
-      fs.writeFileSync(target, `${JSON.stringify({ services: { backend: { image: images.backend }, frontend: { image: images.frontend } } }, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+      fs.writeFileSync(target, `${JSON.stringify({ services: { backend: { image: images.backend }, frontend: { image: images.frontend }, admin: { image: images.admin } } }, null, 2)}\n`, { mode: 0o600, flag: "wx" });
       created.push(target);
     }
     if (reference) {
@@ -307,7 +308,7 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
     for (const [name, value] of Object.entries({ composeWorkingDirectory: input.composeWorkingDirectory, composeProjectName: input.composeProjectName, composeFilePath: input.composeFilePath, environmentFilePath: input.environmentFilePath, composeOverrideFilePath: input.composeOverrideFilePath })) {
       if (!value?.trim()) block(name, "Required operator input is missing");
     }
-    for (const [name, value] of Object.entries({ authorizedBackendImage: input.authorizedBackendImage, authorizedFrontendImage: input.authorizedFrontendImage, rollbackBackendImage: input.rollbackBackendImage, rollbackFrontendImage: input.rollbackFrontendImage })) {
+    for (const [name, value] of Object.entries({ authorizedBackendImage: input.authorizedBackendImage, authorizedFrontendImage: input.authorizedFrontendImage, authorizedAdminImage: input.authorizedAdminImage, rollbackBackendImage: input.rollbackBackendImage, rollbackFrontendImage: input.rollbackFrontendImage, rollbackAdminImage: input.rollbackAdminImage })) {
       if (!safeRef(value || "")) block(name, "Image reference is missing or unsafe");
     }
     if (!input.authorizedServices.length) block("authorized_services", "At least one service is required");
@@ -331,11 +332,11 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
     const envSource = fs.readFileSync(environmentFile);
     const overrideSource = fs.readFileSync(composeOverrideFile);
     const rollbackOverrideSource = rollbackOverrideFile ? fs.readFileSync(rollbackOverrideFile) : undefined;
-    try { validateImageOverride(overrideSource.toString("utf8"), { backend: input.authorizedBackendImage, frontend: input.authorizedFrontendImage }); pass("compose_override", "Override contains only the authorized backend and frontend images"); }
-    catch { block("compose_override", "Compose image override is not the exact authorized two-service plan"); }
+    try { validateImageOverride(overrideSource.toString("utf8"), { backend: input.authorizedBackendImage, frontend: input.authorizedFrontendImage, admin: input.authorizedAdminImage }); pass("compose_override", "Override contains only the authorized backend, frontend and admin images"); }
+    catch { block("compose_override", "Compose image override is not the exact authorized three-service plan"); }
     if (rollbackOverrideSource) {
-      try { validateImageOverride(rollbackOverrideSource.toString("utf8"), { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage }); pass("rollback_override", "Rollback override contains only the rollback backend and frontend images"); }
-      catch { block("rollback_override", "Rollback image override is not the exact rollback two-service plan"); }
+      try { validateImageOverride(rollbackOverrideSource.toString("utf8"), { backend: input.rollbackBackendImage, frontend: input.rollbackFrontendImage, admin: input.rollbackAdminImage }); pass("rollback_override", "Rollback override contains only the rollback backend, frontend and admin images"); }
+      catch { block("rollback_override", "Rollback image override is not the exact rollback three-service plan"); }
     }
     const envValues = parseEnvironment(envSource.toString("utf8"));
     report.environmentFileSha256 = sha256(envSource);
@@ -370,9 +371,9 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
       if (!input.actualOrgId || !input.actualServerId) block("forge_binding_identity", "Forge evidence requires the agent's own organization and server identity");
       else if (b.targetOrgId !== input.actualOrgId || b.targetServerId !== input.actualServerId) block("forge_binding_identity", "Binding authorizes a different organization or server than this host");
       else pass("forge_binding_identity", "Binding target identity matches this host");
-      if (forge.candidate.backendImageDigest !== input.authorizedBackendImage || forge.candidate.frontendImageDigest !== input.authorizedFrontendImage) block("forge_binding_images", "Candidate images differ from the attested build's pinned digests");
+      if (forge.candidate.backendImageDigest !== input.authorizedBackendImage || forge.candidate.frontendImageDigest !== input.authorizedFrontendImage || forge.candidate.adminImageDigest !== input.authorizedAdminImage) block("forge_binding_images", "Candidate images differ from the attested build's pinned digests");
       else pass("forge_binding_images", "Candidate images are the attested build's pinned digests");
-      if (forge.rollback.backendImageDigest !== input.rollbackBackendImage || forge.rollback.frontendImageDigest !== input.rollbackFrontendImage) block("forge_binding_rollback_images", "Rollback images differ from the attested rollback build's pinned digests");
+      if (forge.rollback.backendImageDigest !== input.rollbackBackendImage || forge.rollback.frontendImageDigest !== input.rollbackFrontendImage || forge.rollback.adminImageDigest !== input.rollbackAdminImage) block("forge_binding_rollback_images", "Rollback images differ from the attested rollback build's pinned digests");
       else pass("forge_binding_rollback_images", "Rollback images are the attested rollback build's pinned digests");
     }
     const services = model.services || {};
@@ -385,11 +386,14 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
 
     const backendName = input.authorizedServices.find((name) => /backend/i.test(name));
     const frontendName = input.authorizedServices.find((name) => /frontend/i.test(name));
-    if (!backendName || !frontendName) block("service_association", "Authorized services must identify one backend and one frontend");
+    const adminName = input.authorizedServices.find((name) => /admin/i.test(name));
+    if (!backendName || !frontendName || !adminName) block("service_association", "Authorized services must identify one backend, one frontend and one admin");
     const backend = backendName ? services[backendName] : undefined;
     const frontend = frontendName ? services[frontendName] : undefined;
+    const admin = adminName ? services[adminName] : undefined;
     if (backend?.image !== input.authorizedBackendImage) block("backend_image_plan", "Resolved backend image differs from the authorized candidate"); else pass("backend_image_plan", "Resolved backend image matches the authorized candidate");
     if (frontend?.image !== input.authorizedFrontendImage) block("frontend_image_plan", "Resolved frontend image differs from the authorized candidate"); else pass("frontend_image_plan", "Resolved frontend image matches the authorized candidate");
+    if (admin?.image !== input.authorizedAdminImage) block("admin_image_plan", "Resolved admin image differs from the authorized candidate"); else pass("admin_image_plan", "Resolved admin image matches the authorized candidate");
     const backendEnv = environmentObject(backend?.environment);
     for (const key of ["APP_ENV", "ENVIRONMENT"] as const) {
       const value = backendEnv.get(key)?.trim().toLowerCase();
@@ -427,8 +431,10 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
     const imageInputs = {
       candidateBackend: input.authorizedBackendImage,
       candidateFrontend: input.authorizedFrontendImage,
+      candidateAdmin: input.authorizedAdminImage,
       rollbackBackend: input.rollbackBackendImage,
       rollbackFrontend: input.rollbackFrontendImage,
+      rollbackAdmin: input.rollbackAdminImage,
     };
     const inspected: Record<string, ImageInspection> = {};
     for (const [role, reference] of Object.entries(imageInputs)) {
@@ -441,13 +447,14 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
       // org.opencontainers.image.revision, which this preflight has always read and, until now, never
       // compared to anything. An image whose label does not match the attested source commit is an
       // artifact nobody can account for.
-      const expectedRevision = { candidateBackend: forge.candidate.sourceCommit, candidateFrontend: forge.candidate.sourceCommit, rollbackBackend: forge.rollback.sourceCommit, rollbackFrontend: forge.rollback.sourceCommit };
+      const expectedRevision = { candidateBackend: forge.candidate.sourceCommit, candidateFrontend: forge.candidate.sourceCommit, candidateAdmin: forge.candidate.sourceCommit, rollbackBackend: forge.rollback.sourceCommit, rollbackFrontend: forge.rollback.sourceCommit, rollbackAdmin: forge.rollback.sourceCommit };
       const unbound = Object.entries(expectedRevision).filter(([role, commit]) => inspected[role]?.revision !== commit);
       if (unbound.length) block("forge_build_provenance", `Image revision label does not match the attested source commit: ${unbound.map(([role]) => role).sort().join(", ")}`);
       else pass("forge_build_provenance", "Every image is labelled with the source commit its build attests");
     }
     if (inspected.candidateBackend?.id === inspected.rollbackBackend?.id) block("backend_rollback_distinct", "Backend candidate and rollback images are identical");
     if (inspected.candidateFrontend?.id === inspected.rollbackFrontend?.id) block("frontend_rollback_distinct", "Frontend candidate and rollback images are identical");
+    if (inspected.candidateAdmin?.id === inspected.rollbackAdmin?.id) block("admin_rollback_distinct", "Admin candidate and rollback images are identical");
     report.images = Object.fromEntries(Object.entries(inspected).map(([role, image]) => [role, { reference: imageInputs[role as keyof typeof imageInputs], id: image.id, ...(image.revision ? { revision: image.revision } : {}) }]));
 
     if (checks.some((check) => !check.passed)) return { status: "BLOCKED", checks, report };
@@ -465,7 +472,7 @@ export async function runBetaDeploymentPreflight(input: BetaDeploymentPreflightI
       report.rollbackCommand = `${rollbackBase} up -d --no-build --no-deps --force-recreate ${servicesArg}`;
     } else {
       // Legacy retag form, preserved so that callers who supply no rollback override are unaffected.
-      report.rollbackCommand = `docker image tag ${quote(input.rollbackBackendImage)} ${quote(input.authorizedBackendImage)} && docker image tag ${quote(input.rollbackFrontendImage)} ${quote(input.authorizedFrontendImage)} && ${base} up -d --no-build --no-deps --force-recreate ${servicesArg}`;
+      report.rollbackCommand = `docker image tag ${quote(input.rollbackBackendImage)} ${quote(input.authorizedBackendImage)} && docker image tag ${quote(input.rollbackFrontendImage)} ${quote(input.authorizedFrontendImage)} && docker image tag ${quote(input.rollbackAdminImage)} ${quote(input.authorizedAdminImage)} && ${base} up -d --no-build --no-deps --force-recreate ${servicesArg}`;
     }
     report.operatorApprovalStatus = "awaiting";
     return { status: "PASS — awaiting operator approval", checks, report };

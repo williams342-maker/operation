@@ -13,27 +13,30 @@ function fixture() {
   const override = path.join(root, "opsworkbench-images.json");
   const rollbackOverride = path.join(root, "opsworkbench-rollback-images.json");
   fs.writeFileSync(env, `APP_ENV=beta\nENVIRONMENT=beta\n${BETA_STARTUP_SAFETY_FLAGS.map((name) => `${name}=false`).join("\n")}\n`);
-  fs.writeFileSync(compose, "services:\n  backend:\n    image: candidate-backend\n    environment:\n      APP_ENV: ${APP_ENV:-production}\n      ENVIRONMENT: ${ENVIRONMENT:-production}\n  frontend:\n    image: candidate-frontend\n  mongo:\n    image: mongo:7\n");
-  fs.writeFileSync(override, `${JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "candidate-frontend" } } }, null, 2)}\n`);
-  fs.writeFileSync(rollbackOverride, `${JSON.stringify({ services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" } } }, null, 2)}\n`);
+  fs.writeFileSync(compose, "services:\n  backend:\n    image: candidate-backend\n    environment:\n      APP_ENV: ${APP_ENV:-production}\n      ENVIRONMENT: ${ENVIRONMENT:-production}\n  frontend:\n    image: candidate-frontend\n  admin:\n    image: candidate-admin\n  mongo:\n    image: mongo:7\n");
+  fs.writeFileSync(override, `${JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "candidate-frontend" }, admin: { image: "candidate-admin" } } }, null, 2)}\n`);
+  fs.writeFileSync(rollbackOverride, `${JSON.stringify({ services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" }, admin: { image: "rollback-admin" } } }, null, 2)}\n`);
   const input: BetaDeploymentPreflightInput = {
     targetEnvironment: "beta", composeWorkingDirectory: root, composeProjectName: "craftersmarket",
     composeFilePath: compose, environmentFilePath: env, composeOverrideFilePath: override, authorizedBackendImage: "candidate-backend",
-    authorizedFrontendImage: "candidate-frontend", rollbackBackendImage: "rollback-backend",
-    rollbackFrontendImage: "rollback-frontend", authorizedServices: ["backend", "frontend"],
-    allowedComposeServices: ["backend", "frontend", "mongo"], allowedHostnames: ["craftersmarketbeta.shop"],
+    authorizedFrontendImage: "candidate-frontend", authorizedAdminImage: "candidate-admin", rollbackBackendImage: "rollback-backend",
+    rollbackFrontendImage: "rollback-frontend", rollbackAdminImage: "rollback-admin", authorizedServices: ["backend", "frontend", "admin"],
+    allowedComposeServices: ["backend", "frontend", "admin", "mongo"], allowedHostnames: ["craftersmarketbeta.shop"],
     allowedDatabaseDestinations: [{ hostname: "mongo", databaseName: "craftersmarket" }],
   };
   const model = { name: "craftersmarket", services: {
     backend: { image: "candidate-backend", environment: { APP_ENV: "beta", ENVIRONMENT: "beta", ...flags, MONGO_URL: "mongodb://mongo:27017/craftersmarket" } as Record<string, string>, healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
     frontend: { image: "candidate-frontend", environment: { REACT_APP_BACKEND_URL: "https://craftersmarketbeta.shop" }, healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
+    admin: { image: "candidate-admin", healthcheck: { test: ["CMD", "true"] }, restart: "unless-stopped" },
     mongo: { image: "mongo:7" },
   }, networks: { default: {} }, volumes: { mongo_data: {} } };
   const images: Record<string, ImageInspection> = {
     "candidate-backend": { id: "sha256:candidate-backend", repoTags: ["candidate-backend"], revision: "candidate" },
     "candidate-frontend": { id: "sha256:candidate-frontend", repoTags: ["candidate-frontend"], revision: "candidate" },
+    "candidate-admin": { id: "sha256:candidate-admin", repoTags: ["candidate-admin"], revision: "candidate" },
     "rollback-backend": { id: "sha256:rollback-backend", repoTags: ["rollback-backend"] },
     "rollback-frontend": { id: "sha256:rollback-frontend", repoTags: ["rollback-frontend"] },
+    "rollback-admin": { id: "sha256:rollback-admin", repoTags: ["rollback-admin"] },
   };
   let calls = 0; let args: string[] = [];
   const hooks = {
@@ -48,7 +51,7 @@ test("passes with explicit beta env and stops at operator approval", async () =>
   const item = fixture(); const result = await runBetaDeploymentPreflight(item.input, item.hooks);
   assert.equal(result.status, "PASS — awaiting operator approval");
   assert.equal(item.calls, 1); assert.deepEqual(item.args.slice(0, 9), ["compose", "--project-name", "craftersmarket", "--env-file", item.env, "-f", item.compose, "-f", item.override]);
-  assert.match(result.report.deploymentCommand!, /--no-build --no-deps --force-recreate 'backend' 'frontend'$/);
+  assert.match(result.report.deploymentCommand!, /--no-build --no-deps --force-recreate 'backend' 'frontend' 'admin'$/);
   // INERTNESS (corrected after the 2026-09-01 review): with no rollback override supplied, behaviour is
   // exactly what it was before any of this existed — the legacy retag command, unchanged.
   assert.match(result.report.rollbackCommand!, /docker image tag 'rollback-backend' 'candidate-backend'/);
@@ -106,7 +109,7 @@ test("database destination requires an exact hostname and database fingerprint",
   assert.deepEqual(result.report.databaseDestination, { sourceVariable: "MONGO_URL", hostname: "mongo", databaseName: "craftersmarket", classification: "blocked" });
 });
 
-test("image override must contain exactly the two authorized image bindings", async () => {
+test("image override must contain exactly the three authorized image bindings", async () => {
   const item = fixture();
   fs.writeFileSync(item.override, JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "candidate-frontend" }, mongo: { image: "mongo:7" } } }));
   const result = await runBetaDeploymentPreflight(item.input, item.hooks);
@@ -162,12 +165,12 @@ test("the rollback override obeys the same rules as the deployment override", as
   fs.rmSync(created.override); fs.rmSync(created.rollbackOverride);
   await withBetaPreflightTemporaryFiles(created.input, async () => {
     const body = JSON.parse(fs.readFileSync(created.rollbackOverride, "utf8"));
-    assert.deepEqual(body, { services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" } } });
+    assert.deepEqual(body, { services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" }, admin: { image: "rollback-admin" } } });
     if (process.platform !== "win32") assert.equal(fs.statSync(created.rollbackOverride).mode & 0o777, 0o600);
   });
 });
 
-test("a rollback override that is not the exact rollback pair blocks", async () => {
+test("a rollback override that is not the exact rollback image set blocks", async () => {
   const item = fixture();
   item.input.rollbackComposeOverrideFilePath = item.rollbackOverride;
   fs.writeFileSync(item.rollbackOverride, `${JSON.stringify({ services: { backend: { image: "candidate-backend" }, frontend: { image: "rollback-frontend" } } }, null, 2)}\n`);
@@ -208,7 +211,7 @@ test("blocks missing compose and environment files", async () => {
 test("option 1: when a rollback override is supplied, rollback selects it and never retags", async () => {
   const item = fixture();
   item.input.rollbackComposeOverrideFilePath = item.rollbackOverride;
-  fs.writeFileSync(item.rollbackOverride, `${JSON.stringify({ services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" } } }, null, 2)}
+  fs.writeFileSync(item.rollbackOverride, `${JSON.stringify({ services: { backend: { image: "rollback-backend" }, frontend: { image: "rollback-frontend" }, admin: { image: "rollback-admin" } } }, null, 2)}
 `);
   const result = await runBetaDeploymentPreflight(item.input, item.hooks);
   assert.equal(result.status, "PASS — awaiting operator approval");

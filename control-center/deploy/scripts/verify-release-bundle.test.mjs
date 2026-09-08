@@ -14,14 +14,18 @@ function makeBundle({ tag = "v1.2.3-rc1", commit = "a".repeat(40), tamper = null
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "relbundle-"));
   const version = tag.slice(1);
   const artifact = `opsworkbench-control-center-${version}.tar.gz`;
+  const agentArtifact = `opsworkbench-control-center-${version}-agent-linux-x64.tar.gz`;
   const manifestName = `opsworkbench-control-center-${version}.manifest.json`;
   const tarballBytes = Buffer.from("fake-deterministic-tarball-bytes");
-  const manifest = { schemaVersion: schema, tag, commit, artifact, source: "test", reproducible: true };
+  const agentBytes = Buffer.from("fake-agent-bundle");
+  const manifest = { schemaVersion: schema, tag, commit, artifact, agentArtifact, source: "test", reproducible: true };
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
   fs.writeFileSync(path.join(dir, artifact), tarballBytes);
+  fs.writeFileSync(path.join(dir, agentArtifact), agentBytes);
   fs.writeFileSync(path.join(dir, manifestName), manifestBytes);
   const sums =
     `${sha256Hex(tarballBytes)}  ${artifact}\n` +
+    `${sha256Hex(agentBytes)}  ${agentArtifact}\n` +
     `${sha256Hex(manifestBytes)}  ${manifestName}\n`;
   fs.writeFileSync(path.join(dir, "SHA256SUMS"), sums);
   if (tamper === "tarball") fs.writeFileSync(path.join(dir, artifact), Buffer.from("MUTATED"));
@@ -35,6 +39,10 @@ test("parseSha256Sums parses valid lines and flags malformed ones", () => {
   assert.equal(parsed.length, 2);
   assert.deepEqual(parsed[0], { hash: "a".repeat(64), name: "file.tar.gz" });
   assert.equal(parsed[1], null);
+});
+
+test("SHA256SUMS names cannot escape or create subdirectories", () => {
+  for (const name of ["../outside", "sub/file", "sub\\file", ".", "-option"]) assert.equal(parseSha256Sums(`${"a".repeat(64)}  ${name}\n`)[0], null);
 });
 
 test("a well-formed bundle verifies ok", () => {
@@ -71,6 +79,13 @@ test("a non-40-char commit is rejected", () => {
   const result = verifyReleaseBundle(dir, { expectedTag: tag });
   assert.equal(result.ok, false);
   assert.ok(result.problems.some((p) => p.includes("40-char SHA")));
+});
+
+test("a manifest without the main artifact is rejected as a verification result", () => {
+  const { dir, tag, manifestName } = makeBundle(); const manifestPath = path.join(dir, manifestName); const manifest = JSON.parse(fs.readFileSync(manifestPath)); delete manifest.artifact;
+  const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`); fs.writeFileSync(manifestPath, bytes);
+  const lines = fs.readFileSync(path.join(dir, "SHA256SUMS"), "utf8").trim().split("\n"); lines[2] = `${sha256Hex(bytes)}  ${manifestName}`; fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${lines.join("\n")}\n`);
+  const result = verifyReleaseBundle(dir, { expectedTag: tag }); assert.equal(result.ok, false); assert.ok(result.problems.some((problem) => problem.includes("manifest artifact")));
 });
 
 test("a missing manifest is rejected", () => {

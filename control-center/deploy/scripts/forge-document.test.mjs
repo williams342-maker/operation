@@ -16,12 +16,14 @@ const env = () => ({
   FORGE_SOURCE_TAG: "v0.1.2-operate",
   FORGE_BACKEND_IMAGE_DIGEST: `ghcr.io/williams342-maker/operation/control-center-api@sha256:${"a".repeat(64)}`,
   FORGE_FRONTEND_IMAGE_DIGEST: `ghcr.io/williams342-maker/operation/control-center-web@sha256:${"b".repeat(64)}`,
+  FORGE_ADMIN_IMAGE_DIGEST: `ghcr.io/williams342-maker/operation/control-center-admin-web@sha256:${"c".repeat(64)}`,
+  FORGE_REVIEW_GATE_IMAGE_DIGEST: `ghcr.io/williams342-maker/operation/review-gate@sha256:${"d".repeat(64)}`,
   FORGE_BUILDER_IDENTITY: "https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/v0.1.2-operate",
   FORGE_BUILDER_RUNNER_ENVIRONMENT: "github-hosted",
   FORGE_ISSUED_AT: "2026-09-01T12:00:00Z"
 });
 
-test("the produced document parses against the real forge-build-v1 schema", () => {
+test("the produced document parses against the real forge-build-v2 schema", () => {
   const parsed = forgeBuildManifestSchema.safeParse(JSON.parse(buildForgeDocument(env())));
   assert.equal(parsed.success, true, parsed.success ? "" : JSON.stringify(parsed.error.issues));
   // And it is digestible, which is the operation the owner authorization ultimately binds to.
@@ -46,7 +48,7 @@ test("an optional field that is absent stays absent rather than becoming empty",
 
 test("a missing required input is an error, never a default", () => {
   // A provenance document that quietly fills in a blank is worse than no document.
-  for (const key of ["FORGE_SOURCE_COMMIT", "FORGE_SOURCE_TREE", "FORGE_BACKEND_IMAGE_DIGEST", "FORGE_BUILDER_IDENTITY", "FORGE_ISSUED_AT"]) {
+  for (const key of ["FORGE_SOURCE_COMMIT", "FORGE_SOURCE_TREE", "FORGE_BACKEND_IMAGE_DIGEST", "FORGE_FRONTEND_IMAGE_DIGEST", "FORGE_ADMIN_IMAGE_DIGEST", "FORGE_REVIEW_GATE_IMAGE_DIGEST", "FORGE_BUILDER_IDENTITY", "FORGE_ISSUED_AT"]) {
     const broken = env();
     delete broken[key];
     assert.throws(() => buildForgeDocument(broken), new RegExp(key), `${key} must be required`);
@@ -74,10 +76,10 @@ test("malformed commit, tree, identity or timestamp are refused", () => {
   }
 });
 
-test("identical backend and frontend images are refused", () => {
+test("every runtime image must be distinct", () => {
   const same = env();
   same.FORGE_FRONTEND_IMAGE_DIGEST = same.FORGE_BACKEND_IMAGE_DIGEST;
-  assert.throws(() => buildForgeDocument(same), /identical/);
+  assert.throws(() => buildForgeDocument(same), /not distinct/);
 });
 
 test("the builder identity the document claims is the one an attestation can prove", () => {

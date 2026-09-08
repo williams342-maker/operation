@@ -13,6 +13,7 @@ import type { CandidateRecord } from "../src/store.js";
 import type { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { castOf, type Person } from "./principals.js";
 import { configurationChangeDigest, configurationDeploymentPayloadSchema } from "@control-center/shared";
+import { fixtureForgeSecurity } from "../../agent/test/fixtureForgeSecurity.js";
 
 // THE EFFECT POINT, driven through `executeTask` itself.
 //
@@ -44,6 +45,7 @@ const PROCESS_STATE_DIR = path.join(PROCESS_HOME, "agent-state");
 // EVERY agent import is dynamic, and that is load-bearing rather than stylistic: a static import is
 // hoisted above the assignment above it, so the agent config module would resolve its path before this
 // test could set it — and the executor would look for its record somewhere else entirely.
+await fixtureForgeSecurity({ orgId: "org-1", serverId: "server-1" });
 const { executeTask } = await import("../../agent/src/agent.js");
 const { writeEnforcement } = await import("../../agent/src/reviewEnforcement.js");
 const { agentConfigSchema } = await import("../../agent/src/config.js");
@@ -177,6 +179,7 @@ async function estate(options: { enforcing: boolean } = { enforcing: true }) {
   const config = agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(ccServer.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: "a".repeat(64), keyProtocolVersion: "agent-v2",
+    orgId: "org-1", serverId: "server-1",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
     reviewGate: { url: gateUrl, credential: cast.credentialFor("agent-1"), timeoutMs: 5000 },
   });

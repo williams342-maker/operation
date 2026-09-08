@@ -1,5 +1,7 @@
 import express from "express";
 import helmet from "helmet";
+import fs from "node:fs";
+import https from "node:https";
 import { MongoClient } from "mongodb";
 import { ADVISORY_NOTICE, buildRouter } from "./routes.js";
 import { AttestationService } from "./attestationService.js";
@@ -21,6 +23,7 @@ export type ServerConfig = {
   dbName: string;
   /** Absent = the service default. See `buildApp`. */
   initialExecutionMs?: number;
+  tls?: { certificatePath: string; privateKeyPath: string };
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
@@ -47,14 +50,20 @@ export function readConfig(env: NodeJS.ProcessEnv): ServerConfig {
       throw new Error("REVIEW_GATE_INITIAL_EXECUTION_MS must be a number of milliseconds");
     }
   }
+  const certificatePath = env.REVIEW_GATE_TLS_CERTIFICATE_PATH;
+  const privateKeyPath = env.REVIEW_GATE_TLS_PRIVATE_KEY_PATH;
+  if (Boolean(certificatePath) !== Boolean(privateKeyPath)) throw new Error("both Review Gate TLS paths are required together");
+  const bind = env.REVIEW_GATE_BIND ?? "127.0.0.1";
+  if (bind !== "127.0.0.1" && bind !== "::1" && !certificatePath) throw new Error("a non-loopback Review Gate must use TLS");
   return {
     port: Number(env.REVIEW_GATE_PORT ?? 3100),
     // Loopback by default. This is not a public service, and a default of 0.0.0.0 would be a decision
     // made by omission.
-    bind: env.REVIEW_GATE_BIND ?? "127.0.0.1",
+    bind,
     mongoUrl,
     dbName,
     initialExecutionMs,
+    ...(certificatePath && privateKeyPath ? { tls: { certificatePath, privateKeyPath } } : {}),
   };
 }
 
@@ -155,7 +164,7 @@ export async function main(): Promise<void> {
   const app = buildApp(store, { initialExecutionMs: config.initialExecutionMs });
   const sweep = startExpirySweep(store);
   await new Promise<void>((resolve) => {
-    const server = app.listen(config.port, config.bind, () => {
+    const onListening = () => {
       // The advisory sentence is logged at every start, deliberately. It is the honest description of
       // what this process currently is, and it stays until the enforcement point ships.
       console.log(`[review-gate] listening on ${config.bind}:${config.port}`);
@@ -167,7 +176,10 @@ export async function main(): Promise<void> {
       }
       console.log(`[review-gate] ${ADVISORY_NOTICE}`);
       resolve();
-    });
+    };
+    const server = config.tls
+      ? https.createServer({ cert: fs.readFileSync(config.tls.certificatePath), key: fs.readFileSync(config.tls.privateKeyPath) }, app).listen(config.port, config.bind, onListening)
+      : app.listen(config.port, config.bind, onListening);
     const shutdown = (signal: string) => {
       console.log(`[review-gate] ${signal}: closing`);
       sweep.stop();

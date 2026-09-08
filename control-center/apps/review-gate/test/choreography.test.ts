@@ -5,7 +5,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AddressInfo } from "node:net";
+import type { AddressInfo, Socket } from "node:net";
 import {
   agentSigningKey, signRequest, generateAgentKeyPairs, signTaskEnvelopeV2, payloadDigest,
   signOwnerAuthorization, privilegedActionDigest, configurationChangeDigest,
@@ -16,6 +16,7 @@ import { contentDigest, candidateDigest, type CandidateBinding } from "../src/po
 import type { CandidateRecord } from "../src/store.js";
 import { InMemoryReviewGateStore } from "../src/memoryStore.js";
 import { castOf } from "./principals.js";
+import { fixtureForgeSecurity } from "../../agent/test/fixtureForgeSecurity.js";
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // CHECKLIST §B — the public-interface choreography gate.
@@ -76,6 +77,7 @@ process.env.CONTROL_CENTER_AGENT_CONFIG = path.join(PROCESS_HOME, "agent.json");
 const PROCESS_STATE_DIR = path.join(PROCESS_HOME, "agent-state");
 
 // Dynamic, and load-bearing: a static import is hoisted above the assignment above it.
+await fixtureForgeSecurity({ orgId: "org-1", serverId: "server-1" });
 const { pollOnce } = await import("../../agent/src/agent.js");
 const { writeEnforcement } = await import("../../agent/src/reviewEnforcement.js");
 const { saveConfig, agentConfigSchema } = await import("../../agent/src/config.js");
@@ -168,9 +170,147 @@ type Call = { status: number; body: Record<string, unknown> };
  * holds its sockets open with keep-alive — so the suite finished green and the process still would not
  * exit. Dropping the connections first is what actually releases the handle.
  */
+/**
+ * Accepted sockets, per server.
+ *
+ * `closeAllConnections()` is the only public way to end them, so when IT is the thing that fails there
+ * is otherwise no handle on the sockets at all -- and a single accepted socket keeps the process alive
+ * long after every listener has stopped. Measured at the previous revision: cleanup returned after
+ * 5,008ms with both listeners down, one server socket still open and two referenced handles remaining,
+ * and an unreferenced watchdog then fired a second later, proving the process was still running.
+ * Bounding the wait had converted a hang inside cleanup into a hang after it.
+ *
+ * Note also what does NOT prove termination: the listening port becomes rebindable immediately, so a
+ * successful rebind says nothing about whether the process can exit.
+ */
+const ACCEPTED = new WeakMap<http.Server, Set<Socket>>();
+
+/** Must be called before the server can accept anything, so at construction or immediately after. */
+function trackConnections<T extends http.Server>(server: T): T {
+  const sockets = new Set<Socket>();
+  ACCEPTED.set(server, sockets);
+  server.on("connection", (socket: Socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  });
+  return server;
+}
+
+/**
+ * How many accepted sockets are still ALIVE. 0 is the only value that permits the process to exit.
+ *
+ * Counting the set would be wrong: destroy() marks the socket synchronously but its "close" event --
+ * which is what removes it from the set -- fires a tick later, so a correctly cleaned-up server would
+ * still report 1 to any caller that asked immediately.
+ */
+function remainingConnections(server: http.Server) {
+  const sockets = ACCEPTED.get(server);
+  // Fail closed. An untracked server used to report 0 -- indistinguishable from a clean one -- so a
+  // server nobody remembered to wrap, or a tracker that stopped registering, read as success. A
+  // reviewer removed one `ACCEPTED.set` and the whole file still passed while a socket stayed alive.
+  if (!sockets) throw new Error("remainingConnections: this server was never tracked, so its sockets are unknown");
+  let alive = 0;
+  for (const socket of sockets) if (!socket.destroyed) alive += 1;
+  return alive;
+}
+
+/** How long to wait for close() to COMPLETE before giving up on it and reporting. */
+const CLOSE_COMPLETION_MS = 5_000;
+
 async function shutDown(server: http.Server) {
-  server.closeAllConnections();
-  await new Promise((resolve) => { server.close(resolve); });
+  // Both steps are attempted, and the FIRST error is the one reported. Terminating connections and
+  // stopping the listener are independent operations, and writing them as two statements meant a throw
+  // from the first skipped the second -- so the server this call exists to stop stayed listening, and
+  // the caller was told about a failure it could no longer do anything about. Reporting a leak is not
+  // closing it: the process still does not exit.
+  //
+  // `failed` is a separate flag rather than `failure !== undefined`, because `undefined` is a legal
+  // thing to throw and `??=` would also overwrite a thrown `null`. Using the value as its own sentinel
+  // silently dropped both.
+  let failed = false;
+  let failure: unknown;
+  const record = (error: unknown) => { if (!failed) { failed = true; failure = error; } };
+
+  try {
+    server.closeAllConnections();
+  } catch (error) {
+    record(error);
+  }
+
+  // The remedy, not just the report. When closeAllConnections throws, this is the only thing that ends
+  // the sockets it did not, and without it close() never completes, the bound below expires, and the
+  // process stays alive holding a socket nobody can reach.
+  //
+  // Not merely a no-op when closeAllConnections SUCCEEDS, which an earlier version of this comment
+  // claimed: that call leaves upgraded sockets alone, and this loop destroys them too. That is the
+  // intent -- shutDown is teardown, and there is no case where this file wants to keep serving a
+  // connection a caller has asked it to stop -- but it is a wider action than "the same thing again",
+  // and saying otherwise understated what this loop does.
+  for (const socket of ACCEPTED.get(server) ?? []) {
+    try {
+      socket.destroy();
+    } catch (error) {
+      record(error);
+    }
+  }
+
+  // close() releases the LISTENER synchronously; its callback then waits for open connections to end.
+  // Those two facts together are why this is bounded: closeAllConnections is what ends the connections,
+  // so when it throws there may be nothing left to end them, and waiting for completion is waiting
+  // forever. The bound is what keeps a cleanup failure reportable instead of turning into a hang.
+  try {
+    await Promise.race([
+      new Promise<void>((resolve) => { server.close(() => resolve()); }),
+      new Promise<void>((_resolve, reject) => {
+        setTimeout(() => reject(new Error("server.close() did not complete; a connection is still open")),
+          CLOSE_COMPLETION_MS).unref();
+      }),
+    ]);
+  } catch (error) {
+    record(error);
+  }
+
+  if (failed) throw failure;
+}
+
+/**
+ * Close every listener passed. Three properties, and the third took three rounds of review to state
+ * correctly:
+ *
+ *  - one server failing to close must not leave the others listening, so every close is attempted
+ *    whatever the ones before it did. Sequencing them with plain awaits meant a throw in the first
+ *    skipped the rest, which is the very leak this cleanup exists to prevent, one layer up from where
+ *    it was fixed.
+ *  - a cleanup failure must never REPLACE the error the body was already reporting. A secondary
+ *    failure standing in for the real one is the same masking removed from trusted-deployer, and a
+ *    finally that throws reintroduces it here. So when the body already failed, close errors are
+ *    reported to stderr and suppressed; only on an otherwise-passing run do they become the failure.
+ *  - EVERY close must BEGIN before any one of them is awaited. Isolating failures with try/catch was
+ *    not enough, because the problem was never only rejection -- it was DURATION. close() does not
+ *    complete while a connection is still open, so one server holding a live socket stopped every
+ *    server after it from even starting to close. Measured: second server still listening, cleanup
+ *    still pending. Rejection is isolated by the catch; non-completion is isolated only by starting
+ *    them together.
+ */
+async function closeListeners(bodyFailed: boolean, ...servers: Array<http.Server | undefined>) {
+  // .map() starts every shutDown; allSettled then waits for all of them. Nothing here awaits one
+  // server before the next has begun.
+  const settled = await Promise.allSettled(
+    servers.filter((server): server is http.Server => server !== undefined).map((server) => shutDown(server)));
+  const failures: unknown[] = settled.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+  if (failures.length === 0) return;
+  if (bodyFailed) {
+    for (const failure of failures) {
+      // Guarded for the same reason the whole branch exists: this path runs only when something else
+      // is already being reported, so a throw from the LOGGING would replace the very error it is
+      // annotating. Suppressing here suppresses nothing that was going to be seen anyway.
+      try {
+        console.error("[choreography] a listener could not be closed; the failure reported above is the cause:", failure);
+      } catch { /* the body's error is the diagnosis; this is a footnote */ }
+    }
+    return;
+  }
+  throw new AggregateError(failures, "the run passed but its listeners could not be closed");
 }
 
 /**
@@ -196,7 +336,7 @@ function controlCenter(tasks: () => unknown[], secret = AGENT_SECRET) {
   const acks: { taskId?: string; event?: string; message?: string }[] = [];
   const polls: unknown[] = [];
   const unauthorized: string[] = [];
-  const server = http.createServer((req, res) => {
+  const server = trackConnections(http.createServer((req, res) => {
     let body = "";
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
@@ -214,7 +354,7 @@ function controlCenter(tasks: () => unknown[], secret = AGENT_SECRET) {
       if (req.url === "/api/agent/tasks/ack") { acks.push(JSON.parse(body)); return send(200, {}); }
       return send(404, {});
     });
-  });
+  }));
   return { server, acks, polls, unauthorized };
 }
 
@@ -272,10 +412,23 @@ async function choreograph(verb: "apply" | "rollback") {
   await releaseCandidate(store, "c1", applyBinding);
   const candidateId = verb === "apply" ? "c1" : "c2";
 
-  const gateServer = buildApp(store).listen(0);
+  const gateServer = trackConnections(buildApp(store).listen(0));
   await new Promise((resolve) => gateServer.once("listening", resolve));
   const gateUrl = `http://127.0.0.1:${(gateServer.address() as AddressInfo).port}`;
 
+  // EVERY EXIT PATH CLOSES BOTH LISTENERS, and the `finally` is the whole point.
+  //
+  // These servers used to be shut down on the success path only. Any throw between here and the end of
+  // the function left a listening socket, `node --test` never saw the event loop drain, and the process
+  // HUNG instead of exiting — so a failing assertion stopped being a red build and became a stalled job
+  // that sat until the six-hour runner timeout, with the actual error invisible because a run in
+  // progress does not publish logs. A gate that cannot fail legibly is worse than one that fails.
+  //
+  // `cc` is declared out here rather than at its construction so the handler can close it even when the
+  // throw happens before it exists.
+  let cc: ReturnType<typeof controlCenter> | undefined;
+  let bodyFailed = false;
+  try {
   if (verb === "rollback") {
     // "You may not roll back to content that was never reviewed and released." Reaching GO is NOT
     // release -- release is what the OWNER DECISION does. So the target is released here the only way
@@ -352,17 +505,22 @@ async function choreograph(verb: "apply" | "rollback") {
 
   // STEP 10 — dispatch. The task is placed where a poll will find it; nothing hands it to the agent.
   let dispatched: unknown[] = [claimed];
-  const cc = controlCenter(() => { const next = dispatched; dispatched = []; return next; });
-  cc.server.listen(0);
-  await new Promise((resolve) => cc.server.once("listening", resolve));
+  // Bound to a const for the body so its type stays narrowed; `cc` exists only so the handler below can
+  // close the listener on a throw. Using the outer `let` here would be `possibly undefined` at every use,
+  // and silencing that with a non-null assertion would hide exactly the case the handler is for.
+  const controlPlane = controlCenter(() => { const next = dispatched; dispatched = []; return next; });
+  cc = controlPlane;
+  controlPlane.server.listen(0);
+  await new Promise((resolve) => controlPlane.server.once("listening", resolve));
 
   // STEP 12 — an ENFORCING executor, authenticated ONLY with its configured executor credential. The
   // enforcement record lives at the location the PROCESS derives, so no argument can relocate it.
   fs.rmSync(PROCESS_STATE_DIR, { recursive: true, force: true });
   writeEnforcement(PROCESS_STATE_DIR, { state: "ENFORCING", by: "owner", reason: "choreography gate" });
   saveConfig(agentConfigSchema.parse({
-    controlCenterUrl: `http://127.0.0.1:${(cc.server.address() as AddressInfo).port}`,
+    controlCenterUrl: `http://127.0.0.1:${(controlPlane.server.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: AGENT_SECRET, keyProtocolVersion: "agent-v2",
+    orgId: "org-1", serverId: "server-1",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
     // The EXECUTOR's credential. The binder's never appears in this process.
     reviewGate: { url: gateUrl, credential: cast.credentialFor("agent-1"), timeoutMs: 5000 },
@@ -380,9 +538,13 @@ async function choreograph(verb: "apply" | "rollback") {
 
   const journal = new ExecutionJournal(path.join(PROCESS_STATE_DIR, "execution-journal"));
   const record = await store.loadAttestation(attestationId);
-  await shutDown(gateServer);
-  await shutDown(cc.server);
   return { cc, journal, record, attestationId, configurationDeployment, pollError };
+  } catch (error) {
+    bodyFailed = true;
+    throw error;
+  } finally {
+    await closeListeners(bodyFailed, gateServer, cc?.server);
+  }
 }
 
 for (const verb of ["apply", "rollback"] as const) {
@@ -434,9 +596,14 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   const cc = controlCenter(() => []);
   cc.server.listen(0);
   await new Promise((resolve) => cc.server.once("listening", resolve));
+  // Same reason as `choreograph` above: a failing assertion below must leave a closed socket behind, or
+  // this file stops being able to report a failure at all.
+  let bodyFailed = false;
+  try {
   saveConfig(agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(cc.server.address() as AddressInfo).port}`,
     agentId: "agent-1", agentSecret: "b".repeat(64), keyProtocolVersion: "agent-v2",
+    orgId: "org-1", serverId: "server-1",
     controlPlanePublicKey: cp.signingPublicKey, ownerPublicKey: owner.signingPublicKey,
     // Gate configuration must be present and usable, or an ENFORCING executor refuses to START and the
     // poll never happens -- correct behaviour, but a different property than the one under test here.
@@ -445,7 +612,131 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   const error = await pollOnce().then(() => null, (e: Error) => e.message);
   assert.match(String(error), /401/, "a wrong agent secret must fail the poll");
   assert.deepEqual(cc.unauthorized, ["/api/agent/poll"]);
-  await shutDown(cc.server);
+  } catch (error) {
+    bodyFailed = true;
+    throw error;
+  } finally {
+    await closeListeners(bodyFailed, cc.server);
+  }
+});
+
+test("§B choreography: cleanup closes every listener and never replaces the body's failure", async (t) => {
+  // Both halves are regressions, and the first is the one this file already made once: the cleanup
+  // awaited one close and then the next, so a throw in the first left the second listening -- exactly
+  // the leak the try/finally was added to prevent, reproduced inside the fix. An independent review
+  // found it by injecting this throw; it is a test now so the next edit cannot reintroduce it.
+  const healthy = trackConnections(http.createServer());
+  healthy.listen(0);
+  await new Promise((resolve) => healthy.once("listening", resolve));
+  const unclosable = trackConnections(http.createServer());
+  unclosable.listen(0);
+  await new Promise((resolve) => unclosable.once("listening", resolve));
+  unclosable.closeAllConnections = () => { throw new Error("injected close failure"); };
+
+  // This test must not be able to hang. If an assertion below fails, its own two listeners have to come
+  // down anyway -- otherwise a regression here reports as a stalled job rather than a red one, which is
+  // the failure mode the whole fix exists to remove. Registered BEFORE the first assertion, and calling
+  // close() directly because closeAllConnections is the method deliberately broken above.
+  t.after(async () => {
+    // Not two awaits: a synchronous throw from the first close rejects its promise and would skip the
+    // second, which is the defect under test reproduced inside the test's own teardown. Both promises
+    // are constructed before either is awaited, so both closes are attempted whatever the other does.
+    const closed = await Promise.allSettled([
+      new Promise((resolve) => { healthy.close(resolve); }),
+      new Promise((resolve) => { unclosable.close(resolve); }),
+    ]);
+    const failed = closed.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+    if (failed.length) throw new AggregateError(failed, "teardown could not close a listener");
+  });
+
+  // The body already failed. The close error must be suppressed -- it would otherwise stand in for the
+  // real diagnosis -- and the healthy listener must still be closed despite the failure BEFORE it.
+  await closeListeners(true, unclosable, healthy);
+  assert.equal(healthy.listening, false,
+    "a server that fails to close must not stop the ones after it from closing");
+  // The half the first version of this test missed. It asserted only that the OTHER server closed, and
+  // its own teardown then closed this one with close() directly -- which concealed the leak rather than
+  // detecting it. An independent review found it by asking the question this line now asks.
+  assert.equal(unclosable.listening, false,
+    "the server whose close FAILED must itself have stopped listening");
+
+  // The body passed. Now nothing else is reporting, so the close failure must surface rather than be
+  // swallowed: a suppression rule that also applies to passing runs hides real leaks.
+  await assert.rejects(() => closeListeners(false, unclosable),
+    (error: unknown) => error instanceof AggregateError,
+    "on an otherwise-passing run a failed close must be the failure");
+});
+
+test("§B choreography: a server holding a live connection does not stall the others", async (t) => {
+  // The idle-server case above cannot reach this one. close() releases the listener immediately but its
+  // callback waits for open connections, so awaiting one server before starting the next made a single
+  // held socket stop every later server from beginning to close at all -- cleanup pending, listener up.
+  // Isolating the REJECTION was not enough; the problem was DURATION. Measured before the fix:
+  // { closeListenersCompleted: false, SECOND_STILL_LISTENING: true }.
+  const held = trackConnections(http.createServer(() => { /* never responds, so the connection stays open */ }));
+  held.listen(0);
+  await new Promise((resolve) => held.once("listening", resolve));
+  const behind = trackConnections(http.createServer());
+  behind.listen(0);
+  await new Promise((resolve) => behind.once("listening", resolve));
+
+  // An INDEPENDENT witness, captured by this test rather than by the tracker the assertions are about.
+  // Reading the outcome out of the same WeakMap the cleanup writes to meant "never registered" and
+  // "nothing left alive" were the same answer, so the check could not fail: deleting one `ACCEPTED.set`
+  // left a socket alive and every case still passed.
+  let accepted: Socket | undefined;
+  held.once("connection", (socket: Socket) => { accepted = socket; });
+
+  const agent = new http.Agent({ keepAlive: true });
+  const request = http.get({ port: (held.address() as AddressInfo).port, agent });
+  request.on("error", () => { /* destroyed during teardown; not a failure of this test */ });
+  await new Promise((resolve) => { request.on("socket", (socket) => socket.once("connect", resolve)); });
+  assert.ok(accepted, "the probe must have established a real connection, or this test proves nothing");
+
+  // ...and the connection can no longer be ended the normal way, which is what makes close() hang.
+  held.closeAllConnections = () => { throw new Error("injected teardown failure"); };
+
+  t.after(async () => {
+    request.destroy();
+    agent.destroy();
+    const closed = await Promise.allSettled([
+      new Promise((resolve) => { held.close(resolve); }),
+      new Promise((resolve) => { behind.close(resolve); }),
+    ]);
+    const failed = closed.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+    if (failed.length) throw new AggregateError(failed, "teardown could not close a listener");
+  });
+
+  // Deliberately NOT awaited yet. The first version of this test awaited the whole cleanup and then
+  // asserted, and passed either way: shutDown bounds its wait, so the sequential version also finishes
+  // -- five seconds later. Duration was the defect, so duration is what has to be measured. What
+  // separates the two is WHEN `behind` stops listening: immediately, or only after `held` gives up.
+  // Deliberately NOT awaited yet. The first version of this test awaited the whole cleanup and then
+  // asserted, and passed either way: shutDown bounds its wait, so the sequential version also finishes
+  // -- five seconds later. Duration was the defect, so duration is what has to be measured. What
+  // separates the two is WHEN `behind` stops listening: immediately, or only after `held` gives up.
+  //
+  // No sleep: both closes are started synchronously, before closeListeners returns its promise, so the
+  // difference is observable on the very next line. A time threshold here would only be a flake on a
+  // slow machine -- a reviewer was right to object to the 250ms one that used to be here.
+  const cleanup = closeListeners(true, held, behind);
+  assert.equal(behind.listening, false,
+    "a server stuck waiting on a live connection must not stop the ones after it from STARTING to close");
+  await cleanup;
+
+  // And the property the bound alone does not give: cleanup must LEAVE nothing that keeps the process
+  // alive. The previous revision returned with the accepted socket still open, so the hang moved from
+  // inside cleanup to after it. These assertions run BEFORE the teardown below -- which destroys the
+  // request and would otherwise conceal exactly this, as it did for three rounds of review.
+  //
+  // The socket this test captured itself comes first, deliberately: it is the only one of the three
+  // that is still true if the tracking is broken.
+  assert.equal(accepted.destroyed, true,
+    "cleanup must destroy the accepted socket, not merely stop waiting for it");
+  assert.equal(remainingConnections(held), 0,
+    "and the tracker must agree that nothing is left alive");
+  assert.equal(remainingConnections(behind), 0,
+    "including on the servers that closed cleanly");
 });
 
 test("§B choreography: this gate does not use the forbidden shortcuts", () => {

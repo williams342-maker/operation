@@ -1,4 +1,6 @@
 import type { GateConfig } from "./reviewEnforcement.js";
+import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
+type GateFetch = (input: string, init: RequestInit & { dispatcher?: Dispatcher }) => Promise<Response>;
 
 // The executor's client for layer 3.
 //
@@ -45,11 +47,16 @@ export type AcquireOutcome =
  */
 export class ReviewGateClient {
   readonly #gate: GateConfig;
-  readonly #fetch: typeof fetch;
+  readonly #fetch: GateFetch;
+  readonly #dispatcher?: Dispatcher;
 
-  constructor(gate: GateConfig, fetchImpl: typeof fetch = fetch) {
+  constructor(gate: GateConfig, fetchImpl: typeof fetch | undefined = undefined, ca?: Buffer) {
     this.#gate = gate;
-    this.#fetch = fetchImpl;
+    this.#fetch = (fetchImpl ?? undiciFetch) as GateFetch;
+    if (!fetchImpl && new URL(this.#gate.url).protocol === "https:" && !ca?.length) throw new Error("the Review Gate client requires its owner-bound CA");
+    // Construct this even for an injected transport so the wiring can be tested without committing a
+    // private-key fixture. Production still uses undiciFetch; injected transports exist only in tests.
+    if (ca?.length) this.#dispatcher = new Agent({ connect: { ca, rejectUnauthorized: true } });
   }
 
   async #post(endpoint: string, body: unknown, headers: Record<string, string> = {},
@@ -67,6 +74,7 @@ export class ReviewGateClient {
         },
         body: JSON.stringify(body),
         signal: controller.signal,
+        dispatcher: this.#dispatcher,
       });
       let parsed: unknown;
       try {

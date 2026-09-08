@@ -1,5 +1,5 @@
 ﻿# syntax=docker/dockerfile:1.7
-FROM node:22-alpine AS build
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
 WORKDIR /app
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
@@ -19,7 +19,7 @@ RUN npm run build --workspace @control-center/web
 ARG SOURCE_COMMIT
 RUN printf '%s' "$SOURCE_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || { echo "SOURCE_COMMIT build-arg is required and must be a 40-character lowercase commit sha." >&2; echo '  docker build --build-arg SOURCE_COMMIT="$(git rev-parse HEAD)" --build-arg SOURCE_TREE="$(git rev-parse HEAD^{tree})" ...' >&2; exit 1; }
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS runtime
 
 # org.opencontainers.image.revision is the label the deployment preflight already reads
 # (defaultInspectImage in apps/agent/src/betaDeploymentPreflight.ts) and which, until now, was
