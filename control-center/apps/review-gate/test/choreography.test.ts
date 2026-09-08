@@ -176,6 +176,39 @@ async function shutDown(server: http.Server) {
 }
 
 /**
+ * Close every listener passed, independently. Two properties, and the second is why this is not simply
+ * a loop of awaited shutDown calls:
+ *
+ *  - one server failing to close must not leave the others listening, so every close is attempted
+ *    whatever the ones before it did. Sequencing them with plain awaits meant a throw in the first
+ *    skipped the rest, which is the very leak this cleanup exists to prevent, one layer up from where
+ *    it was fixed.
+ *  - a cleanup failure must never REPLACE the error the body was already reporting. A secondary
+ *    failure standing in for the real one is the same masking removed from trusted-deployer, and a
+ *    finally that throws reintroduces it here. So when the body already failed, close errors are
+ *    reported to stderr and suppressed; only on an otherwise-passing run do they become the failure.
+ */
+async function closeListeners(bodyFailed: boolean, ...servers: Array<http.Server | undefined>) {
+  const failures: unknown[] = [];
+  for (const server of servers) {
+    if (!server) continue;
+    try {
+      await shutDown(server);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length === 0) return;
+  if (bodyFailed) {
+    for (const failure of failures) {
+      console.error("[choreography] a listener could not be closed; the failure reported above is the cause:", failure);
+    }
+    return;
+  }
+  throw new AggregateError(failures, "the run passed but its listeners could not be closed");
+}
+
+/**
  * The ONLY way this test reaches the gate: a bearer credential over HTTP. There is no handle to the
  * service and no second argument that could carry an identity the credential does not.
  */
@@ -289,6 +322,7 @@ async function choreograph(verb: "apply" | "rollback") {
   // `cc` is declared out here rather than at its construction so the handler can close it even when the
   // throw happens before it exists.
   let cc: ReturnType<typeof controlCenter> | undefined;
+  let bodyFailed = false;
   try {
   if (verb === "rollback") {
     // "You may not roll back to content that was never reviewed and released." Reaching GO is NOT
@@ -400,9 +434,11 @@ async function choreograph(verb: "apply" | "rollback") {
   const journal = new ExecutionJournal(path.join(PROCESS_STATE_DIR, "execution-journal"));
   const record = await store.loadAttestation(attestationId);
   return { cc, journal, record, attestationId, configurationDeployment, pollError };
+  } catch (error) {
+    bodyFailed = true;
+    throw error;
   } finally {
-    await shutDown(gateServer);
-    if (cc) await shutDown(cc.server);
+    await closeListeners(bodyFailed, gateServer, cc?.server);
   }
 }
 
@@ -457,6 +493,7 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   await new Promise((resolve) => cc.server.once("listening", resolve));
   // Same reason as `choreograph` above: a failing assertion below must leave a closed socket behind, or
   // this file stops being able to report a failure at all.
+  let bodyFailed = false;
   try {
   saveConfig(agentConfigSchema.parse({
     controlCenterUrl: `http://127.0.0.1:${(cc.server.address() as AddressInfo).port}`,
@@ -470,9 +507,47 @@ test("§B choreography: an executor carrying the wrong credential cannot even po
   const error = await pollOnce().then(() => null, (e: Error) => e.message);
   assert.match(String(error), /401/, "a wrong agent secret must fail the poll");
   assert.deepEqual(cc.unauthorized, ["/api/agent/poll"]);
+  } catch (error) {
+    bodyFailed = true;
+    throw error;
   } finally {
-    await shutDown(cc.server);
+    await closeListeners(bodyFailed, cc.server);
   }
+});
+
+test("§B choreography: cleanup closes every listener and never replaces the body's failure", async (t) => {
+  // Both halves are regressions, and the first is the one this file already made once: the cleanup
+  // awaited one close and then the next, so a throw in the first left the second listening -- exactly
+  // the leak the try/finally was added to prevent, reproduced inside the fix. An independent review
+  // found it by injecting this throw; it is a test now so the next edit cannot reintroduce it.
+  const healthy = http.createServer();
+  healthy.listen(0);
+  await new Promise((resolve) => healthy.once("listening", resolve));
+  const unclosable = http.createServer();
+  unclosable.listen(0);
+  await new Promise((resolve) => unclosable.once("listening", resolve));
+  unclosable.closeAllConnections = () => { throw new Error("injected close failure"); };
+
+  // This test must not be able to hang. If an assertion below fails, its own two listeners have to come
+  // down anyway -- otherwise a regression here reports as a stalled job rather than a red one, which is
+  // the failure mode the whole fix exists to remove. Registered BEFORE the first assertion, and calling
+  // close() directly because closeAllConnections is the method deliberately broken above.
+  t.after(async () => {
+    await new Promise((resolve) => { healthy.close(resolve); });
+    await new Promise((resolve) => { unclosable.close(resolve); });
+  });
+
+  // The body already failed. The close error must be suppressed -- it would otherwise stand in for the
+  // real diagnosis -- and the healthy listener must still be closed despite the failure BEFORE it.
+  await closeListeners(true, unclosable, healthy);
+  assert.equal(healthy.listening, false,
+    "a server that fails to close must not stop the ones after it from closing");
+
+  // The body passed. Now nothing else is reporting, so the close failure must surface rather than be
+  // swallowed: a suppression rule that also applies to passing runs hides real leaks.
+  await assert.rejects(() => closeListeners(false, unclosable),
+    (error: unknown) => error instanceof AggregateError,
+    "on an otherwise-passing run a failed close must be the failure");
 });
 
 test("§B choreography: this gate does not use the forbidden shortcuts", () => {
