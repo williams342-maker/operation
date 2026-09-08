@@ -204,8 +204,13 @@ function trackConnections<T extends http.Server>(server: T): T {
  * still report 1 to any caller that asked immediately.
  */
 function remainingConnections(server: http.Server) {
+  const sockets = ACCEPTED.get(server);
+  // Fail closed. An untracked server used to report 0 -- indistinguishable from a clean one -- so a
+  // server nobody remembered to wrap, or a tracker that stopped registering, read as success. A
+  // reviewer removed one `ACCEPTED.set` and the whole file still passed while a socket stayed alive.
+  if (!sockets) throw new Error("remainingConnections: this server was never tracked, so its sockets are unknown");
   let alive = 0;
-  for (const socket of ACCEPTED.get(server) ?? []) if (!socket.destroyed) alive += 1;
+  for (const socket of sockets) if (!socket.destroyed) alive += 1;
   return alive;
 }
 
@@ -232,11 +237,15 @@ async function shutDown(server: http.Server) {
     record(error);
   }
 
-  // The remedy, not just the report. When closeAllConnections succeeds this is a no-op -- the set is
-  // already empty. When it throws, this is the only thing that ends the sockets it did not, and without
-  // it close() never completes, the bound below expires, and the process stays alive holding a socket
-  // nobody can reach. Destroying is safe here because shutDown is teardown: there is no case where this
-  // file wants to keep a connection that a caller has asked it to stop serving.
+  // The remedy, not just the report. When closeAllConnections throws, this is the only thing that ends
+  // the sockets it did not, and without it close() never completes, the bound below expires, and the
+  // process stays alive holding a socket nobody can reach.
+  //
+  // Not merely a no-op when closeAllConnections SUCCEEDS, which an earlier version of this comment
+  // claimed: that call leaves upgraded sockets alone, and this loop destroys them too. That is the
+  // intent -- shutDown is teardown, and there is no case where this file wants to keep serving a
+  // connection a caller has asked it to stop -- but it is a wider action than "the same thing again",
+  // and saying otherwise understated what this loop does.
   for (const socket of ACCEPTED.get(server) ?? []) {
     try {
       socket.destroy();
@@ -671,10 +680,18 @@ test("§B choreography: a server holding a live connection does not stall the ot
   behind.listen(0);
   await new Promise((resolve) => behind.once("listening", resolve));
 
+  // An INDEPENDENT witness, captured by this test rather than by the tracker the assertions are about.
+  // Reading the outcome out of the same WeakMap the cleanup writes to meant "never registered" and
+  // "nothing left alive" were the same answer, so the check could not fail: deleting one `ACCEPTED.set`
+  // left a socket alive and every case still passed.
+  let accepted: Socket | undefined;
+  held.once("connection", (socket: Socket) => { accepted = socket; });
+
   const agent = new http.Agent({ keepAlive: true });
   const request = http.get({ port: (held.address() as AddressInfo).port, agent });
   request.on("error", () => { /* destroyed during teardown; not a failure of this test */ });
   await new Promise((resolve) => { request.on("socket", (socket) => socket.once("connect", resolve)); });
+  assert.ok(accepted, "the probe must have established a real connection, or this test proves nothing");
 
   // ...and the connection can no longer be ended the normal way, which is what makes close() hang.
   held.closeAllConnections = () => { throw new Error("injected teardown failure"); };
@@ -709,12 +726,17 @@ test("§B choreography: a server holding a live connection does not stall the ot
 
   // And the property the bound alone does not give: cleanup must LEAVE nothing that keeps the process
   // alive. The previous revision returned with the accepted socket still open, so the hang moved from
-  // inside cleanup to after it. This assertion runs BEFORE the teardown below -- which destroys the
-  // request and would otherwise conceal exactly this, as it did for two rounds of review.
+  // inside cleanup to after it. These assertions run BEFORE the teardown below -- which destroys the
+  // request and would otherwise conceal exactly this, as it did for three rounds of review.
+  //
+  // The socket this test captured itself comes first, deliberately: it is the only one of the three
+  // that is still true if the tracking is broken.
+  assert.equal(accepted.destroyed, true,
+    "cleanup must destroy the accepted socket, not merely stop waiting for it");
   assert.equal(remainingConnections(held), 0,
-    "cleanup must end the accepted connections, not merely stop waiting for them");
+    "and the tracker must agree that nothing is left alive");
   assert.equal(remainingConnections(behind), 0,
-    "and must leave nothing behind on the servers that closed cleanly");
+    "including on the servers that closed cleanly");
 });
 
 test("§B choreography: this gate does not use the forbidden shortcuts", () => {
