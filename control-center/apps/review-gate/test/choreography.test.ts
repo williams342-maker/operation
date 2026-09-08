@@ -170,29 +170,51 @@ type Call = { status: number; body: Record<string, unknown> };
  * holds its sockets open with keep-alive — so the suite finished green and the process still would not
  * exit. Dropping the connections first is what actually releases the handle.
  */
+/** How long to wait for close() to COMPLETE before giving up on it and reporting. */
+const CLOSE_COMPLETION_MS = 5_000;
+
 async function shutDown(server: http.Server) {
   // Both steps are attempted, and the FIRST error is the one reported. Terminating connections and
   // stopping the listener are independent operations, and writing them as two statements meant a throw
   // from the first skipped the second -- so the server this call exists to stop stayed listening, and
   // the caller was told about a failure it could no longer do anything about. Reporting a leak is not
   // closing it: the process still does not exit.
+  //
+  // `failed` is a separate flag rather than `failure !== undefined`, because `undefined` is a legal
+  // thing to throw and `??=` would also overwrite a thrown `null`. Using the value as its own sentinel
+  // silently dropped both.
+  let failed = false;
   let failure: unknown;
+  const record = (error: unknown) => { if (!failed) { failed = true; failure = error; } };
+
   try {
     server.closeAllConnections();
   } catch (error) {
-    failure = error;
+    record(error);
   }
+
+  // close() releases the LISTENER synchronously; its callback then waits for open connections to end.
+  // Those two facts together are why this is bounded: closeAllConnections is what ends the connections,
+  // so when it throws there may be nothing left to end them, and waiting for completion is waiting
+  // forever. The bound is what keeps a cleanup failure reportable instead of turning into a hang.
   try {
-    await new Promise((resolve) => { server.close(resolve); });
+    await Promise.race([
+      new Promise<void>((resolve) => { server.close(() => resolve()); }),
+      new Promise<void>((_resolve, reject) => {
+        setTimeout(() => reject(new Error("server.close() did not complete; a connection is still open")),
+          CLOSE_COMPLETION_MS).unref();
+      }),
+    ]);
   } catch (error) {
-    failure ??= error;
+    record(error);
   }
-  if (failure !== undefined) throw failure;
+
+  if (failed) throw failure;
 }
 
 /**
- * Close every listener passed, independently. Two properties, and the second is why this is not simply
- * a loop of awaited shutDown calls:
+ * Close every listener passed. Three properties, and the third took three rounds of review to state
+ * correctly:
  *
  *  - one server failing to close must not leave the others listening, so every close is attempted
  *    whatever the ones before it did. Sequencing them with plain awaits meant a throw in the first
@@ -202,17 +224,19 @@ async function shutDown(server: http.Server) {
  *    failure standing in for the real one is the same masking removed from trusted-deployer, and a
  *    finally that throws reintroduces it here. So when the body already failed, close errors are
  *    reported to stderr and suppressed; only on an otherwise-passing run do they become the failure.
+ *  - EVERY close must BEGIN before any one of them is awaited. Isolating failures with try/catch was
+ *    not enough, because the problem was never only rejection -- it was DURATION. close() does not
+ *    complete while a connection is still open, so one server holding a live socket stopped every
+ *    server after it from even starting to close. Measured: second server still listening, cleanup
+ *    still pending. Rejection is isolated by the catch; non-completion is isolated only by starting
+ *    them together.
  */
 async function closeListeners(bodyFailed: boolean, ...servers: Array<http.Server | undefined>) {
-  const failures: unknown[] = [];
-  for (const server of servers) {
-    if (!server) continue;
-    try {
-      await shutDown(server);
-    } catch (error) {
-      failures.push(error);
-    }
-  }
+  // .map() starts every shutDown; allSettled then waits for all of them. Nothing here awaits one
+  // server before the next has begun.
+  const settled = await Promise.allSettled(
+    servers.filter((server): server is http.Server => server !== undefined).map((server) => shutDown(server)));
+  const failures: unknown[] = settled.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
   if (failures.length === 0) return;
   if (bodyFailed) {
     for (const failure of failures) {
@@ -580,6 +604,49 @@ test("§B choreography: cleanup closes every listener and never replaces the bod
   await assert.rejects(() => closeListeners(false, unclosable),
     (error: unknown) => error instanceof AggregateError,
     "on an otherwise-passing run a failed close must be the failure");
+});
+
+test("§B choreography: a server holding a live connection does not stall the others", async (t) => {
+  // The idle-server case above cannot reach this one. close() releases the listener immediately but its
+  // callback waits for open connections, so awaiting one server before starting the next made a single
+  // held socket stop every later server from beginning to close at all -- cleanup pending, listener up.
+  // Isolating the REJECTION was not enough; the problem was DURATION. Measured before the fix:
+  // { closeListenersCompleted: false, SECOND_STILL_LISTENING: true }.
+  const held = http.createServer(() => { /* never responds, so the connection stays open */ });
+  held.listen(0);
+  await new Promise((resolve) => held.once("listening", resolve));
+  const behind = http.createServer();
+  behind.listen(0);
+  await new Promise((resolve) => behind.once("listening", resolve));
+
+  const agent = new http.Agent({ keepAlive: true });
+  const request = http.get({ port: (held.address() as AddressInfo).port, agent });
+  request.on("error", () => { /* destroyed during teardown; not a failure of this test */ });
+  await new Promise((resolve) => { request.on("socket", (socket) => socket.once("connect", resolve)); });
+
+  // ...and the connection can no longer be ended the normal way, which is what makes close() hang.
+  held.closeAllConnections = () => { throw new Error("injected teardown failure"); };
+
+  t.after(async () => {
+    request.destroy();
+    agent.destroy();
+    const closed = await Promise.allSettled([
+      new Promise((resolve) => { held.close(resolve); }),
+      new Promise((resolve) => { behind.close(resolve); }),
+    ]);
+    const failed = closed.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+    if (failed.length) throw new AggregateError(failed, "teardown could not close a listener");
+  });
+
+  // Deliberately NOT awaited yet. The first version of this test awaited the whole cleanup and then
+  // asserted, and passed either way: shutDown bounds its wait, so the sequential version also finishes
+  // -- five seconds later. Duration was the defect, so duration is what has to be measured. What
+  // separates the two is WHEN `behind` stops listening: immediately, or only after `held` gives up.
+  const cleanup = closeListeners(true, held, behind);
+  await new Promise((resolve) => { setTimeout(resolve, 250).unref(); });
+  assert.equal(behind.listening, false,
+    "a server stuck waiting on a live connection must not stop the ones after it from STARTING to close");
+  await cleanup;
 });
 
 test("§B choreography: this gate does not use the forbidden shortcuts", () => {

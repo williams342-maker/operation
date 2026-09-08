@@ -178,8 +178,10 @@ jobs:
       #   agent       +2  the executor digesting its parse, and refusing a payload the schema rejects
       #   review-gate +1  choreography -- the cleanup itself, which an independent review found could
       #                   still leak a listener when the first close threw
-      CI_EXPECTED_TEST_SUITES: "agent=152,api=133,review-gate=259,shared=153,web=34"
-      CI_EXPECTED_TESTS: "731"
+      #   review-gate +1  choreography -- a held connection must not stall the closes after it,
+      #                   which a third review round found the concurrency fix still allowed
+      CI_EXPECTED_TEST_SUITES: "agent=152,api=133,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "732"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

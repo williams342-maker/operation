@@ -79,11 +79,14 @@ function expectedSubtree(members, prefix) {
 
 function installAndVerifyExactTree(source, target, expected) {
   const makeReadonly = (directory) => { for (const entry of fs.readdirSync(directory, { withFileTypes: true })) { const file = path.join(directory, entry.name); if (entry.isDirectory()) { makeReadonly(file); fs.chmodSync(file, 0o555); } else fs.chmodSync(file, 0o444); } };
-  // The mode half is universal; the OWNERSHIP half is only assertable by root, and this deployer refuses
-  // to run as anything else — `assertRootOwnedPathChain` throws unless `getuid() === 0`, and it runs over
-  // the plan and both roots before any release is prepared. So in production this is always the full
-  // check, unchanged. Off that path (a test, which cannot chown to root) the read-only half still
-  // applies, which is the half that does not depend on who is asking.
+  // Scope, stated precisely, because an earlier version of this comment said "universal" and a reviewer
+  // was right that the whole check returns immediately off Linux — so neither half is universal.
+  // ON LINUX: the mode half always applies; the OWNERSHIP half is only assertable by root, and this
+  // deployer refuses to run as anything else — `assertRootOwnedPathChain` throws unless `getuid() === 0`,
+  // and it runs over the plan and both roots before any release is prepared. So in production this is
+  // always the full check, unchanged. Off that path (a test, which cannot chown to root) the read-only
+  // half still applies, which is the half that does not depend on who is asking.
+  // OFF LINUX: nothing below runs at all. Production is Linux; a non-Linux run is a test.
   const validateSealed = (directory) => {
     if (process.platform !== "linux") return;
     const requireRootOwner = process.getuid?.() === 0;
