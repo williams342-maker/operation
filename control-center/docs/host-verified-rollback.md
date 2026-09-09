@@ -26,15 +26,21 @@ candidate side is relaxed.**
 
 ## What it establishes instead
 
-One thing, and it is measured rather than declared: **the rollback target is the exact set of artefacts
-that were serving.** The plan does not get to say what the rollback consists of, so there is nothing
-there for a wrong or hostile plan to name.
+One thing, and it is measured rather than declared: **the rollback target is the set of artefacts that
+were serving.** The plan does not name any rollback image; the images come from the host.
+
+The plan does, however, name the **adoption records** — the files written when a person stopped an
+unmanaged container — and those records select which container on a published port counts as the
+predecessor. So this is not "a plan can name nothing"; it is **operator-authorised predecessor
+identity**. Those records are read the way the other trusted inputs are: through a file descriptor,
+with the bytes confirmed to come from the file that was inspected, refused if a symlink or not owned by
+the caller, and required to sit inside the same protected location as the plan and the evidence.
 
 | Established | How |
 |---|---|
 | the rollback release tree is what its attested bundle says | compared in place against the bundle, which is attested even for this release |
 | the predecessor images are the ones that were serving | read from the containers themselves |
-| a Compose-labelled predecessor is the live one | it must be RUNNING; labels outlive every container Compose ever made, and this host keeps 97 releases of history |
+| a Compose-labelled predecessor is the live one | it must be RUNNING and not a one-off; labels outlive every container Compose ever made, `compose run` produces containers carrying them, and this host keeps 97 releases of history |
 | a predecessor found by its port is one a person stopped | its id must be named by an adoption record, since the unmanaged container is stopped by then and state cannot tell it from a stale one |
 | each service resolves to exactly one predecessor | zero or several is a refusal, never a guess |
 | the predecessor is not already the candidate | compared as local image ids, which is what both sides actually are |
@@ -74,6 +80,11 @@ the candidate's environment, mounts, healthchecks and edge configuration to the 
 Where those differ, the rollback can fail for reasons that have nothing to do with the images. The
 `edge` service is not measured at all: both directions use the plan's edge image, so the predecessor
 edge is not restored.
+
+**One operational limitation that follows.** A service with no published port whose container is stopped
+for some unrelated reason cannot be measured: the label path requires running, and the port path has
+nothing to match on. That is a refusal rather than a wrong answer, but it is a refusal that will look
+surprising, so it is written here rather than discovered at the moment of deployment.
 
 **Attendance does not close this.** Someone watching cannot supply configuration the predecessor images
 need and the candidate's Compose file does not provide. The way to close it is to demonstrate that the

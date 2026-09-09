@@ -521,6 +521,11 @@ export function measurePredecessorImages(model, services, projectName, container
   for (const service of services) {
     const labelled = (containers ?? []).filter((container) => {
       const labels = container?.Config?.Labels ?? {};
+      // `docker compose run api ...` produces a container with THIS project's and service's labels that
+      // is not the service. It can be running while the real one is stopped, and it would then be the
+      // only running match -- so uniqueness plus running would have selected a one-off shell as the
+      // thing being replaced. Compose marks them, and the marker is the only thing that separates them.
+      if (String(labels["com.docker.compose.oneoff"] ?? "").toLowerCase() === "true") return false;
       return labels[composeProjectLabel] === projectName && labels["com.docker.compose.service"] === service;
     });
     // A LABEL MATCH MUST BE RUNNING. Compose labels persist on every container it ever created, and this
@@ -567,10 +572,29 @@ export function measurePredecessorImages(model, services, projectName, container
  * unidentifiable and that failure should say why.
  */
 export function readAdoptedContainerIds(records, hooks = {}) {
+  // Read through a file descriptor, with the bytes confirmed to have come from the file that was
+  // stat-ed, and refused if it is not owned by the caller. An lstat followed by a separate read by PATH
+  // is not a trust boundary: the file can be replaced in between, and a file another account can write
+  // needs no race at all. This is the same shape the adoption tool uses to read its own records, which
+  // an earlier version of this claimed to match and did not.
+  // The filesystem is injectable so the time-of-check guard below can be exercised. Without that, an
+  // implementation that reads by PATH after stat-ing is indistinguishable from one that reads the
+  // descriptor it stat-ed, because the difference only shows when a file is swapped mid-read.
+  const io = hooks.fs ?? fs;
   const read = hooks.readAdoptionRecord ?? ((file) => {
-    const stat = fs.lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("adoption record is not a regular file");
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    const resolved = path.resolve(file);
+    const before = io.lstatSync(resolved);
+    if (!before.isFile() || before.isSymbolicLink()) throw new Error("adoption record is not a regular file");
+    const handle = io.openSync(resolved, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    try {
+      const opened = io.fstatSync(handle);
+      if (before.dev !== opened.dev || before.ino !== opened.ino) throw new Error("adoption record changed while being read");
+      const uid = hooks.uid ?? process.getuid?.();
+      if (uid !== undefined && opened.uid !== uid) throw new Error("adoption record is not owned by this user");
+      return JSON.parse(io.readFileSync(handle, "utf8"));
+    } finally {
+      io.closeSync(handle);
+    }
   });
   const ids = new Set();
   for (const file of records ?? []) {
@@ -846,7 +870,11 @@ function assertProductionPlanLocations(planFile, plan) {
   // Only when the plan has one. path.resolve(undefined) throws, so an unconditional entry here made
   // every host-verified plan fail in the CLI before preparation began.
   if (!hostVerified(plan)) forgeLocations.push(["rollback Forge evidence", plan.forgeEvidence.rollbackPath]);
-  for (const [name, location] of [...forgeLocations, ["compatibility evidence", plan.compatibilityEvidence.path]]) {
+  // Adoption records are checked alongside the rest. They decide WHICH CONTAINER becomes the rollback
+  // image, which is authority of the same kind as the evidence files, and leaving them out made a
+  // trusted plan able to delegate that choice to a file in an unprotected location.
+  const adoptionLocations = (plan.rollback.adoptionRecords ?? []).map((record, index) => [`adoption record ${index + 1}`, record]);
+  for (const [name, location] of [...forgeLocations, ...adoptionLocations, ["compatibility evidence", plan.compatibilityEvidence.path]]) {
     const resolved = path.resolve(location); if (!resolved.startsWith(`${inbox}${path.sep}`)) throw new Error(`${name} is outside the fixed trusted inbox`);
     assertRootOwnedPathChain(resolved);
   }

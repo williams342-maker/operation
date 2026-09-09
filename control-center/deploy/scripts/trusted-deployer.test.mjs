@@ -437,6 +437,20 @@ test("a predecessor is identified by running state or by an adoption record, nev
   // A container holding the port that nobody adopted is refused: it is not enough to be the only thing
   // on that port, because several stopped containers in this host's history could equally claim it.
   assert.throws(() => measurePredecessorImages(liveModel, ["admin"], "opsworkbench", containers, new Set()), /not named by any adoption record/);
+  // A NON-EMPTY set naming the WRONG container is refused too. Testing only "some ids" against "no ids"
+  // could not tell an exact membership check from one that merely asks whether any record exists.
+  assert.throws(() => measurePredecessorImages(liveModel, ["admin"], "opsworkbench", containers, new Set([idFor("something-else")])), /not named by any adoption record/);
+  // And with two containers on that port, the adopted one is chosen rather than refused for ambiguity.
+  const otherOnPort = containerFor("stale-admin", null, null, runningImage(9), { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] }, false);
+  assert.equal(measurePredecessorImages(liveModel, ["admin"], "opsworkbench", [otherOnPort, ...containers], adopted).admin.containerId, adminContainerId);
+
+  // A COMPOSE ONE-OFF is not the service. `docker compose run api ...` carries this project's and this
+  // service's labels and can be running while the real container is stopped, so it would otherwise be
+  // the only running match and would be selected as the thing being replaced.
+  const oneOff = { ...containerFor("opsworkbench-api-run-abc", "opsworkbench", "api", runningImage(11)) };
+  oneOff.Config.Labels["com.docker.compose.oneoff"] = "True";
+  assert.equal(measurePredecessorImages(liveModel, ["api"], "opsworkbench", [oneOff, ...containers], adopted).api.image, runningImage(1), "the real container is chosen over a running one-off");
+  assert.throws(() => measurePredecessorImages(liveModel, ["api"], "opsworkbench", [oneOff], adopted), /found 0/, "and a one-off alone is not a predecessor");
   // Two running labelled matches is still ambiguous.
   const twin = containerFor("opsworkbench-api-2", "opsworkbench", "api", runningImage(8));
   assert.throws(() => measurePredecessorImages(liveModel, ["api"], "opsworkbench", [...containers, twin], adopted), /found 2/);
@@ -462,6 +476,37 @@ test("adoption records are read as records, not trusted as a list of ids", () =>
   // the predecessor unidentifiable later with no explanation of why.
   assert.throws(() => readAdoptedContainerIds([write("v2.json", { schemaVersion: "opsworkbench-container-adoption-v2", containerId: adminContainerId })]), /missing or malformed/);
   assert.throws(() => readAdoptedContainerIds([write("short.json", { schemaVersion: "opsworkbench-container-adoption-v3", containerId: "abc" })]), /missing or malformed/);
+});
+
+test("an adoption record that is not the caller's own file is refused", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "adoption-trust-"));
+  const file = path.join(root, "record.json");
+  fs.writeFileSync(file, JSON.stringify({ schemaVersion: "opsworkbench-container-adoption-v3", containerId: adminContainerId, name: "opsworkbench-admin-web-1" }));
+  // This decides which container becomes the rollback image, and it is read by a root process. A file
+  // another account can replace decides that too, so ownership is checked and the uid is injectable so
+  // the check is exercised everywhere rather than only where process.getuid exists.
+  assert.deepEqual([...readAdoptedContainerIds([file], { uid: fs.statSync(file).uid })], [adminContainerId]);
+  assert.throws(() => readAdoptedContainerIds([file], { uid: fs.statSync(file).uid + 1 }), /not owned by this user/);
+  if (process.platform !== "win32") {
+    const link = path.join(root, "link.json");
+    fs.symlinkSync(file, link, "file");
+    assert.throws(() => readAdoptedContainerIds([link]), /not a regular file/);
+  }
+
+  // The time-of-check guard: the bytes must come from the file that was inspected. Reading by PATH
+  // after stat-ing a path is indistinguishable from reading the descriptor unless the file is swapped
+  // in between, so the filesystem is injected here to make that swap happen.
+  const swapped = {
+    lstatSync: () => ({ isFile: () => true, isSymbolicLink: () => false, dev: 1, ino: 100 }),
+    openSync: () => 7,
+    fstatSync: () => ({ dev: 1, ino: 999, uid: 0 }),
+    readFileSync: () => JSON.stringify({ schemaVersion: "opsworkbench-container-adoption-v3", containerId: adminContainerId, name: "x" }),
+    closeSync: () => {},
+  };
+  assert.throws(() => readAdoptedContainerIds([file], { fs: swapped, uid: 0 }), /changed while being read/);
+  // The same stub with a consistent inode is accepted, so the refusal above is the swap and not the stub.
+  const consistent = { ...swapped, fstatSync: () => ({ dev: 1, ino: 100, uid: 0 }) };
+  assert.deepEqual([...readAdoptedContainerIds([file], { fs: consistent, uid: 0 })], [adminContainerId]);
 });
 
 test("a host-verified rollback target is verified where it stands, never reinstalled over", () => {
