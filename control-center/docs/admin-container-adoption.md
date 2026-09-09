@@ -29,24 +29,45 @@ node scripts/adopt-unmanaged-container.mjs release <record>
 node scripts/adopt-unmanaged-container.mjs restore <record>
 ```
 
-`capture` writes a read-only record holding the container's identity and the exact argv that recreates
-it. It refuses a container Compose already owns. It refuses to overwrite an existing record, because
+`capture` writes a read-only, fsynced record holding the container's full id and a **typed description**
+of it. It refuses a container Compose already owns, and refuses to overwrite an existing record, because
 that record is the only description of what is about to be removed.
 
-`release` is the only destructive verb. It re-inspects the live container and refuses unless it is the
-same container that was captured, by id, and still unowned. Then it stops and removes it.
+`release` is the only destructive verb. It addresses the container by its **immutable id** at every step,
+never by name: inspecting by name and then removing by name is a race, and the removal could land on a
+container nobody reviewed. It refuses unless the live container is still the captured one and still
+unowned. If it stops the container but cannot remove it, it says so explicitly, because the port is then
+free while the container still exists.
 
-`restore` replays the recorded argv, and refuses if anything already holds the name.
+`restore` rebuilds the command from the description and refuses if anything already holds the name.
+
+## The record is a description, never a command
+
+An earlier version stored the `docker run` argv and passed it straight to Docker. That made the record
+executable authority: anyone able to replace the file could make a root process run any Docker command,
+with no shell injection involved. The record now carries typed fields, and every one is re-validated
+before it reaches a command line. Both destructive verbs validate the description on load, so a record
+this tool would refuse to restore is not one it will act on at all.
 
 ## What the record can and cannot reproduce
 
-The record reproduces the name, network, network aliases, restart policy, published ports, image
-reference, command, and any environment variable the original run **added** on top of the image's own.
+It reproduces the name, network, network aliases, restart policy, published ports, command, any
+environment variable the original run **added** on top of the image's, and the image **by id** rather
+than by tag. A tag is mutable; retagging between capture and restore would rebuild the container from a
+different image while every name in the record still looked correct.
 
-It refuses outright — rather than restoring something that looks right and behaves differently — when
-the container has mounts, is attached to more or fewer than one network, or overrides the image's
-healthcheck, entrypoint, user or working directory. On this target all of those come from the image, so
-the transition is faithful here; the refusals exist so it cannot quietly stop being faithful elsewhere.
+Refusal is the default. Every `HostConfig` and `Config` key is either reproduced, or required to hold a
+value that came from the daemon or the image rather than from the original run. A key this tool has
+never heard of is refused too, so a newer daemon that grows a setting demands a review instead of
+silently dropping it. Capability changes, resource limits, sysctls, ulimits, devices, a logging driver,
+custom DNS, tmpfs, a privileged or read-only root filesystem, a static address, a dynamic host port, a
+second network, mounts, or a run-time override of the image's healthcheck, entrypoint, user, working
+directory, stop signal or labels all refuse rather than restore something that looks identical and
+behaves differently.
+
+**It cannot restore state.** Removing a container destroys its writable layer. Nothing here captures
+files written inside the container since it started. Confirm the container is stateless first; the admin
+surface is, because it serves only what its image contains.
 
 ## Sequencing
 

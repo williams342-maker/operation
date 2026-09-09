@@ -361,7 +361,13 @@ function publishedEndpoints(model, services) {
   for (const name of services) {
     for (const mapping of model?.services?.[name]?.ports ?? []) {
       const published = String(mapping?.published ?? "").trim();
-      if (published) wanted.push({ service: name, hostIp: mapping.host_ip ?? "", hostPort: published, protocol: mapping.protocol || "tcp" });
+      if (!published) continue;
+      // Compose usually expands a published RANGE into one entry per port, but long syntax can carry
+      // the range through as "8100-8105". Comparing that as a string matches no held port, so the check
+      // would look present and detect nothing. Refuse instead: a shape this cannot evaluate must not
+      // read as "no conflict".
+      if (!/^[0-9]{1,5}$/.test(published)) throw new Error(`service ${name} publishes ${published}, which this conflict check cannot evaluate`);
+      wanted.push({ service: name, hostIp: mapping.host_ip ?? "", hostPort: published, protocol: mapping.protocol || "tcp" });
     }
   }
   return wanted;
