@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, isReleaseDirectoryFor, isReadinessEndpoint } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -119,6 +119,16 @@ test("registry and daemon inspection bind digest, source, revision, role and loc
   assert.throws(() => inspectImmutableImage(reference, { commit, role: "api", title: "OpsWorkbench Control Center API" }, { remoteInspect: () => "Name: mutable:latest\n" }), /did not bind/);
 });
 
+// What `docker compose config --format json` resolves to. The admin service publishes the loopback
+// port the host's unmanaged admin container also holds, so a fixture that omitted it could not tell a
+// working conflict check from a missing one.
+const resolvedModelJson = JSON.stringify({ services: {
+  api: {}, web: {},
+  admin: { ports: [{ mode: "ingress", target: 8080, published: "18081", protocol: "tcp", host_ip: "127.0.0.1" }] },
+  edge: { ports: [{ mode: "ingress", target: 8080, published: "18080", protocol: "tcp", host_ip: "127.0.0.1" }] },
+} });
+const isModelQuery = (args) => args[0] === "config" && args.includes("--format");
+
 test("platform images independently bind registry digest and local content identity", () => {
   const item = plan("C:\\safe");
   const result = inspectPlatformImages(item.platform, { remoteInspect: (ref) => `Name: ${ref}\n`, pull: () => {}, localInspect: (ref) => ({ RepoDigests: [ref], Id: `sha256:${"d".repeat(64)}` }) });
@@ -154,7 +164,8 @@ test("deployment establishes rollback first, requires readiness, and restores ro
     } }),
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: (args) => { calls.push({ args: ["agent", ...args], api: "agent", rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
-    compose: (args, env, composeFile) => { if (args[0] !== "config" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
+    runningContainers: () => [],
+    compose: (args, env, composeFile) => { if (isModelQuery(args)) return resolvedModelJson; if (args[0] !== "config" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
     readiness: async () => rolledBack, acceptancePasses: 1,
   }), /was rolled back/);
   assert.equal(calls.filter((call) => call.args[0] !== "agent" || call.args[1] !== "prepare").every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
@@ -175,7 +186,7 @@ test("a post-acceptance record failure restores the current pointer and every ru
     verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit, images: { candidate: { api: localId(item.candidateImages.api), web: localId(item.candidateImages.web), admin: localId(item.candidateImages.admin), gate: localId(item.candidateImages.reviewGate) }, rollback: { api: localId(item.rollback.images.api), web: localId(item.rollback.images.web), admin: localId(item.rollback.images.admin), gate: localId(item.rollback.images.reviewGate) } } }),
     images: { remoteInspect: (reference) => `Name: ${reference}\n`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": revision(reference), "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
-    agentControl: () => {}, compose: (_args, env, file) => composeCalls.push({ api: env.OPSWORKBENCH_API_IMAGE, file }), readiness: async () => true, acceptancePasses: 1,
+    agentControl: () => {}, runningContainers: () => [], compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; composeCalls.push({ api: env.OPSWORKBENCH_API_IMAGE, file }); }, readiness: async () => true, acceptancePasses: 1,
     switchCurrent: (_current, target) => { switches.push(target); }, writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
   }), /was rolled back/);
   assert.deepEqual(switches, [preparation.installedControlCenter, preparation.rollbackControlCenter]);
@@ -201,7 +212,9 @@ test("a rollback compose file this host cannot load is refused before anything i
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: () => {}, readiness: async () => true, acceptancePasses: 1,
     switchCurrent: (_current, target) => { switches.push(target); },
+    runningContainers: () => [],
     compose: (args, _env, file) => {
+      if (isModelQuery(args)) return resolvedModelJson;
       composeCalls.push({ args, file });
       if (args[0] === "config" && file === preparation.rollbackCompose) throw new Error("env file /etc/opsworkbench/review-gate.env not found");
     },
@@ -230,7 +243,8 @@ test("forward and rollback recreate exactly the three application services this 
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: () => {}, readiness: async () => true, acceptancePasses: 1, switchCurrent: () => {},
     writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
-    compose: (args, env, file) => { if (args[0] === "up") ups.push({ args, services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
+    runningContainers: () => [],
+    compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; if (args[0] === "up") ups.push({ args, services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
   }), /was rolled back/);
   const forward = ups.filter((call) => !call.rollback); const rollback = ups.filter((call) => call.rollback);
   // The FULL argument vector, not just the service names. Filtering the flags out to read the services
@@ -246,6 +260,62 @@ test("forward and rollback recreate exactly the three application services this 
   assert.equal(ups.some((call) => call.services.includes("review-gate")), false, "this target does not run a review gate");
   assert.equal(ups.some((call) => call.services.includes("mongo")), false, "the database is never named by a deployment");
   assert.equal(ups.every((call) => call.args.includes("--no-deps")), true, "and cannot be reached through api's dependency on it");
+});
+
+const containerFixture = (name, project, bindings, image = "control-center-admin-web:abc") => ({ Name: `/${name}`, Config: { Image: image, Labels: project ? { "com.docker.compose.project": project } : {} }, HostConfig: { PortBindings: bindings } });
+const adminModel = { services: { admin: { ports: [{ published: "18081", protocol: "tcp", host_ip: "127.0.0.1" }] } } };
+
+test("a container this project does not own, holding a published port, is a conflict", () => {
+  // The real case on this target: started with a bare `docker run`, so it carries no Compose labels at
+  // all. Compose adopts only by label, so it will neither reuse nor stop it -- it will try to bind the
+  // same port a second time.
+  const unmanaged = containerFixture("opsworkbench-admin-web-1", null, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] });
+  const conflicts = detectForeignPortConflicts(adminModel, ["admin"], "opsworkbench", [unmanaged]);
+  assert.equal(conflicts.length, 1);
+  assert.equal(conflicts[0].service, "admin"); assert.equal(conflicts[0].container, "opsworkbench-admin-web-1"); assert.equal(conflicts[0].project, null);
+  // A container belonging to a DIFFERENT project is equally a conflict: it is not ours to recreate.
+  assert.equal(detectForeignPortConflicts(adminModel, ["admin"], "opsworkbench", [containerFixture("other-admin-1", "somethingelse", { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })]).length, 1);
+});
+
+test("a container this project already owns is not a conflict, because compose recreates it by label", () => {
+  const ours = containerFixture("opsworkbench-admin-1", "opsworkbench", { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] });
+  assert.deepEqual(detectForeignPortConflicts(adminModel, ["admin"], "opsworkbench", [ours]), []);
+});
+
+test("a wildcard host address conflicts with a loopback publication, and unrelated bindings do not", () => {
+  // 0.0.0.0:18081 blocks 127.0.0.1:18081. Comparing the addresses as strings reports no conflict and
+  // then the bind fails at `up`, which is the entire failure this check exists to prevent.
+  const wildcard = containerFixture("wildcard-1", null, { "8080/tcp": [{ HostIp: "0.0.0.0", HostPort: "18081" }] });
+  assert.equal(detectForeignPortConflicts(adminModel, ["admin"], "opsworkbench", [wildcard]).length, 1);
+  const unset = containerFixture("unset-1", null, { "8080/tcp": [{ HostIp: "", HostPort: "18081" }] });
+  assert.equal(detectForeignPortConflicts(adminModel, ["admin"], "opsworkbench", [unset]).length, 1);
+  const otherPort = containerFixture("other-port-1", null, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18082" }] });
+  const otherProtocol = containerFixture("other-proto-1", null, { "8080/udp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] });
+  const otherAddress = containerFixture("other-address-1", null, { "8080/tcp": [{ HostIp: "10.0.0.5", HostPort: "18081" }] });
+  assert.deepEqual(detectForeignPortConflicts(adminModel, ["admin"], "opsworkbench", [otherPort, otherProtocol, otherAddress]), []);
+  // A service the deployment does not touch is not scanned for.
+  assert.deepEqual(detectForeignPortConflicts(adminModel, ["api"], "opsworkbench", [containerFixture("x-1", null, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })]), []);
+});
+
+test("a held port refuses the deployment before any service is recreated", async () => {
+  const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const composeCalls = []; const switches = [];
+  const localId = (reference) => `sha256:${sha(reference)}`;
+  const revision = (reference) => Object.values(item.candidateImages).includes(reference) ? commit : rollbackCommit;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit, images: { candidate: { api: localId(item.candidateImages.api), web: localId(item.candidateImages.web), admin: localId(item.candidateImages.admin), gate: localId(item.candidateImages.reviewGate) }, rollback: { api: localId(item.rollback.images.api), web: localId(item.rollback.images.web), admin: localId(item.rollback.images.admin), gate: localId(item.rollback.images.reviewGate) } } }),
+    images: { remoteInspect: (reference) => `Name: ${reference}
+`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": revision(reference), "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: () => {}, readiness: async () => true, acceptancePasses: 1,
+    switchCurrent: (_current, target) => { switches.push(target); },
+    runningContainers: () => [containerFixture("opsworkbench-admin-web-1", null, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })],
+    compose: (args, _env, file) => { if (isModelQuery(args)) return resolvedModelJson; composeCalls.push({ args, file }); },
+  }), /host ports are held by containers this project does not own/);
+  assert.equal(composeCalls.some((call) => call.args[0] === "up"), false, "no service was recreated");
+  assert.deepEqual(switches, [], "the current release pointer was never moved");
 });
 
 test("schema rehearsal evidence is exact, complete, digest-bound and workflow-attested", () => {
