@@ -52,10 +52,12 @@ services:
   # property of the BUILD, the running set is a property of the TARGET.
   #
   # Declaring it anyway was not free. Compose loads and validates the whole project model before it
-  # selects services, so this block's `env_file: /etc/opsworkbench/review-gate.env` and its
-  # `/etc/opsworkbench/review-gate-tls` mount had to exist on the host for `compose config` to
-  # succeed at all -- for a service that would never be started. Neither path exists there. That made
-  # every deployment of this file fail during validation, before any container was touched.
+  # selects services, so this block's required `env_file: /etc/opsworkbench/review-gate.env` had to
+  # exist on the host for `compose config` to succeed at all -- for a service that would never be
+  # started. It does not exist there, and that alone made every deployment of this file fail during
+  # validation, before any container was touched. (The `/etc/opsworkbench/review-gate-tls` mount is
+  # also absent, but a missing bind source is not a validation failure; it would have surfaced later,
+  # at container creation.)
   #
   # Nothing about provenance is relaxed by removing it. The Forge build document still REQUIRES
   # reviewGateImageDigest, the deployment plan still carries all four candidate and rollback image

@@ -230,15 +230,22 @@ test("forward and rollback recreate exactly the three application services this 
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: () => {}, readiness: async () => true, acceptancePasses: 1, switchCurrent: () => {},
     writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
-    compose: (args, env, file) => { if (args[0] === "up") ups.push({ services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
+    compose: (args, env, file) => { if (args[0] === "up") ups.push({ args, services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
   }), /was rolled back/);
   const forward = ups.filter((call) => !call.rollback); const rollback = ups.filter((call) => call.rollback);
-  assert.deepEqual(forward.map((call) => call.services), [["api", "web", "admin"], ["edge"]], "forward recreates the three application services, then the edge");
-  assert.deepEqual(rollback.map((call) => call.services), [["api", "web", "admin", "edge"]], "rollback recreates the same application services plus the edge");
+  // The FULL argument vector, not just the service names. Filtering the flags out to read the services
+  // would leave every flag unasserted, and the flags carry the guarantees: `--no-deps` is the only
+  // reason the assertion below that mongo is never recreated is true at all, since api declares a
+  // dependency on it. `--no-build` keeps a deployment from building anything, and `--force-recreate`
+  // plus `--wait` are what make "recreated and healthy" mean something.
+  const upCommand = (...services) => ["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", ...services];
+  assert.deepEqual(forward.map((call) => call.args), [upCommand("api", "web", "admin"), upCommand("edge")], "forward recreates the three application services, then the edge");
+  assert.deepEqual(rollback.map((call) => call.args), [upCommand("api", "web", "admin", "edge")], "rollback recreates the same application services plus the edge");
   const applicationSet = (calls) => [...new Set(calls.flatMap((call) => call.services))].filter((name) => name !== "edge").sort();
   assert.deepEqual(applicationSet(forward), applicationSet(rollback), "rollback must recreate the same application services the deployment did");
   assert.equal(ups.some((call) => call.services.includes("review-gate")), false, "this target does not run a review gate");
-  assert.equal(ups.some((call) => call.services.includes("mongo")), false, "the database is never recreated by a deployment");
+  assert.equal(ups.some((call) => call.services.includes("mongo")), false, "the database is never named by a deployment");
+  assert.equal(ups.every((call) => call.args.includes("--no-deps")), true, "and cannot be reached through api's dependency on it");
 });
 
 test("schema rehearsal evidence is exact, complete, digest-bound and workflow-attested", () => {

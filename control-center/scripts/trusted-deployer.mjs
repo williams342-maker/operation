@@ -425,12 +425,26 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
   const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
   compose(["config", "--quiet"], candidateEnv, preparation.compose);
-  // The rollback model is validated HERE, before anything is mutated, because the only other moment it
-  // is ever loaded is inside the catch below -- while recovering from a failed deployment, which is the
-  // worst possible time to discover it does not load. Compose parses and validates the WHOLE project
-  // before selecting services, so a rollback release whose file still declares a service with a missing
-  // `env_file` or bind mount fails even though that service would never be started. Left unchecked that
-  // turns a recoverable failure into "deployment failed and rollback also failed".
+  // The rollback model is validated HERE, before the first RUNTIME mutation, because the only other
+  // moment it is ever loaded is inside the catch below -- while recovering from a failed deployment,
+  // which is the worst possible time to discover it does not load. Left unchecked that turns a
+  // recoverable failure into "deployment failed and rollback also failed".
+  //
+  // "Before the first runtime mutation" is the honest claim, not "before anything is mutated": images
+  // are already pulled, the agent snapshot is already taken and rollback-ready.json is already written
+  // by this point. A failed check here leaves that preparation behind, and the CLI builds a fresh
+  // preparation rather than reusing it, because the snapshot and the record are both exclusive.
+  //
+  // What this actually proves is narrow. Compose parses and validates the WHOLE project before
+  // selecting services, so a required `env_file` that does not exist fails the load even for a service
+  // that would never be started -- that is the case this catches. It does NOT prove a bind mount's
+  // source exists: a short-form bind source that is missing gets created at container-creation time
+  // instead, so absent TLS material is a different failure at a different moment.
+  //
+  // Nor is the validated model frozen. Both this call and the recovery call reload the file, and
+  // external inputs it reads can change in between. Release trees are sealed and verified, which rules
+  // out ordinary edits to the file itself, but nothing here reserves ports or captures the resolved
+  // model.
   //
   // Practical consequence: the candidate and its rollback must BOTH carry a Compose file this host can
   // load. A rollback release cut before the review gate was removed from the production Compose file
