@@ -158,10 +158,12 @@ export function capture(name, recordPath, hooks = {}) {
     const directory = fs.openSync(path.dirname(path.resolve(recordPath)), fs.constants.O_RDONLY);
     try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
   } catch (cause) {
-    // Windows and some filesystems cannot fsync a directory at all, which is not a durability failure
-    // worth refusing over. A real I/O error is, so only the "cannot do this here" codes are swallowed.
-    // Catching everything would report success on a disk that is genuinely failing.
-    if (!["EPERM", "EACCES", "EINVAL", "ENOTSUP", "EISDIR", "EBADF"].includes(cause?.code)) throw cause;
+    // Windows cannot open a directory for reading at all, so it can never fsync one, and refusing to
+    // capture there would be refusing over a platform limitation. Everywhere else this is propagated:
+    // an errno list was the wrong shape for the exception, because EPERM, EACCES and EBADF are also
+    // exactly what a genuine permission or descriptor failure looks like, and swallowing those reports
+    // a durable record that is not durable.
+    if (process.platform !== "win32") throw cause;
   }
   return record;
 }
@@ -183,8 +185,14 @@ export function stop(recordPath, hooks = {}) {
   // also not visible in `docker inspect`, so no amount of checking afterwards can tell us it was set.
   //
   // Setting the policy to `no` first removes the dependency on the marker altogether: whatever happens
-  // in the race, the daemon has no policy under which to restart it. `start` puts the recorded policy
-  // back. If this process dies in between, the container stays down, which is the safe direction.
+  // in the race, the daemon has no policy under which to restart it afterwards. `start` puts the
+  // recorded policy back.
+  //
+  // Two things this does NOT claim. It does not cancel a restart the daemon has already scheduled --
+  // changing the policy only replaces the policy -- which is why the stop below and the state check
+  // after it still have to do their work. And if this process dies between the update and the stop, the
+  // container is still RUNNING, just no longer restartable by policy; the recovery is to run stop
+  // again. It is only after a completed stop that "it cannot come back on its own" is true.
   docker(["update", "--restart=no", record.containerId]);
   let failure;
   try { docker(["stop", record.containerId]); } catch (cause) { failure = cause; }

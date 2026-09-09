@@ -264,6 +264,11 @@ test("a symlinked record is refused, because the file that decides which contain
     // Skip ONLY where symlinks genuinely cannot be created: Windows without developer mode. Returning
     // on any error would turn a Linux CI setup failure into a passing test, which is the failure this
     // whole file exists to avoid.
+    //
+    // Note for anyone mutation-testing this: deleting the `isSymbolicLink()` term alone does NOT break
+    // this test on any platform, and that is correct rather than a coverage gap. `lstat` reports a
+    // symlink as not a regular file, so the `isFile()` term already rejects it, and `O_NOFOLLOW` on the
+    // open is a third guard. The term is kept because it names the intent at the point of the check.
     if (process.platform === "win32" && (cause.code === "EPERM" || cause.code === "EACCES")) return;
     throw cause;
   }
