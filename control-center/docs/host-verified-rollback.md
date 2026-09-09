@@ -33,7 +33,9 @@ there for a wrong or hostile plan to name.
 | Established | How |
 |---|---|
 | the rollback release tree is what its attested bundle says | compared in place against the bundle, which is attested even for this release |
-| the predecessor images are the ones that were serving | read from the containers themselves, by Compose label or by the published port they hold |
+| the predecessor images are the ones that were serving | read from the containers themselves |
+| a Compose-labelled predecessor is the live one | it must be RUNNING; labels outlive every container Compose ever made, and this host keeps 97 releases of history |
+| a predecessor found by its port is one a person stopped | its id must be named by an adoption record, since the unmanaged container is stopped by then and state cannot tell it from a stale one |
 | each service resolves to exactly one predecessor | zero or several is a refusal, never a guess |
 | the predecessor is not already the candidate | compared as local image ids, which is what both sides actually are |
 
@@ -63,22 +65,22 @@ These are written into the rollback-ready record rather than left to be inferred
 
 ## What is still unresolved
 
-Two things an independent review named that this does not fix, recorded rather than closed.
-
-**The predecessor is identified by uniqueness, not by identity.** A container is matched by Compose
-label first and by published port second, and exactly one match is required. That rejects ambiguity
-within the matching method; it does not prove the match is the container that was serving. A stopped
-container from an older release carrying the same labels would win over the retained one. The stronger
-binding available is the adoption record's immutable container id, which names the object a person
-actually reviewed, and this does not yet use it.
+One thing an independent review named that this does not fix, recorded rather than closed. The other --
+that the predecessor was identified by uniqueness rather than identity -- is now closed: a Compose-label
+match must also be RUNNING, and a match by published port must be named by an adoption record.
 
 **The rollback restores images, not a runtime.** It runs the candidate's Compose file, which supplies
 the candidate's environment, mounts, healthchecks and edge configuration to the predecessor's images.
-Where those differ, rollback can fail for reasons unrelated to the images. The `edge` service is not
-measured at all: both directions use the plan's edge image, so the predecessor edge is not restored.
+Where those differ, the rollback can fail for reasons that have nothing to do with the images. The
+`edge` service is not measured at all: both directions use the plan's edge image, so the predecessor
+edge is not restored.
 
-Neither is a reason the policy exception is wrong. Both are reasons to treat the first deployment as
-attended, with someone watching, rather than as a routine one.
+**Attendance does not close this.** Someone watching cannot supply configuration the predecessor images
+need and the candidate's Compose file does not provide. The way to close it is to demonstrate that the
+recovery configuration actually starts the retained local images -- which does not require rebuilding
+anything, only running what is already on the host -- or to provide a separately validated fallback that
+restores the previous runtime rather than the previous images. Until one of those exists, this is an
+unproven recovery path, not a proven one operated carefully.
 
 ## When not to use it
 

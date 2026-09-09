@@ -70,7 +70,14 @@ export function parseDeploymentPlan(value) {
   // The plan does not get to say what a host-verified rollback consists of; the host does. So it names
   // only the identity being rolled back TO, and carries no images, bundle or artifact digest to be
   // trusted -- there is nothing there for a bad plan to lie about.
-  exactKeys(value.rollback, hostVerifiedRollback ? ["evidence", "tag", "commit", "tree", "bundleDirectory", "releaseDirectory", "evidenceSha256"] : ["evidence", "tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
+  exactKeys(value.rollback, hostVerifiedRollback ? ["evidence", "tag", "commit", "tree", "bundleDirectory", "releaseDirectory", "evidenceSha256", "adoptionRecords"] : ["evidence", "tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
+  // The records written when a person stopped an unmanaged container. They are how a predecessor found
+  // by its published port is identified, rather than assumed from the port alone. An empty list is
+  // allowed and means every service is expected to be found running under a Compose label.
+  if (hostVerifiedRollback) {
+    if (!Array.isArray(value.rollback.adoptionRecords) || value.rollback.adoptionRecords.length > 8) throw new Error("rollback adoptionRecords must be a list of at most eight paths");
+    for (const record of value.rollback.adoptionRecords) if (typeof record !== "string" || !path.isAbsolute(record)) throw new Error("rollback adoptionRecords must be absolute paths");
+  }
   if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.bundleDirectory) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
   // A release directory may be named after the TAG or after its own COMMIT. Production names every
   // release `review-<short commit>` -- 97 of them -- and nothing there is named after a tag, so the
@@ -500,31 +507,50 @@ export function detectForeignPortConflicts(model, services, projectName, contain
  * would refuse every first deployment for the exact reason the deployment was made possible. A stopped
  * container still carries its image and its port bindings, which is all this reads.
  *
- * Two ways to find a service's container, because on a first deployment not all of them are Compose's
- * yet. A container labelled with this project and service is the normal case. A service that publishes
- * a host port is also matched by that port, which is how a container started outside Compose is still
- * identified as the thing being replaced. Zero or more than one is a refusal, never a guess.
+ * Two ways to find a service's container, and NEITHER of them is uniqueness alone. A container labelled
+ * with this project and service must also be RUNNING, because Compose labels outlive every container it
+ * ever made and this host keeps 97 releases of history. A container found by the published port must be
+ * named by an adoption record, because that path exists for the unmanaged container, which is stopped by
+ * the time we look and so cannot be told apart from a stale one by its state.
+ *
+ * Recording which container was chosen makes the choice auditable. Requiring it to be running, or to be
+ * one a person deliberately stopped, is what makes it right.
  */
-export function measurePredecessorImages(model, services, projectName, containers) {
+export function measurePredecessorImages(model, services, projectName, containers, adoptedContainerIds = new Set()) {
   const measured = {};
   for (const service of services) {
     const labelled = (containers ?? []).filter((container) => {
       const labels = container?.Config?.Labels ?? {};
       return labels[composeProjectLabel] === projectName && labels["com.docker.compose.service"] === service;
     });
-    let found = labelled;
+    // A LABEL MATCH MUST BE RUNNING. Compose labels persist on every container it ever created, and this
+    // host keeps 97 releases' worth of history, so a stopped container from an old release carries the
+    // same project and service labels as the live one. Uniqueness alone would let that stale container
+    // win. Requiring it to be running is what makes the label match mean "the one serving".
+    let found = labelled.filter((container) => container?.State?.Running === true);
     let matchedBy = "compose-label";
     if (!found.length) {
+      // A PORT MATCH MUST BE A CONTAINER SOMEONE ADOPTED. This path exists for the unmanaged container,
+      // which is stopped by the time we look -- it had to be, or it would still hold the port -- so
+      // "running" cannot be the discriminator here. Instead its identity comes from the adoption record
+      // written when a person stopped it: an id that was reviewed, not one inferred from a port that
+      // several stopped containers in this host's history could equally claim.
       const wanted = publishedEndpoints(model, [service]);
-      found = wanted.length ? (containers ?? []).filter((container) => holdsAnyEndpoint(container, wanted)) : [];
-      matchedBy = "published-port";
+      const byPort = wanted.length ? (containers ?? []).filter((container) => holdsAnyEndpoint(container, wanted)) : [];
+      found = byPort.filter((container) => adoptedContainerIds.has(String(container?.Id ?? "")));
+      matchedBy = "adoption-record";
+      if (!found.length && byPort.length) throw new Error(`the container holding ${service}'s published port is not named by any adoption record; refusing to guess that it is the predecessor`);
     }
     if (found.length !== 1) throw new Error(`cannot identify exactly one predecessor container for ${service}: found ${found.length}`);
     const image = String(found[0]?.Image ?? "");
     if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error(`predecessor container for ${service} has no content-addressed image id`);
     // The container is named as well as its image. An image id alone cannot be traced back to what was
     // inspected, and a recovery reading this record afterwards has no other way to know what was chosen.
-    measured[service] = { image, container: String(found[0]?.Name ?? "").replace(/^\//, ""), containerId: String(found[0]?.Id ?? ""), matchedBy };
+    const containerId = String(found[0]?.Id ?? "");
+    // Without an id the record cannot name what was chosen, and a recovery reading it later has nothing
+    // to check against. An inspect that reports no id is a refusal, not a blank field.
+    if (!/^[a-f0-9]{64}$/.test(containerId)) throw new Error(`predecessor container for ${service} has no full container id`);
+    measured[service] = { image, container: String(found[0]?.Name ?? "").replace(/^\//, ""), containerId, matchedBy };
   }
   const images = Object.values(measured).map((entry) => entry.image);
   if (new Set(images).size !== images.length) throw new Error("two services report the same running image; the measurement is ambiguous");
@@ -532,6 +558,29 @@ export function measurePredecessorImages(model, services, projectName, container
 }
 
 /** Every container on the host, running or not -- see measurePredecessorImages for why stopped counts. */
+/**
+ * The container ids a person deliberately stopped, read from the adoption records the plan names.
+ *
+ * These are consumed by a root process, so each is read the way the adoption tool writes and reads them:
+ * a regular file, not a symlink, carrying the schema it claims. A record that does not parse is a
+ * refusal rather than an id quietly missing from the set, because a missing id makes the predecessor
+ * unidentifiable and that failure should say why.
+ */
+export function readAdoptedContainerIds(records, hooks = {}) {
+  const read = hooks.readAdoptionRecord ?? ((file) => {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("adoption record is not a regular file");
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  });
+  const ids = new Set();
+  for (const file of records ?? []) {
+    const record = read(file);
+    if (record?.schemaVersion !== "opsworkbench-container-adoption-v3" || !/^[a-f0-9]{64}$/.test(record?.containerId ?? "")) throw new Error(`adoption record is missing or malformed: ${file}`);
+    ids.add(record.containerId);
+  }
+  return ids;
+}
+
 function defaultAllContainers() {
   const ids = execFileSync("docker", ["ps", "--all", "--quiet"], { encoding: "utf8" }).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (!ids.length) return [];
@@ -657,7 +706,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // running. The measurement happens here, before the first runtime mutation, because afterwards the
   // containers it reads are the ones the deployment has already replaced.
   const rollbackPredecessors = hostVerified(plan)
-    ? (hooks.measurePredecessor ?? measurePredecessorImages)(resolvedModel, applicationServices, plan.composeProject, (hooks.allContainers ?? defaultAllContainers)())
+    ? (hooks.measurePredecessor ?? measurePredecessorImages)(resolvedModel, applicationServices, plan.composeProject, (hooks.allContainers ?? defaultAllContainers)(), (hooks.readAdoptedIds ?? readAdoptedContainerIds)(plan.rollback.adoptionRecords, hooks))
     : null;
   const rollbackImages = rollbackPredecessors
     ? Object.fromEntries(Object.entries(rollbackPredecessors).map(([service, entry]) => [service, entry.image]))
