@@ -19,6 +19,26 @@ function exactKeys(value, keys, name) {
   }
 }
 
+/** A release directory is `<releaseRoot>/<name>/app`, where `name` is the tag or `review-<commit prefix>`. */
+export function isReleaseDirectoryFor(directory, releaseRoot, release) {
+  const resolved = path.resolve(directory);
+  if (resolved === path.resolve(releaseRoot, release.tag, "app")) return true;
+  const parent = path.dirname(resolved);
+  if (path.basename(resolved) !== "app" || path.dirname(parent) !== path.resolve(releaseRoot)) return false;
+  const named = /^review-([0-9a-f]{7,40})$/.exec(path.basename(parent));
+  return Boolean(named) && release.commit.startsWith(named[1]);
+}
+
+/** HTTPS anywhere, or plain HTTP only on loopback, where there is no network to intercept. */
+export function isReadinessEndpoint(url) {
+  if (typeof url !== "string") return false;
+  let parsed;
+  try { parsed = new URL(url); } catch { return false; }
+  if (parsed.protocol === "https:") return /^[A-Za-z0-9.-]+$/.test(parsed.hostname);
+  if (parsed.protocol !== "http:") return false;
+  return parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost" || parsed.hostname === "[::1]" || parsed.hostname === "::1";
+}
+
 export function parseDeploymentPlan(value) {
   exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness"], "deployment plan");
   if (value.schemaVersion !== "opsworkbench-trusted-deployment-v1" || !tagPattern.test(value.tag) || !commitPattern.test(value.commit) || !commitPattern.test(value.tree)) throw new Error("deployment identity is invalid");
@@ -36,7 +56,14 @@ export function parseDeploymentPlan(value) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(value.platform.mongoVolume)) throw new Error("platform mongoVolume is invalid");
   exactKeys(value.rollback, ["tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
   if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.bundleDirectory) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
-  if (path.resolve(value.rollback.releaseDirectory) !== path.resolve(value.releaseRoot, value.rollback.tag, "app") || path.resolve(value.rollback.bundleDirectory) === path.resolve(value.bundleDirectory)) throw new Error("rollback source location is invalid or ambiguous");
+  // A release directory may be named after the TAG or after its own COMMIT. Production names every
+  // release `review-<short commit>` -- 97 of them -- and nothing there is named after a tag, so the
+  // tag-only rule made the plan unsatisfiable on the host it was written for. The commit form is
+  // accepted only when the hex actually prefixes that release's own commit, so a directory name still
+  // cannot be pointed at an unrelated release: the binding between name and identity is preserved,
+  // only its spelling is widened.
+  if (!isReleaseDirectoryFor(value.rollback.releaseDirectory, value.releaseRoot, value.rollback)) throw new Error("rollback release directory does not name that release");
+  if (path.resolve(value.rollback.bundleDirectory) === path.resolve(value.bundleDirectory)) throw new Error("rollback source location is ambiguous");
   if (value.rollback.tag === value.tag || value.rollback.commit === value.commit || value.rollback.tree === value.tree) throw new Error("candidate and rollback release identities must be distinct");
   exactKeys(value.rollback.images, ["api", "web", "admin", "reviewGate"], "rollback images");
   for (const [role, reference] of Object.entries(value.rollback.images)) {
@@ -50,7 +77,12 @@ export function parseDeploymentPlan(value) {
   for (const field of ["candidateSha256", "rollbackSha256"]) if (!/^[a-f0-9]{64}$/.test(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} is invalid`);
   exactKeys(value.compatibilityEvidence, ["path", "sha256"], "compatibilityEvidence");
   if (!path.isAbsolute(value.compatibilityEvidence.path) || !/^[a-f0-9]{64}$/.test(value.compatibilityEvidence.sha256)) throw new Error("compatibility evidence identity is invalid");
-  if (!Array.isArray(value.readiness) || value.readiness.length < 3 || value.readiness.some((url) => typeof url !== "string" || !/^https:\/\/[A-Za-z0-9.-]+(?:\/[^\s]*)?$/.test(url))) throw new Error("at least three HTTPS readiness endpoints are required");
+  // Readiness must not be interceptable. Off-host that means HTTPS; on loopback it means loopback --
+  // packets to 127.0.0.1 never reach a network, so TLS adds nothing there. This host's edge listens on
+  // 127.0.0.1:18080 behind a Cloudflare tunnel whose ingress cannot be read from the machine, so an
+  // HTTPS-only rule left no satisfiable endpoint at all, and the honest alternatives were a self-signed
+  // certificate or no readiness check. Anything not on loopback is still required to be HTTPS.
+  if (!Array.isArray(value.readiness) || value.readiness.length < 3 || value.readiness.some((url) => !isReadinessEndpoint(url))) throw new Error("at least three readiness endpoints are required, HTTPS unless they are on loopback");
   return structuredClone(value);
 }
 
