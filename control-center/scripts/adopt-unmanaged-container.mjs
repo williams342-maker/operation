@@ -261,8 +261,8 @@ export function restore(recordPath, hooks = {}) {
   const record = loadRecord(recordPath);
   // Never restore over something holding the name: it would either fail confusingly or land on a
   // container the deployment has since created and legitimately owns.
-  let existing = null;
-  try { existing = inspectContainer(record.description.name, docker); } catch { existing = null; }
+  let existing;
+  try { existing = inspectContainer(record.description.name, docker); } catch { existing = undefined; }
   if (existing) throw new Error(`a container named ${record.description.name} already exists; remove it deliberately before restoring`);
   docker(restoreArgv(record.description));
   return { restored: record.description.name };
