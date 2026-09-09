@@ -343,6 +343,78 @@ const imageExpectations = {
 // state it promised. One constant removes the chance of that drift.
 const applicationServices = ["api", "web", "admin"];
 
+const composeProjectLabel = "com.docker.compose.project";
+
+/**
+ * A host binding blocks another whenever the ports and protocols match and the addresses overlap.
+ * An unset or wildcard address covers every address, so `0.0.0.0:18081` and `127.0.0.1:18081` are a
+ * conflict even though the strings differ -- comparing them as strings reports "no conflict" and then
+ * the bind fails at `up`, which is the whole failure this is here to prevent.
+ */
+function hostAddressesOverlap(one, other) {
+  const wildcard = (value) => !value || value === "0.0.0.0" || value === "::" || value === "[::]";
+  return wildcard(one) || wildcard(other) || one === other;
+}
+
+function publishedEndpoints(model, services) {
+  const wanted = [];
+  for (const name of services) {
+    for (const mapping of model?.services?.[name]?.ports ?? []) {
+      const published = String(mapping?.published ?? "").trim();
+      if (!published) continue;
+      // Compose usually expands a published RANGE into one entry per port, but long syntax can carry
+      // the range through as "8100-8105". Comparing that as a string matches no held port, so the check
+      // would look present and detect nothing. Refuse instead: a shape this cannot evaluate must not
+      // read as "no conflict".
+      if (!/^[0-9]{1,5}$/.test(published) || Number(published) < 1 || Number(published) > 65535) throw new Error(`service ${name} publishes ${published}, which this conflict check cannot evaluate`);
+      // Compared as a NUMBER. Compose preserves a long-syntax `published: "01881"` verbatim while the
+      // daemon reports the held binding as "1881", and comparing those as strings finds no conflict on
+      // a port that is genuinely taken.
+      wanted.push({ service: name, hostIp: mapping.host_ip ?? "", hostPort: Number(published), protocol: mapping.protocol || "tcp" });
+    }
+  }
+  return wanted;
+}
+
+/**
+ * Containers this project does not own, holding a host port a service we are about to start publishes.
+ *
+ * Compose adopts a container only by its own project/service LABELS. A container started outside
+ * Compose -- `docker run` -- carries none, so Compose will not reuse it, will not stop it, and will
+ * try to create a second container on the same host binding. Docker then refuses the bind and `up`
+ * fails PART WAY THROUGH, after earlier services in the same command were already recreated. Nothing
+ * else in this deployer looks at running containers at all: the image inspections inspect images, and
+ * the Compose preflights validate configuration. Port ownership is neither.
+ */
+export function detectForeignPortConflicts(model, services, projectName, containers) {
+  const wanted = publishedEndpoints(model, services);
+  const conflicts = [];
+  for (const container of containers ?? []) {
+    const labels = container?.Config?.Labels ?? {};
+    // Containers this project already owns are not conflicts: Compose recreates its own by label.
+    if (labels[composeProjectLabel] === projectName) continue;
+    const name = String(container?.Name ?? "").replace(/^\//, "");
+    for (const [port, bindings] of Object.entries(container?.HostConfig?.PortBindings ?? {})) {
+      const protocol = port.split("/")[1] || "tcp";
+      for (const binding of bindings ?? []) {
+        for (const target of wanted) {
+          const held = String(binding?.HostPort ?? "");
+          if (target.protocol !== protocol || !/^[0-9]{1,5}$/.test(held) || target.hostPort !== Number(held)) continue;
+          if (!hostAddressesOverlap(target.hostIp, binding?.HostIp ?? "")) continue;
+          conflicts.push({ service: target.service, endpoint: `${binding?.HostIp || "0.0.0.0"}:${binding?.HostPort}/${protocol}`, container: name, project: labels[composeProjectLabel] ?? null, image: container?.Config?.Image ?? null });
+        }
+      }
+    }
+  }
+  return conflicts;
+}
+
+function defaultRunningContainers() {
+  const ids = execFileSync("docker", ["ps", "--quiet"], { encoding: "utf8" }).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!ids.length) return [];
+  return JSON.parse(execFileSync("docker", ["inspect", ...ids], { encoding: "utf8" }));
+}
+
 const compatibilityScenarios = ["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"];
 const migrationScenarios = new Set(["migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration"]);
 
@@ -450,6 +522,23 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // load. A rollback release cut before the review gate was removed from the production Compose file
   // does not, and this check refuses it up front instead of at the point of no return.
   compose(["config", "--quiet"], rollbackEnv, preparation.rollbackCompose);
+  // Port ownership, which nothing here has ever checked.
+  //
+  // Compose adopts a container only by its own project/service labels, so a container started outside
+  // Compose is invisible to it: it will not be reused, will not be stopped, and Compose will try to
+  // create a second container on the same host binding. Docker refuses the bind, and because one `up`
+  // starts several services, the failure lands PART WAY THROUGH -- with earlier services already
+  // recreated. The recovery path then issues another `up` that hits the same held port.
+  //
+  // This target has exactly that: an admin container started with a bare `docker run`, carrying no
+  // Compose labels, already holding the admin service's published port. Refusing here costs an aborted
+  // deployment. Discovering it at `up` costs a half-applied one.
+  //
+  // The resolved model is the source of the ports rather than a literal, so a Compose file that changes
+  // where it publishes cannot silently escape the check.
+  const resolvedModel = JSON.parse(compose(["config", "--format", "json"], candidateEnv, preparation.compose));
+  const foreignConflicts = (hooks.detectConflicts ?? detectForeignPortConflicts)(resolvedModel, [...applicationServices, "edge"], plan.composeProject, (hooks.runningContainers ?? defaultRunningContainers)());
+  if (foreignConflicts.length) throw new Error(`host ports are held by containers this project does not own: ${foreignConflicts.map((conflict) => `${conflict.endpoint} wanted by ${conflict.service}, held by ${conflict.container}${conflict.project ? ` of project ${conflict.project}` : " (no compose project)"}`).join("; ")}`);
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
   let agentActivationAttempted = false; let currentSwitched = false; let record;
   try {
