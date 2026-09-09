@@ -31,14 +31,23 @@ node scripts/adopt-unmanaged-container.mjs start <record>
 `capture` writes a record naming the container by its full id, along with the ports it holds, and
 refuses a container Compose already owns. It will not overwrite an existing record.
 
-`stop` stops the container, which releases its published ports so Compose can bind them. It addresses
+`stop` removes the container's restart policy and then stops it, which releases its published ports so
+Compose can bind them. The policy comes off first on purpose. Docker keeps an `unless-stopped` container
+down after a reboot by setting a manual-stop marker, but it sets that marker only when it stops a
+container that is still *running*. Between the inspect and the stop the container can exit on its own,
+Docker then treats the stop as a no-op and sets nothing, and the container is left eligible to come back
+mid-deployment. The marker is not visible in `docker inspect`, so no check afterwards can confirm it.
+Taking the policy away first removes the dependency on it: whichever way the race goes, there is no
+policy under which the daemon can restart it. `start` puts the recorded policy back. It addresses
 the container by its **immutable id** at every step, never by name, because inspecting by name and then
 acting by name is a race. It refuses if the container has been renamed, has become Compose-owned, or is
 not the one that was captured. It then re-inspects and reports the **observed** state rather than the
 exit code of the stop command, because a stop that errors may still have stopped the container and a
 stop that succeeds is only useful if the port is genuinely free.
 
-`start` brings the same container back and confirms it is running.
+`start` brings the same container back, confirms it is genuinely running rather than paused or looping,
+and only then reinstates the restart policy the record captured. Restoring the policy to a container
+that did not come up would hand the daemon a restart loop instead of a clear failure.
 
 ## Why it stops rather than removes
 

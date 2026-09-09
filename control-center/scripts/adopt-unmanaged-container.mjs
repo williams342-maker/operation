@@ -66,7 +66,28 @@ function loadRecord(recordPath, hooks = {}) {
   }
   const record = JSON.parse(body);
   if (record?.schemaVersion !== schemaVersion || !containerIdPattern.test(record?.containerId ?? "") || !namePattern.test(record?.name ?? "")) throw new Error("adoption record is missing or malformed");
+  // Validated on load, not at the point of use: a policy this tool would refuse to reinstate must
+  // not be discovered after the container has already been stopped.
+  restartPolicyArgument(record.restartPolicy);
   return record;
+}
+
+const restartPolicies = new Set(["no", "always", "unless-stopped", "on-failure"]);
+
+function restartPolicyOf(container) {
+  const policy = container?.HostConfig?.RestartPolicy ?? {};
+  const name = policy.Name || "no";
+  if (!restartPolicies.has(name)) throw new Error(`unsupported restart policy: ${name}`);
+  return { name, maximumRetryCount: Number(policy.MaximumRetryCount) || 0 };
+}
+
+/** The `--restart` argument that reinstates a recorded policy. */
+function restartPolicyArgument(policy) {
+  const name = policy?.name ?? "no";
+  if (!restartPolicies.has(name)) throw new Error(`record restart policy is not recognised: ${name}`);
+  const retries = Number(policy?.maximumRetryCount) || 0;
+  if (!Number.isInteger(retries) || retries < 0 || retries > 1000) throw new Error("record restart retry count is malformed");
+  return name === "on-failure" && retries ? `${name}:${retries}` : name;
 }
 
 /**
@@ -81,6 +102,8 @@ function loadRecord(recordPath, hooks = {}) {
  * unless-stopped policy is the one that honours a manual stop, and it is what the target runs.
  */
 function refusePreconditions(container) {
+  // AutoRemove cannot be changed by `docker update`, so re-checking it before each action is belt and
+  // braces rather than a race. The restart policy CAN be changed that way, so re-checking it is not.
   if (container?.HostConfig?.AutoRemove === true) throw new Error("container is set to auto-remove; stopping it would destroy it rather than preserve it");
   if ((container?.HostConfig?.RestartPolicy?.Name ?? "") === "always") throw new Error("container restart policy is always, so it would come back after a daemon restart; refusing to rely on stopping it");
 }
@@ -119,6 +142,8 @@ export function capture(name, recordPath, hooks = {}) {
     imageReference: String(container?.Config?.Image ?? ""),
     imageId: String(container?.Image ?? ""),
     publishedPorts,
+    // Recorded so `start` can put back what `stop` had to take away. See restartPolicyArgument.
+    restartPolicy: restartPolicyOf(container),
   };
   const body = `${JSON.stringify(record, null, 2)}\n`;
   const handle = fs.openSync(recordPath, "wx", 0o600);
@@ -144,15 +169,23 @@ export function capture(name, recordPath, hooks = {}) {
 export function stop(recordPath, hooks = {}) {
   const docker = hooks.docker ?? defaultDocker;
   const record = loadRecord(recordPath, hooks);
-  const container = confirmRecordedContainer(record, docker);
+  confirmRecordedContainer(record, docker);
   // A stop that reports an error may still have stopped the container, and a stop that returns cleanly
   // is still worth confirming, because the port is free only once it is genuinely not running. So the
   // observed state decides the outcome, not the command's exit code.
-  // Stopping something already stopped is not a harmless no-op. Docker sets its manual-stop marker only
-  // when it actually stops a RUNNING container, and that marker is what keeps an unless-stopped
-  // container from being restarted by the daemon later. An already-exited container -- one whose own
-  // restart attempt failed, say -- carries no such marker and can still come back.
-  if (container?.State?.Running !== true) throw new Error(`container ${record.name} is ${container?.State?.Status ?? "in an unknown state"}, not running; stopping it would not mark it as manually stopped`);
+  // THE RESTART POLICY IS REMOVED BEFORE THE STOP, and this is the whole reason the design holds.
+  //
+  // Docker keeps an `unless-stopped` container down after a reboot by setting a manual-stop marker, but
+  // it sets that marker only when it actually stops a RUNNING container. Between our inspect and our
+  // stop the container can exit on its own -- a failed automatic restart, say -- and Docker then treats
+  // our stop as a no-op and sets nothing. The container is stopped now and eligible to come back after
+  // a daemon restart, which is exactly the thing that must not happen mid-deployment. That marker is
+  // also not visible in `docker inspect`, so no amount of checking afterwards can tell us it was set.
+  //
+  // Setting the policy to `no` first removes the dependency on the marker altogether: whatever happens
+  // in the race, the daemon has no policy under which to restart it. `start` puts the recorded policy
+  // back. If this process dies in between, the container stays down, which is the safe direction.
+  docker(["update", "--restart=no", record.containerId]);
   let failure;
   try { docker(["stop", record.containerId]); } catch (cause) { failure = cause; }
   const after = inspectContainer(record.containerId, docker);
@@ -175,7 +208,11 @@ export function start(recordPath, hooks = {}) {
   const state = after?.State ?? {};
   const restored = state.Running === true && state.Paused !== true && state.Restarting !== true;
   if (!restored) throw new Error(`container ${record.name} is ${state.Status ?? "in an unknown state"}${failure ? ` and start reported: ${failure.message}` : ""}`);
-  return { started: record.name, containerId: record.containerId, status: state.Status ?? "running" };
+  // Put back the policy `stop` removed. Done only once it is genuinely running: restoring `always` to a
+  // container that did not come up would hand the daemon a restart loop instead of a clear failure.
+  const policy = restartPolicyArgument(record.restartPolicy);
+  docker(["update", `--restart=${policy}`, record.containerId]);
+  return { started: record.name, containerId: record.containerId, status: state.Status ?? "running", restartPolicy: policy };
 }
 
 const verbs = { capture: (args) => capture(args[0], args[1]), stop: (args) => stop(args[0]), start: (args) => start(args[0]) };

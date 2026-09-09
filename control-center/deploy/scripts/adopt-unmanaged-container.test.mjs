@@ -67,8 +67,13 @@ test("stop addresses the container by immutable id and confirms it is no longer 
   // The TARGET of every call, not just the verb. Inspecting by name and then stopping by name is a
   // race: another actor can put a different container under that name in between. Asserting only the
   // verbs lets a mutation that stops something else pass.
+  // The restart policy is removed BEFORE the stop. Docker sets the manual-stop marker that keeps an
+  // unless-stopped container down only when it stops a container that is still running, and between the
+  // inspect and the stop it can exit on its own -- leaving it stopped now and eligible to come back
+  // after a reboot. Taking the policy away first removes the dependency on that marker entirely.
   assert.deepEqual(calls, [
     ["inspect", "--type", "container", containerId],
+    ["update", "--restart=no", containerId],
     ["stop", containerId],
     ["inspect", "--type", "container", containerId],
   ]);
@@ -98,7 +103,8 @@ test("start brings back the same container object and confirms it is running", (
     ["inspect", "--type", "container", containerId],
     ["start", containerId],
     ["inspect", "--type", "container", containerId],
-  ]);
+    ["update", "--restart=unless-stopped", containerId],
+  ], "and the recorded restart policy is put back, but only once it is genuinely running");
   // Nothing is rebuilt, so there is no command to get wrong: no `run`, no image argument, no flags.
   assert.equal(calls.some((call) => call[0] === "run"), false);
   // A start that does not result in a running container is a failure, however the command exited.
@@ -117,6 +123,36 @@ test("both verbs refuse a container that is no longer the captured one", () => {
     assert.throws(() => verb(file, { docker: dockerFor(different) }), /not the one that was captured/);
     assert.throws(() => verb(file, { docker: dockerFor(null) }), /No such object/);
   }
+});
+
+test("stop disarms the restart policy first, and start reinstates exactly what was recorded", () => {
+  const root = workspace();
+  // on-failure carries a retry count, which has to survive the round trip or the restored container
+  // retries forever instead of five times.
+  const onFailure = liveAdmin(); onFailure.HostConfig.RestartPolicy = { Name: "on-failure", MaximumRetryCount: 5 };
+  const file = path.join(root, "onfailure.json");
+  const record = capture("opsworkbench-admin-web-1", file, { docker: dockerFor(onFailure) });
+  assert.deepEqual(record.restartPolicy, { name: "on-failure", maximumRetryCount: 5 });
+  const calls = [];
+  start(file, { docker: dockerFor([{ ...onFailure, State: { Running: false, Status: "exited" } }, onFailure], calls) });
+  assert.deepEqual(calls.at(-1), ["update", "--restart=on-failure:5", containerId]);
+
+  // A start that did not bring the container up must NOT reinstate the policy: handing `always` back to
+  // a container that will not run turns a clear failure into a restart loop.
+  const failedStart = [];
+  assert.throws(() => start(file, { docker: dockerFor({ ...onFailure, State: { Running: false, Status: "exited" } }, failedStart) }), /exited/);
+  assert.equal(failedStart.some((call) => call[0] === "update"), false);
+
+  // A record whose policy this tool would refuse to reinstate is refused on LOAD, before the container
+  // is touched at all -- not after it has already been stopped.
+  const bad = path.join(root, "bad.json");
+  const copy = JSON.parse(fs.readFileSync(file, "utf8"));
+  copy.restartPolicy = { name: "sometimes", maximumRetryCount: 0 };
+  fs.writeFileSync(bad, JSON.stringify(copy));
+  const untouched = [];
+  assert.throws(() => stop(bad, { docker: dockerFor(onFailure, untouched) }), /restart policy is not recognised/);
+  assert.throws(() => start(bad, { docker: dockerFor(onFailure, untouched) }), /restart policy is not recognised/);
+  assert.deepEqual(untouched, []);
 });
 
 test("a container that would be destroyed or resurrected by stopping is refused", () => {
@@ -139,15 +175,19 @@ test("a container that would be destroyed or resurrected by stopping is refused"
   }
 });
 
-test("stop refuses a container that is not running, because Docker marks only a real stop as manual", () => {
-  // Docker sets its manual-stop marker only when it actually stops a RUNNING container, and that marker
-  // is what stops an unless-stopped container being restarted later. An already-exited container --
-  // one whose own restart attempt failed -- carries no marker and can still come back.
+test("a container that exited on its own between the inspect and the stop still cannot come back", () => {
+  // The race that made the previous approach unsound: the container exits by itself after the inspect,
+  // so Docker treats the stop as a no-op and never sets the manual-stop marker, leaving it eligible to
+  // restart after a reboot. Disarming the policy first means there is no policy to restart it under,
+  // whichever way the race goes -- so stopping an already-exited container is now safe rather than
+  // refused, and the disarm still happens.
   const root = workspace(); const file = path.join(root, "admin.json");
   captureAdmin(file);
   const calls = [];
-  assert.throws(() => stop(file, { docker: dockerFor(stopped(), calls) }), /not running/);
-  assert.equal(calls.some((call) => call[0] === "stop"), false, "and it does not issue the stop at all");
+  const result = stop(file, { docker: dockerFor(stopped(), calls) });
+  assert.equal(result.status, "exited");
+  assert.deepEqual(calls[1], ["update", "--restart=no", containerId], "the policy is removed before the stop is attempted");
+  assert.equal(calls.findIndex((call) => call[0] === "update") < calls.findIndex((call) => call[0] === "stop"), true);
 });
 
 test("stop requires an explicitly stopped state afterwards, not merely the absence of one", () => {
