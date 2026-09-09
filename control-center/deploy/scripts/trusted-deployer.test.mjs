@@ -376,7 +376,9 @@ const liveModel = { services: {
 } };
 
 test("the host-verified plan carries no rollback images or rollback forge document, and the attested one must", () => {
-  const root = "C:\\safe";
+  // A real temporary directory, not a Windows path literal. path.isAbsolute rejects one of those on
+  // Linux, so it passes on this machine and fails in CI -- which is exactly what it did.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "host-verified-plan-"));
   const hostVerified = hostVerifiedPlan(root);
   assert.equal(parseDeploymentPlan(hostVerified).rollback.evidence, "host-verified");
   // A plan that names rollback images under host-verified is claiming authority it does not have: the
