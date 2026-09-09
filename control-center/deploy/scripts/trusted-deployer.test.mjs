@@ -500,7 +500,9 @@ test("an adoption record that is not the caller's own file is refused", () => {
     lstatSync: () => ({ isFile: () => true, isSymbolicLink: () => false, dev: 1, ino: 100 }),
     openSync: () => 7,
     fstatSync: () => ({ dev: 1, ino: 999, uid: 0 }),
-    readFileSync: () => JSON.stringify({ schemaVersion: "opsworkbench-container-adoption-v3", containerId: adminContainerId, name: "x" }),
+    // The stub asserts WHAT it was asked to read. Ignoring the argument would accept an implementation
+    // that reads the path again after stat-ing it, which is the thing the descriptor is here to avoid.
+    readFileSync: (target) => { assert.equal(target, 7, "the record is read from the descriptor that was stat-ed, not from the path"); return JSON.stringify({ schemaVersion: "opsworkbench-container-adoption-v3", containerId: adminContainerId, name: "x" }); },
     closeSync: () => {},
   };
   assert.throws(() => readAdoptedContainerIds([file], { fs: swapped, uid: 0 }), /changed while being read/);
