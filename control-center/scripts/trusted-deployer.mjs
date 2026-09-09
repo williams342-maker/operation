@@ -312,6 +312,22 @@ export function establishRollbackBeforeMutation(preparation, imageEvidence, { no
   return { file, record };
 }
 
+// Two files were written into production outside any release, and the running admin image is built from
+// them. Reinstalling the tree would take them away, so verifying it in place has to tolerate them.
+//
+// TYPED, through compareReleaseTree's own allowance API, which exists for exactly this and is stricter
+// than anything worth hand-rolling: a bare path would let one of these arrive as a SYMLINK pointing
+// anywhere, and a directory allowance covers that entry alone rather than everything anyone puts in it.
+// An earlier version of this parsed the comparator's human-readable problem strings with a regex, which
+// discarded the entry type the comparator had gone to the trouble of reporting.
+const offChainProductionFiles = [
+  { path: "apps", type: "directory" },
+  { path: "apps/web", type: "directory" },
+  { path: "apps/web/Dockerfile.admin", type: "file" },
+  { path: "deploy/nginx", type: "directory" },
+  { path: "deploy/nginx/admin-web.conf", type: "file" },
+];
+
 /** Whether this plan's rollback target is established by measuring the host rather than by attestation. */
 const hostVerified = (plan) => plan?.rollback?.evidence === "host-verified";
 
@@ -322,21 +338,8 @@ const hostVerified = (plan) => plan?.rollback?.evidence === "host-verified";
 function verifyInstalledTree(directory, expectedTree) {
   const resolved = path.resolve(directory);
   if (!fs.existsSync(resolved) || !fs.lstatSync(resolved).isDirectory()) throw new Error("rollback release directory is absent");
-  const check = compareReleaseTree(expectedTree, describeTree(resolved));
-  // Two files were written into production outside any release, and the running admin image is built
-  // from them. Reinstalling the tree would take them away; verifying it in place has to tolerate them.
-  //
-  // They are tolerated BY EXACT PATH, not by matching the problem text. A substring match would also
-  // have swallowed a problem that merely mentioned one of these paths, and it missed the directories
-  // that exist only to hold them -- which is how this was found: `apps` and `apps/web` were reported as
-  // unexplained even though the only thing under them was the explained file. Anything else that
-  // differs is still a refusal, so tolerating these two is not tolerating drift.
-  const toleratedExtras = new Set(["apps", "apps/web", "apps/web/Dockerfile.admin", "deploy/nginx", "deploy/nginx/admin-web.conf"]);
-  const unexpected = (check.problems ?? []).filter((problem) => {
-    const extra = /present but NOT in the artifact[^"]*"([^"]+)"/.exec(problem);
-    return !extra || !toleratedExtras.has(extra[1]);
-  });
-  if (unexpected.length) throw new Error(`rollback release directory differs from its attested bundle: ${unexpected.join("; ")}`);
+  const check = compareReleaseTree(expectedTree, describeTree(resolved), { allowExtra: offChainProductionFiles });
+  if (!check.ok) throw new Error(`rollback release directory differs from its attested bundle: ${(check.problems ?? []).join("; ")}`);
   return resolved;
 }
 
@@ -378,7 +381,10 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(preparation.rollbackBundle, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
   (hooks.verifyAttestation ?? verifyAttestation)(preparation.rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.rollback.commit, sourceRef: `refs/tags/${preparation.plan.rollback.tag}` });
   const rollbackTree = compareReleaseTree(preparation.rollbackArchiveTree, describeTree(preparation.rollbackExtracted));
-  const installedRollbackTree = compareReleaseTree(preparation.rollbackExpectedTree, describeTree(preparation.rollbackControlCenter));
+  // Same allowances as preparation used. A stricter check here would refuse at the last moment over the
+  // very files preparation deliberately tolerated, and a looser one would carry a weaker check into the
+  // moment that matters. They have to be the same policy, so they are the same list.
+  const installedRollbackTree = compareReleaseTree(preparation.rollbackExpectedTree, describeTree(preparation.rollbackControlCenter), hostVerified(preparation.plan) ? { allowExtra: offChainProductionFiles } : {});
   if (!rollbackTree.ok || !installedRollbackTree.ok) throw new Error("rollback source tree changed before consumption");
   return { bundle: check, tree, installedTree, agentTree, rollbackTree, installedRollbackTree };
 }
@@ -507,16 +513,21 @@ export function measurePredecessorImages(model, services, projectName, container
       return labels[composeProjectLabel] === projectName && labels["com.docker.compose.service"] === service;
     });
     let found = labelled;
+    let matchedBy = "compose-label";
     if (!found.length) {
       const wanted = publishedEndpoints(model, [service]);
       found = wanted.length ? (containers ?? []).filter((container) => holdsAnyEndpoint(container, wanted)) : [];
+      matchedBy = "published-port";
     }
     if (found.length !== 1) throw new Error(`cannot identify exactly one predecessor container for ${service}: found ${found.length}`);
     const image = String(found[0]?.Image ?? "");
     if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error(`predecessor container for ${service} has no content-addressed image id`);
-    measured[service] = image;
+    // The container is named as well as its image. An image id alone cannot be traced back to what was
+    // inspected, and a recovery reading this record afterwards has no other way to know what was chosen.
+    measured[service] = { image, container: String(found[0]?.Name ?? "").replace(/^\//, ""), containerId: String(found[0]?.Id ?? ""), matchedBy };
   }
-  if (new Set(Object.values(measured)).size !== Object.keys(measured).length) throw new Error("two services report the same running image; the measurement is ambiguous");
+  const images = Object.values(measured).map((entry) => entry.image);
+  if (new Set(images).size !== images.length) throw new Error("two services report the same running image; the measurement is ambiguous");
   return measured;
 }
 
@@ -556,6 +567,10 @@ function verifyOneForgeBuild(file, expectedSha256, identity, images, hooks = {})
 
 export function verifyForgeEvidence(plan, hooks = {}) {
   const candidate = verifyOneForgeBuild(plan.forgeEvidence.candidatePath, plan.forgeEvidence.candidateSha256, { tag: plan.tag, commit: plan.commit, tree: plan.tree }, plan.candidateImages, hooks);
+  // There is no Forge build document for a host-verified rollback, and the plan is not allowed to name
+  // one. Branching only the CALLER would have left this reading `plan.forgeEvidence.rollbackPath`, which
+  // is undefined under that mode -- the feature would have been unable to run at all outside the tests.
+  if (hostVerified(plan)) return { ok: true, candidate, rollback: null };
   const rollback = verifyOneForgeBuild(plan.forgeEvidence.rollbackPath, plan.forgeEvidence.rollbackSha256, { tag: plan.rollback.tag, commit: plan.rollback.commit, tree: plan.rollback.tree }, plan.rollback.images, hooks);
   return { ok: true, candidate, rollback };
 }
@@ -567,7 +582,12 @@ export function verifyCompatibilityEvidence(plan, hooks = {}) {
   if (crypto.createHash("sha256").update(bytes).digest("hex") !== plan.compatibilityEvidence.sha256) throw new Error("compatibility evidence digest mismatch");
   const evidence = JSON.parse(bytes.toString("utf8"));
   exactKeys(evidence, ["schemaVersion", "candidateTag", "candidateCommit", "rollbackTag", "rollbackCommit", "mongoTopology", "images", "migrationsPresent", "scenarios"], "compatibility evidence");
-  if (evidence.schemaVersion !== "opsworkbench-schema-rehearsal-v1" || evidence.candidateTag !== plan.tag || evidence.candidateCommit !== plan.commit || evidence.rollbackTag !== plan.rollback.tag || evidence.rollbackCommit !== plan.rollback.commit || evidence.mongoTopology !== "replica-set") throw new Error("compatibility evidence names a different candidate, rollback, or topology");
+  // Under a host-verified rollback the rehearsal cannot name this rollback target -- that release cannot
+  // be rebuilt, which is the reason the mode exists -- so only the candidate and the topology are bound.
+  // The rehearsal still has to be a real one for a real candidate; what it does not do is speak about
+  // the release being replaced, and the rollback-ready record says so.
+  const rollbackNamed = hostVerified(plan) || (evidence.rollbackTag === plan.rollback.tag && evidence.rollbackCommit === plan.rollback.commit);
+  if (evidence.schemaVersion !== "opsworkbench-schema-rehearsal-v1" || evidence.candidateTag !== plan.tag || evidence.candidateCommit !== plan.commit || !rollbackNamed || evidence.mongoTopology !== "replica-set") throw new Error("compatibility evidence names a different candidate, rollback, or topology");
   exactKeys(evidence.scenarios, compatibilityScenarios, "compatibility scenarios");
   exactKeys(evidence.images, ["candidate", "rollback"], "compatibility images");
   for (const set of ["candidate", "rollback"]) {
@@ -602,30 +622,12 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const platformEvidence = await (hooks.verifyPlatformImages ? hooks.verifyPlatformImages(plan.platform) : inspectPlatformImages(plan.platform, hooks.platform ?? {}));
   if (!platformEvidence?.ok || platformEvidence.edgeImage !== plan.platform.edgeImage || platformEvidence.mongoImage !== plan.platform.mongoImage) throw new Error("platform image registry evidence is absent or mismatched");
   reverifyPreparedRelease(preparation, hooks);
-  const agentScript = path.join(preparation.controlCenter, "scripts", "install-reviewed-agent.sh");
-  if (!fs.existsSync(agentScript) || !fs.lstatSync(agentScript).isFile()) throw new Error("version-controlled reviewed agent installer is absent");
-  const agentBackup = path.join(preparation.stage, "agent-rollback");
-  const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
-  agentControl(["prepare", preparation.agentExtracted, agentBackup]);
-  const priorCurrent = readCurrentRelease(plan.releaseRoot);
-  if (priorCurrent.target !== path.resolve(plan.rollback.releaseDirectory)) throw new Error("verified rollback release is not the currently active predecessor");
-  const rollbackEvidence = hostVerified(plan)
-    ? [{
-      role: "rollback-evidence",
-      kind: "host-verified",
-      // Written down because it is the part a reader would otherwise assume. None of these are
-      // failures; they are the price of rolling back to a release that predates the machinery.
-      notAttested: "rollback images were built on this host and never pushed; they carry no registry or image attestation",
-      notRehearsed: "the schema rehearsal covers the candidate against a rebuildable predecessor, not against this rollback target",
-      notItsOwnCompose: "the rollback runs the candidate's compose file, because the rollback release carries none",
-    }]
-    : [];
-  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, ...rollbackEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
-  // OPSWORKBENCH_REVIEW_GATE_IMAGE is still exported even though the candidate Compose file no longer
-  // reads it. It is not dead: the ROLLBACK file comes from the rollback release's own tree, and any
-  // release cut before the gate was removed still declares that service with `:?` -- an unset variable
-  // there is a hard interpolation failure during recovery. Keep exporting it until no rollback target
-  // predates the change.
+  // ORDER MATTERS HERE. Everything in this block only READS -- compose config, the container
+  // inventory, the predecessor measurement -- so it runs before the agent snapshot and before the
+  // rollback-ready record is written. That is deliberate: under a host-verified rollback the images
+  // to go back to are discovered here, and a record written before the discovery would be a durable
+  // record that does not name them. A crash after the first container was recreated would then have
+  // lost the only mapping back, at exactly the moment it is needed.
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
   const compose = hooks.compose ?? ((args, env, composeFile = preparation.compose) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", composeFile, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
@@ -654,8 +656,11 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // serving in the host-verified case, so a plan cannot nominate a rollback target that is not what is
   // running. The measurement happens here, before the first runtime mutation, because afterwards the
   // containers it reads are the ones the deployment has already replaced.
-  const rollbackImages = hostVerified(plan)
+  const rollbackPredecessors = hostVerified(plan)
     ? (hooks.measurePredecessor ?? measurePredecessorImages)(resolvedModel, applicationServices, plan.composeProject, (hooks.allContainers ?? defaultAllContainers)())
+    : null;
+  const rollbackImages = rollbackPredecessors
+    ? Object.fromEntries(Object.entries(rollbackPredecessors).map(([service, entry]) => [service, entry.image]))
     : plan.rollback.images;
   const rollbackEnv = environmentFor(rollbackImages);
   if (hostVerified(plan)) {
@@ -700,6 +705,33 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // model a second time -- with the ROLLBACK image digests interpolated into it, which is the
   // combination the recovery path would actually run and is not otherwise exercised.
   compose(["config", "--quiet"], rollbackEnv, preparation.rollbackCompose);
+  const agentScript = path.join(preparation.controlCenter, "scripts", "install-reviewed-agent.sh");
+  if (!fs.existsSync(agentScript) || !fs.lstatSync(agentScript).isFile()) throw new Error("version-controlled reviewed agent installer is absent");
+  const agentBackup = path.join(preparation.stage, "agent-rollback");
+  const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+  agentControl(["prepare", preparation.agentExtracted, agentBackup]);
+  const priorCurrent = readCurrentRelease(plan.releaseRoot);
+  if (priorCurrent.target !== path.resolve(plan.rollback.releaseDirectory)) throw new Error("verified rollback release is not the currently active predecessor");
+  const rollbackEvidence = hostVerified(plan)
+    ? [{
+      role: "rollback-evidence",
+      kind: "host-verified",
+      // The measurement itself, in the durable record, before anything is mutated. This is what a
+      // recovery would be run from if this process did not survive to run it.
+      predecessors: rollbackPredecessors,
+      // Written down because it is the part a reader would otherwise assume. None of these are
+      // failures; they are the price of rolling back to a release that predates the machinery.
+      notAttested: "rollback images were built on this host and never pushed; they carry no registry or image attestation",
+      notRehearsed: "the schema rehearsal covers the candidate against a rebuildable predecessor, not against this rollback target",
+      notItsOwnCompose: "the rollback runs the candidate's compose file, because the rollback release carries none",
+    }]
+    : [];
+  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, ...rollbackEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
+  // OPSWORKBENCH_REVIEW_GATE_IMAGE is still exported even though the candidate Compose file no longer
+  // reads it. It is not dead: the ROLLBACK file comes from the rollback release's own tree, and any
+  // release cut before the gate was removed still declares that service with `:?` -- an unset variable
+  // there is a hard interpolation failure during recovery. Keep exporting it until no rollback target
+  // predates the change.
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
   let agentActivationAttempted = false; let currentSwitched = false; let record;
   try {
@@ -761,7 +793,11 @@ function assertProductionPlanLocations(planFile, plan) {
     if (!resolved.startsWith(`${allowed}${path.sep}`)) throw new Error(`${name} is outside its fixed trusted root`);
     assertRootOwnedPathChain(resolved, { directory: name !== "plan" });
   }
-  for (const [name, location] of [["candidate Forge evidence", plan.forgeEvidence.candidatePath], ["rollback Forge evidence", plan.forgeEvidence.rollbackPath], ["compatibility evidence", plan.compatibilityEvidence.path]]) {
+  const forgeLocations = [["candidate Forge evidence", plan.forgeEvidence.candidatePath]];
+  // Only when the plan has one. path.resolve(undefined) throws, so an unconditional entry here made
+  // every host-verified plan fail in the CLI before preparation began.
+  if (!hostVerified(plan)) forgeLocations.push(["rollback Forge evidence", plan.forgeEvidence.rollbackPath]);
+  for (const [name, location] of [...forgeLocations, ["compatibility evidence", plan.compatibilityEvidence.path]]) {
     const resolved = path.resolve(location); if (!resolved.startsWith(`${inbox}${path.sep}`)) throw new Error(`${name} is outside the fixed trusted inbox`);
     assertRootOwnedPathChain(resolved);
   }

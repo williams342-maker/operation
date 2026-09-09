@@ -61,6 +61,25 @@ These are written into the rollback-ready record rather than left to be inferred
   service definitions of the release being rolled back *from*, which is a real difference and the reason
   this mode is for a first deployment rather than a general capability.
 
+## What is still unresolved
+
+Two things an independent review named that this does not fix, recorded rather than closed.
+
+**The predecessor is identified by uniqueness, not by identity.** A container is matched by Compose
+label first and by published port second, and exactly one match is required. That rejects ambiguity
+within the matching method; it does not prove the match is the container that was serving. A stopped
+container from an older release carrying the same labels would win over the retained one. The stronger
+binding available is the adoption record's immutable container id, which names the object a person
+actually reviewed, and this does not yet use it.
+
+**The rollback restores images, not a runtime.** It runs the candidate's Compose file, which supplies
+the candidate's environment, mounts, healthchecks and edge configuration to the predecessor's images.
+Where those differ, rollback can fail for reasons unrelated to the images. The `edge` service is not
+measured at all: both directions use the plan's edge image, so the predecessor edge is not restored.
+
+Neither is a reason the policy exception is wrong. Both are reasons to treat the first deployment as
+attended, with someone watching, rather than as a routine one.
+
 ## When not to use it
 
 Once the host is running an attested release with registry images and a production Compose file of its
