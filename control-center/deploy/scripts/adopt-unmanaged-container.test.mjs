@@ -85,8 +85,8 @@ test("stop reports the observed state, not the exit code of the stop command", (
   };
   assert.equal(stop(file, { docker: erroringButStopped }).status, "exited");
   // A stop that returns cleanly but leaves it running must not be reported as success.
-  assert.throws(() => stop(file, { docker: dockerFor(liveAdmin()) }), /still running/);
-  assert.throws(() => stop(file, { docker: dockerFor(liveAdmin()) }), /ports are not free/);
+  assert.throws(() => stop(file, { docker: dockerFor(liveAdmin()) }), /did not report a stopped state/);
+  assert.throws(() => stop(file, { docker: dockerFor(liveAdmin()) }), /ports may not be free/);
 });
 
 test("start brings back the same container object and confirms it is running", () => {
@@ -119,6 +119,83 @@ test("both verbs refuse a container that is no longer the captured one", () => {
   }
 });
 
+test("a container that would be destroyed or resurrected by stopping is refused", () => {
+  const root = workspace();
+  // `--rm` means the daemon removes the container when it stops. Stopping it would destroy the very
+  // backup this design depends on, and the post-stop inspect would only find that it had vanished.
+  const autoRemove = liveAdmin(); autoRemove.HostConfig.AutoRemove = true;
+  assert.throws(() => capture("opsworkbench-admin-web-1", path.join(root, "a.json"), { docker: dockerFor(autoRemove) }), /auto-remove/);
+  // `restart: always` outranks a manual stop after a daemon restart, so the container could come back
+  // and retake the port mid-deployment. `unless-stopped`, which the target runs, does not.
+  const always = liveAdmin(); always.HostConfig.RestartPolicy = { Name: "always", MaximumRetryCount: 0 };
+  assert.throws(() => capture("opsworkbench-admin-web-1", path.join(root, "b.json"), { docker: dockerFor(always) }), /always/);
+  // The same settings are refused at action time too, not only at capture: they can be changed with
+  // `docker update` after the record was written.
+  const file = path.join(root, "c.json");
+  captureAdmin(file);
+  for (const verb of [stop, start]) {
+    assert.throws(() => verb(file, { docker: dockerFor(autoRemove) }), /auto-remove/);
+    assert.throws(() => verb(file, { docker: dockerFor(always) }), /always/);
+  }
+});
+
+test("stop refuses a container that is not running, because Docker marks only a real stop as manual", () => {
+  // Docker sets its manual-stop marker only when it actually stops a RUNNING container, and that marker
+  // is what stops an unless-stopped container being restarted later. An already-exited container --
+  // one whose own restart attempt failed -- carries no marker and can still come back.
+  const root = workspace(); const file = path.join(root, "admin.json");
+  captureAdmin(file);
+  const calls = [];
+  assert.throws(() => stop(file, { docker: dockerFor(stopped(), calls) }), /not running/);
+  assert.equal(calls.some((call) => call[0] === "stop"), false, "and it does not issue the stop at all");
+});
+
+test("stop requires an explicitly stopped state afterwards, not merely the absence of one", () => {
+  const root = workspace(); const file = path.join(root, "admin.json");
+  captureAdmin(file);
+  // A response carrying no State block tells us nothing. Reading nothing as success is how a port that
+  // is still held gets reported as free.
+  const stateless = liveAdmin(); delete stateless.State;
+  assert.throws(() => stop(file, { docker: dockerFor([liveAdmin(), stateless]) }), /did not report a stopped state/);
+});
+
+test("start refuses paused and restart-looping containers, which both report Running", () => {
+  const root = workspace(); const file = path.join(root, "admin.json");
+  captureAdmin(file);
+  const paused = liveAdmin({ Running: true, Paused: true, Status: "paused" });
+  const restarting = liveAdmin({ Running: true, Restarting: true, Status: "restarting" });
+  assert.throws(() => start(file, { docker: dockerFor([stopped(), paused]) }), /paused/);
+  assert.throws(() => start(file, { docker: dockerFor([stopped(), restarting]) }), /restarting/);
+});
+
+test("start reports the observed state, not the exit code of the start command", () => {
+  const root = workspace(); const file = path.join(root, "admin.json");
+  captureAdmin(file);
+  // Symmetric with stop: a start that errors may still have started it, and what matters is whether the
+  // container came back. Only stop was covered before, so throwing the command error early survived.
+  let seen = 0;
+  const erroringButStarted = (args) => {
+    if (args[0] === "inspect") return JSON.stringify([seen++ === 0 ? stopped() : liveAdmin()]);
+    if (args[0] === "start") throw new Error("daemon connection reset");
+    return "";
+  };
+  assert.equal(start(file, { docker: erroringButStarted }).status, "running");
+});
+
+test("a record owned by someone else is refused before any container is touched", () => {
+  const root = workspace(); const file = path.join(root, "admin.json");
+  captureAdmin(file);
+  const calls = [];
+  // The uid is injected so this runs everywhere. On Windows process.getuid does not exist, so without
+  // the injection the check would be skipped locally and only ever exercised in CI.
+  const mine = fs.statSync(file).uid;
+  for (const verb of [stop, start]) {
+    assert.throws(() => verb(file, { docker: dockerFor(liveAdmin(), calls), uid: mine + 1 }), /not owned by this user/);
+  }
+  assert.deepEqual(calls, [], "a record this tool will not accept never reaches Docker");
+  assert.equal(stop(file, { docker: dockerFor([liveAdmin(), stopped()]), uid: mine }).status, "exited");
+});
+
 test("a malformed, foreign or tampered record is refused before any container is touched", () => {
   const root = workspace();
   const write = (body) => { const file = path.join(root, `r${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(file, typeof body === "string" ? body : JSON.stringify(body)); return file; };
@@ -143,7 +220,13 @@ test("a symlinked record is refused, because the file that decides which contain
   captureAdmin(real);
   const link = path.join(root, "link.json");
   try { fs.symlinkSync(real, link, "file"); }
-  catch { return; } // Windows without developer mode cannot create symlinks; the check is Linux-facing.
+  catch (cause) {
+    // Skip ONLY where symlinks genuinely cannot be created: Windows without developer mode. Returning
+    // on any error would turn a Linux CI setup failure into a passing test, which is the failure this
+    // whole file exists to avoid.
+    if (process.platform === "win32" && (cause.code === "EPERM" || cause.code === "EACCES")) return;
+    throw cause;
+  }
   const calls = [];
   assert.throws(() => stop(link, { docker: dockerFor(liveAdmin(), calls) }), /not a regular file/);
   assert.throws(() => start(link, { docker: dockerFor(liveAdmin(), calls) }), /not a regular file/);

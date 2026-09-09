@@ -58,21 +58,41 @@ its writable layer, its settings and its image. Nothing is reconstructed and not
 `restart: unless-stopped` means a container stopped this way stays stopped across daemon restarts, so it
 will not come back and retake the port.
 
+That is a **retained, restartable predecessor, not a snapshot of the service**. It does not reverse data
+changes made anywhere else, does not preserve process state, does not guarantee the same container IP on
+restart, and does not protect the stopped container from being pruned or removed by something else. It
+is worth exactly what it says: the same object, startable again.
+
+Two container settings would break even that, so both verbs refuse them. Auto-remove means the daemon
+deletes the container when it stops, which would destroy the backup instead of preserving it. A restart
+policy of `always` outranks a manual stop after a daemon restart, so the container could come back and
+retake the port mid-deployment. The target runs `unless-stopped`, which honours a manual stop.
+
 The record now decides only *which* container gets stopped, so it is read through a file descriptor,
 refused if it is a symlink or not owned by the caller, and validated before any Docker call is made.
 
 ## Removal is a separate, later decision
 
 This tool never removes anything. Once the deployment is confirmed and the Compose-managed service is
-serving, the old container can be removed by hand. Until then it costs some disk and buys an exact,
-complete rollback. Removing it earlier trades that rollback for nothing.
+serving, the old container can be removed by hand. Until then it costs some disk and keeps the
+predecessor startable. Removing it earlier trades that away for nothing.
 
 ## Sequencing
 
 `stop` begins downtime for whatever that port serves, and it ends when the deployment creates the
 Compose-managed service. Run them together. Do not run `stop` and walk away.
 
-If the deployment is abandoned, run `start` with the same record.
+If the deployment is abandoned, **the port is probably not free any more**. The deployment, or its own
+rollback, will have started a Compose-managed `admin` holding it, and `start` would simply fail to bind.
+Stop that service first, then `start` the record, then check that the admin surface actually answers:
+
+```
+docker compose --project-name opsworkbench --file <release>/deploy/docker-compose.production.yml stop admin
+node scripts/adopt-unmanaged-container.mjs start <record>
+```
+
+`start` confirms the container is running and refuses a paused or restart-looping one, but "running" is
+not "serving". Check the admin endpoint itself before calling the abandonment complete.
 
 ## Precondition
 
