@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, isReleaseDirectoryFor, isReadinessEndpoint } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -204,4 +204,36 @@ test("Forge evidence binds exact source, builder, four images and image attestat
   assert.equal(result.ok, true); assert.equal(images, 8);
   const changed = JSON.parse(fs.readFileSync(item.forgeEvidence.candidatePath)); changed.backendImageDigest = item.rollback.images.api; fs.writeFileSync(item.forgeEvidence.candidatePath, JSON.stringify(changed)); item.forgeEvidence.candidateSha256 = sha(fs.readFileSync(item.forgeEvidence.candidatePath));
   assert.throws(() => verifyForgeEvidence(item, { verifyAttestation: () => ({ verified: true }), verifyImageAttestation: () => {} }), /differ/);
+});
+
+test("a release directory may be named after the release's own commit, as production names every one of its 97 releases", () => {
+  const root = "/opt/opsworkbench/releases";
+  const release = { tag: "v0.1.2-operate", commit: "4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b" };
+  assert.equal(isReleaseDirectoryFor("/opt/opsworkbench/releases/review-4c47c7b1/app", root, release), true,
+    "the commit-named form the host actually uses");
+  assert.equal(isReleaseDirectoryFor("/opt/opsworkbench/releases/v0.1.2-operate/app", root, release), true,
+    "and the tag-named form the deployer was written for");
+});
+
+test("a commit-named release directory whose hex belongs to a DIFFERENT release is refused", () => {
+  // The point of widening the spelling was not to stop checking. A directory name that does not prefix
+  // this release's commit names some other release, and pointing a rollback at one is the whole hazard.
+  const root = "/opt/opsworkbench/releases";
+  const release = { tag: "v0.1.2-operate", commit: "4c47c7b17cbfd8f4bfc4ea1d13fa703e43cf437b" };
+  assert.equal(isReleaseDirectoryFor("/opt/opsworkbench/releases/review-467a3138/app", root, release), false);
+  assert.equal(isReleaseDirectoryFor("/opt/opsworkbench/releases/review-4c47c7b1/dist", root, release), false,
+    "and the leaf must still be app/");
+  assert.equal(isReleaseDirectoryFor("/opt/opsworkbench/elsewhere/review-4c47c7b1/app", root, release), false,
+    "and it must still live under the release root");
+});
+
+test("readiness accepts HTTPS anywhere and plain HTTP only on loopback", () => {
+  assert.equal(isReadinessEndpoint("https://example.test/healthz"), true);
+  assert.equal(isReadinessEndpoint("http://127.0.0.1:18080/healthz"), true, "the host's edge");
+  assert.equal(isReadinessEndpoint("http://localhost:18081/"), true);
+  assert.equal(isReadinessEndpoint("http://example.test/healthz"), false,
+    "plain HTTP off the host is interceptable and stays refused");
+  assert.equal(isReadinessEndpoint("http://10.0.0.5/healthz"), false, "a private address is still a network");
+  assert.equal(isReadinessEndpoint("ftp://127.0.0.1/"), false);
+  assert.equal(isReadinessEndpoint("not a url"), false);
 });
