@@ -57,7 +57,19 @@ jobs:
             docker build "$root/control-center" -f "$root/control-center/apps/api/Dockerfile" -t "rehearsal-api:$label" "${common[@]}"
             docker build "$root/control-center" -f "$root/control-center/apps/web/Dockerfile" -t "rehearsal-web:$label" --build-arg VITE_API_URL=/api "${common[@]}"
             docker build "$root/control-center" -f "$root/control-center/apps/web/Dockerfile.admin" -t "rehearsal-admin:$label" --build-arg VITE_API_URL=/api "${common[@]}"
-            docker build "$root/control-center" -f "$root/control-center/apps/review-gate/Dockerfile" -t "rehearsal-gate:$label" "${common[@]}"
+            # The review gate's build CONTEXT differs by tag. It moved to the workspace root in
+            # f95f2bfd (2026-09-05); every earlier tag expects the app directory instead. Hardcoding
+            # the candidate's shape for both sets made every existing rollback target unbuildable --
+            # the rollback build died on a COPY of "tsconfig.json" that resolved nowhere -- which is
+            # why this workflow had never completed a run. Each tag is built the way its own
+            # Dockerfile is written, so the gate stays rehearsed on both sides of the switch.
+            gate_dockerfile="$root/control-center/apps/review-gate/Dockerfile"
+            if grep -q "apps/review-gate/package.json" "$gate_dockerfile"; then
+              gate_context="$root/control-center"
+            else
+              gate_context="$root/control-center/apps/review-gate"
+            fi
+            docker build "$gate_context" -f "$gate_dockerfile" -t "rehearsal-gate:$label" "${common[@]}"
           }
           build_set . candidate "$CANDIDATE_COMMIT" "$CANDIDATE_TAG" "$CANDIDATE_CREATED"
           build_set ../rollback-source rollback "$ROLLBACK_COMMIT" "$ROLLBACK_TAG" "$ROLLBACK_CREATED"
