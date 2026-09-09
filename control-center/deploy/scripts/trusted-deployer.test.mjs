@@ -154,7 +154,7 @@ test("deployment establishes rollback first, requires readiness, and restores ro
     } }),
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: (args) => { calls.push({ args: ["agent", ...args], api: "agent", rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
-    compose: (args, env, composeFile) => { if (env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
+    compose: (args, env, composeFile) => { if (args[0] !== "config" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
     readiness: async () => rolledBack, acceptancePasses: 1,
   }), /was rolled back/);
   assert.equal(calls.filter((call) => call.args[0] !== "agent" || call.args[1] !== "prepare").every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
@@ -180,6 +180,65 @@ test("a post-acceptance record failure restores the current pointer and every ru
   }), /was rolled back/);
   assert.deepEqual(switches, [preparation.installedControlCenter, preparation.rollbackControlCenter]);
   assert.equal(composeCalls.at(-1).api, item.rollback.images.api); assert.equal(composeCalls.at(-1).file, preparation.rollbackCompose);
+});
+
+// The rollback Compose model is only ever loaded while recovering from a failed deployment, so a
+// rollback release whose file this host cannot load turns a recoverable failure into an unrecoverable
+// one. Compose validates the WHOLE project before selecting services, so a service that is never
+// started -- a review gate whose env_file is absent, say -- is still enough to fail the load. This
+// asserts the refusal lands BEFORE the first mutation, which is the only point where it costs nothing.
+test("a rollback compose file this host cannot load is refused before anything is mutated", async () => {
+  const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const composeCalls = []; const switches = [];
+  const localId = (reference) => `sha256:${sha(reference)}`;
+  const revision = (reference) => Object.values(item.candidateImages).includes(reference) ? commit : rollbackCommit;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit, images: { candidate: { api: localId(item.candidateImages.api), web: localId(item.candidateImages.web), admin: localId(item.candidateImages.admin), gate: localId(item.candidateImages.reviewGate) }, rollback: { api: localId(item.rollback.images.api), web: localId(item.rollback.images.web), admin: localId(item.rollback.images.admin), gate: localId(item.rollback.images.reviewGate) } } }),
+    images: { remoteInspect: (reference) => `Name: ${reference}
+`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": revision(reference), "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: () => {}, readiness: async () => true, acceptancePasses: 1,
+    switchCurrent: (_current, target) => { switches.push(target); },
+    compose: (args, _env, file) => {
+      composeCalls.push({ args, file });
+      if (args[0] === "config" && file === preparation.rollbackCompose) throw new Error("env file /etc/opsworkbench/review-gate.env not found");
+    },
+  }), /review-gate\.env not found/);
+  assert.deepEqual(composeCalls.map((call) => `${call.args[0]}:${call.file === preparation.rollbackCompose ? "rollback" : "candidate"}`), ["config:candidate", "config:rollback"], "the rollback model is validated immediately after the candidate's and before any up");
+  assert.equal(composeCalls.some((call) => call.args[0] === "up"), false, "no service was recreated");
+  assert.deepEqual(switches, [], "the current release pointer was never moved");
+});
+
+// Which services get recreated is the whole point of the three-service alignment, and it was two
+// separate literal lists with nothing asserting either. This pins both: the target runs api, web and
+// admin -- no review gate, whose image stays built, attested and bound but is not started here -- and
+// the rollback recreates the SAME application set as the deployment it is undoing, because a rollback
+// that touches a different set does not restore the state it promised. Mongo must appear in neither.
+test("forward and rollback recreate exactly the three application services this target runs", async () => {
+  const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const ups = [];
+  const localId = (reference) => `sha256:${sha(reference)}`;
+  const revision = (reference) => Object.values(item.candidateImages).includes(reference) ? commit : rollbackCommit;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit, images: { candidate: { api: localId(item.candidateImages.api), web: localId(item.candidateImages.web), admin: localId(item.candidateImages.admin), gate: localId(item.candidateImages.reviewGate) }, rollback: { api: localId(item.rollback.images.api), web: localId(item.rollback.images.web), admin: localId(item.rollback.images.admin), gate: localId(item.rollback.images.reviewGate) } } }),
+    images: { remoteInspect: (reference) => `Name: ${reference}
+`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": revision(reference), "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: () => {}, readiness: async () => true, acceptancePasses: 1, switchCurrent: () => {},
+    writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
+    compose: (args, env, file) => { if (args[0] === "up") ups.push({ services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
+  }), /was rolled back/);
+  const forward = ups.filter((call) => !call.rollback); const rollback = ups.filter((call) => call.rollback);
+  assert.deepEqual(forward.map((call) => call.services), [["api", "web", "admin"], ["edge"]], "forward recreates the three application services, then the edge");
+  assert.deepEqual(rollback.map((call) => call.services), [["api", "web", "admin", "edge"]], "rollback recreates the same application services plus the edge");
+  const applicationSet = (calls) => [...new Set(calls.flatMap((call) => call.services))].filter((name) => name !== "edge").sort();
+  assert.deepEqual(applicationSet(forward), applicationSet(rollback), "rollback must recreate the same application services the deployment did");
+  assert.equal(ups.some((call) => call.services.includes("review-gate")), false, "this target does not run a review gate");
+  assert.equal(ups.some((call) => call.services.includes("mongo")), false, "the database is never recreated by a deployment");
 });
 
 test("schema rehearsal evidence is exact, complete, digest-bound and workflow-attested", () => {

@@ -331,6 +331,18 @@ const imageExpectations = {
   reviewGate: { role: "review-gate", title: "opsworkbench-review-gate" },
 };
 
+// The services this target RUNS, which is not the same set as the images the release BUILDS.
+//
+// Four images are built, attested and bound; three application services are started here. Production
+// runs api, web and admin, and has never run a review gate. Keeping the fourth image fully verified
+// while not starting it keeps provenance intact without claiming the target runs something it does
+// not -- the image set is a property of the build, the running set is a property of the target.
+//
+// Forward and rollback MUST start the same services. They were two separate literal lists, and a
+// rollback that recreates a different set than the deployment it is undoing does not restore the
+// state it promised. One constant removes the chance of that drift.
+const applicationServices = ["api", "web", "admin"];
+
 const compatibilityScenarios = ["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"];
 const migrationScenarios = new Set(["migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration"]);
 
@@ -403,15 +415,31 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const priorCurrent = readCurrentRelease(plan.releaseRoot);
   if (priorCurrent.target !== path.resolve(plan.rollback.releaseDirectory)) throw new Error("verified rollback release is not the currently active predecessor");
   const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
+  // OPSWORKBENCH_REVIEW_GATE_IMAGE is still exported even though the candidate Compose file no longer
+  // reads it. It is not dead: the ROLLBACK file comes from the rollback release's own tree, and any
+  // release cut before the gate was removed still declares that service with `:?` -- an unset variable
+  // there is a hard interpolation failure during recovery. Keep exporting it until no rollback target
+  // predates the change.
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
   const compose = hooks.compose ?? ((args, env, composeFile = preparation.compose) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", composeFile, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
   const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
   compose(["config", "--quiet"], candidateEnv, preparation.compose);
+  // The rollback model is validated HERE, before anything is mutated, because the only other moment it
+  // is ever loaded is inside the catch below -- while recovering from a failed deployment, which is the
+  // worst possible time to discover it does not load. Compose parses and validates the WHOLE project
+  // before selecting services, so a rollback release whose file still declares a service with a missing
+  // `env_file` or bind mount fails even though that service would never be started. Left unchecked that
+  // turns a recoverable failure into "deployment failed and rollback also failed".
+  //
+  // Practical consequence: the candidate and its rollback must BOTH carry a Compose file this host can
+  // load. A rollback release cut before the review gate was removed from the production Compose file
+  // does not, and this check refuses it up front instead of at the point of no return.
+  compose(["config", "--quiet"], rollbackEnv, preparation.rollbackCompose);
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
   let agentActivationAttempted = false; let currentSwitched = false; let record;
   try {
-    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate"], candidateEnv, preparation.compose);
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", ...applicationServices], candidateEnv, preparation.compose);
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv, preparation.compose);
     agentActivationAttempted = true;
     agentControl(["activate", preparation.agentExtracted, plan.tag, plan.commit, agentBackup]);
@@ -429,7 +457,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     if (agentActivationAttempted) {
       try { agentControl(["rollback", agentBackup]); } catch (agentCause) { throw new AggregateError([cause, agentCause], `deployment failed and agent rollback also failed: ${cause.message}; ${agentCause.message}`, { cause: agentCause }); }
     }
-    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "api", "web", "admin", "review-gate", "edge"], rollbackEnv, preparation.rollbackCompose);
+    compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", ...applicationServices, "edge"], rollbackEnv, preparation.rollbackCompose);
     for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`, { cause });
     throw new Error(`deployment failed and was rolled back: ${cause.message}`, { cause });
   }

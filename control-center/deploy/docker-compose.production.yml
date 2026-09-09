@@ -44,29 +44,28 @@ services:
       retries: 4
       start_period: 10s
 
-  review-gate:
-    image: ${OPSWORKBENCH_REVIEW_GATE_IMAGE:?digest-pinned Review Gate image is required}
-    env_file:
-      - /etc/opsworkbench/review-gate.env
-    environment:
-      REVIEW_GATE_BIND: "0.0.0.0"
-      REVIEW_GATE_PORT: "3100"
-      REVIEW_GATE_TLS_CERTIFICATE_PATH: "/run/review-gate-tls/tls.crt"
-      REVIEW_GATE_TLS_PRIVATE_KEY_PATH: "/run/review-gate-tls/tls.key"
-    volumes:
-      - /etc/opsworkbench/review-gate-tls:/run/review-gate-tls:ro
-    ports:
-      - "127.0.0.1:13100:3100"
-    depends_on:
-      mongo: { condition: service_healthy }
-    networks: [internal]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "const fs=require('fs'),https=require('https');https.get({host:'127.0.0.1',port:3100,path:'/healthz',ca:fs.readFileSync(process.env.REVIEW_GATE_TLS_CERTIFICATE_PATH),servername:'review-gate',rejectUnauthorized:true},r=>process.exit(r.statusCode>=200&&r.statusCode<300?0:1)).on('error',()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 4
-      start_period: 10s
+  # The review gate is BUILT, ATTESTED AND BOUND, but it is not run here.
+  #
+  # This target runs three application services -- api, web, admin -- and has run exactly those since
+  # it was stood up. The gate was declared here on the assumption that the four images the release
+  # pipeline produces are the four services every target runs. They are not: the image set is a
+  # property of the BUILD, the running set is a property of the TARGET.
+  #
+  # Declaring it anyway was not free. Compose loads and validates the whole project model before it
+  # selects services, so this block's `env_file: /etc/opsworkbench/review-gate.env` and its
+  # `/etc/opsworkbench/review-gate-tls` mount had to exist on the host for `compose config` to
+  # succeed at all -- for a service that would never be started. Neither path exists there. That made
+  # every deployment of this file fail during validation, before any container was touched.
+  #
+  # Nothing about provenance is relaxed by removing it. The Forge build document still REQUIRES
+  # reviewGateImageDigest, the deployment plan still carries all four candidate and rollback image
+  # references, and the deployer still verifies the gate image's attestation, registry digest and
+  # labels alongside the other three. The gate is a component this target is not authorized to run,
+  # not a component whose provenance stopped mattering.
+  #
+  # Do not re-add this service to bring a gate online. Running it needs its environment file, its TLS
+  # material and an owner decision to enable enforcement. Adding the block back on its own would only
+  # reintroduce the validation failure.
 
   edge:
     image: ${OPSWORKBENCH_EDGE_IMAGE:?digest-pinned edge image is required}
