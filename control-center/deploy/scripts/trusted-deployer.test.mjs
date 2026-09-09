@@ -297,6 +297,29 @@ test("a wildcard host address conflicts with a loopback publication, and unrelat
   assert.deepEqual(detectForeignPortConflicts(adminModel, ["api"], "opsworkbench", [containerFixture("x-1", null, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })]), []);
 });
 
+test("a published port is compared as a number, and a shape that cannot be evaluated refuses", () => {
+  const container = (hostPort) => containerFixture("held-1", null, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: hostPort }] });
+  // Compose preserves a long-syntax `published: "08080"` verbatim while the daemon reports the held
+  // binding as "8080". Compared as strings those do not match, and a genuinely taken port reads as
+  // free -- a check that looks present and finds nothing.
+  const padded = { services: { admin: { ports: [{ published: "08080", protocol: "tcp", host_ip: "127.0.0.1" }] } } };
+  assert.equal(detectForeignPortConflicts(padded, ["admin"], "opsworkbench", [container("8080")]).length, 1);
+  // Padded past five digits is refused rather than parsed: refusing a shape this cannot evaluate is
+  // the safe direction, and silently accepting it would invite the string comparison back.
+  const overPadded = { services: { admin: { ports: [{ published: "018081", protocol: "tcp" }] } } };
+  assert.throws(() => detectForeignPortConflicts(overPadded, ["admin"], "opsworkbench", []), /cannot evaluate/);
+  const numeric = { services: { admin: { ports: [{ published: 18081, protocol: "tcp", host_ip: "127.0.0.1" }] } } };
+  assert.equal(detectForeignPortConflicts(numeric, ["admin"], "opsworkbench", [container("18081")]).length, 1);
+  // A RANGE that compose did not expand matches no single held port, so it must refuse rather than
+  // report no conflict.
+  const range = { services: { admin: { ports: [{ published: "18081-18085", protocol: "tcp", host_ip: "127.0.0.1" }] } } };
+  assert.throws(() => detectForeignPortConflicts(range, ["admin"], "opsworkbench", [container("18081")]), /cannot evaluate/);
+  const outOfRange = { services: { admin: { ports: [{ published: "99999", protocol: "tcp" }] } } };
+  assert.throws(() => detectForeignPortConflicts(outOfRange, ["admin"], "opsworkbench", []), /cannot evaluate/);
+  // A malformed value on the HELD side is skipped rather than coerced into a spurious match.
+  assert.deepEqual(detectForeignPortConflicts(numeric, ["admin"], "opsworkbench", [container("")]), []);
+});
+
 test("a held port refuses the deployment before any service is recreated", async () => {
   const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");

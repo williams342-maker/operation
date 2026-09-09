@@ -366,8 +366,11 @@ function publishedEndpoints(model, services) {
       // the range through as "8100-8105". Comparing that as a string matches no held port, so the check
       // would look present and detect nothing. Refuse instead: a shape this cannot evaluate must not
       // read as "no conflict".
-      if (!/^[0-9]{1,5}$/.test(published)) throw new Error(`service ${name} publishes ${published}, which this conflict check cannot evaluate`);
-      wanted.push({ service: name, hostIp: mapping.host_ip ?? "", hostPort: published, protocol: mapping.protocol || "tcp" });
+      if (!/^[0-9]{1,5}$/.test(published) || Number(published) < 1 || Number(published) > 65535) throw new Error(`service ${name} publishes ${published}, which this conflict check cannot evaluate`);
+      // Compared as a NUMBER. Compose preserves a long-syntax `published: "01881"` verbatim while the
+      // daemon reports the held binding as "1881", and comparing those as strings finds no conflict on
+      // a port that is genuinely taken.
+      wanted.push({ service: name, hostIp: mapping.host_ip ?? "", hostPort: Number(published), protocol: mapping.protocol || "tcp" });
     }
   }
   return wanted;
@@ -395,7 +398,8 @@ export function detectForeignPortConflicts(model, services, projectName, contain
       const protocol = port.split("/")[1] || "tcp";
       for (const binding of bindings ?? []) {
         for (const target of wanted) {
-          if (target.protocol !== protocol || target.hostPort !== String(binding?.HostPort ?? "")) continue;
+          const held = String(binding?.HostPort ?? "");
+          if (target.protocol !== protocol || !/^[0-9]{1,5}$/.test(held) || target.hostPort !== Number(held)) continue;
           if (!hostAddressesOverlap(target.hostIp, binding?.HostIp ?? "")) continue;
           conflicts.push({ service: target.service, endpoint: `${binding?.HostIp || "0.0.0.0"}:${binding?.HostPort}/${protocol}`, container: name, project: labels[composeProjectLabel] ?? null, image: container?.Config?.Image ?? null });
         }

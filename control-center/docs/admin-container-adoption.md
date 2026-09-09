@@ -20,62 +20,59 @@ clears it.
 
 ## The transition
 
-`scripts/adopt-unmanaged-container.mjs` splits the destructive step into three verbs, so the container is
-described before it is removed and can be put back if the deployment is abandoned.
+`scripts/adopt-unmanaged-container.mjs` has three verbs.
 
 ```
 node scripts/adopt-unmanaged-container.mjs capture <container> <record>
-node scripts/adopt-unmanaged-container.mjs release <record>
-node scripts/adopt-unmanaged-container.mjs restore <record>
+node scripts/adopt-unmanaged-container.mjs stop <record>
+node scripts/adopt-unmanaged-container.mjs start <record>
 ```
 
-`capture` writes a read-only, fsynced record holding the container's full id and a **typed description**
-of it. It refuses a container Compose already owns, and refuses to overwrite an existing record, because
-that record is the only description of what is about to be removed.
+`capture` writes a record naming the container by its full id, along with the ports it holds, and
+refuses a container Compose already owns. It will not overwrite an existing record.
 
-`release` is the only destructive verb. It addresses the container by its **immutable id** at every step,
-never by name: inspecting by name and then removing by name is a race, and the removal could land on a
-container nobody reviewed. It refuses unless the live container is still the captured one and still
-unowned. If it stops the container but cannot remove it, it says so explicitly, because the port is then
-free while the container still exists.
+`stop` stops the container, which releases its published ports so Compose can bind them. It addresses
+the container by its **immutable id** at every step, never by name, because inspecting by name and then
+acting by name is a race. It refuses if the container has been renamed, has become Compose-owned, or is
+not the one that was captured. It then re-inspects and reports the **observed** state rather than the
+exit code of the stop command, because a stop that errors may still have stopped the container and a
+stop that succeeds is only useful if the port is genuinely free.
 
-`restore` rebuilds the command from the description and refuses if anything already holds the name.
+`start` brings the same container back and confirms it is running.
 
-## The record is a description, never a command
+## Why it stops rather than removes
 
-An earlier version stored the `docker run` argv and passed it straight to Docker. That made the record
-executable authority: anyone able to replace the file could make a root process run any Docker command,
-with no shell injection involved. The record now carries typed fields, and every one is re-validated
-before it reaches a command line. Both destructive verbs validate the description on load, so a record
-this tool would refuse to restore is not one it will act on at all.
+An earlier version removed the container and rebuilt it from a recorded `docker run` command. That
+cannot be made faithful, and an independent review is what established it.
 
-## What the record can and cannot reproduce
+A container carries dozens of settings — capabilities, resource limits, sysctls, logging driver, DNS,
+namespace modes, masked paths, stop signal. A reconstruction either reproduces every one of them or
+silently produces a container that looks identical and behaves differently. The daemon's own defaults
+are not knowable from one container's inspect output either, so "this value equals the default" was a
+guess that would be wrong on a differently configured daemon in both directions: silently dropping a
+real override, or refusing a legitimate default. And the record became a command that a root process
+would execute, which is authority no unsigned file should carry.
 
-It reproduces the name, network, network aliases, restart policy, published ports, command, any
-environment variable the original run **added** on top of the image's, and the image **by id** rather
-than by tag. A tag is mutable; retagging between capture and restore would rebuild the container from a
-different image while every name in the record still looked correct.
+Stopping avoids all of it. **The container is its own backup.** `start` restores the exact object, with
+its writable layer, its settings and its image. Nothing is reconstructed and nothing is inferred.
+`restart: unless-stopped` means a container stopped this way stays stopped across daemon restarts, so it
+will not come back and retake the port.
 
-Refusal is the default. Every `HostConfig` and `Config` key is either reproduced, or required to hold a
-value that came from the daemon or the image rather than from the original run. A key this tool has
-never heard of is refused too, so a newer daemon that grows a setting demands a review instead of
-silently dropping it. Capability changes, resource limits, sysctls, ulimits, devices, a logging driver,
-custom DNS, tmpfs, a privileged or read-only root filesystem, a static address, a dynamic host port, a
-second network, mounts, or a run-time override of the image's healthcheck, entrypoint, user, working
-directory, stop signal or labels all refuse rather than restore something that looks identical and
-behaves differently.
+The record now decides only *which* container gets stopped, so it is read through a file descriptor,
+refused if it is a symlink or not owned by the caller, and validated before any Docker call is made.
 
-**It cannot restore state.** Removing a container destroys its writable layer. Nothing here captures
-files written inside the container since it started. Confirm the container is stateless first; the admin
-surface is, because it serves only what its image contains.
+## Removal is a separate, later decision
+
+This tool never removes anything. Once the deployment is confirmed and the Compose-managed service is
+serving, the old container can be removed by hand. Until then it costs some disk and buys an exact,
+complete rollback. Removing it earlier trades that rollback for nothing.
 
 ## Sequencing
 
-`release` starts downtime for whatever that port serves, and it ends when the deployment creates the
-Compose-managed service. Run them together. Do not run `release` and walk away.
+`stop` begins downtime for whatever that port serves, and it ends when the deployment creates the
+Compose-managed service. Run them together. Do not run `stop` and walk away.
 
-If the deployment is abandoned after `release`, run `restore` with the same record to put the previous
-container back. The image it names is retained on the host, so the restore rebuilds nothing.
+If the deployment is abandoned, run `start` with the same record.
 
 ## Precondition
 
