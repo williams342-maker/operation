@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -16,7 +16,7 @@ function plan(root) { return {
   bundleDirectory: path.join(root, "bundle"), stagingRoot: path.join(root, "stage"), releaseRoot: path.join(root, "releases"), composeProject: "opsworkbench",
   candidateImages: { api: image("api", "1"), web: image("web", "2"), admin: image("admin-web", "3"), reviewGate: image("review-gate", "4") },
   platform: { edgeImage: `docker.io/library/nginx@sha256:${"a".repeat(64)}`, mongoImage: `docker.io/library/mongo@sha256:${"b".repeat(64)}`, mongoVolume: "mongo_verified" },
-  rollback: { tag: "v0.1.9-operate", commit: rollbackCommit, tree: rollbackTree, images: { api: image("api", "5"), web: image("web", "6"), admin: image("admin-web", "7"), reviewGate: image("review-gate", "8") }, bundleDirectory: path.join(root, "rollback-bundle"), releaseDirectory: path.join(root, "releases", "v0.1.9-operate", "app"), evidenceSha256: "9".repeat(64) },
+  rollback: { evidence: "attested", tag: "v0.1.9-operate", commit: rollbackCommit, tree: rollbackTree, images: { api: image("api", "5"), web: image("web", "6"), admin: image("admin-web", "7"), reviewGate: image("review-gate", "8") }, bundleDirectory: path.join(root, "rollback-bundle"), releaseDirectory: path.join(root, "releases", "v0.1.9-operate", "app"), evidenceSha256: "9".repeat(64) },
   forgeEvidence: { candidatePath: path.join(root, "candidate-forge.json"), candidateSha256: "a".repeat(64), rollbackPath: path.join(root, "rollback-forge.json"), rollbackSha256: "b".repeat(64) },
   compatibilityEvidence: { path: path.join(root, "compatibility.json"), sha256: "c".repeat(64) },
   readiness: ["https://example.test/healthz", "https://example.test/", "https://admin.example.test/"],
@@ -339,6 +339,202 @@ test("a held port refuses the deployment before any service is recreated", async
   }), /host ports are held by containers this project does not own/);
   assert.equal(composeCalls.some((call) => call.args[0] === "up"), false, "no service was recreated");
   assert.deepEqual(switches, [], "the current release pointer was never moved");
+});
+
+// The shape a first deployment onto this host has to accept: the rollback release predates Forge, its
+// images were built on the box and never pushed, and it carries no production compose of its own.
+// Omitting keys by rest-destructuring leaves a binding behind for every key dropped, which reads as
+// eight unused variables. Naming the keys to remove says what is happening and leaves nothing.
+const without = (object, ...keys) => Object.fromEntries(Object.entries(object).filter(([key]) => !keys.includes(key)));
+
+const hostVerifiedPlan = (root) => {
+  const item = plan(root);
+  item.rollback = { ...without(item.rollback, "images"), evidence: "host-verified" };
+  item.forgeEvidence = without(item.forgeEvidence, "rollbackPath", "rollbackSha256");
+  return item;
+};
+// A host-verified rollback target is a release that is ALREADY installed and serving, so the fixture
+// has to put it there. The attested path installs it during preparation; this one must not, which is
+// the behaviour under test.
+const materialiseRollbackRelease = (item) => {
+  const app = item.rollback.releaseDirectory;
+  fs.mkdirSync(path.join(app, "deploy"), { recursive: true });
+  fs.mkdirSync(path.join(app, "scripts"), { recursive: true });
+  fs.writeFileSync(path.join(app, "deploy", "docker-compose.production.yml"), "services: {}\n");
+  fs.writeFileSync(path.join(app, "scripts", "install-reviewed-agent.sh"), "#!/bin/sh\n");
+};
+
+const runningImage = (digit) => `sha256:${String(digit).repeat(64).slice(0, 64)}`;
+const containerFor = (name, project, service, image, bindings = {}) => ({
+  Name: `/${name}`, Image: image,
+  Config: { Image: "local-tag:abc", Labels: { ...(project ? { "com.docker.compose.project": project } : {}), ...(service ? { "com.docker.compose.service": service } : {}) } },
+  HostConfig: { PortBindings: bindings },
+});
+const liveModel = { services: {
+  api: {}, web: {},
+  admin: { ports: [{ published: "18081", protocol: "tcp", host_ip: "127.0.0.1" }] },
+} };
+
+test("the host-verified plan carries no rollback images or rollback forge document, and the attested one must", () => {
+  const root = "C:\\safe";
+  const hostVerified = hostVerifiedPlan(root);
+  assert.equal(parseDeploymentPlan(hostVerified).rollback.evidence, "host-verified");
+  // A plan that names rollback images under host-verified is claiming authority it does not have: the
+  // point of the mode is that the host says what the rollback is, not the plan.
+  assert.throws(() => parseDeploymentPlan({ ...hostVerified, rollback: { ...hostVerified.rollback, images: plan(root).rollback.images } }), /rollback has missing or unknown fields/);
+  assert.throws(() => parseDeploymentPlan({ ...hostVerified, forgeEvidence: plan(root).forgeEvidence }), /forgeEvidence has missing or unknown fields/);
+  // And the attested mode still requires both.
+  const attested = plan(root);
+  assert.throws(() => parseDeploymentPlan({ ...attested, rollback: without(attested.rollback, "images") }), /rollback has missing or unknown fields/);
+  // The mode itself has to be stated. There is no default, because defaulting would silently pick one,
+  // and the one it picked would be the weaker of the two on any plan that forgot to say.
+  assert.throws(() => parseDeploymentPlan({ ...attested, rollback: without(attested.rollback, "evidence") }), /attested or host-verified/);
+  assert.throws(() => parseDeploymentPlan({ ...attested, rollback: { ...attested.rollback, evidence: "trust-me" } }), /attested or host-verified/);
+  // A host-verified rollback is still a real release with a real attested bundle behind it.
+  assert.throws(() => parseDeploymentPlan({ ...hostVerified, rollback: { ...hostVerified.rollback, evidenceSha256: "nope" } }), /rollback identity is invalid/);
+});
+
+test("the predecessor image of each service is measured by compose label, or by the port it holds", () => {
+  const containers = [
+    containerFor("opsworkbench-api-1", "opsworkbench", "api", runningImage(1)),
+    containerFor("opsworkbench-web-1", "opsworkbench", "web", runningImage(2)),
+    // The admin surface on this host is NOT compose-managed, and by this point it has been STOPPED --
+    // it had to be, or it would still hold the port and the conflict check would refuse. It is found by
+    // the port binding it still carries, which is the same port the admin service is about to publish.
+    containerFor("opsworkbench-admin-web-1", null, null, runningImage(3), { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] }),
+  ];
+  assert.deepEqual(measurePredecessorImages(liveModel, ["api", "web", "admin"], "opsworkbench", containers), { api: runningImage(1), web: runningImage(2), admin: runningImage(3) });
+
+  // Nothing serving a service is a refusal, not an empty rollback.
+  assert.throws(() => measurePredecessorImages(liveModel, ["api", "web", "admin"], "opsworkbench", containers.slice(0, 2)), /cannot identify exactly one predecessor container for admin: found 0/);
+  // Two candidates is a refusal too: guessing which one is being replaced is how the wrong image gets
+  // recorded as the thing to go back to.
+  assert.throws(() => measurePredecessorImages(liveModel, ["admin"], "opsworkbench", [containers[2], containerFor("other", null, null, runningImage(4), { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })]), /found 2/);
+  // A container whose image is a tag rather than a content digest cannot be rolled back TO.
+  assert.throws(() => measurePredecessorImages(liveModel, ["api"], "opsworkbench", [containerFor("opsworkbench-api-1", "opsworkbench", "api", "control-center-api:abc")]), /no content-addressed image id/);
+  // Two services reporting the same image means the measurement did not distinguish them.
+  const duplicated = [containerFor("opsworkbench-api-1", "opsworkbench", "api", runningImage(1)), containerFor("opsworkbench-web-1", "opsworkbench", "web", runningImage(1))];
+  assert.throws(() => measurePredecessorImages(liveModel, ["api", "web"], "opsworkbench", duplicated), /same running image/);
+});
+
+test("a host-verified rollback target is verified where it stands, never reinstalled over", () => {
+  const { item } = releaseFixture();
+  item.rollback = { ...without(item.rollback, "images"), evidence: "host-verified" };
+  item.forgeEvidence = without(item.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(item);
+
+  // Production's live release directory holds two files that are in no release bundle -- they were
+  // written there by something outside the release process and the admin image is built from them.
+  // Reinstalling the tree would take them away, and the running admin surface is built from them.
+  // Verification in place has to tolerate exactly those two and nothing else.
+  const offChain = path.join(item.rollback.releaseDirectory, "apps", "web", "Dockerfile.admin");
+  fs.mkdirSync(path.dirname(offChain), { recursive: true });
+  fs.writeFileSync(offChain, "FROM nginx\n");
+  const marker = fs.readFileSync(offChain, "utf8");
+
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  assert.equal(preparation.rollbackControlCenter, path.resolve(item.rollback.releaseDirectory));
+  assert.equal(fs.existsSync(offChain), true, "the off-chain file production actually has is still there");
+  assert.equal(fs.readFileSync(offChain, "utf8"), marker);
+
+  // Anything else differing IS a refusal: tolerating the two known files is not tolerating drift.
+  const { item: second } = releaseFixture();
+  second.rollback = { ...without(second.rollback, "images"), evidence: "host-verified" };
+  second.forgeEvidence = without(second.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(second);
+  fs.writeFileSync(path.join(second.rollback.releaseDirectory, "deploy", "docker-compose.production.yml"), "services: { drifted: {} }\n");
+  assert.throws(() => prepareReviewedRelease(second, { verifyAttestation: () => ({ verified: true }) }), /differs from its attested bundle/);
+
+  // And an EXTRA file nobody explained is a refusal too. Tolerating the two known ones BY EXACT
+  // PATH is the point: a tolerance that accepted any unexplained file would accept anything written
+  // into the live release directory, which is exactly how the two known ones got there.
+  const { item: third } = releaseFixture();
+  third.rollback = { ...without(third.rollback, "images"), evidence: "host-verified" };
+  third.forgeEvidence = without(third.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(third);
+  fs.writeFileSync(path.join(third.rollback.releaseDirectory, "deploy", "someone-put-this-here.conf"), "x\n");
+  assert.throws(() => prepareReviewedRelease(third, { verifyAttestation: () => ({ verified: true }) }), /someone-put-this-here/);
+});
+
+test("a host-verified deployment rolls back to the images it measured, not to anything the plan named", async () => {
+  const { item } = releaseFixture();
+  item.rollback = { ...without(item.rollback, "images"), evidence: "host-verified" };
+  item.forgeEvidence = without(item.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(item);
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+
+  const measured = { api: runningImage(1), web: runningImage(2), admin: runningImage(3) };
+  // What `docker ps` shows: the admin container has already been stopped, so it is not here and holds
+  // no port. What `docker ps --all` shows: it is still there, and still says which image it ran.
+  const running = [
+    containerFor("opsworkbench-api-1", "opsworkbench", "api", measured.api),
+    containerFor("opsworkbench-web-1", "opsworkbench", "web", measured.web),
+  ];
+  const all = [...running, containerFor("opsworkbench-admin-web-1", null, null, measured.admin, { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })];
+  const ups = [];
+  const localId = (reference) => `sha256:${sha(reference)}`;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    // The rehearsal names the candidate only. Under host-verified that is enough, and it is exactly the
+    // reduction in assurance the mode exists to make explicit.
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit: "0".repeat(40) }),
+    images: { remoteInspect: (reference) => `Name: ${reference}\n`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": commit, "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: () => {}, readiness: async () => true, acceptancePasses: 1, switchCurrent: () => {},
+    writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
+    runningContainers: () => running, allContainers: () => all,
+    compose: (args, env, file) => {
+      if (isModelQuery(args)) return resolvedModelJson;
+      if (args[0] === "up") ups.push({ api: env.OPSWORKBENCH_API_IMAGE, admin: env.OPSWORKBENCH_ADMIN_IMAGE, file });
+    },
+  }), /was rolled back/);
+
+  const rollbackUp = ups.at(-1);
+  assert.equal(rollbackUp.api, measured.api, "the rollback runs the api image that was measured as serving");
+  assert.equal(rollbackUp.admin, measured.admin, "including the admin image, which no compose label pointed at");
+  // The rollback release carries no compose of its own on this lineage, so the candidate's is used.
+  assert.equal(rollbackUp.file, preparation.compose, "and it runs the candidate compose, because the rollback release has none");
+  assert.equal(preparation.rollbackCompose, preparation.compose);
+
+  // The record has to say what this kind of rollback does not prove, or a reader will assume it does.
+  const record = JSON.parse(fs.readFileSync(path.join(preparation.stage, "rollback-ready.json"), "utf8"));
+  const evidence = record.imageEvidence.find((entry) => entry.role === "rollback-evidence");
+  assert.equal(evidence.kind, "host-verified");
+  for (const field of ["notAttested", "notRehearsed", "notItsOwnCompose"]) assert.match(evidence[field], /\S/);
+  // And no rollback image was inspected as a registry artefact, because none of them is one.
+  assert.equal(record.imageEvidence.some((entry) => entry.set === "rollback"), false);
+});
+
+test("a host-verified deployment refuses when a service is already running the candidate image", async () => {
+  const { item } = releaseFixture();
+  item.rollback = { ...without(item.rollback, "images"), evidence: "host-verified" };
+  item.forgeEvidence = without(item.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(item);
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const localId = (reference) => `sha256:${sha(reference)}`;
+  // The api container is already on the candidate image, so there is nothing to go back to and the
+  // deployment would be recording itself as its own rollback target. Written as the LOCAL image id,
+  // because that is what the host reports and what the candidate reference resolves to on this host.
+  // A registry reference and a content id are different namespaces and would never compare equal, so
+  // asserting against the reference would have passed while testing nothing.
+  const running = [
+    containerFor("opsworkbench-api-1", "opsworkbench", "api", localId(item.candidateImages.api)),
+    containerFor("opsworkbench-web-1", "opsworkbench", "web", runningImage(2)),
+  ];
+  const all = [...running, containerFor("opsworkbench-admin-web-1", null, null, runningImage(3), { "8080/tcp": [{ HostIp: "127.0.0.1", HostPort: "18081" }] })];
+  const ups = [];
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit: "0".repeat(40) }),
+    images: { remoteInspect: (reference) => `Name: ${reference}\n`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": commit, "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
+    verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
+    agentControl: () => {}, readiness: async () => true, acceptancePasses: 1, switchCurrent: () => {},
+    runningContainers: () => running, allContainers: () => all,
+    compose: (args) => { if (isModelQuery(args)) return resolvedModelJson; if (args[0] === "up") ups.push(args); },
+  }), /already running the candidate image/);
+  assert.deepEqual(ups, [], "and it refuses before recreating anything");
 });
 
 test("schema rehearsal evidence is exact, complete, digest-bound and workflow-attested", () => {

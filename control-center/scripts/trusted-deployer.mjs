@@ -54,7 +54,23 @@ export function parseDeploymentPlan(value) {
   exactKeys(value.platform, ["edgeImage", "mongoImage", "mongoVolume"], "platform");
   for (const field of ["edgeImage", "mongoImage"]) if (typeof value.platform[field] !== "string" || !/^[a-z0-9][a-z0-9._\-/]*@sha256:[a-f0-9]{64}$/.test(value.platform[field])) throw new Error(`platform ${field} is not digest-pinned`);
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(value.platform.mongoVolume)) throw new Error("platform mongoVolume is invalid");
-  exactKeys(value.rollback, ["tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
+  // HOW THE ROLLBACK TARGET IS ESTABLISHED, and the two answers are not interchangeable.
+  //
+  // "attested" is the normal case: the rollback is a published release, its bundle is attested, its
+  // images are in the registry with their own attestations, and the rehearsal exercised the exact pair.
+  //
+  // "host-verified" is for a FIRST deployment onto a host whose current release predates all of that.
+  // It cannot be rebuilt, has no Forge build document, its images were built on the box and never
+  // pushed, and -- on this host -- its tree carries no production Compose file at all. What can still
+  // be established is stronger in one specific way and weaker in every other: the rollback target is
+  // not a release we believe we could reproduce, it is the exact set of artefacts currently serving
+  // traffic, MEASURED rather than declared. Nothing about the candidate side is relaxed.
+  if (value.rollback.evidence !== "attested" && value.rollback.evidence !== "host-verified") throw new Error("rollback evidence must be attested or host-verified");
+  const hostVerifiedRollback = value.rollback.evidence === "host-verified";
+  // The plan does not get to say what a host-verified rollback consists of; the host does. So it names
+  // only the identity being rolled back TO, and carries no images, bundle or artifact digest to be
+  // trusted -- there is nothing there for a bad plan to lie about.
+  exactKeys(value.rollback, hostVerifiedRollback ? ["evidence", "tag", "commit", "tree", "bundleDirectory", "releaseDirectory", "evidenceSha256"] : ["evidence", "tag", "commit", "tree", "images", "bundleDirectory", "releaseDirectory", "evidenceSha256"], "rollback");
   if (!tagPattern.test(value.rollback.tag) || !commitPattern.test(value.rollback.commit) || !commitPattern.test(value.rollback.tree) || !/^[a-f0-9]{64}$/.test(value.rollback.evidenceSha256) || !path.isAbsolute(value.rollback.bundleDirectory) || !path.isAbsolute(value.rollback.releaseDirectory)) throw new Error("rollback identity is invalid");
   // A release directory may be named after the TAG or after its own COMMIT. Production names every
   // release `review-<short commit>` -- 97 of them -- and nothing there is named after a tag, so the
@@ -65,16 +81,20 @@ export function parseDeploymentPlan(value) {
   if (!isReleaseDirectoryFor(value.rollback.releaseDirectory, value.releaseRoot, value.rollback)) throw new Error("rollback release directory does not name that release");
   if (path.resolve(value.rollback.bundleDirectory) === path.resolve(value.bundleDirectory)) throw new Error("rollback source location is ambiguous");
   if (value.rollback.tag === value.tag || value.rollback.commit === value.commit || value.rollback.tree === value.tree) throw new Error("candidate and rollback release identities must be distinct");
-  exactKeys(value.rollback.images, ["api", "web", "admin", "reviewGate"], "rollback images");
-  for (const [role, reference] of Object.entries(value.rollback.images)) {
-    const match = typeof reference === "string" && reference.match(digestReference);
-    if (!match || match[1] !== roles[role]) throw new Error(`rollback ${role} image is not the expected immutable repository`);
-    if (reference === value.candidateImages[role]) throw new Error(`candidate and rollback ${role} image are identical`);
+  if (!hostVerifiedRollback) {
+    exactKeys(value.rollback.images, ["api", "web", "admin", "reviewGate"], "rollback images");
+    for (const [role, reference] of Object.entries(value.rollback.images)) {
+      const match = typeof reference === "string" && reference.match(digestReference);
+      if (!match || match[1] !== roles[role]) throw new Error(`rollback ${role} image is not the expected immutable repository`);
+      if (reference === value.candidateImages[role]) throw new Error(`candidate and rollback ${role} image are identical`);
+    }
+    if (new Set(Object.values(value.rollback.images)).size !== 4) throw new Error("rollback runtime images are not distinct");
   }
-  if (new Set(Object.values(value.rollback.images)).size !== 4) throw new Error("rollback runtime images are not distinct");
-  exactKeys(value.forgeEvidence, ["candidatePath", "candidateSha256", "rollbackPath", "rollbackSha256"], "forgeEvidence");
-  for (const field of ["candidatePath", "rollbackPath"]) if (!path.isAbsolute(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} must be absolute`);
-  for (const field of ["candidateSha256", "rollbackSha256"]) if (!/^[a-f0-9]{64}$/.test(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} is invalid`);
+  // There is no Forge build document for a host-verified rollback -- the release predates Forge -- so
+  // the plan must not carry a path pretending otherwise.
+  exactKeys(value.forgeEvidence, hostVerifiedRollback ? ["candidatePath", "candidateSha256"] : ["candidatePath", "candidateSha256", "rollbackPath", "rollbackSha256"], "forgeEvidence");
+  for (const field of hostVerifiedRollback ? ["candidatePath"] : ["candidatePath", "rollbackPath"]) if (!path.isAbsolute(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} must be absolute`);
+  for (const field of hostVerifiedRollback ? ["candidateSha256"] : ["candidateSha256", "rollbackSha256"]) if (!/^[a-f0-9]{64}$/.test(value.forgeEvidence[field])) throw new Error(`forgeEvidence.${field} is invalid`);
   exactKeys(value.compatibilityEvidence, ["path", "sha256"], "compatibilityEvidence");
   if (!path.isAbsolute(value.compatibilityEvidence.path) || !/^[a-f0-9]{64}$/.test(value.compatibilityEvidence.sha256)) throw new Error("compatibility evidence identity is invalid");
   // Readiness must not be interceptable. Off-host that means HTTPS; on loopback it means loopback --
@@ -218,9 +238,20 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     const rollbackTreeCheck = compareReleaseTree(rollbackArchiveTree, describeTree(rollbackExtracted));
     if (!rollbackTreeCheck.ok) throw new Error(`rollback extraction failed verification: ${rollbackTreeCheck.problems.join("; ")}`);
     const rollbackExpectedTree = expectedSubtree(rollbackInspected.members, `${rollbackPrefix}/control-center`);
-    const rollbackControlCenter = installAndVerifyExactTree(path.join(rollbackExtracted, rollbackPrefix, "control-center"), plan.rollback.releaseDirectory, rollbackExpectedTree);
-    const rollbackCompose = path.join(rollbackControlCenter, "deploy", "docker-compose.production.yml");
-    if (!fs.lstatSync(rollbackCompose).isFile()) throw new Error("rollback production compose file is absent");
+    // A host-verified rollback target is the release that is SERVING TRAFFIC RIGHT NOW. Reinstalling it
+    // would rewrite the live release directory during preparation -- before any mutation is authorised
+    // -- to make it match something it is already expected to match. So it is compared in place and
+    // left alone, and a difference is a refusal rather than a repair.
+    const rollbackControlCenter = hostVerified(plan)
+      ? verifyInstalledTree(plan.rollback.releaseDirectory, rollbackExpectedTree)
+      : installAndVerifyExactTree(path.join(rollbackExtracted, rollbackPrefix, "control-center"), plan.rollback.releaseDirectory, rollbackExpectedTree);
+    // The rollback release predates the production Compose file on this lineage, so under a
+    // host-verified rollback there is nothing to run it from. The candidate's Compose file is used
+    // instead, with the measured rollback IMAGES. That restores the code that was serving, under the
+    // service definitions of the release being rolled back FROM -- which is a real difference and the
+    // reason this mode is limited to a first deployment.
+    const rollbackCompose = hostVerified(plan) ? compose : path.join(rollbackControlCenter, "deploy", "docker-compose.production.yml");
+    if (!fs.lstatSync(rollbackCompose).isFile()) throw new Error("rollback compose file is absent");
     const evidence = { schemaVersion: "opsworkbench-deployment-preparation-v1", tag: plan.tag, commit: plan.commit, tree: plan.tree, preparedAt: new Date().toISOString(), hostname: os.hostname(), artifactSha256: crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex"), agentArtifactSha256: crypto.createHash("sha256").update(fs.readFileSync(agentPath)).digest("hex"), candidateImages: plan.candidateImages, rollback: plan.rollback };
     fs.writeFileSync(path.join(stage, "preparation.json"), `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o400 });
     return { stage, extracted, controlCenter: installedControlCenter, compose, installedControlCenter, candidateExpectedTree, rollbackBundle, rollbackExtracted, rollbackControlCenter, rollbackCompose, rollbackExpectedTree, rollbackArchiveTree, rollbackPrefix, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
@@ -279,6 +310,34 @@ export function establishRollbackBeforeMutation(preparation, imageEvidence, { no
   const fd = fs.openSync(file, "wx", 0o400);
   try { fs.writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   return { file, record };
+}
+
+/** Whether this plan's rollback target is established by measuring the host rather than by attestation. */
+const hostVerified = (plan) => plan?.rollback?.evidence === "host-verified";
+
+/**
+ * The same tree comparison installAndVerifyExactTree performs, without the install. Used where the
+ * directory is already the live one: a mismatch there is something to refuse, not something to fix.
+ */
+function verifyInstalledTree(directory, expectedTree) {
+  const resolved = path.resolve(directory);
+  if (!fs.existsSync(resolved) || !fs.lstatSync(resolved).isDirectory()) throw new Error("rollback release directory is absent");
+  const check = compareReleaseTree(expectedTree, describeTree(resolved));
+  // Two files were written into production outside any release, and the running admin image is built
+  // from them. Reinstalling the tree would take them away; verifying it in place has to tolerate them.
+  //
+  // They are tolerated BY EXACT PATH, not by matching the problem text. A substring match would also
+  // have swallowed a problem that merely mentioned one of these paths, and it missed the directories
+  // that exist only to hold them -- which is how this was found: `apps` and `apps/web` were reported as
+  // unexplained even though the only thing under them was the explained file. Anything else that
+  // differs is still a refusal, so tolerating these two is not tolerating drift.
+  const toleratedExtras = new Set(["apps", "apps/web", "apps/web/Dockerfile.admin", "deploy/nginx", "deploy/nginx/admin-web.conf"]);
+  const unexpected = (check.problems ?? []).filter((problem) => {
+    const extra = /present but NOT in the artifact[^"]*"([^"]+)"/.exec(problem);
+    return !extra || !toleratedExtras.has(extra[1]);
+  });
+  if (unexpected.length) throw new Error(`rollback release directory differs from its attested bundle: ${unexpected.join("; ")}`);
+  return resolved;
 }
 
 function readCurrentRelease(releaseRoot) {
@@ -376,6 +435,26 @@ function publishedEndpoints(model, services) {
   return wanted;
 }
 
+/** Every wanted endpoint this container's own published bindings would collide with. */
+function matchingEndpoints(container, wanted) {
+  const matches = [];
+  for (const [port, bindings] of Object.entries(container?.HostConfig?.PortBindings ?? {})) {
+    const protocol = port.split("/")[1] || "tcp";
+    for (const binding of bindings ?? []) {
+      const held = String(binding?.HostPort ?? "");
+      if (!/^[0-9]{1,5}$/.test(held)) continue;
+      for (const target of wanted) {
+        if (target.protocol !== protocol || target.hostPort !== Number(held)) continue;
+        if (!hostAddressesOverlap(target.hostIp, binding?.HostIp ?? "")) continue;
+        matches.push({ service: target.service, endpoint: `${binding?.HostIp || "0.0.0.0"}:${held}/${protocol}` });
+      }
+    }
+  }
+  return matches;
+}
+
+const holdsAnyEndpoint = (container, wanted) => matchingEndpoints(container, wanted).length > 0;
+
 /**
  * Containers this project does not own, holding a host port a service we are about to start publishes.
  *
@@ -394,19 +473,58 @@ export function detectForeignPortConflicts(model, services, projectName, contain
     // Containers this project already owns are not conflicts: Compose recreates its own by label.
     if (labels[composeProjectLabel] === projectName) continue;
     const name = String(container?.Name ?? "").replace(/^\//, "");
-    for (const [port, bindings] of Object.entries(container?.HostConfig?.PortBindings ?? {})) {
-      const protocol = port.split("/")[1] || "tcp";
-      for (const binding of bindings ?? []) {
-        for (const target of wanted) {
-          const held = String(binding?.HostPort ?? "");
-          if (target.protocol !== protocol || !/^[0-9]{1,5}$/.test(held) || target.hostPort !== Number(held)) continue;
-          if (!hostAddressesOverlap(target.hostIp, binding?.HostIp ?? "")) continue;
-          conflicts.push({ service: target.service, endpoint: `${binding?.HostIp || "0.0.0.0"}:${binding?.HostPort}/${protocol}`, container: name, project: labels[composeProjectLabel] ?? null, image: container?.Config?.Image ?? null });
-        }
-      }
+    for (const match of matchingEndpoints(container, wanted)) {
+      conflicts.push({ service: match.service, endpoint: match.endpoint, container: name, project: labels[composeProjectLabel] ?? null, image: container?.Config?.Image ?? null });
     }
   }
   return conflicts;
+}
+
+/**
+ * The image each application service is being replaced FROM, taken from the host rather than the plan.
+ *
+ * This is what makes a host-verified rollback meaningful. The rollback target is not a release we
+ * believe we could rebuild -- it is the exact set of images that were serving, so the strongest true
+ * statement about it is also the one that matters: rolling back puts back what was there.
+ *
+ * IT MUST BE GIVEN STOPPED CONTAINERS TOO, and that is not a detail. The unmanaged admin container has
+ * to be stopped before this deployment can run at all, because otherwise it holds the port the admin
+ * service publishes and the conflict check refuses. So by the time the predecessor is measured, the one
+ * container that can say what admin was running is already stopped. Measuring only running containers
+ * would refuse every first deployment for the exact reason the deployment was made possible. A stopped
+ * container still carries its image and its port bindings, which is all this reads.
+ *
+ * Two ways to find a service's container, because on a first deployment not all of them are Compose's
+ * yet. A container labelled with this project and service is the normal case. A service that publishes
+ * a host port is also matched by that port, which is how a container started outside Compose is still
+ * identified as the thing being replaced. Zero or more than one is a refusal, never a guess.
+ */
+export function measurePredecessorImages(model, services, projectName, containers) {
+  const measured = {};
+  for (const service of services) {
+    const labelled = (containers ?? []).filter((container) => {
+      const labels = container?.Config?.Labels ?? {};
+      return labels[composeProjectLabel] === projectName && labels["com.docker.compose.service"] === service;
+    });
+    let found = labelled;
+    if (!found.length) {
+      const wanted = publishedEndpoints(model, [service]);
+      found = wanted.length ? (containers ?? []).filter((container) => holdsAnyEndpoint(container, wanted)) : [];
+    }
+    if (found.length !== 1) throw new Error(`cannot identify exactly one predecessor container for ${service}: found ${found.length}`);
+    const image = String(found[0]?.Image ?? "");
+    if (!/^sha256:[a-f0-9]{64}$/.test(image)) throw new Error(`predecessor container for ${service} has no content-addressed image id`);
+    measured[service] = image;
+  }
+  if (new Set(Object.values(measured)).size !== Object.keys(measured).length) throw new Error("two services report the same running image; the measurement is ambiguous");
+  return measured;
+}
+
+/** Every container on the host, running or not -- see measurePredecessorImages for why stopped counts. */
+function defaultAllContainers() {
+  const ids = execFileSync("docker", ["ps", "--all", "--quiet"], { encoding: "utf8" }).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!ids.length) return [];
+  return JSON.parse(execFileSync("docker", ["inspect", ...ids], { encoding: "utf8" }));
 }
 
 function defaultRunningContainers() {
@@ -469,10 +587,15 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const forge = await (hooks.verifyForge ? hooks.verifyForge(plan) : verifyForgeEvidence(plan, hooks.forge ?? {}));
   if (!forge.ok) throw new Error("exact candidate/rollback Forge evidence is absent");
   const compatibility = await (hooks.verifyCompatibility ? hooks.verifyCompatibility(plan) : verifyCompatibilityEvidence(plan, hooks));
-  if (!compatibility?.ok || compatibility.candidateCommit !== plan.commit || compatibility.rollbackCommit !== plan.rollback.commit) throw new Error("exact candidate/rollback schema compatibility evidence is absent");
+  if (!compatibility?.ok || compatibility.candidateCommit !== plan.commit) throw new Error("exact candidate schema compatibility evidence is absent");
+  // The rehearsal cannot cover a host-verified rollback: that release cannot be rebuilt, which is the
+  // reason this mode exists. What the rehearsal still proves is that the CANDIDATE rolls back cleanly
+  // to a predecessor of its own lineage. It proves nothing about the release actually being replaced,
+  // and the rollback-ready record says so rather than leaving the gap to be inferred.
+  if (!hostVerified(plan) && compatibility.rollbackCommit !== plan.rollback.commit) throw new Error("exact rollback schema compatibility evidence is absent");
   const imageEvidence = [];
   for (const [role, reference] of Object.entries(plan.candidateImages)) imageEvidence.push({ set: "candidate", role, ...inspectImmutableImage(reference, { commit: plan.commit, ...imageExpectations[role] }, hooks.images) });
-  for (const [role, reference] of Object.entries(plan.rollback.images)) imageEvidence.push({ set: "rollback", role, ...inspectImmutableImage(reference, { commit: plan.rollback.commit, ...imageExpectations[role] }, hooks.images) });
+  if (!hostVerified(plan)) for (const [role, reference] of Object.entries(plan.rollback.images)) imageEvidence.push({ set: "rollback", role, ...inspectImmutableImage(reference, { commit: plan.rollback.commit, ...imageExpectations[role] }, hooks.images) });
   // The rehearsal intentionally runs before protected publication. It retains the exact immutable local
   // IDs it exercised; publication is separately bound to the same source/tree/roles by Forge and image
   // attestations above. Comparing independent build IDs here would make the gate impossible to satisfy.
@@ -486,7 +609,18 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   agentControl(["prepare", preparation.agentExtracted, agentBackup]);
   const priorCurrent = readCurrentRelease(plan.releaseRoot);
   if (priorCurrent.target !== path.resolve(plan.rollback.releaseDirectory)) throw new Error("verified rollback release is not the currently active predecessor");
-  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
+  const rollbackEvidence = hostVerified(plan)
+    ? [{
+      role: "rollback-evidence",
+      kind: "host-verified",
+      // Written down because it is the part a reader would otherwise assume. None of these are
+      // failures; they are the price of rolling back to a release that predates the machinery.
+      notAttested: "rollback images were built on this host and never pushed; they carry no registry or image attestation",
+      notRehearsed: "the schema rehearsal covers the candidate against a rebuildable predecessor, not against this rollback target",
+      notItsOwnCompose: "the rollback runs the candidate's compose file, because the rollback release carries none",
+    }]
+    : [];
+  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, ...rollbackEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
   // OPSWORKBENCH_REVIEW_GATE_IMAGE is still exported even though the candidate Compose file no longer
   // reads it. It is not dead: the ROLLBACK file comes from the rollback release's own tree, and any
   // release cut before the gate was removed still declares that service with `:?` -- an unset variable
@@ -495,8 +629,49 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
   const compose = hooks.compose ?? ((args, env, composeFile = preparation.compose) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", composeFile, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
-  const candidateEnv = environmentFor(plan.candidateImages); const rollbackEnv = environmentFor(plan.rollback.images);
+  const candidateEnv = environmentFor(plan.candidateImages);
   compose(["config", "--quiet"], candidateEnv, preparation.compose);
+  // Port ownership, which nothing here has ever checked.
+  //
+  // Compose adopts a container only by its own project/service labels, so a container started outside
+  // Compose is invisible to it: it will not be reused, will not be stopped, and Compose will try to
+  // create a second container on the same host binding. Docker refuses the bind, and because one `up`
+  // starts several services, the failure lands PART WAY THROUGH -- with earlier services already
+  // recreated. The recovery path then issues another `up` that hits the same held port.
+  //
+  // This target has exactly that: an admin container started with a bare `docker run`, carrying no
+  // Compose labels, already holding the admin service's published port. Refusing here costs an aborted
+  // deployment. Discovering it at `up` costs a half-applied one.
+  //
+  // The resolved model is the source of the ports rather than a literal, so a Compose file that changes
+  // where it publishes cannot silently escape the check.
+  const resolvedModel = JSON.parse(compose(["config", "--format", "json"], candidateEnv, preparation.compose));
+  const runningContainers = (hooks.runningContainers ?? defaultRunningContainers)();
+  const foreignConflicts = (hooks.detectConflicts ?? detectForeignPortConflicts)(resolvedModel, [...applicationServices, "edge"], plan.composeProject, runningContainers);
+  if (foreignConflicts.length) throw new Error(`host ports are held by containers this project does not own: ${foreignConflicts.map((conflict) => `${conflict.endpoint} wanted by ${conflict.service}, held by ${conflict.container}${conflict.project ? ` of project ${conflict.project}` : " (no compose project)"}`).join("; ")}`);
+
+  // The rollback images. Declared by the plan in the normal case; MEASURED from the containers actually
+  // serving in the host-verified case, so a plan cannot nominate a rollback target that is not what is
+  // running. The measurement happens here, before the first runtime mutation, because afterwards the
+  // containers it reads are the ones the deployment has already replaced.
+  const rollbackImages = hostVerified(plan)
+    ? (hooks.measurePredecessor ?? measurePredecessorImages)(resolvedModel, applicationServices, plan.composeProject, (hooks.allContainers ?? defaultAllContainers)())
+    : plan.rollback.images;
+  const rollbackEnv = environmentFor(rollbackImages);
+  if (hostVerified(plan)) {
+    // A predecessor that is already the candidate means there is nothing to roll back to, and the
+    // deployment would be recording itself as its own rollback target.
+    //
+    // The comparison is between LOCAL IMAGE IDS on both sides. The plan names candidate images by
+    // registry reference and the host reports predecessors by content id, and those are different
+    // namespaces -- comparing a reference to an id can never be equal, so that check would have been
+    // dead code that read like a guard. The candidate ids come from the registry inspection above,
+    // which resolved each reference to the id actually present on this host.
+    const candidateLocalIds = new Map(imageEvidence.filter((entry) => entry.set === "candidate").map((entry) => [entry.role, entry.localImageId]));
+    for (const [role, image] of Object.entries(rollbackImages)) {
+      if (candidateLocalIds.get(role) && image === candidateLocalIds.get(role)) throw new Error(`${role} is already running the candidate image; there is nothing to roll back to`);
+    }
+  }
   // The rollback model is validated HERE, before the first RUNTIME mutation, because the only other
   // moment it is ever loaded is inside the catch below -- while recovering from a failed deployment,
   // which is the worst possible time to discover it does not load. Left unchecked that turns a
@@ -518,27 +693,13 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // out ordinary edits to the file itself, but nothing here reserves ports or captures the resolved
   // model.
   //
-  // Practical consequence: the candidate and its rollback must BOTH carry a Compose file this host can
-  // load. A rollback release cut before the review gate was removed from the production Compose file
-  // does not, and this check refuses it up front instead of at the point of no return.
+  // Practical consequence for an attested rollback: the candidate and its rollback must BOTH carry a
+  // Compose file this host can load. A rollback release cut before the review gate was removed from the
+  // production Compose file does not, and this refuses it up front instead of at the point of no return.
+  // Under a host-verified rollback the two files are the same one, so this validates the candidate's
+  // model a second time -- with the ROLLBACK image digests interpolated into it, which is the
+  // combination the recovery path would actually run and is not otherwise exercised.
   compose(["config", "--quiet"], rollbackEnv, preparation.rollbackCompose);
-  // Port ownership, which nothing here has ever checked.
-  //
-  // Compose adopts a container only by its own project/service labels, so a container started outside
-  // Compose is invisible to it: it will not be reused, will not be stopped, and Compose will try to
-  // create a second container on the same host binding. Docker refuses the bind, and because one `up`
-  // starts several services, the failure lands PART WAY THROUGH -- with earlier services already
-  // recreated. The recovery path then issues another `up` that hits the same held port.
-  //
-  // This target has exactly that: an admin container started with a bare `docker run`, carrying no
-  // Compose labels, already holding the admin service's published port. Refusing here costs an aborted
-  // deployment. Discovering it at `up` costs a half-applied one.
-  //
-  // The resolved model is the source of the ports rather than a literal, so a Compose file that changes
-  // where it publishes cannot silently escape the check.
-  const resolvedModel = JSON.parse(compose(["config", "--format", "json"], candidateEnv, preparation.compose));
-  const foreignConflicts = (hooks.detectConflicts ?? detectForeignPortConflicts)(resolvedModel, [...applicationServices, "edge"], plan.composeProject, (hooks.runningContainers ?? defaultRunningContainers)());
-  if (foreignConflicts.length) throw new Error(`host ports are held by containers this project does not own: ${foreignConflicts.map((conflict) => `${conflict.endpoint} wanted by ${conflict.service}, held by ${conflict.container}${conflict.project ? ` of project ${conflict.project}` : " (no compose project)"}`).join("; ")}`);
   // First runtime mutation occurs only after the exclusive, fsynced rollback-ready record above.
   let agentActivationAttempted = false; let currentSwitched = false; let record;
   try {
