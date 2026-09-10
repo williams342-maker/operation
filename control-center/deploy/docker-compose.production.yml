@@ -38,7 +38,16 @@ services:
     networks: [internal]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      # `/admin-healthz`, NOT `/`. A healthcheck runs inside the container against 127.0.0.1, which
+      # carries no `admin.opsworkbench.org` Host header, so it lands in the DEFAULT server block --
+      # and that block answers `location / { return 444; }`, which closes the connection with no
+      # response at all. `wget` exits 1, the container never reports healthy, and `compose up --wait`
+      # never returns. The default block serves `/admin-healthz` deliberately, for exactly this.
+      #
+      # Measured rather than reasoned: running this command inside the live container gives exit 1 on
+      # `/` and exit 0 on `/admin-healthz`. It would have failed the first deployment at the first
+      # `up`, in both directions, since the same config ships in the candidate image.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/admin-healthz >/dev/null || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 4
