@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 // A container healthcheck runs INSIDE the container, against 127.0.0.1, carrying no Host header that
 // matches any `server_name`. So it lands in NGINX's default server block -- and a default block that
@@ -72,4 +73,47 @@ test("the admin healthcheck specifically does not ask for a path the default blo
   const command = healthchecks(compose).get("admin");
   assert.match(command, /\/admin-healthz/, "the admin healthcheck uses the endpoint the default block serves");
   assert.doesNotMatch(command, /8080\/\s/, "and not a bare /, which returns 444 and no response at all");
+});
+
+// The deployer hands every `up` an OPSWORKBENCH_RELEASE_MANIFEST path, and that only means anything if
+// the compose file mounts it and tells the API where it landed. Without both halves the API falls back
+// to BUILD_VERSION out of the environment file and reports `source: "env"` -- which on the production
+// host meant a service claiming `phase2-staging` while running something else entirely, through every
+// readiness check ever run against it.
+
+// PARSED, NOT MATCHED. Three hand-written versions of this check were each defeated in review: a
+// commented-out mount, `volumes:` renamed to an extension Compose ignores, a quoted or
+// trailing-commented service key, and finally a mount moved to a top-level extension while the api
+// block was read as running to the end of the file. Legitimate flow-style and aliased forms failed it
+// too. A parser ends that: what the test reads is what Compose reads.
+test("the api mounts the release manifest it is pointed at", () => {
+  const api = parse(compose).services.api;
+  // Both spellings Compose accepts for each field, because a test that only understands the one in
+  // front of it rejects a legitimate reformat and, worse, shrugs at a broken mount. A short mount with
+  // an extra field and a long mount declaring `type: volume` were both accepted by the previous
+  // decomposition; a read-only bind written `ro,Z` was rejected by it.
+  const told = Array.isArray(api.environment)
+    ? api.environment.map((entry) => /^([^=]+)=(.*)$/.exec(entry)).filter(Boolean).find((match) => match[1] === "CONTROL_CENTER_RELEASE_MANIFEST")?.[2]
+    : api.environment?.CONTROL_CENTER_RELEASE_MANIFEST;
+  const shortForm = (entry) => {
+    // The source may contain colons inside `${VAR:?message}`, so the split starts after it.
+    const separator = entry.indexOf(":", entry.lastIndexOf("}") + 1);
+    if (separator < 0) return { source: entry, target: null, options: [], fields: 1 };
+    const rest = entry.slice(separator + 1).split(":");
+    return { source: entry.slice(0, separator), target: rest[0], options: (rest[1] ?? "rw").split(","), fields: rest.length + 1 };
+  };
+  const mounts = (api.volumes ?? []).map((entry) => (typeof entry === "string"
+    ? shortForm(entry)
+    : { source: entry.source, target: entry.target, options: [entry.read_only ? "ro" : "rw"], fields: 3, type: entry.type }));
+  const mounted = mounts.find((entry) => String(entry.source).includes("OPSWORKBENCH_RELEASE_MANIFEST"));
+  assert.ok(told, "the api must be told where its manifest is");
+  assert.ok(mounted, "and the manifest must actually be mounted into it");
+  assert.ok(mounted.fields <= 3, "a mount with an extra field is not the mount it looks like");
+  assert.equal(mounted.type ?? "bind", "bind", "the manifest is a file on the host, not a named volume");
+  assert.equal(told, mounted.target, "the path the api is told to read must be the path the manifest is mounted at");
+  assert.equal(mounted.target, "/run/opsworkbench-release/manifest.json");
+  assert.ok(mounted.options.includes("ro"), "the release manifest is evidence, and the service must not be able to rewrite it");
+  // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
+  // quietly mount whatever a default names.
+  assert.match(String(mounted.source), /^\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}$/, "a default would let a deployment run without being told which release it is");
 });

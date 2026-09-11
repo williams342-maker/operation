@@ -29,7 +29,8 @@
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
     "playwright": "^1.55.1",
-    "typescript-eslint": "^8.64.0"
+    "typescript-eslint": "^8.64.0",
+    "yaml": "^2.9.0"
   },
   "overrides": {
     "browserslist": "^4.28.8"

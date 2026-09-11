@@ -6,8 +6,16 @@ services:
     environment:
       PORT: "3000"
       NODE_ENV: production
+      # Without this the API falls back to BUILD_VERSION / GIT_COMMIT out of the environment file and
+      # reports `source: "env"` -- values somebody typed, which on this host still said `phase2-staging`
+      # long after that was true. The manifest is the release's own, and the path is supplied per `up`
+      # so a ROLLBACK mounts the PREDECESSOR's manifest rather than the candidate's: mounting a fixed
+      # release-relative path would have made a rolled-back deployment claim the version it failed to
+      # become.
+      CONTROL_CENTER_RELEASE_MANIFEST: /run/opsworkbench-release/manifest.json
     volumes:
       - /opt/opsworkbench/artifacts/agent/approved-source.tar.gz:/run/opsworkbench-artifacts/agent-source.tar.gz:ro
+      - ${OPSWORKBENCH_RELEASE_MANIFEST:?release manifest path is required}:/run/opsworkbench-release/manifest.json:ro
     depends_on:
       mongo:
         condition: service_healthy
