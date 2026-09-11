@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
+import { attestationSource, deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -832,4 +832,71 @@ test("readiness accepts HTTPS anywhere and plain HTTP only on loopback", () => {
   assert.equal(isReadinessEndpoint("http://10.0.0.5/healthz"), false, "a private address is still a network");
   assert.equal(isReadinessEndpoint("ftp://127.0.0.1/"), false);
   assert.equal(isReadinessEndpoint("not a url"), false);
+});
+
+// --- Attestation bundles -------------------------------------------------------------------------
+
+test("a plan may carry an absolute attestation bundle directory, and nothing else new", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-plan-"));
+  const valid = plan(root);
+  const bundles = path.join(root, "attestations");
+  assert.equal(parseDeploymentPlan({ ...valid, attestationBundles: bundles }).attestationBundles, bundles);
+  // Absent is still valid: every plan written before this existed must keep parsing.
+  assert.equal("attestationBundles" in parseDeploymentPlan(valid), false);
+  assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: "attestations" }), /must be an absolute path/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: 7 }), /must be an absolute path/);
+  // The optional key must not become a hole in the unknown-key check.
+  assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: bundles, surprise: true }), /unknown fields/);
+});
+
+test("every release-bundle attestation check is told where the bundles are", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-pass-"));
+  const item = { ...plan(root), attestationBundles: path.join(root, "attestations") };
+  const seen = [];
+  // Preparation reaches the attestation step only after bundle verification, so this drives the same
+  // pass-through the deployer uses without rebuilding an entire release fixture: the source is the one
+  // function every call site takes its options from.
+  const options = attestationSource(item);
+  assert.deepEqual(options, { bundleDirectory: item.attestationBundles });
+  assert.deepEqual(attestationSource(plan(root)), {});
+  seen.push(options);
+  assert.equal(seen.length, 1);
+});
+
+test("image attestations are verified from bundles named by the image digest", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-bundles-"));
+  const item = { ...hostVerifiedPlan(root), attestationBundles: bundles };
+  for (const reference of Object.values(item.candidateImages)) {
+    fs.writeFileSync(path.join(bundles, `sha256-${reference.slice(reference.indexOf("@sha256:") + 8)}.jsonl`), "{}\n");
+  }
+  const forgeBytes = Buffer.from(`${JSON.stringify({ schemaVersion: "forge-build-v2", buildId: `build-${item.tag}`, sourceRepository: "https://github.com/williams342-maker/operation", sourceCommit: item.commit, sourceTree: item.tree, sourceTag: item.tag, backendImageDigest: item.candidateImages.api, frontendImageDigest: item.candidateImages.web, adminImageDigest: item.candidateImages.admin, reviewGateImageDigest: item.candidateImages.reviewGate, builderIdentity: `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${item.tag}`, builderRunnerEnvironment: "github-hosted", issuedAt: "2026-09-05T00:00:00Z" }, null, 2)}\n`);
+  fs.writeFileSync(item.forgeEvidence.candidatePath, forgeBytes);
+  item.forgeEvidence.candidateSha256 = sha(forgeBytes);
+  const commands = [];
+  // Only the process spawn is stubbed. The argument building, the digest extraction and the bundle
+  // lookup are the real ones.
+  const forge = verifyForgeEvidence(item, { verifyAttestation: (_dir, _names, options) => { commands.push(options); return { verified: true }; }, runGh: (args) => commands.push(args) });
+  assert.equal(forge.ok, true);
+  const imageCommands = commands.filter(Array.isArray);
+  assert.equal(imageCommands.length, 4, "each candidate image is still attested");
+  for (const args of imageCommands) {
+    const reference = args[2];
+    const digest = reference.slice(reference.indexOf("@sha256:") + 8);
+    const index = args.indexOf("--bundle");
+    assert.ok(index > 0, "an image attestation was verified against the API rather than a bundle");
+    assert.equal(args[index + 1], path.join(bundles, `sha256-${digest}.jsonl`));
+  }
+  const forgeDocumentOptions = commands.find((entry) => !Array.isArray(entry));
+  assert.equal(forgeDocumentOptions.bundleDirectory, bundles, "the Forge document itself was verified against the API");
+});
+
+test("a missing image bundle refuses the deployment rather than calling the API", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-missing-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-missing-bundles-"));
+  const item = { ...hostVerifiedPlan(root), attestationBundles: bundles };
+  const forgeBytes = Buffer.from(`${JSON.stringify({ schemaVersion: "forge-build-v2", buildId: `build-${item.tag}`, sourceRepository: "https://github.com/williams342-maker/operation", sourceCommit: item.commit, sourceTree: item.tree, sourceTag: item.tag, backendImageDigest: item.candidateImages.api, frontendImageDigest: item.candidateImages.web, adminImageDigest: item.candidateImages.admin, reviewGateImageDigest: item.candidateImages.reviewGate, builderIdentity: `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${item.tag}`, builderRunnerEnvironment: "github-hosted", issuedAt: "2026-09-05T00:00:00Z" }, null, 2)}\n`);
+  fs.writeFileSync(item.forgeEvidence.candidatePath, forgeBytes);
+  item.forgeEvidence.candidateSha256 = sha(forgeBytes);
+  assert.throws(() => verifyForgeEvidence(item, { verifyAttestation: () => ({ verified: true }), runGh: () => assert.fail("the CLI ran without a bundle") }), /no attestation bundle/);
 });

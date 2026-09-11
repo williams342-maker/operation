@@ -4,6 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  attestationBundleFor,
+  verifyAttestation,
   verifyReleaseBundle,
   parseSha256Sums,
   sha256Hex,
@@ -134,4 +136,87 @@ test("a missing SHA256SUMS is rejected without throwing", () => {
   const result = verifyReleaseBundle(dir);
   assert.equal(result.ok, false);
   assert.ok(result.problems.some((p) => p.includes("SHA256SUMS")));
+});
+
+// --- Attestation bundles -------------------------------------------------------------------------
+//
+// These exist so a host can verify provenance with no GitHub credential on it. Every one of them
+// asserts the ARGUMENTS the CLI is given, because the return value is identical whether a bundle was
+// used or not: asserting "it returned" would pass with the whole feature deleted.
+
+function attestationFixture({ withBundle = true } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "attbundle-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "attbundles-"));
+  const bytes = Buffer.from("subject-bytes");
+  fs.writeFileSync(path.join(dir, "subject.tar.gz"), bytes);
+  const digest = sha256Hex(bytes);
+  if (withBundle) fs.writeFileSync(path.join(bundles, `sha256-${digest}.jsonl`), "{}\n");
+  const calls = [];
+  const hooks = { ghAvailable: () => true, run: (args) => calls.push(args) };
+  return { dir, bundles, digest, calls, hooks };
+}
+
+test("a bundle is chosen by the subject's own digest, not by a name the caller supplies", () => {
+  const { dir, bundles, digest, calls, hooks } = attestationFixture();
+  const result = verifyAttestation(dir, ["subject.tar.gz"], { required: true, bundleDirectory: bundles, hooks });
+  assert.equal(result.offline, true);
+  assert.equal(calls.length, 1);
+  const index = calls[0].indexOf("--bundle");
+  assert.ok(index > 0, "the CLI was not given a bundle");
+  assert.equal(calls[0][index + 1], path.join(bundles, `sha256-${digest}.jsonl`));
+});
+
+test("an absent bundle refuses, and does not silently fall back to the API", () => {
+  const { dir, bundles, calls, hooks } = attestationFixture({ withBundle: false });
+  assert.throws(() => verifyAttestation(dir, ["subject.tar.gz"], { required: true, bundleDirectory: bundles, hooks }), /no attestation bundle/);
+  assert.equal(calls.length, 0, "the CLI ran anyway, which is the fall back this refuses");
+});
+
+test("without a bundle directory the command is exactly what it was before", () => {
+  const { dir, calls, hooks } = attestationFixture();
+  const result = verifyAttestation(dir, ["subject.tar.gz"], { required: true, hooks });
+  assert.equal(result.offline, false);
+  assert.equal(calls[0].includes("--bundle"), false);
+});
+
+test("a missing gh CLI is a refusal when bundles were requested, not a skip", () => {
+  const { dir, bundles } = attestationFixture();
+  const hooks = { ghAvailable: () => false, run: () => assert.fail("the CLI cannot run when it is absent") };
+  // `required` is deliberately false: bundles remove the need for a credential, not for the CLI that
+  // checks the signature, so this must refuse on its own rather than inheriting `required`.
+  assert.throws(() => verifyAttestation(dir, ["subject.tar.gz"], { bundleDirectory: bundles, hooks }), /gh CLI is unavailable/);
+});
+
+test("attestationBundleFor refuses a digest that is not a sha256", () => {
+  const { bundles } = attestationFixture();
+  assert.throws(() => attestationBundleFor(bundles, "not-a-digest"), /subject digest is invalid/);
+  assert.throws(() => attestationBundleFor(bundles, `${"a".repeat(63)}z`), /subject digest is invalid/);
+});
+
+test("a bundle that is not a regular file is refused", () => {
+  // The directory case runs everywhere, including on a Windows checkout where creating a symlink needs
+  // a privilege the test process does not have. Without it the whole "is this a regular file" check
+  // could be deleted and every test on this machine would still pass.
+  const { bundles, digest } = attestationFixture();
+  const link = path.join(bundles, `sha256-${digest}.jsonl`);
+  fs.unlinkSync(link);
+  fs.mkdirSync(link);
+  assert.throws(() => attestationBundleFor(bundles, digest), /is not a regular file/);
+});
+
+test("a bundle that is a symlink is refused", (t) => {
+  const { bundles, digest } = attestationFixture();
+  const target = path.join(bundles, "elsewhere.jsonl");
+  fs.writeFileSync(target, "{}\n");
+  const link = path.join(bundles, `sha256-${digest}.jsonl`);
+  fs.unlinkSync(link);
+  try {
+    fs.symlinkSync(target, link);
+  } catch {
+    // Windows refuses symlink creation without the privilege. Skipping keeps the suite honest on this
+    // machine rather than passing a test that never ran its assertion.
+    t.skip("this platform does not allow creating a symlink");
+    return;
+  }
+  assert.throws(() => attestationBundleFor(bundles, digest), /is not a regular file/);
 });

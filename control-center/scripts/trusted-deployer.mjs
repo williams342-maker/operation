@@ -6,7 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { inspectReleaseTarGz } from "./safe-release-archive.mjs";
-import { parseSha256Sums, verifyAttestation, verifyReleaseBundle } from "./verify-release-bundle.mjs";
+import { attestationBundleFor, parseSha256Sums, verifyAttestation, verifyReleaseBundle } from "./verify-release-bundle.mjs";
 import { compareReleaseTree, describeTree } from "./verify-release-tree.mjs";
 
 const digestReference = /^ghcr\.io\/williams342-maker\/operation\/(control-center-api|control-center-web|control-center-admin-web|review-gate)@sha256:[a-f0-9]{64}$/;
@@ -39,8 +39,28 @@ export function isReadinessEndpoint(url) {
   return parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost" || parsed.hostname === "[::1]" || parsed.hostname === "::1";
 }
 
+/**
+ * The attestation source every verification in this file shares. With `attestationBundles` the checks
+ * read attestations from disk instead of the GitHub API, which is what lets a host verify provenance
+ * with no GitHub credential on it at all. Absent, every call behaves exactly as it did before.
+ */
+export const attestationSource = (plan) => (plan?.attestationBundles ? { bundleDirectory: plan.attestationBundles } : {});
+
+/** The digest a pinned image reference names, which is also the name of its attestation bundle. */
+function imageSubjectDigest(reference) {
+  const match = /@sha256:([a-f0-9]{64})$/.exec(String(reference));
+  if (!match) throw new Error("image reference is not pinned to a digest");
+  return match[1];
+}
+
 export function parseDeploymentPlan(value) {
-  exactKeys(value, ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness"], "deployment plan");
+  // `attestationBundles` is OPTIONAL, so the key list depends on whether the plan carries it. Adding it
+  // unconditionally would have refused every existing plan; leaving it out of the list would have let
+  // an unknown key through the one check whose job is to refuse unknown keys.
+  const keys = ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness"];
+  if (value && typeof value === "object" && "attestationBundles" in value) keys.push("attestationBundles");
+  exactKeys(value, keys, "deployment plan");
+  if ("attestationBundles" in value && (typeof value.attestationBundles !== "string" || !path.isAbsolute(value.attestationBundles))) throw new Error("attestationBundles must be an absolute path");
   if (value.schemaVersion !== "opsworkbench-trusted-deployment-v1" || !tagPattern.test(value.tag) || !commitPattern.test(value.commit) || !commitPattern.test(value.tree)) throw new Error("deployment identity is invalid");
   if (!/^[a-z0-9][a-z0-9_-]{0,62}$/.test(value.composeProject)) throw new Error("compose project is invalid");
   for (const field of ["bundleDirectory", "stagingRoot", "releaseRoot"]) if (!path.isAbsolute(value[field])) throw new Error(`${field} must be absolute`);
@@ -204,7 +224,7 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     for (const name of ["SHA256SUMS", ...listed]) copyStableRegular(path.join(plan.bundleDirectory, name), path.join(stage, name));
     const copiedCheck = verifyReleaseBundle(stage, { expectedTag: plan.tag });
     if (!copiedCheck.ok || copiedCheck.manifest.commit !== plan.commit) throw new Error("private release copy failed repeat verification");
-    (hooks.verifyAttestation ?? verifyAttestation)(stage, listed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}` });
+    (hooks.verifyAttestation ?? verifyAttestation)(stage, listed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}`, ...attestationSource(plan) });
     const archivePath = path.join(stage, copiedCheck.manifest.artifact);
     const prefix = `opsworkbench-control-center-${plan.tag.slice(1)}`;
     const inspected = inspectReleaseTarGz(archivePath, { expectedPrefix: prefix });
@@ -237,7 +257,7 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     if (!rollbackCheck.ok || rollbackCheck.manifest.commit !== plan.rollback.commit) throw new Error("rollback release bundle failed verification");
     const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(plan.rollback.bundleDirectory, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
     for (const name of ["SHA256SUMS", ...rollbackListed]) copyStableRegular(path.join(plan.rollback.bundleDirectory, name), path.join(rollbackBundle, name));
-    (hooks.verifyAttestation ?? verifyAttestation)(rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: plan.rollback.commit, sourceRef: `refs/tags/${plan.rollback.tag}` });
+    (hooks.verifyAttestation ?? verifyAttestation)(rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: plan.rollback.commit, sourceRef: `refs/tags/${plan.rollback.tag}`, ...attestationSource(plan) });
     const rollbackArchivePath = path.join(rollbackBundle, rollbackCheck.manifest.artifact); const rollbackPrefix = `opsworkbench-control-center-${plan.rollback.tag.slice(1)}`;
     if (crypto.createHash("sha256").update(fs.readFileSync(rollbackArchivePath)).digest("hex") !== plan.rollback.evidenceSha256) throw new Error("rollback artifact digest differs from the deployment plan");
     const rollbackInspected = inspectReleaseTarGz(rollbackArchivePath, { expectedPrefix: rollbackPrefix });
@@ -410,7 +430,7 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   const check = verifyReleaseBundle(preparation.stage, { expectedTag: preparation.plan.tag });
   if (!check.ok || check.manifest.commit !== preparation.plan.commit) throw new Error("prepared bundle failed immediate re-verification");
   const listed = parseSha256Sums(fs.readFileSync(path.join(preparation.stage, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
-  (hooks.verifyAttestation ?? verifyAttestation)(preparation.stage, listed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.commit, sourceRef: `refs/tags/${preparation.plan.tag}` });
+  (hooks.verifyAttestation ?? verifyAttestation)(preparation.stage, listed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.commit, sourceRef: `refs/tags/${preparation.plan.tag}`, ...attestationSource(preparation.plan) });
   const inspected = inspectReleaseTarGz(path.join(preparation.stage, check.manifest.artifact), { expectedPrefix: preparation.prefix });
   if (inspected.archiveCommit !== preparation.plan.commit) throw new Error("prepared archive commit changed");
   const tree = compareReleaseTree(preparation.expectedTree, describeTree(preparation.extracted));
@@ -426,7 +446,7 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   const rollbackCheck = verifyReleaseBundle(preparation.rollbackBundle, { expectedTag: preparation.plan.rollback.tag, requireAgentArtifact: !hostVerified(preparation.plan) });
   if (!rollbackCheck.ok || rollbackCheck.manifest.commit !== preparation.plan.rollback.commit) throw new Error("rollback bundle changed before consumption");
   const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(preparation.rollbackBundle, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
-  (hooks.verifyAttestation ?? verifyAttestation)(preparation.rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.rollback.commit, sourceRef: `refs/tags/${preparation.plan.rollback.tag}` });
+  (hooks.verifyAttestation ?? verifyAttestation)(preparation.rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.rollback.commit, sourceRef: `refs/tags/${preparation.plan.rollback.tag}`, ...attestationSource(preparation.plan) });
   const rollbackTree = compareReleaseTree(preparation.rollbackArchiveTree, describeTree(preparation.rollbackExtracted));
   // Same allowances as preparation used. A stricter check here would refuse at the last moment over the
   // very files preparation deliberately tolerated, and a looser one would carry a weaker check into the
@@ -660,7 +680,7 @@ function defaultRunningContainers() {
 const compatibilityScenarios = ["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"];
 const migrationScenarios = new Set(["migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration"]);
 
-function verifyOneForgeBuild(file, expectedSha256, identity, images, hooks = {}) {
+function verifyOneForgeBuild(file, expectedSha256, identity, images, hooks = {}, attestation = {}) {
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Forge build evidence is not a regular file");
   const bytes = fs.readFileSync(file);
@@ -672,19 +692,32 @@ function verifyOneForgeBuild(file, expectedSha256, identity, images, hooks = {})
   if (document.schemaVersion !== "forge-build-v2" || document.sourceRepository !== "https://github.com/williams342-maker/operation" || document.sourceCommit !== identity.commit || document.sourceTree !== identity.tree || document.sourceTag !== identity.tag || document.builderRunnerEnvironment !== "github-hosted" || document.builderIdentity !== `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${identity.tag}`) throw new Error("Forge build evidence has the wrong source or builder identity");
   const bound = { api: document.backendImageDigest, web: document.frontendImageDigest, admin: document.adminImageDigest, reviewGate: document.reviewGateImageDigest };
   if (JSON.stringify(bound) !== JSON.stringify(images)) throw new Error("deployment images differ from the Forge build evidence");
-  (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-images.yml", sourceDigest: identity.commit, sourceRef: `refs/tags/${identity.tag}` });
-  const verifyImageAttestation = hooks.verifyImageAttestation ?? ((reference) => execFileSync("gh", ["attestation", "verify", `oci://${reference}`, "--repo", "williams342-maker/operation", "--signer-workflow", "williams342-maker/operation/.github/workflows/control-center-images.yml", "--source-digest", identity.commit, "--source-ref", `refs/tags/${identity.tag}`], { stdio: "pipe" }));
+  (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-images.yml", sourceDigest: identity.commit, sourceRef: `refs/tags/${identity.tag}`, ...attestation });
+  // The IMAGE attestations need the same treatment as the file ones, or a host with no GitHub
+  // credential still cannot deploy: four of these run on every deployment, and each was an API call.
+  // The subject of an image attestation is the digest the reference already pins, so the bundle is
+  // addressed the same way here as everywhere else.
+  // `runGh` is injectable SEPARATELY from `verifyImageAttestation`, so a test can drive the real
+  // argument building — including the bundle lookup — and stub only the process spawn. Stubbing
+  // `verifyImageAttestation` is stubbing the code under test, which is how a previous round shipped a
+  // production path that could not run at all outside its own tests.
+  const runGh = hooks.runGh ?? ((args) => execFileSync("gh", args, { stdio: "pipe" }));
+  const verifyImageAttestation = hooks.verifyImageAttestation ?? ((reference) => {
+    const args = ["attestation", "verify", `oci://${reference}`, "--repo", "williams342-maker/operation", "--signer-workflow", "williams342-maker/operation/.github/workflows/control-center-images.yml", "--source-digest", identity.commit, "--source-ref", `refs/tags/${identity.tag}`];
+    if (attestation.bundleDirectory) args.push("--bundle", attestationBundleFor(attestation.bundleDirectory, imageSubjectDigest(reference)));
+    runGh(args);
+  });
   for (const reference of Object.values(images)) verifyImageAttestation(reference, identity);
   return { sha256: expectedSha256, buildId: document.buildId, images: bound };
 }
 
 export function verifyForgeEvidence(plan, hooks = {}) {
-  const candidate = verifyOneForgeBuild(plan.forgeEvidence.candidatePath, plan.forgeEvidence.candidateSha256, { tag: plan.tag, commit: plan.commit, tree: plan.tree }, plan.candidateImages, hooks);
+  const candidate = verifyOneForgeBuild(plan.forgeEvidence.candidatePath, plan.forgeEvidence.candidateSha256, { tag: plan.tag, commit: plan.commit, tree: plan.tree }, plan.candidateImages, hooks, attestationSource(plan));
   // There is no Forge build document for a host-verified rollback, and the plan is not allowed to name
   // one. Branching only the CALLER would have left this reading `plan.forgeEvidence.rollbackPath`, which
   // is undefined under that mode -- the feature would have been unable to run at all outside the tests.
   if (hostVerified(plan)) return { ok: true, candidate, rollback: null };
-  const rollback = verifyOneForgeBuild(plan.forgeEvidence.rollbackPath, plan.forgeEvidence.rollbackSha256, { tag: plan.rollback.tag, commit: plan.rollback.commit, tree: plan.rollback.tree }, plan.rollback.images, hooks);
+  const rollback = verifyOneForgeBuild(plan.forgeEvidence.rollbackPath, plan.forgeEvidence.rollbackSha256, { tag: plan.rollback.tag, commit: plan.rollback.commit, tree: plan.rollback.tree }, plan.rollback.images, hooks, attestationSource(plan));
   return { ok: true, candidate, rollback };
 }
 
@@ -711,7 +744,7 @@ export function verifyCompatibilityEvidence(plan, hooks = {}) {
   for (const [name, result] of Object.entries(evidence.scenarios)) {
     if (result !== "passed" && !(result === "not-applicable-no-migrations" && evidence.migrationsPresent === false && migrationScenarios.has(name))) throw new Error(`compatibility scenario did not pass: ${name}`);
   }
-  (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-deployment-rehearsal.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}` });
+  (hooks.verifyAttestation ?? verifyAttestation)(path.dirname(file), [path.basename(file)], { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-deployment-rehearsal.yml", sourceDigest: plan.commit, sourceRef: `refs/tags/${plan.tag}`, ...attestationSource(plan) });
   return { ok: true, candidateCommit: evidence.candidateCommit, rollbackCommit: evidence.rollbackCommit, images: evidence.images, sha256: plan.compatibilityEvidence.sha256 };
 }
 
@@ -917,6 +950,15 @@ function assertProductionPlanLocations(planFile, plan) {
   for (const [name, location] of [...forgeLocations, ...adoptionLocations, ["compatibility evidence", plan.compatibilityEvidence.path]]) {
     const resolved = path.resolve(location); if (!resolved.startsWith(`${inbox}${path.sep}`)) throw new Error(`${name} is outside the fixed trusted inbox`);
     assertRootOwnedPathChain(resolved);
+  }
+  // Defence in depth, and deliberately not the thing that makes bundles safe. A substituted bundle
+  // cannot produce a false pass — it has to carry a Sigstore signature over THIS subject digest from
+  // THIS workflow at THIS commit, and gh refuses it otherwise. What the trusted location buys is that
+  // only root can cause the refusal, so a deployment cannot be denied by an unprivileged writer.
+  if (plan.attestationBundles) {
+    const resolved = path.resolve(plan.attestationBundles);
+    if (!resolved.startsWith(`${inbox}${path.sep}`)) throw new Error("attestation bundles are outside the fixed trusted inbox");
+    assertRootOwnedPathChain(resolved, { directory: true });
   }
   assertRootOwnedPathChain(plan.stagingRoot, { directory: true }); assertRootOwnedPathChain(plan.releaseRoot, { directory: true });
 }
