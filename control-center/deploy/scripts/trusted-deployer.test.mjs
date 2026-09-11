@@ -833,3 +833,97 @@ test("readiness accepts HTTPS anywhere and plain HTTP only on loopback", () => {
   assert.equal(isReadinessEndpoint("ftp://127.0.0.1/"), false);
   assert.equal(isReadinessEndpoint("not a url"), false);
 });
+
+// --- Attestation bundles -------------------------------------------------------------------------
+
+test("a plan may carry an absolute attestation bundle directory, and nothing else new", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-plan-"));
+  const valid = plan(root);
+  const bundles = path.join(root, "attestations");
+  assert.equal(parseDeploymentPlan({ ...valid, attestationBundles: bundles }).attestationBundles, bundles);
+  // Absent is still valid: every plan written before this existed must keep parsing.
+  assert.equal("attestationBundles" in parseDeploymentPlan(valid), false);
+  assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: "attestations" }), /must be an absolute path/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: 7 }), /must be an absolute path/);
+  // The optional key must not become a hole in the unknown-key check.
+  assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: bundles, surprise: true }), /unknown fields/);
+});
+
+test("preparation and re-verification read every release-bundle attestation from the bundle directory", () => {
+  // The previous version of this test called attestationSource() and asserted its return value, which
+  // is the feature asserting itself. Removing the pass-through from all four call sites left it green.
+  // These drive the real entry points and read what the verification hook was actually handed.
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-callsites-"));
+  const { item } = releaseFixture();
+  item.attestationBundles = bundles;
+  const seen = [];
+  const capture = (_dir, _names, options) => { seen.push(options.bundleDirectory); return { verified: true }; };
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: capture });
+  reverifyPreparedRelease(preparation, { verifyAttestation: capture });
+  assert.equal(seen.length, 4, "candidate and rollback, in preparation and again in re-verification");
+  assert.deepEqual([...new Set(seen)], [bundles]);
+
+  // And the other direction: a plan without bundles must still verify against the API, or "optional"
+  // would be a word rather than a behaviour.
+  const online = releaseFixture();
+  const onlineSeen = [];
+  const onlineCapture = (_dir, _names, options) => { onlineSeen.push(options.bundleDirectory); return { verified: true }; };
+  const onlinePreparation = prepareReviewedRelease(online.item, { verifyAttestation: onlineCapture });
+  reverifyPreparedRelease(onlinePreparation, { verifyAttestation: onlineCapture });
+  assert.equal(onlineSeen.length, 4);
+  assert.deepEqual([...new Set(onlineSeen)], [undefined]);
+});
+
+test("the rehearsal evidence check reads its attestation from the bundle directory", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-compat-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-compat-bundles-"));
+  const item = { ...hostVerifiedPlan(root), attestationBundles: bundles };
+  const scenarios = Object.fromEntries(["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"].map((name) => [name, name.includes("migration") ? "not-applicable-no-migrations" : "passed"]));
+  const ids = (start) => Object.fromEntries(["api", "web", "admin", "gate"].map((role, index) => [role, `sha256:${String(start + index).repeat(64).slice(0, 64)}`]));
+  const bytes = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-schema-rehearsal-v1", candidateTag: item.tag, candidateCommit: item.commit, rollbackTag: item.rollback.tag, rollbackCommit: item.rollback.commit, mongoTopology: "replica-set", images: { candidate: ids(1), rollback: ids(5) }, migrationsPresent: false, scenarios }, null, 2)}
+`);
+  fs.writeFileSync(item.compatibilityEvidence.path, bytes);
+  item.compatibilityEvidence.sha256 = sha(bytes);
+  let options;
+  const result = verifyCompatibilityEvidence(item, { verifyAttestation: (_dir, _names, received) => { options = received; return { verified: true }; } });
+  assert.equal(result.ok, true);
+  assert.equal(options.bundleDirectory, bundles);
+});
+
+test("image attestations are verified from bundles named by the image digest", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-bundles-"));
+  const item = { ...hostVerifiedPlan(root), attestationBundles: bundles };
+  for (const reference of Object.values(item.candidateImages)) {
+    fs.writeFileSync(path.join(bundles, `sha256-${reference.slice(reference.indexOf("@sha256:") + 8)}.jsonl`), "{}\n");
+  }
+  const forgeBytes = Buffer.from(`${JSON.stringify({ schemaVersion: "forge-build-v2", buildId: `build-${item.tag}`, sourceRepository: "https://github.com/williams342-maker/operation", sourceCommit: item.commit, sourceTree: item.tree, sourceTag: item.tag, backendImageDigest: item.candidateImages.api, frontendImageDigest: item.candidateImages.web, adminImageDigest: item.candidateImages.admin, reviewGateImageDigest: item.candidateImages.reviewGate, builderIdentity: `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${item.tag}`, builderRunnerEnvironment: "github-hosted", issuedAt: "2026-09-05T00:00:00Z" }, null, 2)}\n`);
+  fs.writeFileSync(item.forgeEvidence.candidatePath, forgeBytes);
+  item.forgeEvidence.candidateSha256 = sha(forgeBytes);
+  const commands = [];
+  // Only the process spawn is stubbed. The argument building, the digest extraction and the bundle
+  // lookup are the real ones.
+  const forge = verifyForgeEvidence(item, { verifyAttestation: (_dir, _names, options) => { commands.push(options); return { verified: true }; }, runGh: (args) => commands.push(args) });
+  assert.equal(forge.ok, true);
+  const imageCommands = commands.filter(Array.isArray);
+  assert.equal(imageCommands.length, 4, "each candidate image is still attested");
+  for (const args of imageCommands) {
+    const reference = args[2];
+    const digest = reference.slice(reference.indexOf("@sha256:") + 8);
+    const index = args.indexOf("--bundle");
+    assert.ok(index > 0, "an image attestation was verified against the API rather than a bundle");
+    assert.equal(args[index + 1], path.join(bundles, `sha256-${digest}.jsonl`));
+  }
+  const forgeDocumentOptions = commands.find((entry) => !Array.isArray(entry));
+  assert.equal(forgeDocumentOptions.bundleDirectory, bundles, "the Forge document itself was verified against the API");
+});
+
+test("a missing image bundle refuses the deployment rather than calling the API", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-missing-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-image-missing-bundles-"));
+  const item = { ...hostVerifiedPlan(root), attestationBundles: bundles };
+  const forgeBytes = Buffer.from(`${JSON.stringify({ schemaVersion: "forge-build-v2", buildId: `build-${item.tag}`, sourceRepository: "https://github.com/williams342-maker/operation", sourceCommit: item.commit, sourceTree: item.tree, sourceTag: item.tag, backendImageDigest: item.candidateImages.api, frontendImageDigest: item.candidateImages.web, adminImageDigest: item.candidateImages.admin, reviewGateImageDigest: item.candidateImages.reviewGate, builderIdentity: `https://github.com/williams342-maker/operation/.github/workflows/control-center-images.yml@refs/tags/${item.tag}`, builderRunnerEnvironment: "github-hosted", issuedAt: "2026-09-05T00:00:00Z" }, null, 2)}\n`);
+  fs.writeFileSync(item.forgeEvidence.candidatePath, forgeBytes);
+  item.forgeEvidence.candidateSha256 = sha(forgeBytes);
+  assert.throws(() => verifyForgeEvidence(item, { verifyAttestation: () => ({ verified: true }), runGh: () => assert.fail("the CLI ran without a bundle") }), /no attestation bundle/);
+});

@@ -110,21 +110,85 @@ export function ghAvailable() {
   }
 }
 
+/**
+ * ATTESTATION BUNDLES, AND WHY THE BUNDLE IS ADDRESSED BY THE SUBJECT'S OWN DIGEST.
+ *
+ * `gh attestation verify` fetches the attestation from the GitHub API by default, and that needs a
+ * token even for a public repository. Putting a GitHub credential on a production host so it can verify
+ * a public artifact is the wrong trade, so the attestations are fetched where a credential already
+ * exists and travel to the host as bundle files. `--bundle` makes gh read the attestation from disk.
+ *
+ * The bundle NAMES NOTHING. It is looked up by the sha256 of the bytes being verified, computed here,
+ * never by a path carried in a plan or a manifest — so no caller can point one artifact at another
+ * artifact's bundle, and there is no filename to get wrong. `gh attestation download` writes bundles
+ * under exactly this name, so the producing side needs no extra tooling either.
+ *
+ * A MISSING BUNDLE IS AN ERROR, never a fall back to the API. Falling back would mean the mode that
+ * exists to avoid needing a credential quietly requires one again at the moment it is used.
+ */
+/**
+ * The names gh gives a downloaded bundle for one subject digest, in the order they are tried.
+ *
+ * `gh attestation download` names the file after the subject digest — `sha256:<digest>.jsonl` — except
+ * on Windows, where a colon cannot appear in a filename and gh substitutes a dash. Bundles are produced
+ * on a machine that holds a credential and consumed on one that does not, so the two platforms are
+ * routinely different machines and BOTH names have to be accepted. Accepting both widens nothing: each
+ * encodes the same digest, and gh still has to find that subject inside whichever file it is handed.
+ *
+ * Kept separate from the filesystem so it is testable on a platform that cannot create one of the two
+ * names at all.
+ */
+export function attestationBundleNames(digest) {
+  if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("attestation subject digest is invalid");
+  return [`sha256:${digest}.jsonl`, `sha256-${digest}.jsonl`];
+}
+
+export function attestationBundleFor(bundleDirectory, digest) {
+  for (const name of attestationBundleNames(digest)) {
+    const file = path.join(bundleDirectory, name);
+    let stat;
+    try {
+      stat = fs.lstatSync(file);
+    } catch {
+      continue;
+    }
+    // Present but not a regular file is a refusal, not a reason to try the other spelling: something
+    // is wrong with the bundle that was staged, and quietly reaching past it hides that.
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`attestation bundle for sha256:${digest} is not a regular file`);
+    return file;
+  }
+  throw new Error(`no attestation bundle for sha256:${digest}`);
+}
+
 // Verify the SLSA build-provenance attestation for each listed file via `gh attestation verify`.
 // Separated from the pure check so offline unit tests never touch the network.
-export function verifyAttestation(dir, fileNames, { repo = REPOSITORY, required = false, signerWorkflow, sourceDigest, sourceRef } = {}) {
-  if (!ghAvailable()) {
-    if (required) throw new Error("gh CLI is unavailable but attestation verification is required");
+//
+// `bundleDirectory` switches gh from the API to bundles on disk. What gh checks is unchanged either
+// way — signature, certificate identity, signer workflow, source commit and ref, and that the subject
+// digest is the file in front of it. Measured against gh 2.100.0: a bundle for a different subject, a
+// garbage bundle, an empty bundle, a tampered artifact, the wrong signer workflow, the wrong source
+// digest and the wrong source ref each exit non-zero, and none of them falls back to the API.
+export function verifyAttestation(dir, fileNames, { repo = REPOSITORY, required = false, signerWorkflow, sourceDigest, sourceRef, bundleDirectory, hooks = {} } = {}) {
+  // Injectable so a test can see the ARGUMENTS this builds. Asserting that a bundle is passed by
+  // asserting the function returned is asserting nothing: it returns the same value either way.
+  const available = hooks.ghAvailable ?? ghAvailable;
+  const run = hooks.run ?? ((args) => execFileSync("gh", args, { stdio: "pipe" }));
+  if (!available()) {
+    // Bundles remove the need for a CREDENTIAL, not for the CLI that checks the signature. A caller
+    // that asked for bundle verification is never told the check was skipped.
+    if (required || bundleDirectory) throw new Error("gh CLI is unavailable but attestation verification is required");
     return { verified: false, skipped: true, reason: "gh CLI unavailable" };
   }
   for (const name of fileNames) {
-    const args = ["attestation", "verify", path.join(dir, name), "--repo", repo];
+    const target = path.join(dir, name);
+    const args = ["attestation", "verify", target, "--repo", repo];
+    if (bundleDirectory) args.push("--bundle", attestationBundleFor(bundleDirectory, sha256Hex(fs.readFileSync(target))));
     if (signerWorkflow) args.push("--signer-workflow", signerWorkflow);
     if (sourceDigest) args.push("--source-digest", sourceDigest);
     if (sourceRef) args.push("--source-ref", sourceRef);
-    execFileSync("gh", args, { stdio: "pipe" });
+    run(args);
   }
-  return { verified: true, skipped: false };
+  return { verified: true, skipped: false, offline: Boolean(bundleDirectory) };
 }
 
 function main() {
