@@ -200,6 +200,7 @@ test("rollback eligibility is durably recorded before mutation authority exists"
 });
 
 test("deployment establishes rollback first, requires readiness, and restores rollback images on failure", async () => {
+  const upState = {};
   const { item } = releaseFixture();
   const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
@@ -218,8 +219,8 @@ test("deployment establishes rollback first, requires readiness, and restores ro
     } }),
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: (args) => { calls.push({ args: ["agent", ...args], api: "agent", rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
-    runningContainers: () => [],
-    compose: (args, env, composeFile) => { if (isModelQuery(args)) return resolvedModelJson; if (args[0] !== "config" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
+    runningContainers: () => composeRunning(upState.up),
+    compose: (args, env, composeFile) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); if (args[0] !== "config" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; calls.push({ args, api: env.OPSWORKBENCH_API_IMAGE, composeFile, rollbackExists: fs.existsSync(path.join(preparation.stage, "rollback-ready.json")) }); },
     readiness: async () => rolledBack, identity: async () => ({ source: "manifest", commit: rolledBack ? rollbackCommit : commit }), acceptancePasses: 1,
   }), /was rolled back/);
   assert.equal(calls.filter((call) => call.args[0] !== "agent" || call.args[1] !== "prepare").every((call) => call.args[0] === "config" || call.rollbackExists), true, "every mutation follows rollback readiness");
@@ -230,6 +231,7 @@ test("deployment establishes rollback first, requires readiness, and restores ro
 });
 
 test("a post-acceptance record failure restores the current pointer and every runtime component", async () => {
+  const upState = {};
   const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
   const switches = []; const composeCalls = [];
@@ -240,7 +242,7 @@ test("a post-acceptance record failure restores the current pointer and every ru
     verifyCompatibility: async () => ({ ok: true, candidateCommit: commit, rollbackCommit, images: { candidate: { api: localId(item.candidateImages.api), web: localId(item.candidateImages.web), admin: localId(item.candidateImages.admin), gate: localId(item.candidateImages.reviewGate) }, rollback: { api: localId(item.rollback.images.api), web: localId(item.rollback.images.web), admin: localId(item.rollback.images.admin), gate: localId(item.rollback.images.reviewGate) } } }),
     images: { remoteInspect: (reference) => `Name: ${reference}\n`, pull: () => {}, localInspect: (reference) => ({ Id: localId(reference), RepoDigests: [reference], Config: { Labels: { "org.opencontainers.image.revision": revision(reference), "org.opencontainers.image.source": "https://github.com/williams342-maker/operation", "org.opencontainers.image.title": reference.includes("control-center-api") ? "opsworkbench-control-center-api" : reference.includes("control-center-web") ? "opsworkbench-control-center-web" : reference.includes("admin-web") ? "opsworkbench-control-center-admin-web" : "opsworkbench-review-gate" } } }) },
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
-    agentControl: () => {}, runningContainers: () => [], compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; composeCalls.push({ api: env.OPSWORKBENCH_API_IMAGE, file }); }, readiness: async () => true, identity: async () => ({ source: "manifest", commit: composeCalls.at(-1)?.api === item.candidateImages.api ? commit : rollbackCommit }), acceptancePasses: 1,
+    agentControl: () => {}, runningContainers: () => composeRunning(upState.up), compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); composeCalls.push({ api: env.OPSWORKBENCH_API_IMAGE, file }); }, readiness: async () => true, identity: async () => ({ source: "manifest", commit: composeCalls.at(-1)?.api === item.candidateImages.api ? commit : rollbackCommit }), acceptancePasses: 1,
     switchCurrent: (_current, target) => { switches.push(target); }, writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
   }), /was rolled back/);
   assert.deepEqual(switches, [preparation.installedControlCenter, preparation.rollbackControlCenter]);
@@ -284,6 +286,7 @@ test("a rollback compose file this host cannot load is refused before anything i
 // the rollback recreates the SAME application set as the deployment it is undoing, because a rollback
 // that touches a different set does not restore the state it promised. Mongo must appear in neither.
 test("forward and rollback recreate exactly the three application services this target runs", async () => {
+  const upState = {};
   const { item } = releaseFixture(); const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
   const ups = [];
@@ -297,8 +300,8 @@ test("forward and rollback recreate exactly the three application services this 
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: () => {}, readiness: async () => true, identity: async () => ({ source: "manifest", commit: ups.at(-1)?.rollback ? rollbackCommit : commit }), acceptancePasses: 1, switchCurrent: () => {},
     writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
-    runningContainers: () => [],
-    compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; if (args[0] === "up") ups.push({ args, services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
+    runningContainers: () => composeRunning(upState.up),
+    compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); if (args[0] === "up") ups.push({ args, services: args.filter((argument) => !argument.startsWith("-") && argument !== "up"), rollback: file === preparation.rollbackCompose && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api }); },
   }), /was rolled back/);
   const forward = ups.filter((call) => !call.rollback); const rollback = ups.filter((call) => call.rollback);
   // The FULL argument vector, not just the service names. Filtering the flags out to read the services
@@ -427,6 +430,18 @@ const runningImage = (digit) => `sha256:${String(digit).repeat(64).slice(0, 64)}
 // durable record names. A fixture without an id let a mutation that never records one pass unnoticed.
 const idFor = (name) => Buffer.from(name).toString("hex").padEnd(64, "0").slice(0, 64);
 const adminContainerId = idFor("opsworkbench-admin-web-1");
+// The deployer now measures WHAT IS RUNNING after each `up`, so a fixture has to move with it: before a
+// deployment these are the predecessor's containers, afterwards the candidate's, and after a recovery
+// the predecessor's again. A fixture pinned to one answer would let the check pass in a world where
+// nothing was ever recreated.
+const imageIdOf = (reference) => (/^sha256:[a-f0-9]{64}$/.test(reference) ? reference : `sha256:${sha(reference)}`);
+const composeRunning = (up, project = "opsworkbench") => (up ? ["api", "web", "admin"].map((service) => ({
+  Id: idFor(`${project}-${service}-1`), Name: `/${project}-${service}-1`, Image: imageIdOf(up[service]),
+  State: { Running: true, Status: "running" },
+  Config: { Image: "local-tag:abc", Labels: { "com.docker.compose.project": project, "com.docker.compose.service": service } },
+  HostConfig: { PortBindings: {} },
+})) : []);
+const recordUp = (state) => (args, env) => { if (args[0] === "up") state.up = { api: env.OPSWORKBENCH_API_IMAGE, web: env.OPSWORKBENCH_WEB_IMAGE, admin: env.OPSWORKBENCH_ADMIN_IMAGE }; };
 const containerFor = (name, project, service, image, bindings = {}, running = true) => ({
   Id: idFor(name), Name: `/${name}`, Image: image, State: { Running: running, Status: running ? "running" : "exited" },
   Config: { Image: "local-tag:abc", Labels: { ...(project ? { "com.docker.compose.project": project } : {}), ...(service ? { "com.docker.compose.service": service } : {}) } },
@@ -647,6 +662,7 @@ test("a host-verified rollback target is verified where it stands, never reinsta
 });
 
 test("a host-verified deployment rolls back to the images it measured, not to anything the plan named", async () => {
+  const upState = {};
   const { item } = releaseFixture();
   item.rollback = { ...without(item.rollback, "images"), evidence: "host-verified", adoptionRecords: [adoptionRecordFor(item, adminContainerId)] };
   item.forgeEvidence = without(item.forgeEvidence, "rollbackPath", "rollbackSha256");
@@ -673,9 +689,9 @@ test("a host-verified deployment rolls back to the images it measured, not to an
     verifyPlatformImages: async () => ({ ok: true, edgeImage: item.platform.edgeImage, mongoImage: item.platform.mongoImage }),
     agentControl: () => {}, readiness: async () => true, identity: async () => ({ source: "manifest", commit: ups.at(-1)?.api === item.candidateImages.api ? commit : rollbackCommit }), acceptancePasses: 1, switchCurrent: () => {},
     writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
-    runningContainers: () => running, allContainers: () => all,
+    runningContainers: () => (upState.up ? composeRunning(upState.up) : running), allContainers: () => all,
     compose: (args, env, file) => {
-      if (isModelQuery(args)) return resolvedModelJson;
+      if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env);
       if (args[0] === "up") ups.push({ api: env.OPSWORKBENCH_API_IMAGE, web: env.OPSWORKBENCH_WEB_IMAGE, admin: env.OPSWORKBENCH_ADMIN_IMAGE, file });
     },
   }), /was rolled back/);
@@ -996,6 +1012,7 @@ test("a live rollback release must already carry its manifest, and preparation n
 });
 
 test("the candidate and the rollback are given DIFFERENT manifests to mount", async () => {
+  const upState = {};
   const { item } = releaseFixture();
   const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
@@ -1004,8 +1021,8 @@ test("the candidate and the rollback are given DIFFERENT manifests to mount", as
   await assert.rejects(() => deployPreparedRelease(preparation, {
     verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
     verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
-    agentControl: () => {}, runningContainers: () => [],
-    compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; if (args[0] === "up") manifests.push({ manifest: env.OPSWORKBENCH_RELEASE_MANIFEST, api: env.OPSWORKBENCH_API_IMAGE, file }); },
+    agentControl: () => {}, runningContainers: () => composeRunning(upState.up),
+    compose: (args, env, file) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); if (args[0] === "up") manifests.push({ manifest: env.OPSWORKBENCH_RELEASE_MANIFEST, api: env.OPSWORKBENCH_API_IMAGE, file }); },
     readiness: async () => true,
     identity: async () => ({ source: "manifest", commit: manifests.at(-1)?.api === item.candidateImages.api ? commit : rollbackCommit }),
     acceptancePasses: 1, switchCurrent: () => {}, writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
@@ -1026,6 +1043,7 @@ for (const [label, answer, expected] of [
   ["silent about what it is", {}, /not manifest-backed/],
 ]) {
   test(`a deployed service that is ${label} fails the deployment`, async () => {
+  const upState = {};
     const { item } = releaseFixture();
     const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
     fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
@@ -1035,8 +1053,8 @@ for (const [label, answer, expected] of [
     await assert.rejects(() => deployPreparedRelease(preparation, {
       verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
       verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
-      agentControl: () => {}, runningContainers: () => [],
-      compose: (args) => { if (isModelQuery(args)) return resolvedModelJson; },
+      agentControl: () => {}, runningContainers: () => composeRunning(upState.up),
+      compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
       readiness: async () => true,
       // The candidate answer is wrong in the way the label says; the recovery answers correctly, so what
       // fails here is the deployment rather than the rollback.
@@ -1049,6 +1067,7 @@ for (const [label, answer, expected] of [
 }
 
 test("a rollback that does not restore the predecessor's identity is reported as such", async () => {
+  const upState = {};
   const { item } = releaseFixture();
   const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
   fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
@@ -1056,8 +1075,8 @@ test("a rollback that does not restore the predecessor's identity is reported as
   await assert.rejects(() => deployPreparedRelease(preparation, {
     verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
     verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
-    agentControl: () => {}, runningContainers: () => [],
-    compose: (args) => { if (isModelQuery(args)) return resolvedModelJson; },
+    agentControl: () => {}, runningContainers: () => composeRunning(upState.up),
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); recordUp(upState)(args, env); },
     readiness: async () => true,
     // The deployment fails at the record, and the recovery leaves the candidate's identity in place.
     identity: async () => ({ source: "manifest", commit }),
@@ -1079,4 +1098,85 @@ test("the shipped agent unit satisfies what the installer requires of it", () =>
   // Neither may the GROUP be root. The installer makes the release tree readable by the unit's group,
   // so `Group=root` would both hand the agent process root's group and make that grant meaningless.
   assert.notEqual(value("Group"), "root", "the group the tree is opened to must not be root's");
+});
+
+// A service can report the right release and still not be running it: the identity endpoint answers
+// from the manifest its container was handed, so mounting a candidate manifest beside old images
+// produces a confident, wrong answer. These cover the other half — what is actually running.
+
+for (const [label, containers, expected] of [
+  ["running an image this deployment did not resolve", (up) => composeRunning({ ...up, web: "ghcr.io/williams342-maker/operation/control-center-web@sha256:" + "9".repeat(64) }), /is running .*expected/],
+  ["not running at all", () => [], /not exactly one running container/],
+  ["running two containers of the same service", (up) => [...composeRunning(up), ...composeRunning(up).slice(0, 1)], /not exactly one running container/],
+]) {
+  test(`a deployed service ${label} fails the deployment even when identity agrees`, async () => {
+    const upState = {};
+    const { item } = releaseFixture();
+    const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+    fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+    const hooks = identityImageHooks(item);
+    let switched = false;
+    await assert.rejects(() => deployPreparedRelease(preparation, {
+      verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+      verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+      agentControl: () => {},
+      compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+      // The forward path is the case under test; the recovery reports itself correctly so what fails is
+      // the deployment rather than the rollback.
+      runningContainers: () => (switched || upState.up?.api !== item.candidateImages.api ? composeRunning(upState.up) : containers(upState.up)),
+      readiness: async () => true,
+      identity: async () => ({ source: "manifest", commit: upState.up?.api === item.candidateImages.api ? commit : rollbackCommit }),
+      acceptancePasses: 1,
+      switchCurrent: () => { switched = true; },
+    }), (error) => { assert.match(error.message, /was rolled back/); assert.match(error.message, expected); return true; });
+    assert.equal(switched, false, "the release pointer never moved");
+  });
+}
+
+test("the identity reader refuses an error response instead of reading its body", async (t) => {
+  // The tests above replace this reader wholesale, so without this one the production version could
+  // lose its status check entirely and every one of them would still pass -- an HTTP 500 carrying
+  // matching JSON would have counted as a verified deployment.
+  const { item } = releaseFixture();
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const upState = {};
+  const hooks = identityImageHooks(item);
+  const requested = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requested.push(String(url));
+    return { ok: false, status: 503, json: async () => ({ source: "manifest", commit }) };
+  });
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: () => {},
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    // No identity hook: the REAL reader runs, against a mocked fetch.
+    acceptancePasses: 1, switchCurrent: () => {},
+  }), (error) => { assert.match(error.message, /identity endpoint refused/); return true; });
+  assert.ok(requested.includes(item.identityEndpoint), "the reader asked the endpoint the plan names");
+});
+
+test("a rollback that reports the predecessor but runs something else is reported as such", async () => {
+  // The recovery is held to both halves too: saying "I am the predecessor" is not the same as running
+  // the predecessor's images, and a recovery that half-worked is the worst thing to record as success.
+  const upState = {};
+  const { item } = releaseFixture();
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const stranger = `ghcr.io/williams342-maker/operation/control-center-api@sha256:${"7".repeat(64)}`;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: () => {},
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => (!upState.up ? [] : upState.up.api === item.candidateImages.api ? composeRunning(upState.up) : composeRunning({ ...upState.up, api: stranger })),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit: upState.up?.api === item.candidateImages.api ? commit : rollbackCommit }),
+    acceptancePasses: 1, switchCurrent: () => {}, writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
+  }), (error) => { assert.match(error.message, /rollback did not restore the predecessor/); assert.match(error.message, /api is running/); return true; });
 });

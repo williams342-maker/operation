@@ -57,7 +57,12 @@ if [ "$command" = activate ]; then
   agent_group="$(sed -n 's/^[[:space:]]*Group=[[:space:]]*//p' "$agent_unit" | head -n 1)"
   [ -n "$agent_group" ] || agent_group="$(id -gn "$agent_user")"
   getent group "$agent_group" >/dev/null || fail "candidate agent unit names a group this host does not have: $agent_group"
-  mkdir -p "$install_root/releases"; chown root:"$agent_group" "$install_root/releases"; chmod 0750 "$install_root/releases"
+  # ONLY EVER WIDENED, never re-owned. `releases/` is shared with every release that came before,
+  # including whichever one a rollback would return to, so taking its group or narrowing its mode can
+  # strip traversal from a predecessor that runs under a different account -- and nothing in the
+  # rollback path would put that back. Traversal is all the agent needs here; the release trees
+  # underneath stay group-only.
+  mkdir -p "$install_root/releases"; chmod a+rx "$install_root/releases"
   cp -a -- "$candidate" "$pending"; chown -R root:"$agent_group" "$pending"; chmod -R u=rwX,g=rX,o= "$pending"
   # Asked of the account that will run it, before `current` moves or the service is touched, because a
   # failure here is otherwise a ninety-second heartbeat timeout and a full rollback.
@@ -70,7 +75,11 @@ if [ "$command" = activate ]; then
   case "$agent_work" in "$install_root"/current/*) ;; *) rm -rf -- "$pending"; fail "candidate agent unit does not run from $install_root/current" ;; esac
   probe_work="$pending/${agent_work#"$install_root"/current/}"
   probe_main="$pending/control-center/apps/agent/dist/agent.js"
-  if ! runuser -u "$agent_user" -- test -x "$probe_work" || ! runuser -u "$agent_user" -- test -r "$probe_main"; then
+  # WITH THE UNIT'S GROUP, not merely the account's own. systemd applies `Group=` explicitly, so a
+  # configuration where that group is neither the account's primary nor a supplementary group would
+  # have been probed under credentials systemd never uses -- a probe that answers a different question
+  # than the one being asked.
+  if ! runuser -u "$agent_user" -g "$agent_group" -- test -x "$probe_work" || ! runuser -u "$agent_user" -g "$agent_group" -- test -r "$probe_main"; then
     rm -rf -- "$pending"; fail "the agent account cannot read the candidate tree it would run from"
   fi
   mv -- "$pending" "$target"

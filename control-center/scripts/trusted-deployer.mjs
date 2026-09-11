@@ -845,6 +845,30 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     if (body?.source !== "manifest") throw new Error(`${label} identity is not manifest-backed: ${body?.source ?? "absent"}`);
     if (body?.commit !== expectedCommit) throw new Error(`${label} identity reports ${body?.commit ?? "absent"}, expected ${expectedCommit}`);
   };
+  /**
+   * WHAT IS RUNNING, measured here rather than reported by the service.
+   *
+   * The identity endpoint answers from the manifest its container was handed, so on its own it proves
+   * which DOCUMENT was mounted, not which CODE is serving: mount a candidate manifest beside old
+   * images and the answer is confident and wrong. This is the other half — every application service
+   * must be running exactly one container of this project, and that container's image must be the
+   * exact image this deployment resolved.
+   */
+  const assertRunningImages = (expected, label) => {
+    const containers = (hooks.runningContainers ?? defaultRunningContainers)();
+    for (const service of applicationServices) {
+      const matches = (containers ?? []).filter((container) => {
+        const labels = container?.Config?.Labels ?? {};
+        if (String(labels["com.docker.compose.oneoff"] ?? "").toLowerCase() === "true") return false;
+        return labels[composeProjectLabel] === plan.composeProject && labels["com.docker.compose.service"] === service && container?.State?.Running === true;
+      });
+      if (matches.length !== 1) throw new Error(`${label} ${service} is not exactly one running container of this project: found ${matches.length}`);
+      const expectedImage = expected[service];
+      if (!expectedImage) throw new Error(`${label} ${service} has no expected image to compare against`);
+      if (matches[0].Image !== expectedImage) throw new Error(`${label} ${service} is running ${matches[0].Image ?? "an unknown image"}, expected ${expectedImage}`);
+    }
+  };
+  const runningExpectation = (set, references) => Object.fromEntries(applicationServices.map((service) => [service, imageEvidence.find((entry) => entry.set === set && entry.role === service)?.localImageId ?? references?.[service]]));
   const candidateEnv = environmentFor(plan.candidateImages, preparation.releaseManifest);
   compose(["config", "--quiet"], candidateEnv, preparation.compose);
   // Port ownership, which nothing here has ever checked.
@@ -960,6 +984,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     // Before the release pointer moves, and inside the try, so a service that answers but is still the
     // release being replaced is a failed deployment that rolls back rather than a recorded success.
     await assertIdentity(plan.commit, "deployed");
+    assertRunningImages(runningExpectation("candidate", plan.candidateImages), "deployed");
     (hooks.switchCurrent ?? switchCurrentRelease)(priorCurrent, preparation.installedControlCenter); currentSwitched = true;
     record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
     (hooks.writeDeploymentRecord ?? ((file, body) => fs.writeFileSync(file, body, { flag: "wx", mode: 0o400 })))(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
@@ -975,7 +1000,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     // The recovery is held to the same standard as the deployment: the service must say it is the
     // PREDECESSOR. A rollback that leaves the candidate's identity in place is not a rollback, and the
     // original failure is still what gets reported either way.
-    try { await assertIdentity(plan.rollback.commit, "rolled-back"); }
+    try { await assertIdentity(plan.rollback.commit, "rolled-back"); assertRunningImages(runningExpectation("rollback", rollbackImages), "rolled-back"); }
     catch (identityCause) { throw new AggregateError([cause, identityCause], `deployment failed and the rollback did not restore the predecessor's identity: ${cause.message}; ${identityCause.message}`, { cause: identityCause }); }
     throw new Error(`deployment failed and was rolled back: ${cause.message}`, { cause });
   }
