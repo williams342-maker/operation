@@ -80,7 +80,10 @@ test("the admin healthcheck specifically does not ask for a path the default blo
 // host meant a service claiming `phase2-staging` while running something else entirely, through every
 // readiness check ever run against it.
 test("the api mounts the release manifest it is pointed at", () => {
-  const api = compose.slice(compose.indexOf("  api:"), compose.indexOf("  web:"));
+  // COMMENTS STRIPPED FIRST. The block carries a long comment naming these very keys, so a match
+  // against the raw text passed with the mount commented out -- the check would have gone on passing
+  // through the deployment it exists to protect.
+  const api = compose.slice(compose.indexOf("  api:"), compose.indexOf("  web:")).split(/\r?\n/).filter((line) => !line.trim().startsWith("#")).join("\n");
   assert.match(api, /CONTROL_CENTER_RELEASE_MANIFEST:\s*\/run\/opsworkbench-release\/manifest\.json/, "the api must be told where its manifest is");
   assert.match(api, /\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}:\/run\/opsworkbench-release\/manifest\.json:ro/, "and the path must come from the deployment, read-only, with no default that would silently mount the wrong release");
   // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
