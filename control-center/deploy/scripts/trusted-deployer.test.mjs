@@ -1108,6 +1108,9 @@ for (const [label, containers, expected] of [
   ["running an image this deployment did not resolve", (up) => composeRunning({ ...up, web: "ghcr.io/williams342-maker/operation/control-center-web@sha256:" + "9".repeat(64) }), /is running .*expected/],
   ["not running at all", () => [], /not exactly one running container/],
   ["running two containers of the same service", (up) => [...composeRunning(up), ...composeRunning(up).slice(0, 1)], /not exactly one running container/],
+  // A container that EXISTS is not a container that is serving: without this, dropping the running
+  // condition from the check left every other test green.
+  ["present but stopped", (up) => composeRunning(up).map((container) => ({ ...container, State: { Running: false, Status: "exited" } })), /not exactly one running container/],
 ]) {
   test(`a deployed service ${label} fails the deployment even when identity agrees`, async () => {
     const upState = {};
@@ -1179,4 +1182,28 @@ test("a rollback that reports the predecessor but runs something else is reporte
     identity: async () => ({ source: "manifest", commit: upState.up?.api === item.candidateImages.api ? commit : rollbackCommit }),
     acceptancePasses: 1, switchCurrent: () => {}, writeDeploymentRecord: () => { throw new Error("disk refused final record"); },
   }), (error) => { assert.match(error.message, /rollback did not restore the predecessor/); assert.match(error.message, /api is running/); return true; });
+});
+
+test("containers belonging to another compose project do not satisfy the running check", async () => {
+  // Removing the project-label condition from assertRunningImages left every other test green: the
+  // fixtures only ever produced this project's containers, so "is it ours" was asserted by nobody. A
+  // neighbouring project running the same images on the same host is the case that matters.
+  const upState = {};
+  const { item } = releaseFixture();
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  let switched = false;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: () => {},
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    // Same images, same services, same host -- a different project. Nothing of ours is running.
+    runningContainers: () => (switched || upState.up?.api !== item.candidateImages.api ? composeRunning(upState.up) : composeRunning(upState.up, "someone-elses-stack")),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit: upState.up?.api === item.candidateImages.api ? commit : rollbackCommit }),
+    acceptancePasses: 1, switchCurrent: () => { switched = true; },
+  }), (error) => { assert.match(error.message, /was rolled back/); assert.match(error.message, /not exactly one running container of this project/); return true; });
+  assert.equal(switched, false, "the release pointer never moved");
 });
