@@ -1093,7 +1093,11 @@ test("the shipped agent unit satisfies what the installer requires of it", () =>
   assert.match(value("User"), /^[a-z_][a-z0-9_-]*$/, "the unit must name the account it runs as");
   assert.match(value("Group"), /^[a-z_][a-z0-9_-]*$/, "and the group, which is what the installed tree is made readable by");
   assert.ok(value("WorkingDirectory").startsWith("/opt/opsworkbench-agent/current/"), "the working directory must be under the current symlink, or the installer's pre-flight probe tests the wrong path");
-  assert.ok(value("ExecStart").includes("/opt/opsworkbench-agent/current/"), "and so must the entry point");
+  // THE EXACT ENTRY POINT, not merely a path under `current`. The installer probes a hard-coded
+  // `apps/agent/dist/agent.js` for readability, so a unit pointing anywhere else would sail through the
+  // pre-flight and fail at service start — which is the failure this whole change exists to prevent.
+  assert.equal(value("ExecStart"), "/usr/bin/node /opt/opsworkbench-agent/current/control-center/apps/agent/dist/agent.js", "the unit must start the entry point the installer probes");
+  assert.equal(value("WorkingDirectory"), "/opt/opsworkbench-agent/current/control-center/apps/agent");
   assert.notEqual(value("User"), "root", "an agent that ran as root would not have needed any of this");
   // Neither may the GROUP be root. The installer makes the release tree readable by the unit's group,
   // so `Group=root` would both hand the agent process root's group and make that grant meaningless.

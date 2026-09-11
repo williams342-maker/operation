@@ -39,13 +39,12 @@ test("the probe is given group NAMES, never the gids they came from", (t) => {
     assert.equal(printed[index], "-G");
     supplementary.push(printed[index + 1]);
   }
+  // The expected names are derived HERE, from the account's gids, not read back out of what the tool
+  // printed. Counting entries and checking each resolves would accept the right number of wrong groups.
   const gids = execFileSync("id", ["-G", user], { encoding: "utf8" }).trim().split(/\s+/);
-  assert.equal(supplementary.length, gids.length, "every group the account is in is carried over");
-  for (const name of supplementary) {
-    assert.doesNotMatch(name, /^[0-9]+$/, `runuser would look up a group NAMED ${name}, and there is none`);
-    const resolved = execFileSync("getent", ["group", name], { encoding: "utf8" }).trim();
-    assert.ok(resolved.length > 0, `${name} resolves to a real group`);
-  }
+  const expected = gids.map((gid) => execFileSync("getent", ["group", gid], { encoding: "utf8" }).trim().split(":")[0]);
+  assert.deepEqual(supplementary, expected, "the groups carried over are the account's own, by name");
+  for (const name of supplementary) assert.doesNotMatch(name, /^[0-9]+$/, `runuser would look up a group NAMED ${name}, and there is none`);
 });
 
 test("runuser accepts the credential list the installer builds, and really drops to it", (t) => {
@@ -69,9 +68,11 @@ test("runuser accepts the credential list the installer builds, and really drops
   const identity = (...command) => execFileSync("runuser", [...printed, "--", ...command], { encoding: "utf8" }).trim();
   assert.equal(identity("id", "-un"), user, "the process really runs as that account");
   assert.equal(identity("id", "-gn"), group, "with the group that was asked for as its primary");
-  const carried = identity("id", "-Gn").split(/\s+/).sort();
-  const expected = printed.filter((_, index) => index >= 4 && index % 2 === 1).concat(group).sort();
-  assert.deepEqual([...new Set(carried)], [...new Set(expected)], "and exactly the supplementary groups the list named");
+  // Compared against the account's OWN groups read here, not against the list the installer printed:
+  // deriving the expectation from the thing under test is how a wrong list would agree with itself.
+  const carried = identity("id", "-Gn").split(/\s+/);
+  const own = execFileSync("id", ["-Gn", user], { encoding: "utf8" }).trim().split(/\s+/);
+  assert.deepEqual([...new Set(carried)].sort(), [...new Set([...own, group])].sort(), "and exactly the account's groups, plus the one asked for");
 });
 
 test("the primary group comes from the argument, not from the account", (t) => {

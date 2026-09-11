@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 // A container healthcheck runs INSIDE the container, against 127.0.0.1, carrying no Host header that
 // matches any `server_name`. So it lands in NGINX's default server block -- and a default block that
@@ -80,41 +81,24 @@ test("the admin healthcheck specifically does not ask for a path the default blo
 // host meant a service claiming `phase2-staging` while running something else entirely, through every
 // readiness check ever run against it.
 
-/** One service block, read by indentation: `{ <key>: [entry, ...] }` for the keys that are lists or maps. */
-function serviceBlock(text, name) {
-  const found = {};
-  let inService = false;
-  let key = null;
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim() || line.trim().startsWith("#")) continue;
-    // ANY key at service indentation ends the block, however it is written. Matching only the bare
-    // `name:` form let `"web":` and `web: # a comment` slip through, so a mount moved under web was
-    // still read as the api's and a removed mount still passed.
-    const service = /^ {2}(?:"([^"]+)"|'([^']+)'|([^\s:#][^:]*)):(?:\s|$)/.exec(line);
-    if (service) { inService = (service[1] ?? service[2] ?? service[3]).trim() === name; key = null; continue; }
-    if (!inService) continue;
-    const declared = /^ {4}([a-z][a-zA-Z0-9_-]*):\s*(\S.*)?$/.exec(line);
-    if (declared) { key = declared[1]; found[key] = found[key] ?? []; if (declared[2]) found[key].push(declared[2].trim()); continue; }
-    if (key && /^ {6}\S/.test(line)) found[key].push(line.trim());
-  }
-  return found;
-}
+// PARSED, NOT MATCHED. Three hand-written versions of this check were each defeated in review: a
+// commented-out mount, `volumes:` renamed to an extension Compose ignores, a quoted or
+// trailing-commented service key, and finally a mount moved to a top-level extension while the api
+// block was read as running to the end of the file. Legitimate flow-style and aliased forms failed it
+// too. A parser ends that: what the test reads is what Compose reads.
 test("the api mounts the release manifest it is pointed at", () => {
-  // STRUCTURE, NOT TEXT. Matching the raw block passed with the mount commented out, and then with
-  // `volumes:` renamed to `x-volumes:` -- which Compose ignores entirely, mounting nothing, while every
-  // assertion still found its line. So the block is walked by indentation and the two keys are read
-  // out of it.
-  const api = serviceBlock(compose, "api");
-  const told = (api.environment ?? []).map((entry) => /^([A-Za-z0-9_]+):\s*(\S.*?)\s*$/.exec(entry.replace(/^-\s*/, ""))).filter(Boolean).find((match) => match[1] === "CONTROL_CENTER_RELEASE_MANIFEST");
-  // Read from the right: the source half can contain spaces inside `${VAR:?message}`, the destination
-  // and mode cannot.
-  const mounted = (api.volumes ?? []).map((entry) => /^-\s*(.+?):(\/[^:\s]+)(?::([a-z,]+))?\s*$/.exec(entry)).filter(Boolean).find((match) => match[1].includes("OPSWORKBENCH_RELEASE_MANIFEST"));
-  assert.ok(told, "the api must be told where its manifest is, under its own environment key");
-  assert.ok(mounted, "and the manifest must be mounted, under its own volumes key");
-  assert.equal(told[2].replace(/^["']|["']$/g, ""), mounted[2], "the path the api is told to read must be the path the manifest is mounted at");
-  assert.equal(mounted[2], "/run/opsworkbench-release/manifest.json");
-  assert.equal(mounted[3], "ro", "the release manifest is evidence, and the service must not be able to rewrite it");
+  const api = parse(compose).services.api;
+  const told = api.environment?.CONTROL_CENTER_RELEASE_MANIFEST;
+  const mounts = (api.volumes ?? []).map((entry) => (typeof entry === "string"
+    ? { source: entry.slice(0, entry.indexOf(":", entry.lastIndexOf("}") + 1)), target: entry.split(":").at(-2), mode: entry.split(":").at(-1) }
+    : { source: entry.source, target: entry.target, mode: entry.read_only ? "ro" : "rw" }));
+  const mounted = mounts.find((entry) => String(entry.source).includes("OPSWORKBENCH_RELEASE_MANIFEST"));
+  assert.ok(told, "the api must be told where its manifest is");
+  assert.ok(mounted, "and the manifest must actually be mounted into it");
+  assert.equal(told, mounted.target, "the path the api is told to read must be the path the manifest is mounted at");
+  assert.equal(mounted.target, "/run/opsworkbench-release/manifest.json");
+  assert.equal(mounted.mode, "ro", "the release manifest is evidence, and the service must not be able to rewrite it");
   // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
   // quietly mount whatever a default names.
-  assert.match(mounted[1], /^\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}$/, "a default would let a deployment run without being told which release it is");
+  assert.match(String(mounted.source), /^\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}$/, "a default would let a deployment run without being told which release it is");
 });
