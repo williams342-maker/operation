@@ -88,16 +88,31 @@ test("the admin healthcheck specifically does not ask for a path the default blo
 // too. A parser ends that: what the test reads is what Compose reads.
 test("the api mounts the release manifest it is pointed at", () => {
   const api = parse(compose).services.api;
-  const told = api.environment?.CONTROL_CENTER_RELEASE_MANIFEST;
+  // Both spellings Compose accepts for each field, because a test that only understands the one in
+  // front of it rejects a legitimate reformat and, worse, shrugs at a broken mount. A short mount with
+  // an extra field and a long mount declaring `type: volume` were both accepted by the previous
+  // decomposition; a read-only bind written `ro,Z` was rejected by it.
+  const told = Array.isArray(api.environment)
+    ? api.environment.map((entry) => /^([^=]+)=(.*)$/.exec(entry)).filter(Boolean).find((match) => match[1] === "CONTROL_CENTER_RELEASE_MANIFEST")?.[2]
+    : api.environment?.CONTROL_CENTER_RELEASE_MANIFEST;
+  const shortForm = (entry) => {
+    // The source may contain colons inside `${VAR:?message}`, so the split starts after it.
+    const separator = entry.indexOf(":", entry.lastIndexOf("}") + 1);
+    if (separator < 0) return { source: entry, target: null, options: [], fields: 1 };
+    const rest = entry.slice(separator + 1).split(":");
+    return { source: entry.slice(0, separator), target: rest[0], options: (rest[1] ?? "rw").split(","), fields: rest.length + 1 };
+  };
   const mounts = (api.volumes ?? []).map((entry) => (typeof entry === "string"
-    ? { source: entry.slice(0, entry.indexOf(":", entry.lastIndexOf("}") + 1)), target: entry.split(":").at(-2), mode: entry.split(":").at(-1) }
-    : { source: entry.source, target: entry.target, mode: entry.read_only ? "ro" : "rw" }));
+    ? shortForm(entry)
+    : { source: entry.source, target: entry.target, options: [entry.read_only ? "ro" : "rw"], fields: 3, type: entry.type }));
   const mounted = mounts.find((entry) => String(entry.source).includes("OPSWORKBENCH_RELEASE_MANIFEST"));
   assert.ok(told, "the api must be told where its manifest is");
   assert.ok(mounted, "and the manifest must actually be mounted into it");
+  assert.ok(mounted.fields <= 3, "a mount with an extra field is not the mount it looks like");
+  assert.equal(mounted.type ?? "bind", "bind", "the manifest is a file on the host, not a named volume");
   assert.equal(told, mounted.target, "the path the api is told to read must be the path the manifest is mounted at");
   assert.equal(mounted.target, "/run/opsworkbench-release/manifest.json");
-  assert.equal(mounted.mode, "ro", "the release manifest is evidence, and the service must not be able to rewrite it");
+  assert.ok(mounted.options.includes("ro"), "the release manifest is evidence, and the service must not be able to rewrite it");
   // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
   // quietly mount whatever a default names.
   assert.match(String(mounted.source), /^\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}$/, "a default would let a deployment run without being told which release it is");
