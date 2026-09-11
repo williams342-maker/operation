@@ -39,7 +39,15 @@ export function parseSha256Sums(text) {
 
 // Pure, offline verification of a release-output directory. Returns { ok, problems, manifest }.
 // Never throws on verification failure — collects problems so callers/tests can assert precisely.
-export function verifyReleaseBundle(dir, { expectedTag } = {}) {
+/**
+ * `requireAgentArtifact` exists for ONE case: a host-verified rollback onto a release that predates the
+ * agent artifact entirely. The agent installed by a deployment is always the CANDIDATE's -- a rollback
+ * bundle's agent artifact is read by nothing, here or in the deployer -- so requiring it of a rollback
+ * was a check on a field that is never used. It stays required everywhere else, including for every
+ * candidate and for an attested rollback, because there it costs nothing and a missing one would mean a
+ * malformed release.
+ */
+export function verifyReleaseBundle(dir, { expectedTag, requireAgentArtifact = true } = {}) {
   const problems = [];
   const sumsPath = path.join(dir, "SHA256SUMS");
   if (!fs.existsSync(sumsPath) || !fs.statSync(sumsPath).isFile()) {
@@ -82,7 +90,12 @@ export function verifyReleaseBundle(dir, { expectedTag } = {}) {
       problems.push(`manifest tag ${manifest.tag} != expected ${expectedTag}`);
     }
     if (!manifest.artifact || !entries.some((entry) => entry && entry.name === manifest.artifact)) problems.push("manifest artifact is not covered by SHA256SUMS");
-    if (!manifest.agentArtifact || !entries.some((entry) => entry && entry.name === manifest.agentArtifact)) problems.push("manifest agentArtifact is not covered by SHA256SUMS");
+    // A DECLARED agent artifact must always be covered by SHA256SUMS, even when one is not required.
+    // Relaxing "must be present" into "may be absent, unverified" would let a bundle name an artifact
+    // nothing checks, which is the opposite of the point.
+    if (manifest.agentArtifact || requireAgentArtifact) {
+      if (!manifest.agentArtifact || !entries.some((entry) => entry && entry.name === manifest.agentArtifact)) problems.push("manifest agentArtifact is not covered by SHA256SUMS");
+    }
   }
 
   return { ok: problems.length === 0, problems, manifest };

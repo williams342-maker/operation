@@ -230,7 +230,10 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     if (agentMetadata.schemaVersion !== "opsworkbench-agent-release-v1" || agentMetadata.tag !== plan.tag || agentMetadata.commit !== plan.commit || agentMetadata.tree !== plan.tree) throw new Error("agent artifact names a different release identity");
     for (const required of ["apps/agent/dist/agent.js", "apps/updater/dist/main.js", "deploy/systemd/opsworkbench-agent.service"]) if (!fs.lstatSync(path.join(agentExtracted, "control-center", required)).isFile()) throw new Error(`agent artifact is missing ${required}`);
     const rollbackBundle = path.join(stage, "rollback-bundle"); fs.mkdirSync(rollbackBundle, { mode: 0o700 });
-    const rollbackCheck = verifyReleaseBundle(plan.rollback.bundleDirectory, { expectedTag: plan.rollback.tag });
+    // The agent artifact is the CANDIDATE's, and nothing reads a rollback bundle's. A host-verified
+    // rollback targets the release actually running, which on this host predates the agent artifact, so
+    // demanding one would refuse the only rollback target a first deployment can have.
+    const rollbackCheck = verifyReleaseBundle(plan.rollback.bundleDirectory, { expectedTag: plan.rollback.tag, requireAgentArtifact: !hostVerified(plan) });
     if (!rollbackCheck.ok || rollbackCheck.manifest.commit !== plan.rollback.commit) throw new Error("rollback release bundle failed verification");
     const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(plan.rollback.bundleDirectory, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
     for (const name of ["SHA256SUMS", ...rollbackListed]) copyStableRegular(path.join(plan.rollback.bundleDirectory, name), path.join(rollbackBundle, name));
@@ -383,7 +386,9 @@ export function reverifyPreparedRelease(preparation, hooks = {}) {
   if (inspectedAgent.archiveCommit !== preparation.plan.commit) throw new Error("prepared agent archive commit changed");
   const agentTree = compareReleaseTree(preparation.expectedAgentTree, describeTree(preparation.agentExtracted));
   if (!inspectedAgent.members.size || !agentTree.ok) throw new Error(`prepared agent tree changed before consumption: ${agentTree.problems.join("; ")}`);
-  const rollbackCheck = verifyReleaseBundle(preparation.rollbackBundle, { expectedTag: preparation.plan.rollback.tag });
+  // Same option as preparation used. A stricter re-verification would refuse at the last moment over
+  // the exact bundle preparation accepted, which is the drift that makes a late check worse than none.
+  const rollbackCheck = verifyReleaseBundle(preparation.rollbackBundle, { expectedTag: preparation.plan.rollback.tag, requireAgentArtifact: !hostVerified(preparation.plan) });
   if (!rollbackCheck.ok || rollbackCheck.manifest.commit !== preparation.plan.rollback.commit) throw new Error("rollback bundle changed before consumption");
   const rollbackListed = parseSha256Sums(fs.readFileSync(path.join(preparation.rollbackBundle, "SHA256SUMS"), "utf8")).filter(Boolean).map((entry) => entry.name);
   (hooks.verifyAttestation ?? verifyAttestation)(preparation.rollbackBundle, rollbackListed, { required: true, signerWorkflow: "williams342-maker/operation/.github/workflows/control-center-release.yml", sourceDigest: preparation.plan.rollback.commit, sourceRef: `refs/tags/${preparation.plan.rollback.tag}` });
