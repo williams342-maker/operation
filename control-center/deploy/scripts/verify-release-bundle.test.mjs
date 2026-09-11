@@ -10,7 +10,10 @@ import {
 } from "../../scripts/verify-release-bundle.mjs";
 
 // Build a minimal, self-consistent release-output/ directory in a temp dir.
-function makeBundle({ tag = "v1.2.3-rc1", commit = "a".repeat(40), tamper = null, schema = "opsworkbench-release-v1" } = {}) {
+// `omitAgent` reproduces the shape of a release from before the agent artifact existed: no
+// `agentArtifact` key in the manifest and no agent entry in SHA256SUMS. The live release on the
+// production host is exactly this, and it is the only rollback target a first deployment can have.
+function makeBundle({ tag = "v1.2.3-rc1", commit = "a".repeat(40), tamper = null, schema = "opsworkbench-release-v1", omitAgent = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "relbundle-"));
   const version = tag.slice(1);
   const artifact = `opsworkbench-control-center-${version}.tar.gz`;
@@ -18,14 +21,15 @@ function makeBundle({ tag = "v1.2.3-rc1", commit = "a".repeat(40), tamper = null
   const manifestName = `opsworkbench-control-center-${version}.manifest.json`;
   const tarballBytes = Buffer.from("fake-deterministic-tarball-bytes");
   const agentBytes = Buffer.from("fake-agent-bundle");
-  const manifest = { schemaVersion: schema, tag, commit, artifact, agentArtifact, source: "test", reproducible: true };
+  const manifest = { schemaVersion: schema, tag, commit, artifact, source: "test", reproducible: true };
+  if (!omitAgent) manifest.agentArtifact = agentArtifact;
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
   fs.writeFileSync(path.join(dir, artifact), tarballBytes);
-  fs.writeFileSync(path.join(dir, agentArtifact), agentBytes);
+  if (!omitAgent) fs.writeFileSync(path.join(dir, agentArtifact), agentBytes);
   fs.writeFileSync(path.join(dir, manifestName), manifestBytes);
   const sums =
     `${sha256Hex(tarballBytes)}  ${artifact}\n` +
-    `${sha256Hex(agentBytes)}  ${agentArtifact}\n` +
+    (omitAgent ? "" : `${sha256Hex(agentBytes)}  ${agentArtifact}\n`) +
     `${sha256Hex(manifestBytes)}  ${manifestName}\n`;
   fs.writeFileSync(path.join(dir, "SHA256SUMS"), sums);
   if (tamper === "tarball") fs.writeFileSync(path.join(dir, artifact), Buffer.from("MUTATED"));
@@ -33,6 +37,36 @@ function makeBundle({ tag = "v1.2.3-rc1", commit = "a".repeat(40), tamper = null
   if (tamper === "remove-sums") fs.rmSync(path.join(dir, "SHA256SUMS"));
   return { dir, tag, commit, artifact, manifestName };
 }
+
+test("the agent artifact is required by default, optional for a rollback, and checked whenever declared", () => {
+  // A release from before the agent artifact existed. Required by default, so a malformed modern
+  // bundle is still caught; optional when the caller asks, which is the only way a first deployment
+  // can roll back to the release it is replacing.
+  const { dir, tag } = makeBundle({ tag: "v0.1.2-operate", omitAgent: true });
+  const required = verifyReleaseBundle(dir, { expectedTag: tag });
+  assert.equal(required.ok, false, "required by default");
+  assert.match(required.problems.join(" "), /agentArtifact/);
+  assert.equal(verifyReleaseBundle(dir, { expectedTag: tag, requireAgentArtifact: false }).ok, true, "and accepted when it is not required");
+
+  // A DECLARED agent artifact is still checked even when one is not required. Without this, the option
+  // would let a bundle name an artifact that nothing verifies -- worse than requiring it outright.
+  const { dir: declared, tag: declaredTag } = makeBundle({ tag: "v0.1.2-operate" });
+  const manifestPath = path.join(declared, fs.readdirSync(declared).find((name) => name.endsWith(".manifest.json")));
+  const agentName = JSON.parse(fs.readFileSync(manifestPath, "utf8")).agentArtifact;
+  const trimmed = fs.readFileSync(path.join(declared, "SHA256SUMS"), "utf8").split(/\r?\n/).filter(Boolean).filter((line) => !line.endsWith(agentName));
+  fs.writeFileSync(path.join(declared, "SHA256SUMS"), `${trimmed.join("\n")}\n`);
+  const stillChecked = verifyReleaseBundle(declared, { expectedTag: declaredTag, requireAgentArtifact: false });
+  assert.equal(stillChecked.ok, false, "declared but uncovered is still a problem");
+  assert.match(stillChecked.problems.join(" "), /agentArtifact/);
+
+  // And the artifact itself is never optional, in either mode.
+  const { dir: noArtifact, tag: noArtifactTag } = makeBundle({ omitAgent: true });
+  const noArtifactManifest = path.join(noArtifact, fs.readdirSync(noArtifact).find((name) => name.endsWith(".manifest.json")));
+  const parsed = JSON.parse(fs.readFileSync(noArtifactManifest, "utf8"));
+  delete parsed.artifact;
+  fs.writeFileSync(noArtifactManifest, `${JSON.stringify(parsed, null, 2)}\n`);
+  assert.equal(verifyReleaseBundle(noArtifact, { expectedTag: noArtifactTag, requireAgentArtifact: false }).ok, false);
+});
 
 test("parseSha256Sums parses valid lines and flags malformed ones", () => {
   const parsed = parseSha256Sums(`${"a".repeat(64)}  file.tar.gz\nnot-a-checksum line\n`);

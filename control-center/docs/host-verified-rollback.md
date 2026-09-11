@@ -11,6 +11,8 @@ On this target the live release:
 
 - **cannot be rebuilt** — `apps/web/Dockerfile.admin` entered the repository only on 2026-09-04, so no
   rehearsal can produce it and no rehearsal can name it;
+- **has no agent artifact** — its manifest predates the field entirely, and its `SHA256SUMS` covers two
+  files rather than three;
 - **has no Forge build document** — it predates Forge entirely;
 - **has images that were built on the box and never pushed**, so they carry no registry digest and no
   image attestation;
@@ -44,6 +46,13 @@ the caller, and required to sit inside the same protected location as the plan a
 | a predecessor found by its port is one a person stopped | its id must be named by an adoption record, since the unmanaged container is stopped by then and state cannot tell it from a stale one |
 | each service resolves to exactly one predecessor | zero or several is a refusal, never a guess |
 | the predecessor is not already the candidate | compared as local image ids, which is what both sides actually are |
+| the rollback bundle is whole | checksums, attestation, manifest commit and archive digest, all still required; only the **agent artifact** is optional |
+
+The agent artifact is the one bundle field a host-verified rollback may omit. The agent a deployment
+installs is always the **candidate's** — nothing reads a rollback bundle's — so requiring one of a
+rollback was a check on a field that is never used. It stays required for every candidate and for an
+attested rollback, and an agent artifact that IS declared is still verified, so the option cannot be
+used to smuggle in an artifact nothing checks.
 
 The tree is **verified where it stands and never reinstalled**. Reinstalling it would rewrite the live
 release directory during preparation, before any mutation is authorised, to make it match something it

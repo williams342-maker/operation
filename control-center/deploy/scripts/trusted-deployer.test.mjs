@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -33,7 +33,9 @@ const tarBlock = (name, type = "0", body = Buffer.alloc(0)) => {
   return Buffer.concat([header, body, Buffer.alloc((512 - body.length % 512) % 512)]);
 };
 
-function writeReleaseBundle(directory, tag, releaseCommit, releaseTree) {
+// `omitAgent` builds the shape of a release from before the agent artifact existed -- which the live
+// release on the production host is, and which a first deployment must be able to roll back to.
+function writeReleaseBundle(directory, tag, releaseCommit, releaseTree, { omitAgent = false } = {}) {
   fs.mkdirSync(directory, { recursive: true });
   const version = tag.slice(1); const prefix = `opsworkbench-control-center-${version}`; const composeName = `${prefix}/control-center/deploy/docker-compose.production.yml`; const compose = Buffer.from("services: {}\n");
   const pax = Buffer.from(`52 comment=${releaseCommit}\n`); const archive = zlib.gzipSync(Buffer.concat([tarBlock("pax_global_header", "g", pax), tarBlock(`${prefix}/`, "5"), tarBlock(`${prefix}/control-center/`, "5"), tarBlock(`${prefix}/control-center/deploy/`, "5"), tarBlock(composeName, "0", compose), tarBlock(`${prefix}/control-center/scripts/`, "5"), tarBlock(`${prefix}/control-center/scripts/install-reviewed-agent.sh`, "0", Buffer.from("#!/bin/sh\n")), Buffer.alloc(1024)]));
@@ -41,9 +43,9 @@ function writeReleaseBundle(directory, tag, releaseCommit, releaseTree) {
   const agentMetadata = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-agent-release-v1", tag, commit: releaseCommit, tree: releaseTree }, null, 2)}\n`);
   const agentPax = Buffer.from(`52 comment=${releaseCommit}\n`);
   const agent = zlib.gzipSync(Buffer.concat([tarBlock("pax_global_header", "g", agentPax), tarBlock("control-center/", "5"), tarBlock("control-center/apps/", "5"), tarBlock("control-center/apps/agent/", "5"), tarBlock("control-center/apps/agent/dist/", "5"), tarBlock("control-center/apps/agent/dist/agent.js", "0", Buffer.from("agent")), tarBlock("control-center/apps/updater/", "5"), tarBlock("control-center/apps/updater/dist/", "5"), tarBlock("control-center/apps/updater/dist/main.js", "0", Buffer.from("updater")), tarBlock("control-center/deploy/", "5"), tarBlock("control-center/deploy/systemd/", "5"), tarBlock("control-center/deploy/systemd/opsworkbench-agent.service", "0", Buffer.from("unit")), tarBlock("control-center/agent-release.json", "0", agentMetadata), Buffer.alloc(1024)]));
-  const manifest = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-release-v1", tag, commit: releaseCommit, artifact, agentArtifact, source: "test", reproducible: true }, null, 2)}\n`);
-  fs.writeFileSync(path.join(directory, artifact), archive); fs.writeFileSync(path.join(directory, agentArtifact), agent); fs.writeFileSync(path.join(directory, manifestName), manifest);
-  fs.writeFileSync(path.join(directory, "SHA256SUMS"), `${sha(archive)}  ${artifact}\n${sha(agent)}  ${agentArtifact}\n${sha(manifest)}  ${manifestName}\n`);
+  const manifest = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-release-v1", tag, commit: releaseCommit, artifact, ...(omitAgent ? {} : { agentArtifact }), source: "test", reproducible: true }, null, 2)}\n`);
+  fs.writeFileSync(path.join(directory, artifact), archive); if (!omitAgent) fs.writeFileSync(path.join(directory, agentArtifact), agent); fs.writeFileSync(path.join(directory, manifestName), manifest);
+  fs.writeFileSync(path.join(directory, "SHA256SUMS"), `${sha(archive)}  ${artifact}\n${omitAgent ? "" : `${sha(agent)}  ${agentArtifact}\n`}${sha(manifest)}  ${manifestName}\n`);
   return { prefix, composeName, compose, archiveSha256: sha(archive) };
 }
 
@@ -509,6 +511,45 @@ test("an adoption record that is not the caller's own file is refused", () => {
   // The same stub with a consistent inode is accepted, so the refusal above is the swap and not the stub.
   const consistent = { ...swapped, fstatSync: () => ({ dev: 1, ino: 100, uid: 0 }) };
   assert.deepEqual([...readAdoptedContainerIds([file], { fs: consistent, uid: 0 })], [adminContainerId]);
+});
+
+test("a host-verified rollback accepts a bundle from before the agent artifact existed; an attested one does not", () => {
+  // The agent a deployment installs is always the CANDIDATE's, and nothing reads a rollback bundle's,
+  // so requiring one of a rollback was a check on a field never used. It still applies to the candidate
+  // and to an attested rollback, where a missing one means a malformed release.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-deploy-noagent-"));
+  const item = plan(root);
+  fs.mkdirSync(item.stagingRoot); fs.mkdirSync(item.releaseRoot);
+  writeReleaseBundle(item.bundleDirectory, item.tag, commit, tree);
+  const rollback = writeReleaseBundle(item.rollback.bundleDirectory, item.rollback.tag, rollbackCommit, rollbackTree, { omitAgent: true });
+  item.rollback.evidenceSha256 = rollback.archiveSha256;
+
+  // Attested mode still refuses it.
+  assert.throws(() => prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) }), /rollback release bundle failed verification/);
+
+  // Host-verified mode accepts it, and everything else about the rollback is still verified: the
+  // bundle's attestation, its manifest commit, its archive digest and its tree.
+  item.rollback = { ...without(item.rollback, "images"), evidence: "host-verified", adoptionRecords: [] };
+  item.forgeEvidence = without(item.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(item);
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  assert.equal(preparation.rollbackControlCenter, path.resolve(item.rollback.releaseDirectory));
+
+  // RE-VERIFICATION MUST USE THE SAME RULE. It runs again immediately before the first mutation, so a
+  // stricter check there would refuse at the point of no return over the very bundle preparation just
+  // accepted. Driven directly, because nothing else in the suite reaches it with this bundle shape.
+  reverifyPreparedRelease(preparation, { verifyAttestation: () => ({ verified: true }) });
+
+  // A WRONG archive digest is still caught, so accepting the missing agent artifact did not loosen the
+  // rest of the bundle check.
+  const wrong = plan(fs.mkdtempSync(path.join(os.tmpdir(), "trusted-deploy-wrong-")));
+  fs.mkdirSync(wrong.stagingRoot); fs.mkdirSync(wrong.releaseRoot);
+  writeReleaseBundle(wrong.bundleDirectory, wrong.tag, commit, tree);
+  writeReleaseBundle(wrong.rollback.bundleDirectory, wrong.rollback.tag, rollbackCommit, rollbackTree, { omitAgent: true });
+  wrong.rollback = { ...without(wrong.rollback, "images"), evidence: "host-verified", adoptionRecords: [], evidenceSha256: "f".repeat(64) };
+  wrong.forgeEvidence = without(wrong.forgeEvidence, "rollbackPath", "rollbackSha256");
+  materialiseRollbackRelease(wrong);
+  assert.throws(() => prepareReviewedRelease(wrong, { verifyAttestation: () => ({ verified: true }) }), /rollback artifact digest differs/);
 });
 
 test("a host-verified rollback target is verified where it stands, never reinstalled over", () => {
