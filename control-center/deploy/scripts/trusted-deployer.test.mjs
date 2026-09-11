@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -130,6 +130,57 @@ const resolvedModelJson = JSON.stringify({ services: {
   edge: { ports: [{ mode: "ingress", target: 8080, published: "18080", protocol: "tcp", host_ip: "127.0.0.1" }] },
 } });
 const isModelQuery = (args) => args[0] === "config" && args.includes("--format");
+
+test("one image written two ways is one image, and two images are still two", () => {
+  // Docker's own rules: a first segment with a dot or colon, or "localhost", is a registry; otherwise
+  // the image is on docker.io, and a single-segment docker.io name lives under library/.
+  assert.equal(normalizeImageReference("nginx@sha256:abc"), "docker.io/library/nginx@sha256:abc");
+  assert.equal(normalizeImageReference("docker.io/library/nginx@sha256:abc"), "docker.io/library/nginx@sha256:abc");
+  assert.equal(normalizeImageReference("myorg/img@sha256:y"), "docker.io/myorg/img@sha256:y", "two segments get no library/");
+  assert.equal(normalizeImageReference("localhost:5000/img@sha256:z"), "localhost:5000/img@sha256:z", "a port makes it a registry");
+  assert.equal(normalizeImageReference("ghcr.io/a/b/c@sha256:x"), "ghcr.io/a/b/c@sha256:x", "already qualified, unchanged");
+  // Normalising must not make different images equal.
+  assert.notEqual(normalizeImageReference("nginx@sha256:abc"), normalizeImageReference("nginx@sha256:abd"), "a different digest is a different image");
+  assert.notEqual(normalizeImageReference("nginx@sha256:abc"), normalizeImageReference("ghcr.io/library/nginx@sha256:abc"), "a different registry is a different image");
+  assert.notEqual(normalizeImageReference("myorg/nginx@sha256:abc"), normalizeImageReference("nginx@sha256:abc"), "a different repository is a different image");
+});
+
+test("a platform image passes when the registry and the daemon spell it differently", () => {
+  // THE FIXTURE REPRODUCES THE DISAGREEMENT, which is the whole point. Measured on the target: buildx
+  // reports the fully qualified name while the daemon's RepoDigests holds the short one. The previous
+  // fixtures echoed the reference straight back, so the two forms were identical and could never
+  // disagree -- and this defect sat undetected until a real deployment tried to use it.
+  const shortForm = `nginx@sha256:${"6".repeat(64)}`;
+  const qualified = `docker.io/library/nginx@sha256:${"6".repeat(64)}`;
+  const mongoShort = `mongo@sha256:${"3".repeat(64)}`;
+  const platform = { edgeImage: shortForm, mongoImage: mongoShort, mongoVolume: "opsworkbench_mongo_data" };
+  const hooks = {
+    // What the registry actually says: always fully qualified.
+    remoteInspect: (reference) => `Name:      ${normalizeImageReference(reference)}\n`,
+    pull: () => {},
+    // What the daemon actually says: the SHORT form, whichever way it was asked. Echoing the reference
+    // back instead would let a plain string comparison pass here, which is precisely how the defect
+    // survived the old fixtures -- and it survived a first draft of this one for the same reason.
+    localInspect: (reference) => ({ RepoDigests: [normalizeImageReference(reference).replace(/^docker\.io\/library\//, "")], Id: `sha256:${"a".repeat(64)}` }),
+  };
+  const result = inspectPlatformImages(platform, hooks);
+  assert.equal(result.ok, true);
+  assert.equal(result.edgeImage, shortForm, "the plan's own spelling is what gets reported back");
+  assert.equal(result.mongoImage, mongoShort);
+  // The fully qualified spelling works too, so a plan may use either.
+  assert.equal(inspectPlatformImages({ ...platform, edgeImage: qualified }, hooks).edgeImage, qualified);
+
+  // A registry that binds a DIFFERENT digest is still a failure. Normalising equal spellings must not
+  // make unequal images equal.
+  const wrongDigest = { ...hooks, remoteInspect: () => `Name:      docker.io/library/nginx@sha256:${"7".repeat(64)}\n` };
+  assert.throws(() => inspectPlatformImages(platform, wrongDigest), /did not bind/);
+  // And a local image that retains someone else's digest is still a failure.
+  const wrongLocal = { ...hooks, localInspect: () => ({ RepoDigests: [`nginx@sha256:${"8".repeat(64)}`], Id: `sha256:${"a".repeat(64)}` }) };
+  assert.throws(() => inspectPlatformImages(platform, wrongLocal), /not digest-bound/);
+  // A local image with no content-addressed id is still a failure.
+  const noId = { ...hooks, localInspect: (reference) => ({ RepoDigests: [reference], Id: "" }) };
+  assert.throws(() => inspectPlatformImages(platform, noId), /not digest-bound/);
+});
 
 test("platform images independently bind registry digest and local content identity", () => {
   const item = plan("C:\\safe");
