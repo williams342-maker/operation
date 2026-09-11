@@ -272,12 +272,47 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
   }
 }
 
+/**
+ * Docker's own reference normalisation, applied before comparing two spellings of one image.
+ *
+ * THE REGISTRY AND THE LOCAL DAEMON DISAGREE about how to write a Docker Hub image. Measured on the
+ * target: `docker buildx imagetools inspect nginx@sha256:65645c...` reports
+ * `Name: docker.io/library/nginx@sha256:65645c...`, while `docker image inspect` lists
+ * `nginx@sha256:65645c...` in RepoDigests. Both name the same bytes.
+ *
+ * Comparing those as strings made a correct platform image look like a registry binding failure, and no
+ * spelling satisfied both checks: the short form failed the remote comparison, the fully qualified form
+ * failed the local one. The tests never saw it because their remoteInspect hook echoes back whatever
+ * reference it is handed, so the two forms are identical in the fixture and cannot disagree.
+ *
+ * The rules are Docker's. A first path segment containing "." or ":", or equal to "localhost", is a
+ * registry host; otherwise the reference is on docker.io. A docker.io name with a single path segment
+ * lives under "library/". Normalising is not loosening: two references are equal here only when they
+ * resolve to the same registry, repository and digest.
+ */
+export function normalizeImageReference(reference) {
+  const text = String(reference ?? "");
+  const at = text.indexOf("@");
+  const name = at === -1 ? text : text.slice(0, at);
+  const digest = at === -1 ? "" : text.slice(at);
+  const segments = name.split("/").filter(Boolean);
+  const first = segments[0] ?? "";
+  const hasRegistry = segments.length > 1 && (first.includes(".") || first.includes(":") || first === "localhost");
+  const registry = hasRegistry ? first : "docker.io";
+  const remainder = hasRegistry ? segments.slice(1) : segments;
+  const repository = registry === "docker.io" && remainder.length === 1 ? ["library", ...remainder] : remainder;
+  return `${registry}/${repository.join("/")}${digest}`;
+}
+
+/** Whether two image references name the same registry, repository and digest. */
+const sameImageReference = (one, other) => normalizeImageReference(one) === normalizeImageReference(other);
+
 export function inspectImmutableImage(reference, expectation, hooks = {}) {
   if (!digestReference.test(reference)) throw new Error("image reference is not an approved immutable repository digest");
   const expectedDigest = reference.slice(reference.indexOf("@") + 1);
   const remote = (hooks.remoteInspect ?? ((ref) => execFileSync("docker", ["buildx", "imagetools", "inspect", ref], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })))(reference);
   const remoteName = String(remote).split(/\r?\n/).map((line) => line.match(/^Name:\s+(\S+)$/)?.[1]).find(Boolean);
-  if (remoteName !== reference) throw new Error(`registry inspection did not bind the requested digest: ${reference}`);
+  if (!sameImageReference(remoteName, reference)) throw new Error(`registry inspection did not bind the requested digest: ${reference}`);
   (hooks.pull ?? ((ref) => execFileSync("docker", ["pull", ref], { stdio: "pipe" })))(reference);
   const inspectLocal = hooks.localInspect ?? ((ref) => {
     const output = execFileSync("docker", ["image", "inspect", ref, "--format", "{{json .}}"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -285,7 +320,7 @@ export function inspectImmutableImage(reference, expectation, hooks = {}) {
   });
   const local = inspectLocal(reference);
   const repoDigests = Array.isArray(local.RepoDigests) ? local.RepoDigests : [];
-  if (!repoDigests.includes(reference)) throw new Error(`local image does not retain the registry digest: ${reference}`);
+  if (!repoDigests.some((candidate) => sameImageReference(candidate, reference))) throw new Error(`local image does not retain the registry digest: ${reference}`);
   const labels = local.Config?.Labels ?? {};
   if (labels["org.opencontainers.image.revision"] !== expectation.commit) throw new Error(`${expectation.role} image revision label mismatch`);
   if (labels["org.opencontainers.image.source"] !== "https://github.com/williams342-maker/operation") throw new Error(`${expectation.role} image source label mismatch`);
@@ -299,10 +334,10 @@ export function inspectPlatformImages(platform, hooks = {}) {
   const inspect = (reference) => {
     const remote = (hooks.remoteInspect ?? ((ref) => execFileSync("docker", ["buildx", "imagetools", "inspect", ref], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })))(reference);
     const remoteName = String(remote).split(/\r?\n/).map((line) => line.match(/^Name:\s+(\S+)$/)?.[1]).find(Boolean);
-    if (remoteName !== reference) throw new Error(`platform registry inspection did not bind ${reference}`);
+    if (!sameImageReference(remoteName, reference)) throw new Error(`platform registry inspection did not bind ${reference}`);
     (hooks.pull ?? ((ref) => execFileSync("docker", ["pull", ref], { stdio: "pipe" })))(reference);
     const local = (hooks.localInspect ?? ((ref) => JSON.parse(execFileSync("docker", ["image", "inspect", ref, "--format", "{{json .}}"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }))))(reference);
-    if (!Array.isArray(local.RepoDigests) || !local.RepoDigests.includes(reference) || !/^sha256:[a-f0-9]{64}$/.test(local.Id ?? "")) throw new Error(`platform local image identity is not digest-bound: ${reference}`);
+    if (!Array.isArray(local.RepoDigests) || !local.RepoDigests.some((candidate) => sameImageReference(candidate, reference)) || !/^sha256:[a-f0-9]{64}$/.test(local.Id ?? "")) throw new Error(`platform local image identity is not digest-bound: ${reference}`);
     return { reference, localImageId: local.Id };
   };
   const edge = inspect(platform.edgeImage); const mongo = inspect(platform.mongoImage);
