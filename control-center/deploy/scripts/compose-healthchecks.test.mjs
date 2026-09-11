@@ -73,3 +73,17 @@ test("the admin healthcheck specifically does not ask for a path the default blo
   assert.match(command, /\/admin-healthz/, "the admin healthcheck uses the endpoint the default block serves");
   assert.doesNotMatch(command, /8080\/\s/, "and not a bare /, which returns 444 and no response at all");
 });
+
+// The deployer hands every `up` an OPSWORKBENCH_RELEASE_MANIFEST path, and that only means anything if
+// the compose file mounts it and tells the API where it landed. Without both halves the API falls back
+// to BUILD_VERSION out of the environment file and reports `source: "env"` -- which on the production
+// host meant a service claiming `phase2-staging` while running something else entirely, through every
+// readiness check ever run against it.
+test("the api mounts the release manifest it is pointed at", () => {
+  const api = compose.slice(compose.indexOf("  api:"), compose.indexOf("  web:"));
+  assert.match(api, /CONTROL_CENTER_RELEASE_MANIFEST:\s*\/run\/opsworkbench-release\/manifest\.json/, "the api must be told where its manifest is");
+  assert.match(api, /\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}:\/run\/opsworkbench-release\/manifest\.json:ro/, "and the path must come from the deployment, read-only, with no default that would silently mount the wrong release");
+  // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
+  // quietly mount whatever a default names.
+  assert.equal(/\$\{OPSWORKBENCH_RELEASE_MANIFEST:-/.test(api), false, "a default would let a deployment run without being told which release it is");
+});

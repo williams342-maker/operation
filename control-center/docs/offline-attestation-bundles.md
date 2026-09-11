@@ -68,3 +68,17 @@ That location is defence in depth, and deliberately not the thing that makes bun
 bundle cannot produce a false pass: it would have to carry a Sigstore signature over this subject digest
 from this workflow at this commit. What the trusted location buys is that only root can cause a
 *refusal*, so an unprivileged writer cannot deny a deployment by deleting a file.
+
+## Release identity, and why a deployment is not verified by a 200
+
+Readiness asks whether something answers. It cannot tell a new release from the one it replaced, so a
+plan must also name an `identityEndpoint`, and the deployer requires the service there to report the
+commit it just deployed, from a release manifest rather than from environment variables.
+
+The manifest is installed beside the release tree and mounted read-only. The path travels in the
+environment of each `up`, so a rollback mounts the PREDECESSOR's manifest: this target runs the
+candidate's Compose file in both directions, and a release-relative mount would have made a rolled-back
+service confidently report the version it had just failed to become.
+
+A live rollback release is never written to. Its manifest must already be present and match the verified
+bundle byte for byte, which is also what binds that directory to the release the plan says it is.

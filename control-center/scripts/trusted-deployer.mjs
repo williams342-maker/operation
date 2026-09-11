@@ -57,7 +57,7 @@ export function parseDeploymentPlan(value) {
   // `attestationBundles` is OPTIONAL, so the key list depends on whether the plan carries it. Adding it
   // unconditionally would have refused every existing plan; leaving it out of the list would have let
   // an unknown key through the one check whose job is to refuse unknown keys.
-  const keys = ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness"];
+  const keys = ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness", "identityEndpoint"];
   if (value && typeof value === "object" && "attestationBundles" in value) keys.push("attestationBundles");
   exactKeys(value, keys, "deployment plan");
   if ("attestationBundles" in value && (typeof value.attestationBundles !== "string" || !path.isAbsolute(value.attestationBundles))) throw new Error("attestationBundles must be an absolute path");
@@ -130,6 +130,10 @@ export function parseDeploymentPlan(value) {
   // HTTPS-only rule left no satisfiable endpoint at all, and the honest alternatives were a self-signed
   // certificate or no readiness check. Anything not on loopback is still required to be HTTPS.
   if (!Array.isArray(value.readiness) || value.readiness.length < 3 || value.readiness.some((url) => !isReadinessEndpoint(url))) throw new Error("at least three readiness endpoints are required, HTTPS unless they are on loopback");
+  // REQUIRED, not optional. Readiness only asks whether something answers; this asks what it says it
+  // is. A deployment that cannot be told apart from the release it replaced is not verified, and an
+  // optional check is one a plan can leave out on the day it matters.
+  if (!isReadinessEndpoint(value.identityEndpoint)) throw new Error("an identity endpoint is required, HTTPS unless it is on loopback");
   return structuredClone(value);
 }
 
@@ -154,6 +158,42 @@ function expectedSubtree(members, prefix) {
   const result = new Map();
   for (const [name, item] of members) if (name.startsWith(`${prefix}/`)) result.set(name.slice(prefix.length + 1), item.type === "file" ? { type: "file", sha256: item.sha256 } : { type: "directory" });
   return result;
+}
+
+/**
+ * The release manifest that goes BESIDE an installed release tree, at `<release>/release.manifest.json`.
+ *
+ * The API reports its identity from this file and fails closed without it, so it is release data, not
+ * decoration: absent, a deployed service reports whatever `BUILD_VERSION` happens to say.
+ *
+ * `install` is for a release this deployer installs. A release that is ALREADY LIVE is never written
+ * to — the same rule the rollback tree follows — so there the manifest must already be present and
+ * match the verified bundle byte for byte, and a difference refuses rather than repairs. That check
+ * also binds the live directory to the release the plan claims it is.
+ */
+function releaseManifestBeside(releaseDirectory) {
+  return path.join(path.dirname(path.resolve(releaseDirectory)), "release.manifest.json");
+}
+
+function installReleaseManifest(sourceFile, releaseDirectory, { install }) {
+  const target = releaseManifestBeside(releaseDirectory);
+  const bytes = fs.readFileSync(sourceFile);
+  if (fs.existsSync(target)) {
+    if (!fs.lstatSync(target).isFile() || fs.lstatSync(target).isSymbolicLink()) throw new Error("installed release manifest is not a regular file");
+    if (!fs.readFileSync(target).equals(bytes)) throw new Error("installed release manifest differs from the verified bundle");
+    return target;
+  }
+  if (!install) throw new Error("the live release carries no release manifest, and a live release is never written to");
+  const pending = `${target}.pending-${process.pid}`;
+  fs.writeFileSync(pending, bytes, { flag: "wx", mode: 0o444 });
+  try {
+    fs.renameSync(pending, target);
+  } catch (error) {
+    try { fs.rmSync(pending, { force: true }); } catch { /* the install failure is the one worth reporting */ }
+    throw error;
+  }
+  if (!fs.readFileSync(target).equals(bytes)) throw new Error("installed release manifest is not the verified bytes");
+  return target;
 }
 
 function installAndVerifyExactTree(source, target, expected) {
@@ -236,6 +276,9 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     const controlCenter = path.join(extracted, prefix, "control-center");
     const candidateExpectedTree = expectedSubtree(inspected.members, `${prefix}/control-center`);
     const installedControlCenter = installAndVerifyExactTree(controlCenter, path.join(plan.releaseRoot, plan.tag, "app"), candidateExpectedTree);
+    // The manifest comes from the stage, whose bundle has already been checksummed and attested, so
+    // what lands beside the release is the release's own identity document and not a hand-written file.
+    const releaseManifest = installReleaseManifest(path.join(stage, `${prefix}.manifest.json`), installedControlCenter, { install: true });
     const compose = path.join(installedControlCenter, "deploy", "docker-compose.production.yml");
     if (!fs.existsSync(compose) || !fs.lstatSync(compose).isFile()) throw new Error("version-controlled production compose file is absent");
     const agentPath = path.join(stage, copiedCheck.manifest.agentArtifact);
@@ -282,9 +325,15 @@ export function prepareReviewedRelease(rawPlan, hooks = {}) {
     // reason this mode is limited to a first deployment.
     const rollbackCompose = hostVerified(plan) ? compose : path.join(rollbackControlCenter, "deploy", "docker-compose.production.yml");
     if (!fs.lstatSync(rollbackCompose).isFile()) throw new Error("rollback compose file is absent");
+    // The recovery path mounts the PREDECESSOR's manifest, so it has to exist before anything is
+    // mutated. Under a host-verified rollback the release is live and is never written to: the manifest
+    // must already be there and equal the verified bundle's, which also binds that live directory to
+    // the release the plan says it is. Under an attested rollback this deployer installed the tree, so
+    // it installs the manifest beside it the same way it does for the candidate.
+    const rollbackReleaseManifest = installReleaseManifest(path.join(rollbackBundle, `${rollbackPrefix}.manifest.json`), rollbackControlCenter, { install: !hostVerified(plan) });
     const evidence = { schemaVersion: "opsworkbench-deployment-preparation-v1", tag: plan.tag, commit: plan.commit, tree: plan.tree, preparedAt: new Date().toISOString(), hostname: os.hostname(), artifactSha256: crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex"), agentArtifactSha256: crypto.createHash("sha256").update(fs.readFileSync(agentPath)).digest("hex"), candidateImages: plan.candidateImages, rollback: plan.rollback };
     fs.writeFileSync(path.join(stage, "preparation.json"), `${JSON.stringify(evidence, null, 2)}\n`, { flag: "wx", mode: 0o400 });
-    return { stage, extracted, controlCenter: installedControlCenter, compose, installedControlCenter, candidateExpectedTree, rollbackBundle, rollbackExtracted, rollbackControlCenter, rollbackCompose, rollbackExpectedTree, rollbackArchiveTree, rollbackPrefix, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
+    return { stage, extracted, controlCenter: installedControlCenter, compose, installedControlCenter, candidateExpectedTree, releaseManifest, rollbackReleaseManifest, rollbackBundle, rollbackExtracted, rollbackControlCenter, rollbackCompose, rollbackExpectedTree, rollbackArchiveTree, rollbackPrefix, agentExtracted, agentPath, evidence, plan, expectedTree: expectedArchiveTree(inspected.members), expectedAgentTree: expectedArchiveTree(inspectedAgent.members), prefix };
   } catch (error) {
     try { fs.writeFileSync(path.join(stage, "FAILED"), `${error.message}\n`, { flag: "wx", mode: 0o400 }); }
     catch { /* Preserve the refusal even if the private stage cannot accept its diagnostic. */ }
@@ -774,10 +823,29 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // to go back to are discovered here, and a record written before the discovery would be a durable
   // record that does not name them. A crash after the first container was recreated would then have
   // lost the only mapping back, at exactly the moment it is needed.
-  const environmentFor = (images) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume });
+  // The manifest path travels with the IMAGES it belongs to. A rollback runs the candidate's compose
+  // file on this target, so a release-relative mount would have handed the predecessor images the
+  // candidate's identity document and produced a service confidently reporting the version it had just
+  // failed to become.
+  const environmentFor = (images, releaseManifest) => ({ ...process.env, OPSWORKBENCH_API_IMAGE: images.api, OPSWORKBENCH_WEB_IMAGE: images.web, OPSWORKBENCH_ADMIN_IMAGE: images.admin, OPSWORKBENCH_REVIEW_GATE_IMAGE: images.reviewGate, OPSWORKBENCH_EDGE_IMAGE: plan.platform.edgeImage, OPSWORKBENCH_MONGO_IMAGE: plan.platform.mongoImage, OPSWORKBENCH_MONGO_VOLUME: plan.platform.mongoVolume, OPSWORKBENCH_RELEASE_MANIFEST: releaseManifest });
   const compose = hooks.compose ?? ((args, env, composeFile = preparation.compose) => execFileSync("docker", ["compose", "--project-name", plan.composeProject, "--file", composeFile, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   const ready = hooks.readiness ?? (async (url) => { const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) }); return response.ok; });
-  const candidateEnv = environmentFor(plan.candidateImages);
+  // WHAT IS RUNNING, not merely that something answers. Readiness asks for a 200, which the release
+  // being replaced also returns, so every deployment so far could have been verified by a service that
+  // had not changed at all. This asks the service which release it is, and requires the answer to be
+  // manifest-backed: `source: "env"` means the values were typed at build time, and on this host those
+  // typed values still said `phase2-staging` years later.
+  const identity = hooks.identity ?? (async (url) => {
+    const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`identity endpoint refused: ${url}`);
+    return response.json();
+  });
+  const assertIdentity = async (expectedCommit, label) => {
+    const body = await identity(plan.identityEndpoint);
+    if (body?.source !== "manifest") throw new Error(`${label} identity is not manifest-backed: ${body?.source ?? "absent"}`);
+    if (body?.commit !== expectedCommit) throw new Error(`${label} identity reports ${body?.commit ?? "absent"}, expected ${expectedCommit}`);
+  };
+  const candidateEnv = environmentFor(plan.candidateImages, preparation.releaseManifest);
   compose(["config", "--quiet"], candidateEnv, preparation.compose);
   // Port ownership, which nothing here has ever checked.
   //
@@ -808,7 +876,7 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   const rollbackImages = rollbackPredecessors
     ? Object.fromEntries(Object.entries(rollbackPredecessors).map(([service, entry]) => [service, entry.image]))
     : plan.rollback.images;
-  const rollbackEnv = environmentFor(rollbackImages);
+  const rollbackEnv = environmentFor(rollbackImages, preparation.rollbackReleaseManifest);
   if (hostVerified(plan)) {
     // A predecessor that is already the candidate means there is nothing to roll back to, and the
     // deployment would be recording itself as its own rollback target.
@@ -889,6 +957,9 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
       for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
       if (hooks.wait) await hooks.wait();
     }
+    // Before the release pointer moves, and inside the try, so a service that answers but is still the
+    // release being replaced is a failed deployment that rolls back rather than a recorded success.
+    await assertIdentity(plan.commit, "deployed");
     (hooks.switchCurrent ?? switchCurrentRelease)(priorCurrent, preparation.installedControlCenter); currentSwitched = true;
     record = { ...rollbackReady.record, runtimeMutationAuthorized: true, deployedAt: new Date().toISOString(), acceptancePasses: hooks.acceptancePasses ?? 3 };
     (hooks.writeDeploymentRecord ?? ((file, body) => fs.writeFileSync(file, body, { flag: "wx", mode: 0o400 })))(path.join(preparation.stage, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
@@ -901,6 +972,11 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     }
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", ...applicationServices, "edge"], rollbackEnv, preparation.rollbackCompose);
     for (const url of plan.readiness) if (!await ready(url)) throw new Error(`deployment failed and rollback readiness also failed: ${cause.message}`, { cause });
+    // The recovery is held to the same standard as the deployment: the service must say it is the
+    // PREDECESSOR. A rollback that leaves the candidate's identity in place is not a rollback, and the
+    // original failure is still what gets reported either way.
+    try { await assertIdentity(plan.rollback.commit, "rolled-back"); }
+    catch (identityCause) { throw new AggregateError([cause, identityCause], `deployment failed and the rollback did not restore the predecessor's identity: ${cause.message}; ${identityCause.message}`, { cause: identityCause }); }
     throw new Error(`deployment failed and was rolled back: ${cause.message}`, { cause });
   }
   return { status: "deployed", imageEvidence, platformEvidence, rollbackRecord: rollbackReady.file };
