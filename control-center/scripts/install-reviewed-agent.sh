@@ -8,9 +8,39 @@ unit_root=/etc/systemd/system
 service=opsworkbench-agent.service
 fail() { printf 'reviewed agent deployment refused: %s\n' "$*" >&2; exit 1; }
 safe_stage() { case "$(readlink -f -- "$1")" in /opt/opsworkbench/releases/*|/var/lib/opsworkbench-deployer/*) ;; *) fail "staging path is outside the trusted deployment roots" ;; esac; }
-[ "$(id -u)" -eq 0 ] || fail "root is required"
 [ "$(uname -s)" = Linux ] || fail "Linux is required"
 command="${1:-}"; shift || true
+
+# The credential set the activation probe would ask systemd's questions with, printed and nothing else.
+#
+# It exists because this script had no executable test at all: a reviewer showed that reverting the
+# resolved group NAME back to a raw gid -- the defect that would have refused every activation -- passed
+# every check in the repository. This verb runs the real construction and prints it, so a test can read
+# what would actually be passed to runuser.
+#
+# Deliberately BEFORE the root check and deliberately read-only: it reads /etc/group through getent,
+# mutates nothing, starts nothing, and touches no release. Everything that changes this host is below.
+probe_credentials_for() {
+  local user="$1" group="$2" supplementary name
+  local built=(-u "$user" -g "$group")
+  for supplementary in $(id -G "$user"); do
+    name="$(getent group "$supplementary" | cut -d: -f1)"
+    [ -n "$name" ] || fail "the agent account is in group $supplementary, which this host cannot name"
+    built+=(-G "$name")
+  done
+  printf '%s\n' "${built[@]}"
+}
+
+if [ "$command" = probe-credentials ]; then
+  probe_user="${1:-}"; probe_group="${2:-}"
+  [ -n "$probe_user" ] && [ -n "$probe_group" ] || fail "usage: probe-credentials <user> <group>"
+  id -u "$probe_user" >/dev/null 2>&1 || fail "no such account: $probe_user"
+  getent group "$probe_group" >/dev/null || fail "no such group: $probe_group"
+  probe_credentials_for "$probe_user" "$probe_group"
+  exit 0
+fi
+
+[ "$(id -u)" -eq 0 ] || fail "root is required"
 
 if [ "$command" = prepare ]; then
   candidate="${1:-}"; backup="${2:-}"; safe_stage "$candidate"; safe_stage "$(dirname "$backup")"
@@ -108,22 +138,9 @@ if [ "$command" = activate ]; then
   # still initialises the account's supplementary groups. A host where traversal depends on a
   # supplementary membership -- an install root owned by an operations group, say -- would have failed a
   # probe that systemd itself would have passed, refusing a deployment that was fine.
-  probe_credentials=(-u "$agent_user" -g "$agent_group")
-  # ENUMERATED NUMERICALLY, PASSED BY NAME.
-  #
-  # `id -Gn` output cannot be tokenised: a group called "domain users" splits into two credentials, and
-  # the unquoted expansion globs besides. So the list is walked as gids, which are single safe tokens.
-  # But runuser resolves `-G` with getgrnam and NOT getgrgid, so a gid handed to it straight is looked
-  # up as a group whose NAME is that number. Measured on util-linux 2.34:
-  #   runuser -u nobody -G 65534 -- true  ->  "group 65534 does not exist", exit 1
-  #   runuser -u nobody -G nogroup -- true ->  exit 0
-  # Every ordinary install would have failed this probe and rolled back. Each gid is resolved back to
-  # its name, which is then passed as one argument no matter what is in it.
-  for supplementary in $(id -G "$agent_user"); do
-    supplementary_name="$(getent group "$supplementary" | cut -d: -f1)"
-    [ -n "$supplementary_name" ] || fail "the agent account is in group $supplementary, which this host cannot name"
-    probe_credentials+=(-G "$supplementary_name")
-  done
+  # Built by the same function the `probe-credentials` verb prints, so what a test reads is what runs.
+  mapfile -t probe_credentials < <(probe_credentials_for "$agent_user" "$agent_group")
+  [ "${#probe_credentials[@]}" -ge 4 ] || fail "the agent account has no usable credential set"
   # Asked of that account, before `current` moves or the service is touched: a failure here is otherwise
   # a ninety-second heartbeat timeout and a full rollback.
   if ! runuser "${probe_credentials[@]}" -- test -x "$probe_work" || ! runuser "${probe_credentials[@]}" -- test -r "$probe_main"; then

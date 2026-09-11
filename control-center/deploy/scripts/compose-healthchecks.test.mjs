@@ -79,22 +79,39 @@ test("the admin healthcheck specifically does not ask for a path the default blo
 // to BUILD_VERSION out of the environment file and reports `source: "env"` -- which on the production
 // host meant a service claiming `phase2-staging` while running something else entirely, through every
 // readiness check ever run against it.
+
+/** One service block, read by indentation: `{ <key>: [entry, ...] }` for the keys that are lists or maps. */
+function serviceBlock(text, name) {
+  const found = {};
+  let inService = false;
+  let key = null;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    const service = /^ {2}([a-z][a-z0-9_-]*):\s*$/.exec(line);
+    if (service) { inService = service[1] === name; key = null; continue; }
+    if (!inService) continue;
+    const declared = /^ {4}([a-z][a-zA-Z0-9_-]*):\s*(\S.*)?$/.exec(line);
+    if (declared) { key = declared[1]; found[key] = found[key] ?? []; if (declared[2]) found[key].push(declared[2].trim()); continue; }
+    if (key && /^ {6}\S/.test(line)) found[key].push(line.trim());
+  }
+  return found;
+}
 test("the api mounts the release manifest it is pointed at", () => {
-  // COMMENTS STRIPPED FIRST. The block carries a long comment naming these very keys, so a match
-  // against the raw text passed with the mount commented out -- the check would have gone on passing
-  // through the deployment it exists to protect.
-  const api = compose.slice(compose.indexOf("  api:"), compose.indexOf("  web:")).split(/\r?\n/).filter((line) => !line.trim().startsWith("#")).join("\n");
-  // THE WHOLE VALUE, and the two halves compared to each other. A prefix match passed with the
-  // environment variable pointing at `manifest.json.missing` while the mount stayed correct: the API
-  // would have read a path that does not exist, reported an unknown identity, and failed the
-  // deployment for a reason nothing here would have explained.
-  const told = /^\s*CONTROL_CENTER_RELEASE_MANIFEST:\s*(\S+)\s*$/m.exec(api);
-  const mounted = /^\s*-\s*\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}:(\S+?):ro\s*$/m.exec(api);
-  assert.ok(told, "the api must be told where its manifest is");
-  assert.ok(mounted, "and the path must come from the deployment, read-only, with no default that would silently mount the wrong release");
-  assert.equal(told[1], mounted[1], "the path the api is told to read must be the path the manifest is mounted at");
-  assert.equal(told[1], "/run/opsworkbench-release/manifest.json");
+  // STRUCTURE, NOT TEXT. Matching the raw block passed with the mount commented out, and then with
+  // `volumes:` renamed to `x-volumes:` -- which Compose ignores entirely, mounting nothing, while every
+  // assertion still found its line. So the block is walked by indentation and the two keys are read
+  // out of it.
+  const api = serviceBlock(compose, "api");
+  const told = (api.environment ?? []).map((entry) => /^([A-Za-z0-9_]+):\s*(\S.*?)\s*$/.exec(entry.replace(/^-\s*/, ""))).filter(Boolean).find((match) => match[1] === "CONTROL_CENTER_RELEASE_MANIFEST");
+  // Read from the right: the source half can contain spaces inside `${VAR:?message}`, the destination
+  // and mode cannot.
+  const mounted = (api.volumes ?? []).map((entry) => /^-\s*(.+?):(\/[^:\s]+)(?::([a-z,]+))?\s*$/.exec(entry)).filter(Boolean).find((match) => match[1].includes("OPSWORKBENCH_RELEASE_MANIFEST"));
+  assert.ok(told, "the api must be told where its manifest is, under its own environment key");
+  assert.ok(mounted, "and the manifest must be mounted, under its own volumes key");
+  assert.equal(told[2].replace(/^["']|["']$/g, ""), mounted[2], "the path the api is told to read must be the path the manifest is mounted at");
+  assert.equal(mounted[2], "/run/opsworkbench-release/manifest.json");
+  assert.equal(mounted[3], "ro", "the release manifest is evidence, and the service must not be able to rewrite it");
   // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
   // quietly mount whatever a default names.
-  assert.equal(/\$\{OPSWORKBENCH_RELEASE_MANIFEST:-/.test(api), false, "a default would let a deployment run without being told which release it is");
+  assert.match(mounted[1], /^\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}$/, "a default would let a deployment run without being told which release it is");
 });
