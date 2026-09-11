@@ -109,10 +109,21 @@ if [ "$command" = activate ]; then
   # supplementary membership -- an install root owned by an operations group, say -- would have failed a
   # probe that systemd itself would have passed, refusing a deployment that was fine.
   probe_credentials=(-u "$agent_user" -g "$agent_group")
-  # NUMERIC gids. `id -Gn` output cannot be split safely -- a group named "domain users" becomes two
-  # credentials, and an unquoted expansion would glob besides. Numbers have neither problem, and
-  # runuser accepts them.
-  for supplementary in $(id -G "$agent_user"); do probe_credentials+=(-G "$supplementary"); done
+  # ENUMERATED NUMERICALLY, PASSED BY NAME.
+  #
+  # `id -Gn` output cannot be tokenised: a group called "domain users" splits into two credentials, and
+  # the unquoted expansion globs besides. So the list is walked as gids, which are single safe tokens.
+  # But runuser resolves `-G` with getgrnam and NOT getgrgid, so a gid handed to it straight is looked
+  # up as a group whose NAME is that number. Measured on util-linux 2.34:
+  #   runuser -u nobody -G 65534 -- true  ->  "group 65534 does not exist", exit 1
+  #   runuser -u nobody -G nogroup -- true ->  exit 0
+  # Every ordinary install would have failed this probe and rolled back. Each gid is resolved back to
+  # its name, which is then passed as one argument no matter what is in it.
+  for supplementary in $(id -G "$agent_user"); do
+    supplementary_name="$(getent group "$supplementary" | cut -d: -f1)"
+    [ -n "$supplementary_name" ] || fail "the agent account is in group $supplementary, which this host cannot name"
+    probe_credentials+=(-G "$supplementary_name")
+  done
   # Asked of that account, before `current` moves or the service is touched: a failure here is otherwise
   # a ninety-second heartbeat timeout and a full rollback.
   if ! runuser "${probe_credentials[@]}" -- test -x "$probe_work" || ! runuser "${probe_credentials[@]}" -- test -r "$probe_main"; then

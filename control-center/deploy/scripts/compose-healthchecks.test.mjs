@@ -84,8 +84,16 @@ test("the api mounts the release manifest it is pointed at", () => {
   // against the raw text passed with the mount commented out -- the check would have gone on passing
   // through the deployment it exists to protect.
   const api = compose.slice(compose.indexOf("  api:"), compose.indexOf("  web:")).split(/\r?\n/).filter((line) => !line.trim().startsWith("#")).join("\n");
-  assert.match(api, /CONTROL_CENTER_RELEASE_MANIFEST:\s*\/run\/opsworkbench-release\/manifest\.json/, "the api must be told where its manifest is");
-  assert.match(api, /\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}:\/run\/opsworkbench-release\/manifest\.json:ro/, "and the path must come from the deployment, read-only, with no default that would silently mount the wrong release");
+  // THE WHOLE VALUE, and the two halves compared to each other. A prefix match passed with the
+  // environment variable pointing at `manifest.json.missing` while the mount stayed correct: the API
+  // would have read a path that does not exist, reported an unknown identity, and failed the
+  // deployment for a reason nothing here would have explained.
+  const told = /^\s*CONTROL_CENTER_RELEASE_MANIFEST:\s*(\S+)\s*$/m.exec(api);
+  const mounted = /^\s*-\s*\$\{OPSWORKBENCH_RELEASE_MANIFEST:\?[^}]*\}:(\S+?):ro\s*$/m.exec(api);
+  assert.ok(told, "the api must be told where its manifest is");
+  assert.ok(mounted, "and the path must come from the deployment, read-only, with no default that would silently mount the wrong release");
+  assert.equal(told[1], mounted[1], "the path the api is told to read must be the path the manifest is mounted at");
+  assert.equal(told[1], "/run/opsworkbench-release/manifest.json");
   // Required interpolation, not a default: an `up` that forgets the variable must fail rather than
   // quietly mount whatever a default names.
   assert.equal(/\$\{OPSWORKBENCH_RELEASE_MANIFEST:-/.test(api), false, "a default would let a deployment run without being told which release it is");
