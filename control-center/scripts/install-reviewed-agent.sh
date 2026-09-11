@@ -21,9 +21,15 @@ command="${1:-}"; shift || true
 # Deliberately BEFORE the root check and deliberately read-only: it reads /etc/group through getent,
 # mutates nothing, starts nothing, and touches no release. Everything that changes this host is below.
 probe_credentials_for() {
-  local user="$1" group="$2" supplementary name
+  local user="$1" group="$2" supplementary name gids
   local built=(-u "$user" -g "$group")
-  for supplementary in $(id -G "$user"); do
+  # CAPTURED FIRST, not enumerated in the loop header. A failing `id -G` there is not an error the
+  # function can see: the expansion is empty, the loop runs zero times, and out comes a short credential
+  # list that looks perfectly well formed with the account's supplementary groups silently dropped —
+  # the difference between a probe that asks systemd's question and one that asks an easier one.
+  gids="$(id -G "$user")" || fail "cannot enumerate the groups of $user"
+  [ -n "$gids" ] || fail "$user reports no groups at all"
+  for supplementary in $gids; do
     name="$(getent group "$supplementary" | cut -d: -f1)"
     [ -n "$name" ] || fail "the agent account is in group $supplementary, which this host cannot name"
     built+=(-G "$name")

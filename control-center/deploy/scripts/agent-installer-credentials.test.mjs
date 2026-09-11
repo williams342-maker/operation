@@ -63,8 +63,35 @@ test("runuser accepts the credential list the installer builds, and really drops
     return t.skip("this host has no unprivileged nobody account");
   }
   const printed = run("probe-credentials", user, group);
-  execFileSync("runuser", [...printed, "--", "test", "-x", "/tmp"], { stdio: "pipe" });
-  assert.throws(() => execFileSync("runuser", [...printed, "--", "test", "-r", "/etc/shadow"], { stdio: "pipe" }), "the credentials are really dropped");
+  // THE IDENTITY OF THE PROCESS, asked of the process itself. The first version of this checked that
+  // /etc/shadow could not be read, which proves nothing: a host where that file is absent, or where the
+  // account is in a group that may read it, answers the same as a host where credentials never changed.
+  const identity = (...command) => execFileSync("runuser", [...printed, "--", ...command], { encoding: "utf8" }).trim();
+  assert.equal(identity("id", "-un"), user, "the process really runs as that account");
+  assert.equal(identity("id", "-gn"), group, "with the group that was asked for as its primary");
+  const carried = identity("id", "-Gn").split(/\s+/).sort();
+  const expected = printed.filter((_, index) => index >= 4 && index % 2 === 1).concat(group).sort();
+  assert.deepEqual([...new Set(carried)], [...new Set(expected)], "and exactly the supplementary groups the list named");
+});
+
+test("the primary group comes from the argument, not from the account", (t) => {
+  // The unit's `Group=` is allowed to differ from the account's own primary group, and both fixtures
+  // above happen to pass the account's own — so the override itself was asserted by nobody.
+  if (!linux) return t.skip("needs id/getent");
+  const user = os.userInfo().username;
+  const own = execFileSync("id", ["-gn", user], { encoding: "utf8" }).trim();
+  const other = ["daemon", "bin", "sys", "nogroup", "root"].find((candidate) => {
+    if (candidate === own) return false;
+    try {
+      return execFileSync("getent", ["group", candidate], { encoding: "utf8" }).trim().length > 0;
+    } catch {
+      return false;
+    }
+  });
+  if (!other) return t.skip("this host has no second group to override with");
+  const printed = run("probe-credentials", user, other);
+  assert.equal(printed[3], other, "the group asked for is the group passed");
+  assert.notEqual(printed[3], own);
 });
 
 test("the read-only verb refuses what it cannot name", (t) => {

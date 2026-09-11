@@ -87,8 +87,11 @@ function serviceBlock(text, name) {
   let key = null;
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim() || line.trim().startsWith("#")) continue;
-    const service = /^ {2}([a-z][a-z0-9_-]*):\s*$/.exec(line);
-    if (service) { inService = service[1] === name; key = null; continue; }
+    // ANY key at service indentation ends the block, however it is written. Matching only the bare
+    // `name:` form let `"web":` and `web: # a comment` slip through, so a mount moved under web was
+    // still read as the api's and a removed mount still passed.
+    const service = /^ {2}(?:"([^"]+)"|'([^']+)'|([^\s:#][^:]*)):(?:\s|$)/.exec(line);
+    if (service) { inService = (service[1] ?? service[2] ?? service[3]).trim() === name; key = null; continue; }
     if (!inService) continue;
     const declared = /^ {4}([a-z][a-zA-Z0-9_-]*):\s*(\S.*)?$/.exec(line);
     if (declared) { key = declared[1]; found[key] = found[key] ?? []; if (declared[2]) found[key].push(declared[2].trim()); continue; }
