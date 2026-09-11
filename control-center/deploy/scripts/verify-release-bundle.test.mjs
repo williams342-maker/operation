@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   attestationBundleFor,
+  attestationBundleNames,
   verifyAttestation,
   verifyReleaseBundle,
   parseSha256Sums,
@@ -219,4 +220,30 @@ test("a bundle that is a symlink is refused", (t) => {
     return;
   }
   assert.throws(() => attestationBundleFor(bundles, digest), /is not a regular file/);
+});
+
+test("both of gh's bundle names are accepted, because the producer and the consumer are different platforms", () => {
+  // `gh attestation download` writes `sha256:<digest>.jsonl`, except on Windows where a colon is not a
+  // legal filename character and it writes `sha256-<digest>.jsonl`. Bundles are produced where a
+  // credential exists and consumed where none does, so those are routinely different machines. The name
+  // list is asserted separately from the filesystem because Windows cannot create the colon form at all.
+  const digest = "a".repeat(64);
+  assert.deepEqual(attestationBundleNames(digest), [`sha256:${digest}.jsonl`, `sha256-${digest}.jsonl`]);
+  assert.throws(() => attestationBundleNames("nope"), /subject digest is invalid/);
+});
+
+test("a bundle written under gh's native name is found", (t) => {
+  const { bundles, digest } = attestationFixture();
+  fs.unlinkSync(path.join(bundles, `sha256-${digest}.jsonl`));
+  const native = path.join(bundles, `sha256:${digest}.jsonl`);
+  try {
+    fs.writeFileSync(native, "{}\n");
+    // Windows accepts this write as an alternate data stream on the directory rather than a file, so a
+    // pass here would prove nothing about the file being found by name.
+    if (!fs.existsSync(native)) throw new Error("not a real file on this platform");
+  } catch {
+    t.skip("this platform cannot create a file whose name contains a colon");
+    return;
+  }
+  assert.equal(attestationBundleFor(bundles, digest), native);
 });

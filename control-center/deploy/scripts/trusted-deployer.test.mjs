@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { attestationSource, deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
+import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -849,18 +849,45 @@ test("a plan may carry an absolute attestation bundle directory, and nothing els
   assert.throws(() => parseDeploymentPlan({ ...valid, attestationBundles: bundles, surprise: true }), /unknown fields/);
 });
 
-test("every release-bundle attestation check is told where the bundles are", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-pass-"));
-  const item = { ...plan(root), attestationBundles: path.join(root, "attestations") };
+test("preparation and re-verification read every release-bundle attestation from the bundle directory", () => {
+  // The previous version of this test called attestationSource() and asserted its return value, which
+  // is the feature asserting itself. Removing the pass-through from all four call sites left it green.
+  // These drive the real entry points and read what the verification hook was actually handed.
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-callsites-"));
+  const { item } = releaseFixture();
+  item.attestationBundles = bundles;
   const seen = [];
-  // Preparation reaches the attestation step only after bundle verification, so this drives the same
-  // pass-through the deployer uses without rebuilding an entire release fixture: the source is the one
-  // function every call site takes its options from.
-  const options = attestationSource(item);
-  assert.deepEqual(options, { bundleDirectory: item.attestationBundles });
-  assert.deepEqual(attestationSource(plan(root)), {});
-  seen.push(options);
-  assert.equal(seen.length, 1);
+  const capture = (_dir, _names, options) => { seen.push(options.bundleDirectory); return { verified: true }; };
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: capture });
+  reverifyPreparedRelease(preparation, { verifyAttestation: capture });
+  assert.equal(seen.length, 4, "candidate and rollback, in preparation and again in re-verification");
+  assert.deepEqual([...new Set(seen)], [bundles]);
+
+  // And the other direction: a plan without bundles must still verify against the API, or "optional"
+  // would be a word rather than a behaviour.
+  const online = releaseFixture();
+  const onlineSeen = [];
+  const onlineCapture = (_dir, _names, options) => { onlineSeen.push(options.bundleDirectory); return { verified: true }; };
+  const onlinePreparation = prepareReviewedRelease(online.item, { verifyAttestation: onlineCapture });
+  reverifyPreparedRelease(onlinePreparation, { verifyAttestation: onlineCapture });
+  assert.equal(onlineSeen.length, 4);
+  assert.deepEqual([...new Set(onlineSeen)], [undefined]);
+});
+
+test("the rehearsal evidence check reads its attestation from the bundle directory", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "att-compat-"));
+  const bundles = fs.mkdtempSync(path.join(os.tmpdir(), "att-compat-bundles-"));
+  const item = { ...hostVerifiedPlan(root), attestationBundles: bundles };
+  const scenarios = Object.fromEntries(["forward_compatibility", "rollback_compatibility", "migration_boundaries", "old_app_new_schema", "new_app_old_schema", "interrupted_migration", "failed_deployment_after_migration", "rollback_after_partial_switch", "service_restart_during_transition", "predecessor_artifacts_retained", "rollback_immutable_images", "rollback_target_independently_verified"].map((name) => [name, name.includes("migration") ? "not-applicable-no-migrations" : "passed"]));
+  const ids = (start) => Object.fromEntries(["api", "web", "admin", "gate"].map((role, index) => [role, `sha256:${String(start + index).repeat(64).slice(0, 64)}`]));
+  const bytes = Buffer.from(`${JSON.stringify({ schemaVersion: "opsworkbench-schema-rehearsal-v1", candidateTag: item.tag, candidateCommit: item.commit, rollbackTag: item.rollback.tag, rollbackCommit: item.rollback.commit, mongoTopology: "replica-set", images: { candidate: ids(1), rollback: ids(5) }, migrationsPresent: false, scenarios }, null, 2)}
+`);
+  fs.writeFileSync(item.compatibilityEvidence.path, bytes);
+  item.compatibilityEvidence.sha256 = sha(bytes);
+  let options;
+  const result = verifyCompatibilityEvidence(item, { verifyAttestation: (_dir, _names, received) => { options = received; return { verified: true }; } });
+  assert.equal(result.ok, true);
+  assert.equal(options.bundleDirectory, bundles);
 });
 
 test("image attestations are verified from bundles named by the image digest", () => {

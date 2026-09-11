@@ -28,9 +28,18 @@ non-zero, and none of them falls back to the API:
 ## How a bundle is chosen
 
 By the **subject's own digest**, computed from the bytes being verified — never by a path a plan or a
-manifest supplies. A bundle for the artifact whose sha256 is `<digest>` is the file
-`sha256-<digest>.jsonl` in the plan's `attestationBundles` directory. That is the name
-`gh attestation download` already writes, so the producing side needs no extra tooling.
+manifest supplies. A bundle for the artifact whose sha256 is `<digest>` is looked up in the plan's
+`attestationBundles` directory under the names `gh attestation download` itself writes, in this order:
+
+| platform the bundle was downloaded on | filename |
+| --- | --- |
+| Linux, macOS | `sha256:<digest>.jsonl` |
+| Windows, where a colon cannot appear in a filename | `sha256-<digest>.jsonl` |
+
+Both are accepted, because the machine that holds a credential and the machine that deploys are
+routinely different platforms. Accepting both widens nothing: each name encodes the same digest, and gh
+still has to find that subject inside whichever file it is handed. A file that is present under one of
+those names but is not a regular file is a refusal, not a reason to try the other spelling.
 
 An absent bundle is an error. Falling back to the API would mean the mode that exists to avoid needing
 a credential quietly requires one at the moment it is used.
@@ -46,7 +55,8 @@ gh attestation download <file> --repo williams342-maker/operation
 gh attestation download oci://<image>@sha256:<digest> --repo williams342-maker/operation
 ```
 
-Copy the resulting `sha256-*.jsonl` files into the plan's `attestationBundles` directory on the host.
+Copy the resulting `sha256:*.jsonl` files (or `sha256-*.jsonl`, if they were downloaded on Windows)
+into the plan's `attestationBundles` directory on the host, under the names gh gave them.
 
 ## Where they live
 

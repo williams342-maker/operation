@@ -44,7 +44,7 @@ export function isReadinessEndpoint(url) {
  * read attestations from disk instead of the GitHub API, which is what lets a host verify provenance
  * with no GitHub credential on it at all. Absent, every call behaves exactly as it did before.
  */
-export const attestationSource = (plan) => (plan?.attestationBundles ? { bundleDirectory: plan.attestationBundles } : {});
+const attestationSource = (plan) => (plan?.attestationBundles ? { bundleDirectory: plan.attestationBundles } : {});
 
 /** The digest a pinned image reference names, which is also the name of its attestation bundle. */
 function imageSubjectDigest(reference) {

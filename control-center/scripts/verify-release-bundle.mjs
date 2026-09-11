@@ -126,17 +126,38 @@ export function ghAvailable() {
  * A MISSING BUNDLE IS AN ERROR, never a fall back to the API. Falling back would mean the mode that
  * exists to avoid needing a credential quietly requires one again at the moment it is used.
  */
-export function attestationBundleFor(bundleDirectory, digest) {
+/**
+ * The names gh gives a downloaded bundle for one subject digest, in the order they are tried.
+ *
+ * `gh attestation download` names the file after the subject digest — `sha256:<digest>.jsonl` — except
+ * on Windows, where a colon cannot appear in a filename and gh substitutes a dash. Bundles are produced
+ * on a machine that holds a credential and consumed on one that does not, so the two platforms are
+ * routinely different machines and BOTH names have to be accepted. Accepting both widens nothing: each
+ * encodes the same digest, and gh still has to find that subject inside whichever file it is handed.
+ *
+ * Kept separate from the filesystem so it is testable on a platform that cannot create one of the two
+ * names at all.
+ */
+export function attestationBundleNames(digest) {
   if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("attestation subject digest is invalid");
-  const file = path.join(bundleDirectory, `sha256-${digest}.jsonl`);
-  let stat;
-  try {
-    stat = fs.lstatSync(file);
-  } catch {
-    throw new Error(`no attestation bundle for sha256:${digest}`);
+  return [`sha256:${digest}.jsonl`, `sha256-${digest}.jsonl`];
+}
+
+export function attestationBundleFor(bundleDirectory, digest) {
+  for (const name of attestationBundleNames(digest)) {
+    const file = path.join(bundleDirectory, name);
+    let stat;
+    try {
+      stat = fs.lstatSync(file);
+    } catch {
+      continue;
+    }
+    // Present but not a regular file is a refusal, not a reason to try the other spelling: something
+    // is wrong with the bundle that was staged, and quietly reaching past it hides that.
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`attestation bundle for sha256:${digest} is not a regular file`);
+    return file;
   }
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`attestation bundle for sha256:${digest} is not a regular file`);
-  return file;
+  throw new Error(`no attestation bundle for sha256:${digest}`);
 }
 
 // Verify the SLSA build-provenance attestation for each listed file via `gh attestation verify`.
