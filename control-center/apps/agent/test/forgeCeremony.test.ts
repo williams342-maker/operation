@@ -158,9 +158,12 @@ test("a line terminator that is not ASCII is refused as well", () => {
   const keyDirectory = path.join(root, "c1-key");
   node("generate-forge-owner-key.mjs", [keyDirectory]);
 
-  for (const [label, character] of [["c1-next-line", ""], ["c1-string-terminator", ""], ["line-separator", " "], ["paragraph-separator", " "]]) {
+  // Written as code points rather than as the characters themselves: a literal U+2028 in a JavaScript
+  // source file is the very hazard under test, and a reviewer cannot see it in the diff.
+  for (const [label, character] of [["c1-next-line", 0x85], ["c1-string-terminator", 0x9c], ["line-separator", 0x2028], ["paragraph-separator", 0x2029]] as const) {
+    const injected = String.fromCodePoint(character);
     const file = path.join(root, `${label}.json`);
-    fs.writeFileSync(file, `${JSON.stringify({ ...base, hostname: `${base.hostname}${character}injected` }, null, 2)}\n`);
+    fs.writeFileSync(file, `${JSON.stringify({ ...base, hostname: `${base.hostname}${injected}injected` }, null, 2)}\n`);
     assert.throws(
       () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `${label}-signed.json`)]),
       /control character/,
@@ -171,7 +174,7 @@ test("a line terminator that is not ASCII is refused as well", () => {
   // And the builder refuses the same thing, so the two tools agree rather than one catching the other's work.
   const { trustedRootPath, reviewGateCaPath, ownerPublicKey } = ceremony();
   assert.throws(() => node("build-forge-security-identity.mjs", [
-    "--org", org, "--server", server, "--hostname", `${hostname}`,
+    "--org", org, "--server", server, "--hostname", `${hostname}${String.fromCodePoint(0x85)}`,
     "--machine-id-sha256", sha256(machineId), "--owner-public-key", ownerPublicKey,
     "--trusted-root", trustedRootPath, "--review-gate-ca", reviewGateCaPath,
     "--valid-from", "2026-09-01T00:00:00.000Z", "--valid-until", "2027-09-01T00:00:00.000Z",

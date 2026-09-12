@@ -143,7 +143,7 @@ export function withConfigurationLock<T>(operation: () => T): T {
   try {
     handle = fs.openSync(lockPath, "wx", 0o600);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "EEXIST") throw new Error(`another provisioning or rollback is in progress (${lockPath}); this runtime will not write its configuration underneath one`);
+    if ((error as NodeJS.ErrnoException)?.code === "EEXIST") throw new Error(`another provisioning or rollback is in progress (${lockPath}); this runtime will not write its configuration underneath one`, { cause: error });
     throw error;
   }
   try {
