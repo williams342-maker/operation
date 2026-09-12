@@ -305,6 +305,10 @@ async function reportUpdaterResults(config: AgentConfig, resultsDirectory = "/va
 
 async function main() {
   const config = await maybeEnroll();
+  // Establish, not merely check: a runtime that has never been told its organisation adopts it from the
+  // owner-signed identity here, because the check below it runs before the first poll and would
+  // otherwise refuse forever on a host that has no way to learn.
+  establishRuntimeIdentity(config);
   validateForgeRuntimeIdentity(config);
   // Resolved once here as well as per poll, so an ENFORCING executor with unusable gate configuration
   // fails to START rather than logging a poll error every interval while looking alive.
@@ -341,12 +345,43 @@ export function learnRuntimeIdentity(config: AgentConfig, response: { orgId?: st
   return learned;
 }
 
+/**
+ * Adopt the ids this runtime has never been told, from material the OWNER signed.
+ *
+ * The deadlock this breaks: a runtime with no `orgId` cannot pass the identity check, and the check runs
+ * at startup before the first poll — so it can never reach the network that would tell it. Learning from
+ * the control plane cannot solve that, because the runtime never gets that far.
+ *
+ * The identity document can, and it is the right source: `loadForgeSecurityMaterial` has already
+ * verified the owner's signature over it and bound it to this host's name, its machine id and a validity
+ * window before we see it here. Adopting from it makes the OWNER authoritative for who this runtime is,
+ * not the control plane.
+ *
+ * A CONFLICT IS NEVER ADOPTED. Anything the configuration already says wins, and a document naming
+ * someone else is refused exactly as before.
+ */
+export function adoptRuntimeIdentity(config: AgentConfig, identity: { orgId: string; serverId: string }): boolean {
+  if ((config.orgId && config.orgId !== identity.orgId) || (config.serverId && config.serverId !== identity.serverId)) {
+    throw new Error("Forge security identity does not match this enrolled agent runtime");
+  }
+  let adopted = false;
+  if (!config.orgId) { config.orgId = identity.orgId; adopted = true; }
+  if (!config.serverId) { config.serverId = identity.serverId; adopted = true; }
+  return adopted;
+}
+
+/** Startup: load the owner-signed material, adopt what is missing, persist it, and return the material. */
+export function establishRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial, persist = saveConfig): ReturnType<typeof loadForgeSecurityMaterial> {
+  const security = load();
+  if (adoptRuntimeIdentity(config, security.identity)) persist(config);
+  return security;
+}
+
 export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
   const security = load();
-  // The empty case is called out separately because it is not a mismatch, it is a runtime that has never
-  // been told who it is — and every agent enrolled before the control plane returned an organisation id
-  // is in exactly that state. Reporting it as a mismatch sends an operator hunting for a wrong identity
-  // document when what is missing is one line of configuration.
+  // Reached on every poll, by which time startup has established both ids. The empty case is still
+  // called out separately: it is not a mismatch, it is a runtime that was never told who it is, and at
+  // the owner's signing ceremony those two need different actions.
   if (!config.orgId || !config.serverId) throw new Error("This agent runtime has no organisation or server id configured, so an owner-signed Forge identity cannot be matched to it");
   if (security.identity.orgId !== config.orgId || security.identity.serverId !== config.serverId) throw new Error("Forge security identity does not match this enrolled agent runtime");
   return security;
