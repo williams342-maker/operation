@@ -172,6 +172,15 @@ if [ "$command" = rollback ]; then
   for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do [ ! -f "$backup/units/$unit" ] || install -o root -g root -m 0644 "$backup/units/$unit" "$unit_root/$unit"; done
   pending="$install_root/current.reviewed-rollback-$$"; trap 'rm -f -- "$pending"' EXIT
   ln -s -- "$prior" "$pending"; mv -Tf -- "$pending" "$install_root/current"; trap - EXIT
+
+  # THE SNAPSHOT MAY PREDATE A PROVISIONING. It is taken at activation, and the Forge organisation is
+  # written into agent.json separately by scripts/provision-agent-organisation.mjs. Restoring a snapshot
+  # from before that step removes the organisation, and the agent then refuses to start — fail-closed,
+  # but only if somebody knows to look. This is not a locking problem and a lock would not fix it: the
+  # snapshot was already stale when it was taken. So the operator is told here, where they are looking.
+  echo "reviewed agent rollback: agent.json was restored from the activation snapshot."
+  echo "  If this host was Forge-provisioned after that activation, the organisation id is now gone."
+  echo "  Re-provision and confirm it before restarting the service."
   systemctl daemon-reload; systemctl restart "$service"; systemctl is-active --quiet "$service" || fail "rollback agent did not return"
   exit 0
 fi

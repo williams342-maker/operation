@@ -2,7 +2,7 @@
 import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, isPrivilegedTaskType, authorizePrivilegedTask, privilegedSubPayload, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
-import { loadConfig, saveConfig, stateDir, type AgentConfig } from "./config.js";
+import { loadConfig, saveConfig, stateDir, withConfigurationLock, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
 import { executeConfigurationDeployment } from "./configurationDeployment.js";
@@ -19,7 +19,7 @@ function writeUpdaterHeartbeat(config: AgentConfig, discoveryComplete: boolean) 
 
 type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
 
-async function maybeEnroll() {
+export async function maybeEnroll() {
   const config = loadConfig();
   const token = process.env.CONTROL_CENTER_ENROLLMENT_TOKEN;
   if (config.agentId && config.agentSecret) return config;
@@ -42,9 +42,25 @@ async function maybeEnroll() {
     binarySha256: config.binarySha256,
     capabilities: [...advertisedCapabilities]
   });
-  const nextConfig = { ...config, serverId: result.serverId, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
-  saveConfig(nextConfig);
-  return nextConfig;
+  // THE SNAPSHOT READ BEFORE THE AWAIT IS STALE, and saving it is a lost update. A review provisioned an
+  // organisation while this request was in flight and watched the response write the old empty value back
+  // over it, which hands a control plane that chooses when to answer the power to undo provisioning and
+  // stop the host starting. So the configuration is read AGAIN here, inside the lock the provisioning
+  // tool also takes, and the enrolment fields are merged onto what is actually on disk.
+  return withConfigurationLock(() => {
+    const current = loadConfig();
+    // ENROLMENT MAY ESTABLISH A SERVER ID, NEVER REPLACE ONE. Review pointed out that overwriting here
+    // contradicted the rule the rest of this file now keeps: an identifier the Forge check matches
+    // against must not be changeable by the control plane. Establishing one on a host that has never had
+    // one is the bootstrap; changing one that is already written down is the thing to refuse, loudly,
+    // rather than silently pointing this runtime at a different server.
+    if (current.serverId && result.serverId && current.serverId !== result.serverId) {
+      throw new Error(`This runtime is configured for server ${current.serverId} and enrolment returned ${result.serverId}; refusing to change it. Provision deliberately if the host really has moved.`);
+    }
+    const nextConfig = { ...current, serverId: current.serverId || result.serverId, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
+    saveConfig(nextConfig);
+    return nextConfig;
+  });
 }
 
 export type ReviewEnforcement =
@@ -277,8 +293,12 @@ async function pollOnce() {
     docker: await collectDocker().catch(() => []),
     discovery: await collectApplicationDiscovery(config).catch(() => undefined)
   };
-  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { orgId?: string; serverId?: string; tasks?: ClaimedTask[] };
-  if (learnRuntimeIdentity(config, response)) saveConfig(config);
+  // THE RESPONSE CANNOT TELL THIS RUNTIME WHO IT IS. It used to fill a missing server id, and a first
+  // version of the organisation fix filled that too — which would have let the control plane decide
+  // which owner-signed Forge identity this host accepts. Security review required the path gone rather
+  // than merely unreachable, because unreachable is a property of today's call order and not of the
+  // design. Identity comes from the owner-signed document at startup; nothing on the wire adds to it.
+  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { tasks?: ClaimedTask[] };
   writeUpdaterHeartbeat(config, Boolean(initial.discovery));
   for (const task of response.tasks || []) {
     try {
@@ -305,7 +325,12 @@ async function reportUpdaterResults(config: AgentConfig, resultsDirectory = "/va
 
 async function main() {
   const config = await maybeEnroll();
-  startupIdentity(config);
+  // Checked, never established. The identity being validated is not evidence of which organisation this
+  // runtime belongs to — using it that way lets the document decide the value it is then matched
+  // against, which is a check comparing a thing to itself. Security review required an INDEPENDENT local
+  // input: `orgId` is provisioned into the protected agent configuration, `serverId` comes from
+  // enrolment, and an absent or empty value fails closed rather than being filled in from anywhere.
+  validateForgeRuntimeIdentity(config);
   // Resolved once here as well as per poll, so an ENFORCING executor with unusable gate configuration
   // fails to START rather than logging a poll error every interval while looking alive.
   reviewEnforcement(config);
@@ -321,75 +346,11 @@ async function main() {
   await pollOnce();
 }
 
-/**
- * The organisation and server this runtime belongs to, learned from the control plane ONLY while the
- * configuration does not already say.
- *
- * Nothing populated `orgId` before: the poll response carried a server id and nothing else, so
- * `config.orgId` stayed at its empty default on every host, and the Forge identity check below — which
- * compares an owner-signed document against it — could not pass anywhere, however correct the signed
- * material was.
- *
- * Never overwritten once known. These two values decide WHICH owner-signed identity this runtime will
- * accept, so a control plane that could replace them could choose that for it. An operator writing them
- * into the configuration file wins over anything the network says.
- */
-export function learnRuntimeIdentity(config: AgentConfig, response: { orgId?: string; serverId?: string }): boolean {
-  let learned = false;
-  if (!config.serverId && response.serverId) { config.serverId = response.serverId; learned = true; }
-  if (!config.orgId && response.orgId) { config.orgId = response.orgId; learned = true; }
-  return learned;
-}
-
-/**
- * Adopt the ids this runtime has never been told, from material the OWNER signed.
- *
- * The deadlock this breaks: a runtime with no `orgId` cannot pass the identity check, and the check runs
- * at startup before the first poll — so it can never reach the network that would tell it. Learning from
- * the control plane cannot solve that, because the runtime never gets that far.
- *
- * The identity document can, and it is the right source: `loadForgeSecurityMaterial` has already
- * verified the owner's signature over it and bound it to this host's name, its machine id and a validity
- * window before we see it here. Adopting from it makes the OWNER authoritative for who this runtime is,
- * not the control plane.
- *
- * A CONFLICT IS NEVER ADOPTED. Anything the configuration already says wins, and a document naming
- * someone else is refused exactly as before.
- */
-export function adoptRuntimeIdentity(config: AgentConfig, identity: { orgId: string; serverId: string }): boolean {
-  if ((config.orgId && config.orgId !== identity.orgId) || (config.serverId && config.serverId !== identity.serverId)) {
-    throw new Error("Forge security identity does not match this enrolled agent runtime");
-  }
-  let adopted = false;
-  if (!config.orgId) { config.orgId = identity.orgId; adopted = true; }
-  if (!config.serverId) { config.serverId = identity.serverId; adopted = true; }
-  return adopted;
-}
-
-/** Startup: load the owner-signed material, adopt what is missing, persist it, and return the material. */
-export function establishRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial, persist = saveConfig): ReturnType<typeof loadForgeSecurityMaterial> {
-  const security = load();
-  if (adoptRuntimeIdentity(config, security.identity)) persist(config);
-  return security;
-}
-
-/**
- * The startup sequence, in one place so it can be exercised: ESTABLISH, then check.
- *
- * The order is the whole fix. Checking first refuses a runtime that has never been told its
- * organisation, and it refuses before the first poll, so such a host can never reach anything that would
- * tell it. `main` delegates here rather than repeating the two calls.
- */
-export function startupIdentity(config: AgentConfig, load = loadForgeSecurityMaterial, persist = saveConfig): ReturnType<typeof loadForgeSecurityMaterial> {
-  establishRuntimeIdentity(config, load, persist);
-  return validateForgeRuntimeIdentity(config, load);
-}
-
 export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
   const security = load();
-  // Reached on every poll, by which time startup has established both ids. The empty case is still
-  // called out separately: it is not a mismatch, it is a runtime that was never told who it is, and at
-  // the owner's signing ceremony those two need different actions.
+  // FAILS CLOSED ON AN ABSENT OR EMPTY VALUE, and says which of the two problems it is. A runtime that
+  // was never provisioned and a runtime handed somebody else's document need different actions at the
+  // ceremony, and reporting the first as the second sends an operator hunting for a wrong file.
   if (!config.orgId || !config.serverId) throw new Error("This agent runtime has no organisation or server id configured, so an owner-signed Forge identity cannot be matched to it");
   if (security.identity.orgId !== config.orgId || security.identity.serverId !== config.serverId) throw new Error("Forge security identity does not match this enrolled agent runtime");
   return security;
