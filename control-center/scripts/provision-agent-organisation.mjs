@@ -171,7 +171,12 @@ if (has("--rollback")) {
   // Exclusively: "w" adopts a file somebody else already created, and in a sticky directory an
   // unprivileged user can create one per candidate pid and have it renamed into place as the
   // configuration.
-  const handle = fs.openSync(pending, "wx", identity.mode);
+  let handle;
+  try {
+    handle = fs.openSync(pending, "wx", identity.mode);
+  } catch (error) {
+    fail(`cannot create the replacement configuration at ${pending} (${error?.code ?? "unknown"}); the configuration and the backup are both unchanged`);
+  }
   let restored = false;
   try {
     try {
@@ -196,7 +201,12 @@ const orgId = value("--org");
 if (!orgId) fail("--org is required, or --rollback to restore the previous configuration");
 if (!/^[a-f0-9]{24}$/.test(orgId)) fail("--org must be a 24-character hex organisation id, which is what the control plane and the signed identity both use");
 
-const before = fs.readFileSync(configPath);
+let before;
+try {
+  before = fs.readFileSync(configPath);
+} catch (error) {
+  fail(`cannot read ${configPath} (${error?.code ?? "unknown"}); the protection rules accept a configuration owned by root, so an unprivileged operator can pass every check and still not be able to read it — run as the account that owns it`);
+}
 const config = JSON.parse(before.toString("utf8"));
 const existing = typeof config.orgId === "string" ? config.orgId : "";
 if (existing && existing !== orgId) {
@@ -222,9 +232,20 @@ try {
     // loop: an interrupted run can leave a backup that does not parse, this branch sent the operator to
     // `--rollback`, and the rollback then refused the same file for not being a configuration — with the
     // only way forward being to delete by hand the file this message had just called the way out.
-    let recoverable = true;
-    try { JSON.parse(fs.readFileSync(backupPath, "utf8")); } catch { recoverable = false; }
-    if (recoverable) fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
+    // AND "I CANNOT READ IT" IS NOT "IT IS NOT A CONFIGURATION". The first version of this branch inferred
+    // the second from any failed read, and a review ran it in the layout install.sh builds — an
+    // agent-owned directory holding a backup root wrote — where a perfectly good backup is simply not
+    // readable by the agent account. It was told to delete the only way back. An fs error carries a code
+    // and a parse failure does not, which is the whole difference.
+    let unreadable = false;
+    let parses = true;
+    try {
+      JSON.parse(fs.readFileSync(backupPath, "utf8"));
+    } catch (error) {
+      if (error?.code) unreadable = true; else parses = false;
+    }
+    if (unreadable) fail(`a backup from an earlier provisioning is at ${backupPath} and this account cannot read it; run as the account that provisioned. Do not delete it — it may be the only way back, and nothing here can tell you otherwise.`);
+    if (parses) fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
     fail(`there is a file at ${backupPath} that is not a configuration, so it is not a way back — an earlier run was interrupted before it could write one. Remove it and provision again; nothing has been changed here.`);
   }
   fail(`cannot write the backup at ${backupPath} (${error?.code ?? "unknown"}); nothing has been changed`);
@@ -250,7 +271,12 @@ try {
 const identity = identityOf(configPath);
 const body = `${JSON.stringify({ ...config, orgId }, null, 2)}\n`;
 const pending = `${configPath}.pending-${crypto.randomBytes(8).toString("hex")}`;
-const handle = fs.openSync(pending, "wx", identity.mode);
+let handle;
+try {
+  handle = fs.openSync(pending, "wx", identity.mode);
+} catch (error) {
+  fail(`cannot create the replacement configuration at ${pending} (${error?.code ?? "unknown"}); the configuration is unchanged and the backup is at ${backupPath}`);
+}
 // NOTHING ORPHANED ON THE WAY OUT. A review filled the filesystem and found the half-written replacement
 // left behind, and the random name made that worse rather than better: a pid-derived name littered at
 // most one file per pid and a later run would trip over it, while a random one mints a fresh name on

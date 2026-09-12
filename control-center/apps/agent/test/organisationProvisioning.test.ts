@@ -263,40 +263,63 @@ test("a backup left by an earlier provisioning is explained, not thrown", (t) =>
   assert.throws(() => provision("--config", file, "--rollback"), /not the JSON configuration it claims to be/, "and the rollback still refuses it, which is why the other message had to change");
 });
 
-test("an operator who cannot read the backup is told to run as the account that provisioned", (t) => {
-  if (process.platform === "win32") return t.skip("POSIX ownership does not describe a Windows ACL");
-  if (process.getuid?.() !== 0) return;
-  // Root provisions, so the backup is root-owned. A colleague rolling back as themselves passes every
-  // protection rule — root is an allowed owner — and then cannot read the file. A review pointed out
-  // this branch had no test. Reaching it needs a second account, so a privileged run stages it and an
-  // unprivileged one asserts nothing extra; there is no skip either way.
-  //
-  // The script is copied somewhere the other account can reach, because a checkout under /root is not
-  // traversable by anybody else and that would fail for a reason this test is not about.
-  const reachable = fs.mkdtempSync(path.join(os.tmpdir(), "agent-reachable-"));
-  fs.chmodSync(reachable, 0o755);
-  const tool = path.join(reachable, "provision.mjs");
-  fs.copyFileSync(path.join(scripts, "provision-agent-organisation.mjs"), tool);
-  fs.chmodSync(tool, 0o755);
-
+// NO RULE MAY DEPEND ON A PRIVILEGED RUN TO BE TESTED AT ALL. A review found the previous version of the
+// test below opening with a bare `return` when not root — which reports as a PASS, satisfies the count
+// and skip gates, and left two of that round's fixes unexercised on the very job that gates the merge.
+// The gate's own comment says no skipped test may stand in for the case that needs root; returning early
+// is worse than skipping, because the gate cannot even see it. So: every rule is reached without
+// privilege, and a privileged run only ever adds to that.
+test("an account that cannot write beside the configuration is told so, before anything is touched", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
+  if (process.getuid?.() === 0) return t.skip("root ignores mode bits; this rule is proved by the unprivileged run, which is what CI is");
+  // Reached with nothing but a mode: a directory its owner cannot write is a directory the lock cannot be
+  // created in, and provisioning writes three files there. The refusal names the directory.
   const { file, directory } = enrolledConfig();
-  provision("--config", file, "--org", org);
-  const rollbackAsNobody = () => execFileSync("runuser", ["-u", "nobody", "--", process.execPath, tool, "--config", file, "--rollback"], { encoding: "utf8" });
+  fs.chmodSync(directory, 0o500);
   try {
-    // First, the account cannot even write beside the configuration, so it never reaches the backup.
-    fs.chmodSync(directory, 0o755);
-    assert.throws(rollbackAsNobody, /run as an account that can write/);
-
-    // Now the layout where the branch is actually reachable, and it is a real one: the directory belongs
-    // to the agent account, root provisioned into it, and the backup root wrote is not readable by the
-    // agent. Every protection rule passes — root is an allowed owner — and the read is what fails.
-    fs.chownSync(directory, 65534, 65534);
-    assert.throws(rollbackAsNobody, /run the rollback as the account that provisioned/);
-    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).orgId, org, "and nothing was rolled back");
+    assert.throws(() => provision("--config", file, "--org", org), /run as an account that can write/);
+    assert.equal(fs.existsSync(`${file}.provisioning-lock`), false, "and no lock was left behind");
   } finally {
-    fs.chownSync(directory, 0, 0);
     fs.chmodSync(directory, 0o700);
-    fs.rmSync(reachable, { recursive: true, force: true });
+  }
+});
+
+test("an operator who cannot read the backup is told to run as the account that provisioned", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
+  if (process.getuid?.() === 0) return t.skip("root ignores mode bits; this rule is proved by the unprivileged run, which is what CI is");
+  // Also reached with nothing but a mode. A backup at 0200 is write-only to its owner: it passes the
+  // protection rule, which asks whether anybody ELSE can read or write it, and then cannot be read. That
+  // is the same branch a colleague hits against a root-written backup, without needing a second account.
+  const { file } = enrolledConfig();
+  provision("--config", file, "--org", org);
+  const backup = `${file}.before-organisation`;
+  fs.chmodSync(backup, 0o200);
+  try {
+    assert.throws(() => provision("--config", file, "--rollback"), /run the rollback as the account that provisioned/);
+    // And provisioning again must not tell the operator this backup is rubbish and should be deleted. A
+    // review met exactly that message in the layout install.sh builds, over a backup root had written
+    // minutes earlier: the advice would have destroyed the only way back.
+    assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /cannot read it; run as the account that provisioned/);
+    assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /Do not delete it/);
+  } finally {
+    fs.chmodSync(backup, 0o600);
+  }
+  // Readable again, the same file is recognised as a way back rather than as rubbish.
+  assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /will not overwrite the way out/);
+  assert.equal(JSON.parse(provision("--config", file, "--rollback")).rolledBack, file);
+});
+
+test("an operator who cannot read the configuration is told which account to be", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
+  if (process.getuid?.() === 0) return t.skip("root can read anything, and this suite refuses to let a rule rest on that");
+  // The protection rules accept a configuration owned by root, so an unprivileged operator can pass every
+  // check and still not be able to read the file. 0200 stands in for that here.
+  const { file } = enrolledConfig();
+  fs.chmodSync(file, 0o200);
+  try {
+    assert.throws(() => provision("--config", file, "--org", org), /run as the account that owns it/);
+  } finally {
+    fs.chmodSync(file, 0o600);
   }
 });
 
@@ -318,6 +341,60 @@ test("a completed run leaves no replacement behind, and the cleanup that covers 
   assert.equal(source.match(/if \(!installed\) \{ try \{ fs\.rmSync\(pending, \{ force: true \}\); \}/g)?.length, 1, "the provisioning verb");
   assert.equal(source.match(/if \(!restored\) \{ try \{ fs\.rmSync\(pending, \{ force: true \}\); \}/g)?.length, 1, "and the rollback verb");
   assert.equal(source.match(/if \(!backedUp\) \{ try \{ fs\.rmSync\(backupPath, \{ force: true \}\); \}/g)?.length, 1, "and a half-written backup is not left to be found");
+
+  // AND THE THREE WRITE FAILURES, which are only reachable by filling a filesystem. A review produced
+  // them with a 64K tmpfs, which needs a mount and therefore root, and a rule that can only be tested by
+  // a privileged run is a rule this suite has just decided not to have. Asserted here instead, in the
+  // same STRUCTURAL test and for the same stated reason, rather than in a behavioural test that would
+  // quietly do nothing on the job that gates the merge.
+  // The SHAPE, not just the string. Asserting the message exists somewhere lets a mutation keep the
+  // string and disable the branch — a review did exactly that and this passed. Each of these has to be
+  // the first thing its catch does. Compared against a whitespace-free copy so the assertion is about
+  // the structure rather than about how the file happens to be indented.
+  const compact = source.replace(/\s+/g, "");
+  // Counted, not merely present. Two verbs share the open message, so asserting it appears at all lets a
+  // mutation disable one of them and be covered by the other — which is exactly what happened when this
+  // was written with `includes`.
+  for (const [message, times] of [
+    ["cannot write the replacement configuration at", 1],
+    ["cannot write the restored configuration at", 1],
+    ["cannot write the backup at", 1],
+    ["cannot create the replacement configuration at", 2],
+  ] as const) {
+    const shape = `catch(error){fail(\`${message.replace(/\s+/g, "")}`;
+    assert.equal(compact.split(shape).length - 1, times, `${message} … is what its catch does, in ${times} place(s)`);
+  }
+  // Nothing on this path throws a bare fs error at an operator. Every open, read and write is either
+  // inside a catch that calls fail(), or is the lock, which has its own.
+  assert.equal(source.match(/fail\(`cannot /g)?.length, 10, "every failure on the operator path explains itself");
+
+  // AND THE REAL THING, where the machine allows it. A review pointed out the failure is reachable after
+  // all: give the configuration a group the running account cannot assume, run as that account, and the
+  // chown back is refused after the replacement has been written. This is strengthening rather than
+  // cover — the rule is asserted for every run just above — so it adds to a privileged run and takes
+  // nothing away from an unprivileged one.
+  if (process.getuid?.() === 0) {
+    const reachable = fs.mkdtempSync(path.join(os.tmpdir(), "agent-chown-"));
+    fs.chmodSync(reachable, 0o755);
+    const tool = path.join(reachable, "provision.mjs");
+    fs.copyFileSync(path.join(scripts, "provision-agent-organisation.mjs"), tool);
+    fs.chmodSync(tool, 0o755);
+    const staged = enrolledConfig();
+    fs.chownSync(staged.directory, 65534, 65534);
+    fs.chownSync(staged.file, 65534, 0);
+    try {
+      assert.throws(
+        () => execFileSync("runuser", ["-u", "nobody", "--", process.execPath, tool, "--config", staged.file, "--org", org], { encoding: "utf8" }),
+        /cannot restore ownership/,
+      );
+      assert.deepEqual(fs.readdirSync(staged.directory).filter((entry) => entry.includes(".pending-")), [], "and nothing was orphaned");
+    } finally {
+      fs.chownSync(staged.file, 0, 0);
+      fs.chownSync(staged.directory, 0, 0);
+      fs.chmodSync(staged.directory, 0o700);
+      fs.rmSync(reachable, { recursive: true, force: true });
+    }
+  }
 });
 
 test("provisioning refuses a configuration that does not exist", () => {

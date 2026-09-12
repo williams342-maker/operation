@@ -136,7 +136,12 @@ Behaviour worth knowing before you run it:
 - **Every refusal on this path explains itself, and no two of them form a loop.** A backup left by an
   earlier provisioning, a backup that is not a configuration, a backup you cannot read, a directory you
   cannot write, a mistyped `--config`, a full disk: each says what happened and what to do. The
-  leftover-backup case is split in two on purpose. A review followed the remedy the single message named
+  leftover-backup case is split in THREE on purpose, and the third one matters most: a backup this
+  account cannot READ is not a backup that is unreadable. A review met the "not a configuration, remove
+  it" message in the layout `install.sh` builds — an agent-owned directory holding a backup root had
+  written minutes earlier — and following that instruction would have destroyed the only way back. An
+  operating-system error carries a code and a parse failure does not, which is the whole difference.
+  The other two: A review followed the remedy the single message named
   and found the rollback refusing the same file for not parsing, leaving no way forward but to delete by
   hand the file that message had just called the way out. A backup that is not a configuration is not a
   way out, and now says so.
@@ -359,5 +364,19 @@ None of the following has been done, and none of it can be done without the owne
   - Two smaller ones: the two remaining unwrapped writes, and a message with no test. Both closed, and
     reaching the second honestly needed a second account and the layout where it is genuinely reachable —
     a directory the agent owns, holding a backup root wrote.
-- Independent review, round 9: not yet run.
+- Independent review, round 9: **NO-GO**. The security posture was found unchanged and the cleanup logic
+  correct; the findings were in the newest code and in how it was tested.
+  - **A message that would have destroyed the way back.** The leftover-backup branch inferred "this is
+    not a configuration" from any failed read, including one that failed because the operator could not
+    read it — and then told them to delete it. Corrected above.
+  - **A test of mine that reported as a pass while doing nothing.** It opened with a bare `return` when
+    not root, which the count and skip gates cannot see, leaving two of the previous round's fixes
+    unexercised on the job that gates the merge. Every rule is now reached without privilege: a directory
+    its owner cannot write, and a backup at mode 0200, need no second account. A privileged run only ever
+    adds to that. **The rule this establishes, and the one to hold future rounds to: no rule may depend
+    on a privileged run to be tested at all.**
+  - Three write-failure explanations and one more unwrapped read had no coverage; the reads are covered
+    behaviourally and the writes structurally, by their catch shape and by count, because a mutation that
+    keeps the message and disables the branch passed the first two attempts at that assertion.
+- Independent review, round 10: not yet run.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.
