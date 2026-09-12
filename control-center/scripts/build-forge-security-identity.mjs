@@ -76,6 +76,12 @@ const unsigned = {
   validUntil,
 };
 
+// The same sweep the signer performs, here too, so a document that cannot be signed is never built in
+// the first place: every value that reaches the signed statement, checked whatever field it sits in.
+for (const [field, present] of Object.entries(unsigned)) {
+  if (typeof present === "string" && hasControlCharacter(present)) throw new Error(`${field} contains a control character, and every field is joined into the statement being signed`);
+}
+
 const body = `${JSON.stringify(unsigned, null, 2)}\n`;
 fs.writeFileSync(output, body, { flag: "wx", mode: 0o444 });
 process.stdout.write(`${JSON.stringify({

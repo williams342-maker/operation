@@ -108,11 +108,43 @@ test("the signer enforces the loader's structural rules before a signature exist
     fs.writeFileSync(file, `${JSON.stringify(unsigned, null, 2)}\n`);
     return () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `${label}-signed.json`)]);
   };
-  assert.throws(signWith({ ...base, hostname: "Ops\nWorkbench" }, "control-character"), /control characters/);
+  // Caught by the all-fields sweep now rather than the three-field rule, so the message names the field.
+  assert.throws(signWith({ ...base, hostname: "Ops\nWorkbench" }, "control-character"), /hostname contains a control character/);
   assert.throws(signWith({ ...base, orgId: "" }, "empty-org"), /non-empty/);
   assert.throws(signWith({ ...base, validFrom: "2026-09-01" }, "loose-instant"), /exact ISO-8601 instant/);
   assert.throws(signWith({ ...base, validUntil: base.validFrom }, "inverted"), /ends before it begins/);
   assert.throws(signWith({ ...base, ownerPublicKey: "not base64url!" }, "bad-key"), /base64url/);
+});
+
+test("a control character in ANY identity field is refused, not only the three with rules of their own", () => {
+  // The statement the owner signs is the fields joined with newlines. A control character anywhere in it
+  // can shift a boundary, so two different identities could produce the same signed bytes — which is why
+  // this sweeps every field rather than the ones that happen to have a pattern today.
+  const { root, identityPath } = ceremony();
+  const base = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")) };
+  delete base.ownerSignature;
+  const keyDirectory = path.join(root, "sweep-key");
+  node("generate-forge-owner-key.mjs", [keyDirectory]);
+
+  for (const field of Object.keys(base)) {
+    const file = path.join(root, `sweep-${field}.json`);
+    fs.writeFileSync(file, `${JSON.stringify({ ...base, [field]: `${base[field]}\u0000shifted` }, null, 2)}\n`);
+    assert.throws(
+      () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `sweep-${field}-signed.json`)]),
+      new RegExp(`(${field}|control character|invalid|missing or unknown)`),
+      `a control character in ${field} must not reach a signature`,
+    );
+  }
+
+  // And the builder refuses to produce one, so the tools agree rather than one catching the other's work.
+  const { trustedRootPath, reviewGateCaPath, ownerPublicKey } = ceremony();
+  assert.throws(() => node("build-forge-security-identity.mjs", [
+    "--org", `${org}\u0001`, "--server", server, "--hostname", hostname,
+    "--machine-id-sha256", sha256(machineId), "--owner-public-key", ownerPublicKey,
+    "--trusted-root", trustedRootPath, "--review-gate-ca", reviewGateCaPath,
+    "--valid-from", "2026-09-01T00:00:00.000Z", "--valid-until", "2027-09-01T00:00:00.000Z",
+    "--output", path.join(root, "sweep-built.json"),
+  ]), /control character/);
 });
 
 test("the signer refuses a key that is not the one the document names", () => {
