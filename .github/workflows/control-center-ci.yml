@@ -94,6 +94,9 @@ jobs:
       # api +1: the validator knowing CONTROL_CENTER_RELEASE_MANIFEST, and diagnosing its absence.
       # agent +5: the runtime learning which organisation it belongs to, which nothing ever wrote, so the
       # Forge identity check could not pass on any host.
+      # agent +4: the seventh round, both findings introduced by the sixth's fixes -- a pid-named pending
+      # file made a denial of service out of an exclusive open, and the signer reorder deleted the digest
+      # patterns' only coverage.
       # agent +6: the sixth remediation round -- the siblings of the configuration, which a sticky ancestor
       # lets an untrusted user create; the file judged on read as well as write; and three rules that were
       # standing on source-text assertions or on nothing.
@@ -112,7 +115,7 @@ jobs:
       # can tell a restored mode from an inherited one, and the C1 line terminators the control-character
       # sweep used to walk past. The skip count does NOT move: the one case that would have needed root is
       # written down as a comment in the suite instead of sitting there as a test that never runs.
-      CI_EXPECTED_TESTS: "499"
+      CI_EXPECTED_TESTS: "503"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -210,6 +213,7 @@ jobs:
       #                   install, load, and one refusal for each thing a ceremony can get wrong
       #   agent net -1    security review replaced the identity bootstrap: the adoption tests are gone,
       #                   provisioning and poll-refusal tests are here instead
+      #   agent +4        remediation round seven: the fixes were the defect, twice over
       #   agent +6        remediation round six: a planted backup or pending file could become the
       #                   configuration, and the loader, the signer and the mode rule each had a gap
       #   agent +3        measure, then open, then compare device and inode: nothing is opened before it
@@ -225,8 +229,8 @@ jobs:
       #                   provisioning that lands mid-request, the configuration proved protected rather
       #                   than assumed, a umask fixture that discriminates a restored mode, and the
       #                   non-ASCII line terminators the control-character sweep used to walk past
-      CI_EXPECTED_TEST_SUITES: "agent=212,api=134,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "793"
+      CI_EXPECTED_TEST_SUITES: "agent=216,api=134,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "797"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

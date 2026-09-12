@@ -12,10 +12,12 @@ const unsigned = JSON.parse(fs.readFileSync(unsignedPath, "utf8"));
 // them and only them. The schemaVersion VALUE is checked after the sweep, for the same reason the digest
 // patterns are: a control character in it should be reported as a control character.
 if (JSON.stringify(Object.keys(unsigned).sort()) !== JSON.stringify(exact)) throw new Error("unsigned Forge identity has missing or unknown fields");
-// THE STRUCTURAL RULES THE PRODUCTION LOADER ENFORCES, AND TWO IT DOES NOT, applied before a signature
-// exists rather than after. The extras are deliberate and the direction is safe: this refuses C1
-// controls and the Unicode separators, and the loader's own predicate was widened to match rather than
-// left to disagree with the comment. A signature over a document the target will refuse is worth less than no signature: it
+// THE STRUCTURAL RULES THE PRODUCTION LOADER ENFORCES, applied before a signature exists rather than
+// after, plus one the loader does not: the sweep below covers all TEN fields, where the loader's own
+// control-character rule reaches only the three it types as free text. The direction is safe — a signer
+// stricter than the target refuses documents the target would refuse anyway. An earlier version of this
+// banner named the C1 controls and the separators as the extras, which stopped being true in the same
+// change that widened the loader to cover them. A signature over a document the target will refuse is worth less than no signature: it
 // looks like a completed ceremony and only fails on the host, where a second ceremony is the remedy.
 // EVERY CONTROL CHARACTER, not only the ASCII ones. Review found the predicate stopped at U+007F, so a
 // C1 control such as U+0085 NEXT LINE signed cleanly — and U+0085, U+2028 and U+2029 are line terminators

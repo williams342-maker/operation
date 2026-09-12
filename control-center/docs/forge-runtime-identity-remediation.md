@@ -127,8 +127,15 @@ Behaviour worth knowing before you run it:
   the backup and the operator's own recovery step installed it, choosing both trust identifiers with the
   result passing every protection rule afterwards. The backup is now checked exactly as the configuration
   is and must parse as JSON before it can be restored, and both verbs create their pending replacement
-  exclusively, so a planted one is a loud failure rather than a silent adoption. A planted lock file
-  still blocks provisioning until somebody removes it; that is a refusal, and the message names the path.
+  exclusively AND named from random bytes rather than the process id. Exclusivity alone turned the hole
+  into a permanent denial of service: the pid range is small, a review covered all of it as an
+  unprivileged user in under a second, and every provisioning, rollback and enrolment then failed for
+  good — with the retry wedged on a second unhandled error, on the backup the tool calls the way out. An
+  unguessable name has nothing to collide with. A planted lock file still blocks provisioning until
+  somebody removes it; that is a refusal, and the message names the path.
+- **Every refusal on this path explains itself.** A backup left by an earlier provisioning, a backup a
+  non-root operator cannot read, a mistyped `--config`: each says what happened and what to do, rather
+  than printing a stack trace at somebody in the middle of a ceremony.
 - **The configuration must not be readable by group or other either.** It holds the enrolment credential
   and, on a v2 runtime, private keys; `install.sh` creates it 0600. An earlier version of this rule judged
   the file on write alone, which contradicted what the rest of the codebase says about the same file.
@@ -312,5 +319,23 @@ None of the following has been done, and none of it can be done without the owne
     claimed parity with it; an exported helper had no caller; and two tests asserted source text while
     standing between two mutations and a green suite. The inode comparison is now its own function with a
     behavioural test, and the one remaining source-text assertion says so in its name.
-- Independent review, round 7: not yet run.
+- Independent review, round 7: **NO-GO**, two findings, both introduced by the round-6 fixes and both in
+  the fixes rather than around them.
+  - **The exclusive-open fix relocated the sibling hole into a denial of service.** The pending file was
+    still named from the process id, and making a collision fatal made the whole small range worth
+    covering: 0.6 seconds of unprivileged work stopped provisioning, rollback and enrolment permanently,
+    and the documented retry died on a second unhandled error. Named from random bytes now, with every
+    refusal on the operator path given a reason and a remedy.
+  - **The signer reorder deleted the only coverage the digest-shape rules had.** Moving the patterns
+    after the control-character sweep let the sweep's own message satisfy the test that used to reach
+    them, so deleting all three passed the suite — and a signature over a document the loader's schema
+    will refuse is exactly what the signer exists to prevent. Covered directly now, with strings that are
+    well formed and the wrong shape, which only the pattern can refuse.
+  - Three smaller ones: a banner that contradicted the change that introduced it, a source-text test
+    wearing a behavioural name next to the twin renamed for that very reason, and the note that the
+    development fallback configuration is now refused by the read rule. All addressed.
+  - The reviewer withdrew the previous round's finding about the activation script and agreed the lock
+    would be the wrong trade. Its suggestion is taken: that script's rollback now prints the
+    re-provisioning reminder itself, where the operator is actually looking.
+- Independent review, round 8: not yet run.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

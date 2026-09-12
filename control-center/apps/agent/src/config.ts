@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -201,6 +202,10 @@ export function assertOpenedWhatWasMeasured(measured: { dev: number; ino: number
 }
 
 export function loadConfig() {
+  // The example file is a development convenience and the protection rules now refuse it: a checked-out
+  // example is 0644, which is readable by group and other. That is fail-closed and deliberate — nothing
+  // should be starting from an example on a host that matters — but it means this fallback no longer
+  // leads anywhere on a POSIX system, and it is left in place only so the failure names the real file.
   const fallback = path.resolve(process.cwd(), "agent.example.json");
   const file = fs.existsSync(configPath) ? configPath : fallback;
   return agentConfigSchema.parse(JSON.parse(readProtectedConfiguration(file)));
@@ -245,7 +250,11 @@ export function withConfigurationLock<T>(operation: () => T): T {
  */
 export function saveConfig(config: AgentConfig) {
   const body = `${JSON.stringify(agentConfigSchema.parse(config), null, 2)}\n`;
-  const pending = `${configPath}.pending-${process.pid}`;
+  // NAMED FROM RANDOM BYTES, NOT FROM THE PID. Making the exclusive open fatal closed one hole and opened
+  // another: the pid range is small and the name was predictable, so a review covered the whole range as
+  // an unprivileged user in 0.6 seconds and every save, every provisioning and every enrolment failed
+  // permanently. An unguessable name has nothing to collide with. `wx` stays as the belt to that braces.
+  const pending = `${configPath}.pending-${crypto.randomBytes(8).toString("hex")}`;
   let handle: number | undefined;
   let mine = false;
   try {

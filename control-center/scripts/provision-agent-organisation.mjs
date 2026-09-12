@@ -97,6 +97,10 @@ const assertProtected = (file, { exactOwner = false } = {}) => {
   }
 };
 if (!fs.existsSync(configPath)) fail(`${configPath} does not exist; provisioning writes into an enrolled agent's configuration, it does not create one`);
+// A cheap look before the lock, so a mistyped --config does not leave a lock file beside somebody else's
+// file on its way to being refused. A symlink is allowed past this glance deliberately: the real check
+// runs under the lock and has a better thing to say about links than this line does.
+if (process.platform !== "win32") { const glance = fs.lstatSync(configPath); if (!glance.isFile() && !glance.isSymbolicLink()) fail(`${configPath} is not a regular file; --config names the agent's configuration`); }
 
 // ONE LOCK FOR BOTH VERBS. Exclusive creation of the backup serialises two provisionings against each
 // other, and does nothing about a rollback arriving in the middle of one: a review interleaved them and
@@ -144,14 +148,22 @@ if (has("--rollback")) {
   // so a local user had chosen both trust identifiers without forging anything. Sticky does not stop
   // siblings being created, and this design writes three of them, so each has to be safe on its own.
   assertProtected(backupPath);
-  const saved = fs.readFileSync(backupPath);
+  let saved;
+  try {
+    saved = fs.readFileSync(backupPath);
+  } catch (error) {
+    fail(`cannot read the backup at ${backupPath} (${error?.code ?? "unknown"}); a backup written by root is not readable by an unprivileged operator, so run the rollback as the account that provisioned`);
+  }
   try {
     JSON.parse(saved.toString("utf8"));
   } catch (error) {
     fail(`${backupPath} is not the JSON configuration it claims to be (${error?.message ?? "unparseable"}); restoring it would leave this host unable to start`);
   }
   const identity = identityOf(configPath);
-  const pending = `${configPath}.pending-${process.pid}`;
+  // From random bytes, not the pid. Making the exclusive open fatal closed one hole and opened another:
+  // a review covered the whole pid range as an unprivileged user in 0.6 seconds and every provisioning,
+  // rollback and enrolment failed permanently. An unguessable name has nothing to collide with.
+  const pending = `${configPath}.pending-${crypto.randomBytes(8).toString("hex")}`;
   // Exclusively: "w" adopts a file somebody else already created, and in a sticky directory an
   // unprivileged user can create one per candidate pid and have it renamed into place as the
   // configuration.
@@ -185,7 +197,17 @@ if (existing === orgId) {
 }
 
 // The backup is the rollback, so it is written and flushed BEFORE the configuration is touched.
-const backupHandle = fs.openSync(backupPath, "wx", 0o600);
+// EXPLAINED, NOT THROWN. A review found three raw `EEXIST`/`EACCES` stack traces on the documented
+// runbook path, in a tool that otherwise gives a reason for every refusal. A backup already here means an
+// earlier provisioning was not rolled back, and that is the operator's decision to make, not this
+// script's: it will not overwrite the way out.
+let backupHandle;
+try {
+  backupHandle = fs.openSync(backupPath, "wx", 0o600);
+} catch (error) {
+  if (error?.code === "EEXIST") fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
+  fail(`cannot write the backup at ${backupPath} (${error?.code ?? "unknown"}); nothing has been changed`);
+}
 try {
   fs.writeFileSync(backupHandle, before);
   fs.fsyncSync(backupHandle);
@@ -196,7 +218,7 @@ try {
 // not provisioning at all.
 const identity = identityOf(configPath);
 const body = `${JSON.stringify({ ...config, orgId }, null, 2)}\n`;
-const pending = `${configPath}.pending-${process.pid}`;
+const pending = `${configPath}.pending-${crypto.randomBytes(8).toString("hex")}`;
 const handle = fs.openSync(pending, "wx", identity.mode);
 try {
   fs.writeFileSync(handle, body);

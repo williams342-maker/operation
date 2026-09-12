@@ -261,29 +261,46 @@ test("a path that ends in something other than a regular file is refused before 
   assert.throws(() => readProtectedConfiguration(scratch), /not a regular file/);
 });
 
-test("a pending file planted beside the configuration cannot become the configuration", (t) => {
+test("planted pending files can neither become the configuration nor stop it being written", (t) => {
   if (linuxOnly(t)) return;
-  // THE SECOND SIBLING. The ancestor rule accepts a sticky world-writable directory, because sticky
-  // stops anybody replacing the configuration — and does nothing about files created NEXT TO it. The
-  // save wrote its replacement with "w", which adopts a file somebody else already made: an unprivileged
-  // user creates one per candidate pid, the rename installs it as the configuration, and the enrolment
-  // credential is theirs to read. The pid is this process's own here, which is what makes the collision
-  // reachable from a test rather than argued about.
-  const planted = `${configFile}.pending-${process.pid}`;
+  // THE SECOND SIBLING, AND THE HOLE THAT CLOSING IT OPENED. The ancestor rule accepts a sticky
+  // world-writable directory, because sticky stops anybody replacing the configuration — and does nothing
+  // about files created NEXT TO it. The save wrote its replacement with "w", which adopts a file somebody
+  // else already made, so a planted one was renamed into place and the credential was theirs to read.
+  // Making the open exclusive fixed that and handed the same user a permanent denial of service instead,
+  // because the name came from the pid and the range is small enough to cover in under a second. The name
+  // is random bytes now: there is nothing to adopt, and nothing to collide with.
   write(configFile);
   const before = fs.readFileSync(configFile, "utf8");
-  fs.writeFileSync(planted, JSON.stringify({ ...enrolled, agentSecret: "planted" }), { mode: 0o666 });
-  fs.chmodSync(planted, 0o666);
-  try {
-    assert.throws(() => saveConfig(loadConfig()), (error: NodeJS.ErrnoException) => error.code === "EEXIST", "the save refuses rather than adopting it");
-    assert.equal(fs.readFileSync(configFile, "utf8"), before, "and the configuration is untouched");
-    assert.equal(fs.existsSync(planted), true, "the planted file is left where it is, for somebody to look at");
-  } finally {
-    fs.rmSync(planted, { force: true });
+  const planted: string[] = [];
+  for (let pid = 1; pid <= 300; pid += 1) {
+    const name = `${configFile}.pending-${pid}`;
+    fs.writeFileSync(name, JSON.stringify({ ...enrolled, agentSecret: "planted" }), { mode: 0o666 });
+    fs.chmodSync(name, 0o666);
+    planted.push(name);
   }
-  // With nothing planted, the same call works, so the refusal was the collision and not something else.
-  saveConfig(loadConfig());
-  assert.equal(fs.existsSync(planted), false, "and the replacement it wrote itself is gone");
+  try {
+    saveConfig(loadConfig());
+    assert.equal(fs.readFileSync(configFile, "utf8").includes("planted"), false, "nothing planted became the configuration");
+    const after = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    // Field by field against what was there, rather than a whole-object comparison: the schema fills its
+    // defaults on the way through, so the saved file legitimately carries more than the fixture wrote.
+    for (const [field, value] of Object.entries(JSON.parse(before))) assert.deepEqual(after[field], value, `${field} survived`);
+    for (const name of planted) assert.equal(fs.readFileSync(name, "utf8").includes("planted"), true, "the plants are left where they are, for somebody to look at");
+  } finally {
+    for (const name of planted) fs.rmSync(name, { force: true });
+  }
+  assert.equal(fs.readdirSync(scratch).filter((entry) => entry.startsWith("agent.local.json.pending-")).length, 0, "and the replacement it wrote itself is gone");
+});
+
+test("STRUCTURAL: the replacement is created exclusively and named unguessably", (t) => {
+  if (linuxOnly(t)) return;
+  // Two rules that no longer have a behaviour a test in this process can reach, now that the name is
+  // random: the exclusive open cannot be made to collide, and the randomness is what stops it colliding.
+  // Named STRUCTURAL so it does not borrow the credibility of the behavioural test above it.
+  const source = fs.readFileSync(new URL("../src/config.ts", import.meta.url), "utf8");
+  assert.match(source, /fs\.openSync\(pending, "wx", 0o600\)/, "exclusively");
+  assert.match(source, /pending-\$\{crypto\.randomBytes\(8\)\.toString\("hex"\)\}/, "and named from random bytes rather than the pid");
 });
 
 test("the rule that the descriptor is the inode that was measured", () => {

@@ -207,21 +207,51 @@ test("a backup planted beside the configuration cannot be rolled back into place
   assert.equal(fs.readFileSync(file, "utf8"), body);
 });
 
-test("a pending file planted beside the configuration cannot become the configuration", (t) => {
-  if (process.platform === "win32") return t.skip("POSIX ownership does not describe a Windows ACL");
-  // The second sibling. `w` adopts a file somebody else created; the rename then installs it as the
-  // configuration, and on a v2 runtime that hands over the private keys as well as the credential. The
-  // pid is guessable and a sticky directory lets an attacker cover the range, so the open is exclusive
-  // and a collision is a loud failure rather than a silent adoption.
-  const { file, body } = enrolledConfig();
-  const planted = `${file}.pending-${process.pid}`;
-  // Provisioning runs in a child, so its pid is not this one; the rule is what is under test, and the
-  // way to reach it deterministically is to make the tool collide with a name that is already taken.
+test("a flood of planted pending files cannot stop provisioning", (t) => {
+  if (process.platform === "win32") return t.skip("this is about POSIX pid ranges and a sticky directory");
+  // THE HOLE THE PREVIOUS FIX OPENED. Making the exclusive open fatal stopped a planted file becoming the
+  // configuration and handed an unprivileged user a permanent denial of service instead: the pending name
+  // was built from the pid, the range is small, and a review covered all of it in 0.6 seconds, after
+  // which provisioning, rollback and every enrolment failed for good. The name comes from random bytes
+  // now, so there is nothing to cover. A few hundred plants stand in for the whole range: each would have
+  // been a certain collision before, and all of them are irrelevant after.
+  const { file } = enrolledConfig();
+  const planted: string[] = [];
+  // Two windows: the low pids, and a run above this process's own, because pids are handed out in order
+  // and the tool runs in a child. Between them they are what the old name would have collided with.
+  const candidates = [...Array.from({ length: 300 }, (_, i) => i + 1), ...Array.from({ length: 600 }, (_, i) => process.pid + i)];
+  for (const pid of candidates) {
+    const name = `${file}.pending-${pid}`;
+    fs.writeFileSync(name, "planted", { mode: 0o600 });
+    planted.push(name);
+  }
+  try {
+    assert.equal(JSON.parse(provision("--config", file, "--org", org)).orgId, org, "provisioning is unaffected");
+    assert.equal(JSON.parse(provision("--config", file, "--rollback")).rolledBack, file, "and so is the way back");
+  } finally {
+    for (const name of planted) fs.rmSync(name, { force: true });
+  }
+});
+
+test("STRUCTURAL: the tool creates its replacement exclusively and names it unguessably", () => {
+  // The behavioural test above plants the pid ranges a child is overwhelmingly likely to land in, which
+  // demonstrates the fix but cannot guarantee the collision it is standing in for. These two assertions
+  // can, so the rule is not left resting on a probability. Named STRUCTURAL for the same reason its
+  // predecessor was renamed: a source-text test should not borrow a behavioural name.
   const source = fs.readFileSync(path.join(scripts, "provision-agent-organisation.mjs"), "utf8");
-  assert.match(source, /fs\.openSync\(pending, "wx"/, "both verbs create the pending replacement exclusively");
-  assert.equal(source.includes('fs.openSync(pending, "w"'), false, "and neither adopts one that is already there");
-  fs.rmSync(planted, { force: true });
-  assert.equal(fs.readFileSync(file, "utf8"), body);
+  assert.equal(source.match(/fs\.openSync\(pending, "wx", identity\.mode\)/g)?.length, 2, "both verbs create it exclusively");
+  assert.equal(source.match(/pending-\$\{crypto\.randomBytes\(8\)\.toString\("hex"\)\}/g)?.length, 2, "and both name it from random bytes");
+  assert.equal(source.includes("pending-${process.pid}"), false, "and neither from the pid, which is guessable and small");
+});
+
+test("a backup left by an earlier provisioning is explained, not thrown", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
+  // A review found three raw stack traces on the documented runbook path. This is the one an operator is
+  // most likely to meet: provision, do not roll back, provision again. The backup is the way out, so the
+  // refusal is right; printing an unhandled EEXIST at them is not.
+  const { file } = enrolledConfig();
+  provision("--config", file, "--org", org);
+  assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /will not overwrite the way out/);
 });
 
 test("provisioning refuses a configuration that does not exist", () => {

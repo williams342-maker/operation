@@ -228,6 +228,32 @@ test("the signer refuses a key that is not the one the document names", () => {
   );
 });
 
+test("the signer refuses a digest that is the right type and the wrong shape", () => {
+  // MOVING THE PATTERNS AFTER THE SWEEP DELETED THE ONLY COVERAGE THEY HAD. A review found it: the case
+  // that used to reach them passed a NUMBER, and once the sweep ran first the sweep's "must be a string"
+  // satisfied the same regex, so deleting all three digest patterns passed the whole suite. A signature
+  // over a document the loader's own schema will refuse is worth less than no signature — it looks like
+  // a completed ceremony and fails on the host, where a second ceremony is the remedy. These values are
+  // strings, free of control characters and non-empty, so only the pattern can refuse them.
+  const { root, identityPath } = ceremony();
+  const base = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")) };
+  delete base.ownerSignature;
+  const keyDirectory = path.join(root, "digest-key");
+  node("generate-forge-owner-key.mjs", [keyDirectory]);
+  for (const field of ["trustedRootSha256", "reviewGateCaSha256", "machineIdSha256"]) {
+    for (const wrong of ["0123", `${"a".repeat(63)}`, `${"a".repeat(65)}`, "A".repeat(64)]) {
+      const file = path.join(root, `digest-${field}-${wrong.length}-${wrong[0]}.json`);
+      fs.writeFileSync(file, `${JSON.stringify({ ...base, [field]: wrong }, null, 2)}
+`);
+      assert.throws(
+        () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `digest-signed.json`)]),
+        new RegExp(`${field} is invalid`),
+        `${field} = ${wrong.length} chars starting ${wrong[0]} must not reach a signature`,
+      );
+    }
+  }
+});
+
 test("the signer refuses a document that is not the schema version it claims", () => {
   // The literal check moved after the control-character sweep so the sweep could be the rule that speaks
   // for every field, and nothing then asserted the literal still ran. It does.
