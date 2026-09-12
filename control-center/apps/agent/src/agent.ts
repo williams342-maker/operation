@@ -277,8 +277,8 @@ async function pollOnce() {
     docker: await collectDocker().catch(() => []),
     discovery: await collectApplicationDiscovery(config).catch(() => undefined)
   };
-  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { serverId?: string; tasks?: ClaimedTask[] };
-  if (!config.serverId && response.serverId) { config.serverId = response.serverId; saveConfig(config); }
+  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { orgId?: string; serverId?: string; tasks?: ClaimedTask[] };
+  if (learnRuntimeIdentity(config, response)) saveConfig(config);
   writeUpdaterHeartbeat(config, Boolean(initial.discovery));
   for (const task of response.tasks || []) {
     try {
@@ -321,8 +321,33 @@ async function main() {
   await pollOnce();
 }
 
+/**
+ * The organisation and server this runtime belongs to, learned from the control plane ONLY while the
+ * configuration does not already say.
+ *
+ * Nothing populated `orgId` before: the poll response carried a server id and nothing else, so
+ * `config.orgId` stayed at its empty default on every host, and the Forge identity check below — which
+ * compares an owner-signed document against it — could not pass anywhere, however correct the signed
+ * material was.
+ *
+ * Never overwritten once known. These two values decide WHICH owner-signed identity this runtime will
+ * accept, so a control plane that could replace them could choose that for it. An operator writing them
+ * into the configuration file wins over anything the network says.
+ */
+export function learnRuntimeIdentity(config: AgentConfig, response: { orgId?: string; serverId?: string }): boolean {
+  let learned = false;
+  if (!config.serverId && response.serverId) { config.serverId = response.serverId; learned = true; }
+  if (!config.orgId && response.orgId) { config.orgId = response.orgId; learned = true; }
+  return learned;
+}
+
 export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
   const security = load();
+  // The empty case is called out separately because it is not a mismatch, it is a runtime that has never
+  // been told who it is — and every agent enrolled before the control plane returned an organisation id
+  // is in exactly that state. Reporting it as a mismatch sends an operator hunting for a wrong identity
+  // document when what is missing is one line of configuration.
+  if (!config.orgId || !config.serverId) throw new Error("This agent runtime has no organisation or server id configured, so an owner-signed Forge identity cannot be matched to it");
   if (security.identity.orgId !== config.orgId || security.identity.serverId !== config.serverId) throw new Error("Forge security identity does not match this enrolled agent runtime");
   return security;
 }

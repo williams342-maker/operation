@@ -471,7 +471,12 @@ router.post("/agent/poll", requireSignedAgent, async (req, res, next) => {
     noStore(req, res, () => undefined);
     const claimed = await claimTasksForAgent(server);
     await Promise.all(claimed.map((task) => audit({ orgId: server.orgId, actorType: "agent", actorId: server.agentId, action: "task.claim", targetType: "agent_task", targetId: taskAuditTargetId(task._id), result: "success", requestId: req.requestId, metadata: { type: task.type } })));
-    res.json({ serverId: server._id.toHexString(), tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
+    // `orgId` alongside `serverId`, because the agent persists both to learn who it is. Without it
+    // nothing on a host ever populates `config.orgId`, and the Forge runtime identity check — which
+    // compares an owner-signed identity against that value — can never pass on any host. Not a
+    // disclosure: this agent is authenticated, the id names its own organisation, and every task
+    // envelope it already receives carries the same value.
+    res.json({ orgId: server.orgId.toHexString(), serverId: server._id.toHexString(), tasks: claimed.map((task) => ({ envelope: task.envelope, payload: task.payload })) });
   } catch (error) { next(error); }
 });
 

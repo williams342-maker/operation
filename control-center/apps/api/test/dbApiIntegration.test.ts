@@ -619,6 +619,13 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const heartbeat = await poll(credentials, { heartbeat: { collectedAt: new Date().toISOString(), agentVersion: "fake-agent/1.0" } });
     assert.equal(heartbeat.status, 200);
     assert.equal(Array.isArray((heartbeat.body as { tasks?: unknown[] }).tasks), true);
+    // The agent learns WHO IT IS from this response and persists both ids. Only the server id was ever
+    // returned, so `config.orgId` stayed empty on every host and the Forge runtime identity check --
+    // which compares an owner-signed document against it -- could not pass anywhere.
+    const identity = heartbeat.body as { orgId?: string; serverId?: string };
+    assert.match(String(identity.orgId), /^[a-f0-9]{24}$/, "the poll response names the organisation");
+    assert.match(String(identity.serverId), /^[a-f0-9]{24}$/, "as well as the server");
+    assert.notEqual(identity.orgId, identity.serverId, "and they are different things");
 
     const telemetryPayload = metricPayload();
     telemetryPayload.git.push({ projectId: project.body.id, branch: "main", commit: "abc123", dirty: false, collectedAt: new Date().toISOString() });

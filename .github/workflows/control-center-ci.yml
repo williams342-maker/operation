@@ -92,7 +92,9 @@ jobs:
       # agent +2 and shared +7: the payload serialization contract -- the executor digesting its own
       # parse and refusing a payload the schema rejects, and the pinned conformance vectors.
       # api +1: the validator knowing CONTROL_CENTER_RELEASE_MANIFEST, and diagnosing its absence.
-      CI_EXPECTED_TESTS: "439"
+      # agent +5: the runtime learning which organisation it belongs to, which nothing ever wrote, so the
+      # Forge identity check could not pass on any host.
+      CI_EXPECTED_TESTS: "444"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -183,8 +185,10 @@ jobs:
       #                   which a third review round found the concurrency fix still allowed
       #   api +1          the validator knowing the variable the service reports its identity from, and
       #                   diagnosing its absence, after a deployment's own startup line called it unknown
-      CI_EXPECTED_TEST_SUITES: "agent=152,api=134,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "733"
+      #   agent +5        the runtime learning its organisation id, and saying so precisely when it has
+      #                   never been told, which no host had ever been
+      CI_EXPECTED_TEST_SUITES: "agent=157,api=134,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "738"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
