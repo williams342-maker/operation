@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
+import { observeInstalledAgent, deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -1277,7 +1277,8 @@ test("the record says the agent was left alone, and what that costs", async () =
   const entry = record.imageEvidence.find((component) => component.role === "agent");
   assert.ok(entry, "the record still has an agent entry");
   assert.equal(entry.installed, false, "and it says the agent was not installed");
-  assert.ok(entry.running, "and what is running instead");
+  assert.ok(entry.retained && "release" in entry.retained && "state" in entry.retained, "and carries a measurement of what is retained, even when the answer is unknown");
+  assert.match(entry.retained.observedAt, /^\d{4}-\d{2}-\d{2}T/, "stamped when it was observed, because it is an observation");
   assert.match(entry.notCovered, /rehearsal/, "and names what the rehearsal therefore does not cover");
   assert.equal(entry.rollbackSnapshot, undefined, "there is no rollback target for a component nothing touched");
 });
@@ -1302,4 +1303,48 @@ test("an agent failure still rolls the deployment back when the plan does instal
     acceptancePasses: 1, switchCurrent: () => {},
   }), /was rolled back/);
   assert.deepEqual(agentCalls, ["prepare", "activate", "rollback"], "the snapshot, the attempt, and the recovery");
+});
+
+test("a deployment that fails with an unchanged agent does not try to roll one back", async () => {
+  // The success path was covered and the failure path was not, so replacing the rollback guard with
+  // `agentActivationAttempted || !installsAgent` — recovering from a snapshot that was never taken —
+  // passed all 57 tests.
+  const upState = {};
+  const { item } = releaseFixture();
+  item.agent = "unchanged";
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const agentCalls = [];
+  let rolledBack = false;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: (args) => { agentCalls.push(args[0]); },
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); if (args[0] === "up" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; },
+    runningContainers: () => composeRunning(upState.up),
+    // The deployment fails at readiness, so the whole recovery path runs.
+    readiness: async () => rolledBack,
+    identity: async () => ({ source: "manifest", commit: rolledBack ? rollbackCommit : commit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  }), /was rolled back/);
+  assert.equal(rolledBack, true, "the application really was rolled back");
+  assert.deepEqual(agentCalls, [], "and the agent installer was still never called, in either direction");
+});
+
+test("the retained agent is measured, not described", () => {
+  // The record used to say the agent was "whatever this host already had", which reads like an
+  // observation and is not one: two hosts running different agents, or none, produced the same words.
+  const observed = observeInstalledAgent(path.join(os.tmpdir(), "no-such-agent-root"), () => "active");
+  assert.equal(observed.release, null, "an unreadable current release is recorded as unknown, not guessed");
+  assert.equal(observed.state, "active");
+  assert.match(observed.observedAt, /^\d{4}-\d{2}-\d{2}T/);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-root-"));
+  const release = path.join(root, "releases", "1.2.3-operate");
+  fs.mkdirSync(release, { recursive: true });
+  fs.symlinkSync(release, path.join(root, "current"), process.platform === "win32" ? "junction" : "dir");
+  const resolved = observeInstalledAgent(root, () => { const error = new Error("inactive"); error.stdout = "inactive\n"; throw error; });
+  assert.equal(resolved.release, fs.realpathSync(release), "the release current resolves to is what is recorded");
+  assert.equal(resolved.state, "inactive", "and a unit that is down reports its state rather than an error");
 });

@@ -634,6 +634,30 @@ export function detectForeignPortConflicts(model, services, projectName, contain
  * Recording which container was chosen makes the choice auditable. Requiring it to be running, or to be
  * one a person deliberately stopped, is what makes it right.
  */
+/**
+ * The agent this host is running, as far as it can be seen from here: the release `current` resolves to
+ * and whether the service is up. Both are recorded as null when they cannot be read, because "not
+ * observed" and "nothing there" are different facts and a record that blurs them is worse than one that
+ * says neither.
+ */
+export function observeInstalledAgent(root = "/opt/opsworkbench-agent", isActive = () => execFileSync("systemctl", ["is-active", "opsworkbench-agent.service"], { encoding: "utf8" }).trim()) {
+  let release;
+  try {
+    release = fs.realpathSync(path.join(root, "current"));
+  } catch {
+    release = null;
+  }
+  let state;
+  try {
+    state = isActive();
+  } catch (error) {
+    // `systemctl is-active` exits non-zero for an inactive unit and still prints its state, which is the
+    // answer rather than a failure.
+    state = String(error?.stdout ?? "").trim() || null;
+  }
+  return { release, state, observedAt: new Date().toISOString() };
+}
+
 export function measurePredecessorImages(model, services, projectName, containers, adoptedContainerIds = new Set()) {
   const measured = {};
   for (const service of services) {
@@ -984,7 +1008,11 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
     // touched" from "nobody thought about the agent", and the limit belongs here too: the running agent
     // may now predate the release being served, and the schema rehearsal covers the application against
     // the database, not the agent against the application.
-    : { role: "agent", installed: false, running: "whatever this host already had", notCovered: "the rehearsal does not exercise an older agent against this release" }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
+    //
+    // WHAT IS RETAINED IS MEASURED, not described. The first version of this said the agent was
+    // "whatever this host already had", which reads like an observation and is not one: two hosts
+    // running different agents, or none at all, produced identical records.
+    : { role: "agent", installed: false, retained: (hooks.observeAgent ?? observeInstalledAgent)(), notCovered: "the rehearsal does not exercise an older agent against this release" }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
   // OPSWORKBENCH_REVIEW_GATE_IMAGE is still exported even though the candidate Compose file no longer
   // reads it. It is not dead: the ROLLBACK file comes from the rollback release's own tree, and any
   // release cut before the gate was removed still declares that service with `:?` -- an unset variable
