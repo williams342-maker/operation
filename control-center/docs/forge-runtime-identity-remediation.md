@@ -141,7 +141,10 @@ Behaviour worth knowing before you run it:
   it" message in the layout `install.sh` builds — an agent-owned directory holding a backup root had
   written minutes earlier — and following that instruction would have destroyed the only way back. An
   operating-system error carries a code and a parse failure does not, which is the whole difference.
-  The other two: A review followed the remedy the single message named
+  Before any of that, the branch proves what is AT the path: a review left a named pipe there and the
+  tool hung forever holding the lock, which a kill does not release. And "parses as JSON" was never the
+  question — `[]` parses, and restoring it leaves a host unable to start — so both this branch and the
+  rollback ask whether the file is an object carrying a control-centre URL. The other two: A review followed the remedy the single message named
   and found the rollback refusing the same file for not parsing, leaving no way forward but to delete by
   hand the file that message had just called the way out. A backup that is not a configuration is not a
   way out, and now says so.
@@ -378,5 +381,16 @@ None of the following has been done, and none of it can be done without the owne
   - Three write-failure explanations and one more unwrapped read had no coverage; the reads are covered
     behaviourally and the writes structurally, by their catch shape and by count, because a mutation that
     keeps the message and disables the branch passed the first two attempts at that assertion.
-- Independent review, round 10: not yet run.
+- Independent review, round 10: **NO-GO**, two findings, and the reviewer confirmed no other test in the
+  suite passes by doing nothing.
+  - **A fourth case in the branch I had just split three ways.** The classifier read the backup without
+    establishing what was at that path, so a named pipe planted by an unprivileged user hung the tool
+    forever holding the lock — and a kill does not run the handler that releases it, so the orphaned lock
+    then blocked the rollback verb and the agent's own enrolment until a human intervened. The rollback
+    verb had always been safe because it proves what is there first; the classifier now does the same.
+  - **"Parses as JSON" is not "is a configuration".** `[]`, `null` and `123` all parse. A review restored
+    `[]` over a working configuration end to end, through the very check added to prevent a host being
+    left unable to start. Both the classifier and the rollback now require an object carrying a
+    control-centre URL.
+- Independent review, round 11: not yet run.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

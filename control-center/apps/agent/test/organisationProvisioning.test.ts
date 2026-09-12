@@ -195,7 +195,7 @@ test("a backup planted beside the configuration cannot be rolled back into place
   fs.writeFileSync(planted, "not json at all", { mode: 0o600 });
   fs.chmodSync(planted, 0o600);
   try {
-    assert.throws(() => provision("--config", file, "--rollback"), /not the JSON configuration it claims to be/);
+    assert.throws(() => provision("--config", file, "--rollback"), /not the configuration it claims to be/);
   } finally {
     fs.rmSync(planted, { force: true });
   }
@@ -259,8 +259,8 @@ test("a backup left by an earlier provisioning is explained, not thrown", (t) =>
   // had just called the way out. A backup that is not a configuration is not a way out, and now says so.
   fs.writeFileSync(`${file}.before-organisation`, "{ truncated", { mode: 0o600 });
   fs.chmodSync(`${file}.before-organisation`, 0o600);
-  assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /not a configuration, so it is not a way back/);
-  assert.throws(() => provision("--config", file, "--rollback"), /not the JSON configuration it claims to be/, "and the rollback still refuses it, which is why the other message had to change");
+  assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /not a configuration/);
+  assert.throws(() => provision("--config", file, "--rollback"), /not the configuration it claims to be/, "and the rollback still refuses it, which is why the other message had to change");
 });
 
 // NO RULE MAY DEPEND ON A PRIVILEGED RUN TO BE TESTED AT ALL. A review found the previous version of the
@@ -299,7 +299,7 @@ test("an operator who cannot read the backup is told to run as the account that 
     // And provisioning again must not tell the operator this backup is rubbish and should be deleted. A
     // review met exactly that message in the layout install.sh builds, over a backup root had written
     // minutes earlier: the advice would have destroyed the only way back.
-    assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /cannot read it; run as the account that provisioned/);
+    assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /cannot read it \(EACCES\); run as the account that provisioned/);
     assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /Do not delete it/);
   } finally {
     fs.chmodSync(backup, 0o600);
@@ -321,6 +321,59 @@ test("an operator who cannot read the configuration is told which account to be"
   } finally {
     fs.chmodSync(file, 0o600);
   }
+});
+
+test("a backup that is not a regular file is refused by both verbs, quickly and without a lock", (t) => {
+  if (process.platform === "win32") return t.skip("named pipes are not POSIX FIFOs on Windows");
+  // THE FOURTH CASE, and the one that cost most. Splitting the leftover-backup message three ways still
+  // left the classifier reading whatever was at that path. A review left a FIFO there as an unprivileged
+  // user: provisioning hung forever holding the lock, a SIGTERM does not run node's exit handler so the
+  // lock survived the kill, and the orphaned lock then blocked the rollback verb AND the agent's own
+  // enrolment until a human removed it. The rollback verb had always been safe, because it proves what
+  // is there before reading it; the classifier now does the same. This test would hang rather than fail
+  // if that came out, which is the same point made louder.
+  const { file } = enrolledConfig();
+  const backup = `${file}.before-organisation`;
+  execFileSync("mkfifo", ["-m", "600", backup]);
+  try {
+    assert.throws(() => provision("--config", file, "--org", org), /not a regular file/);
+    assert.throws(() => provision("--config", file, "--rollback"), /not a regular file/);
+    assert.equal(fs.existsSync(`${file}.provisioning-lock`), false, "and neither verb left the lock behind");
+  } finally {
+    fs.rmSync(backup, { force: true });
+  }
+
+  // A directory there used to be reported as "you cannot read it, do not delete it", which is advice no
+  // account can act on. It is the same rule and now gives the same answer.
+  fs.mkdirSync(backup, { mode: 0o700 });
+  try {
+    assert.throws(() => provision("--config", file, "--org", org), /not a regular file/);
+  } finally {
+    fs.rmSync(backup, { recursive: true, force: true });
+  }
+});
+
+test("a backup that parses but is not a configuration is refused by both verbs", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
+  // "Parses as JSON" was never the question. A review restored `[]` over a working configuration end to
+  // end: the classifier called it a way back and the rollback — whose whole job is to refuse a backup
+  // that would leave the host unable to start — installed it. Both now ask whether it is a configuration.
+  const { file, body } = enrolledConfig();
+  const backup = `${file}.before-organisation`;
+  for (const [content, why] of [["[]", /JSON but not an object/], ["null", /JSON but not an object/], ["123", /JSON but not an object/], ['{"agentId":"a"}', /no controlCenterUrl/], ["{ truncated", /not JSON/]] as const) {
+    fs.writeFileSync(backup, content, { mode: 0o600 });
+    fs.chmodSync(backup, 0o600);
+    assert.throws(() => provision("--config", file, "--rollback"), why, `the rollback must refuse ${content}`);
+    assert.throws(() => provision("--config", file, "--org", org), /not a configuration/, `and provisioning must not call ${content} a way back`);
+    assert.equal(fs.readFileSync(file, "utf8"), body, "the configuration is untouched");
+  }
+  fs.rmSync(backup, { force: true });
+
+  // And a real backup is still a way back, so the new standard refuses rubbish rather than everything.
+  provision("--config", file, "--org", org);
+  assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /will not overwrite the way out/);
+  assert.equal(JSON.parse(provision("--config", file, "--rollback")).rolledBack, file);
+  assert.equal(fs.readFileSync(file, "utf8"), body);
 });
 
 test("a completed run leaves no replacement behind, and the cleanup that covers a failed one", (t) => {
@@ -366,7 +419,7 @@ test("a completed run leaves no replacement behind, and the cleanup that covers 
   }
   // Nothing on this path throws a bare fs error at an operator. Every open, read and write is either
   // inside a catch that calls fail(), or is the lock, which has its own.
-  assert.equal(source.match(/fail\(`cannot /g)?.length, 10, "every failure on the operator path explains itself");
+  assert.equal(source.match(/fail\(`cannot /g)?.length, 10, "the count of explained failures has not gone DOWN — this catches a deletion, and cannot see a new unwrapped call, which is a smaller claim than the name of this test");
 
   // AND THE REAL THING, where the machine allows it. A review pointed out the failure is reachable after
   // all: give the configuration a group the running account cannot assume, run as that account, and the

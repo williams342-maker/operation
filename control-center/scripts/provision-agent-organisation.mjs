@@ -141,6 +141,23 @@ const restoreIdentity = (file, identity) => {
   }
 };
 
+// IS THIS A CONFIGURATION, rather than merely "does this parse". A review pointed out that `JSON.parse`
+// is happy with `[]`, `null`, `123` and `"x"`, none of which is a configuration and any of which leaves a
+// host unable to start — which is the outcome this check was added to prevent. It restored `[]` over a
+// working configuration end to end. The one field the schema always requires is enough to tell the
+// difference without this script growing a copy of the schema.
+const readsAsConfiguration = (bytes) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    return { ok: false, why: `it is not JSON (${error?.message ?? "unparseable"})` };
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return { ok: false, why: `it is JSON but not an object` };
+  if (typeof parsed.controlCenterUrl !== "string") return { ok: false, why: `it has no controlCenterUrl, so it is not an agent configuration` };
+  return { ok: true };
+};
+
 // ROLLBACK FIRST, so the way out is never a thing to be improvised afterwards. It restores the exact
 // bytes that were there, or refuses; it never reconstructs a configuration from what it thinks it knows.
 if (has("--rollback")) {
@@ -158,11 +175,8 @@ if (has("--rollback")) {
   } catch (error) {
     fail(`cannot read the backup at ${backupPath} (${error?.code ?? "unknown"}); a backup written by root is not readable by an unprivileged operator, so run the rollback as the account that provisioned`);
   }
-  try {
-    JSON.parse(saved.toString("utf8"));
-  } catch (error) {
-    fail(`${backupPath} is not the JSON configuration it claims to be (${error?.message ?? "unparseable"}); restoring it would leave this host unable to start`);
-  }
+  const verdict = readsAsConfiguration(saved);
+  if (!verdict.ok) fail(`${backupPath} is not the configuration it claims to be — ${verdict.why}; restoring it would leave this host unable to start`);
   const identity = identityOf(configPath);
   // From random bytes, not the pid. Making the exclusive open fatal closed one hole and opened another:
   // a review covered the whole pid range as an unprivileged user in 0.6 seconds and every provisioning,
@@ -237,16 +251,23 @@ try {
     // agent-owned directory holding a backup root wrote — where a perfectly good backup is simply not
     // readable by the agent account. It was told to delete the only way back. An fs error carries a code
     // and a parse failure does not, which is the whole difference.
-    let unreadable = false;
-    let parses = true;
+    // WHAT IS THERE, BEFORE READING IT. A review left a FIFO at this path as an unprivileged user and
+    // this branch opened it: the tool hung forever holding the lock, a SIGTERM does not run node's exit
+    // handler so the lock survived the kill, and the orphaned lock then blocked the rollback verb and
+    // the agent's own enrolment until a human removed it. The same rule this file states in four other
+    // places, and the rollback verb ten lines down already applies to the same file. A directory here
+    // was also reported as "you cannot read it", which is advice no account can act on.
+    assertProtected(backupPath);
+    let unreadable;
+    let verdict;
     try {
-      JSON.parse(fs.readFileSync(backupPath, "utf8"));
+      verdict = readsAsConfiguration(fs.readFileSync(backupPath));
     } catch (error) {
-      if (error?.code) unreadable = true; else parses = false;
+      unreadable = error?.code ?? "unknown";
     }
-    if (unreadable) fail(`a backup from an earlier provisioning is at ${backupPath} and this account cannot read it; run as the account that provisioned. Do not delete it — it may be the only way back, and nothing here can tell you otherwise.`);
-    if (parses) fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
-    fail(`there is a file at ${backupPath} that is not a configuration, so it is not a way back — an earlier run was interrupted before it could write one. Remove it and provision again; nothing has been changed here.`);
+    if (unreadable) fail(`a backup from an earlier provisioning is at ${backupPath} and this account cannot read it (${unreadable}); run as the account that provisioned. Do not delete it — it may be the only way back, and nothing here can tell you otherwise.`);
+    if (verdict.ok) fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
+    fail(`there is a file at ${backupPath} that is not a configuration — ${verdict.why} — so it is not a way back; an earlier run was interrupted before it could write one. Remove it and provision again; nothing has been changed here.`);
   }
   fail(`cannot write the backup at ${backupPath} (${error?.code ?? "unknown"}); nothing has been changed`);
 }
