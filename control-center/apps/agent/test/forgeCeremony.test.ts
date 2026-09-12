@@ -6,7 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadForgeSecurityMaterial, type SecurityPathPolicy } from "../src/forgeSecurityIdentity.js";
+import { forgeSecurityIdentityStatement, loadForgeSecurityMaterial, type SecurityPathPolicy } from "../src/forgeSecurityIdentity.js";
 
 // THE CEREMONY, REHEARSED END TO END with a throwaway key.
 //
@@ -131,7 +131,11 @@ test("a control character in ANY identity field is refused, not only the three w
     fs.writeFileSync(file, `${JSON.stringify({ ...base, [field]: `${base[field]}\u0000shifted` }, null, 2)}\n`);
     assert.throws(
       () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `sweep-${field}-signed.json`)]),
-      new RegExp(`(${field}|control character|invalid|missing or unknown)`),
+      // Named exactly. A review pointed out that the loose alternation this used to carry accepted any
+      // error mentioning the field, so for the digests and the timestamps it could not tell the sweep
+      // from that field's own pattern rule — and the sweep was therefore covered by three fields out of
+      // ten. The signer now runs the sweep before the patterns, so this can insist on the sweep.
+      new RegExp(`${field} contains a control character`),
       `a control character in ${field} must not reach a signature`,
     );
   }
@@ -222,6 +226,37 @@ test("the signer refuses a key that is not the one the document names", () => {
     () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(otherKey, "forge-owner-private.pem"), "--unsigned", unsignedPath, "--output", path.join(root, "wrong.json")]),
     /does not carry the public half of this owner key/,
   );
+});
+
+test("the signer refuses a document that is not the schema version it claims", () => {
+  // The literal check moved after the control-character sweep so the sweep could be the rule that speaks
+  // for every field, and nothing then asserted the literal still ran. It does.
+  const { root, identityPath } = ceremony();
+  const base = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")) };
+  delete base.ownerSignature;
+  const keyDirectory = path.join(root, "schema-key");
+  node("generate-forge-owner-key.mjs", [keyDirectory]);
+  const file = path.join(root, "wrong-schema.json");
+  fs.writeFileSync(file, `${JSON.stringify({ ...base, schemaVersion: "forge-security-identity-v2" }, null, 2)}
+`);
+  assert.throws(() => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, "wrong-schema-signed.json")]), /missing or unknown fields/);
+});
+
+test("the loader refuses a control character on its own account, not because the signer would have", { skip: process.platform === "win32" }, () => {
+  // The signer refuses to mint such a document, so every loader test that goes through the signer proves
+  // only that the signer works. This signs the statement directly with the ceremony's own key, which is
+  // what a document minted by any other route would look like, and asks the loader by itself. The field
+  // is the organisation because nothing else in the loader binds it, so the control-character rule is
+  // the only thing that can refuse.
+  const { root, policy, identityPath } = ceremony();
+  const unsigned = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")), orgId: `${org}${String.fromCodePoint(0x85)}` };
+  delete unsigned.ownerSignature;
+  const privateKey = crypto.createPrivateKey(fs.readFileSync(path.join(root, "owner-key", "forge-owner-private.pem")));
+  const ownerSignature = crypto.sign(null, forgeSecurityIdentityStatement(unsigned), privateKey).toString("base64url");
+  rewrite(identityPath, `${JSON.stringify({ ...unsigned, ownerSignature }, null, 2)}
+`);
+
+  assert.throws(() => loadForgeSecurityMaterial(policy), /control characters are forbidden/);
 });
 
 test("the agent's own loader accepts what the ceremony produced", { skip: process.platform === "win32" }, () => {

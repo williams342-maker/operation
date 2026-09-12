@@ -28,7 +28,7 @@ const write = (file: string, mode = 0o600) => {
 write(configFile);
 
 process.env.CONTROL_CENTER_AGENT_CONFIG = configFile;
-const { readProtectedConfiguration, loadConfig } = await import("../src/config.js");
+const { readProtectedConfiguration, assertOpenedWhatWasMeasured, loadConfig, saveConfig } = await import("../src/config.js");
 
 const linuxOnly = (t: { skip: (why: string) => void }) => {
   if (process.platform === "win32") { t.skip("POSIX mode bits do not describe a Windows ACL"); return true; }
@@ -62,17 +62,24 @@ test("a configuration anybody can write is refused, and so is the agent", (t) =>
   // identity is matched against, so whoever can write it chooses which identity this host accepts.
   for (const mode of [0o666, 0o622, 0o660, 0o620]) {
     write(configFile, mode);
-    assert.throws(() => readProtectedConfiguration(configFile), /writable by group or other/, `mode 0${mode.toString(8)} must be refused`);
-    assert.throws(() => loadConfig(), /writable by group or other/, `and loading must refuse it too, at mode 0${mode.toString(8)}`);
+    assert.throws(() => readProtectedConfiguration(configFile), /readable or writable by group or other/, `mode 0${mode.toString(8)} must be refused`);
+    assert.throws(() => loadConfig(), /readable or writable by group or other/, `and loading must refuse it too, at mode 0${mode.toString(8)}`);
   }
   write(configFile);
 });
 
-test("a readable-but-not-writable configuration is still accepted", (t) => {
+test("a configuration anybody can READ is refused too", (t) => {
   if (linuxOnly(t)) return;
-  // The rule is about who can CHANGE the identifiers. Group read is a deployment choice, not a defeat, and
-  // refusing it would refuse hosts that are doing nothing wrong.
-  for (const mode of [0o640, 0o644, 0o400]) {
+  // An earlier version judged the file on write alone, on the grounds that the rule is about who can
+  // change the identifiers. A review pointed out that the same function's own reasoning cites the
+  // enrolment credential, that a v2 runtime keeps private keys in this file, and that `install.sh`
+  // creates it 0600 — so permitting 0644 contradicted what the rest of the codebase says about it.
+  for (const mode of [0o640, 0o644, 0o604, 0o660]) {
+    write(configFile, mode);
+    assert.throws(() => readProtectedConfiguration(configFile), /readable or writable by group or other/, `mode 0${mode.toString(8)} must be refused`);
+  }
+  // What the deployment tooling actually produces, and the read-only variant of it, are accepted.
+  for (const mode of [0o600, 0o400]) {
     write(configFile, mode);
     readProtectedConfiguration(configFile);
   }
@@ -254,16 +261,53 @@ test("a path that ends in something other than a regular file is refused before 
   assert.throws(() => readProtectedConfiguration(scratch), /not a regular file/);
 });
 
-test("the descriptor that is read is proved to be the inode that was measured", (t) => {
+test("a pending file planted beside the configuration cannot become the configuration", (t) => {
   if (linuxOnly(t)) return;
-  // Every directory above the file has just been shown to belong to root or to this process, so the
-  // argument that nobody untrusted can swap the file between the measurement and the open is sound. The
-  // device and inode comparison makes it a fact instead of an argument, which is worth having in a
-  // security path where the argument has already been wrong twice.
+  // THE SECOND SIBLING. The ancestor rule accepts a sticky world-writable directory, because sticky
+  // stops anybody replacing the configuration — and does nothing about files created NEXT TO it. The
+  // save wrote its replacement with "w", which adopts a file somebody else already made: an unprivileged
+  // user creates one per candidate pid, the rename installs it as the configuration, and the enrolment
+  // credential is theirs to read. The pid is this process's own here, which is what makes the collision
+  // reachable from a test rather than argued about.
+  const planted = `${configFile}.pending-${process.pid}`;
+  write(configFile);
+  const before = fs.readFileSync(configFile, "utf8");
+  fs.writeFileSync(planted, JSON.stringify({ ...enrolled, agentSecret: "planted" }), { mode: 0o666 });
+  fs.chmodSync(planted, 0o666);
+  try {
+    assert.throws(() => saveConfig(loadConfig()), (error: NodeJS.ErrnoException) => error.code === "EEXIST", "the save refuses rather than adopting it");
+    assert.equal(fs.readFileSync(configFile, "utf8"), before, "and the configuration is untouched");
+    assert.equal(fs.existsSync(planted), true, "the planted file is left where it is, for somebody to look at");
+  } finally {
+    fs.rmSync(planted, { force: true });
+  }
+  // With nothing planted, the same call works, so the refusal was the collision and not something else.
+  saveConfig(loadConfig());
+  assert.equal(fs.existsSync(planted), false, "and the replacement it wrote itself is gone");
+});
+
+test("the rule that the descriptor is the inode that was measured", () => {
+  // EXERCISED, not read. A review pointed out that this and the test below were the only things standing
+  // between two mutations and a green suite, and that both of them only matched source text — so any
+  // rewrite preserving the strings while changing the behaviour would have passed. The comparison is its
+  // own exported function now, and this runs it.
+  const measured = { dev: 2049, ino: 1234 };
+  assertOpenedWhatWasMeasured(measured, { dev: 2049, ino: 1234 }, "/etc/x/agent.json");
+  assert.throws(() => assertOpenedWhatWasMeasured(measured, { dev: 2049, ino: 9999 }, "/etc/x/agent.json"), /changed between being checked and being opened/, "a different inode on the same device");
+  assert.throws(() => assertOpenedWhatWasMeasured(measured, { dev: 9, ino: 1234 }, "/etc/x/agent.json"), /changed between being checked and being opened/, "the same inode number on a different device is a different file");
+});
+
+test("STRUCTURAL: the reader calls that rule, and reads from the descriptor it checked", (t) => {
+  if (linuxOnly(t)) return;
+  // Named STRUCTURAL because that is what it is. Nothing interleaves with a synchronous call in this
+  // process, so no fixture can make the descriptor and the name disagree from inside a test; the rule
+  // itself is exercised above, and this asserts only that the reader uses it and does not go back to the
+  // name for the contents. A source-text assertion is a poor test and it is the strongest one available
+  // here, so it says so in its own name rather than borrowing the credibility of a behavioural one.
   const source = fs.readFileSync(new URL("../src/config.ts", import.meta.url), "utf8");
-  const body = source.slice(source.indexOf("export function readProtectedConfiguration"), source.indexOf("export function loadConfig"));
-  assert.match(body, /opened\.dev !== stat\.dev \|\| opened\.ino !== stat\.ino/, "the opened inode is compared against the measured one");
-  assert.match(body, /return fs\.readFileSync\(handle, "utf8"\)/, "and the contents come from that descriptor, not from a second lookup by name");
+  const body = source.slice(source.indexOf("export function readProtectedConfiguration"), source.indexOf("export function assertOpenedWhatWasMeasured"));
+  assert.match(body, /assertOpenedWhatWasMeasured\(stat, fs\.fstatSync\(handle\), target\)/);
+  assert.match(body, /return fs\.readFileSync\(handle, "utf8"\)/);
 });
 
 test("what is read is the file that was checked, not the name that was checked", (t) => {

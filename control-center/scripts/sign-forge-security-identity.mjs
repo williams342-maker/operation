@@ -8,10 +8,14 @@ const privateKeyPath = value("--private-key"); const unsignedPath = value("--uns
 if (![privateKeyPath, unsignedPath, outputPath].every((item) => item && path.isAbsolute(item))) throw new Error("--private-key, --unsigned and --output must be absolute paths");
 const exact = ["schemaVersion", "orgId", "serverId", "ownerPublicKey", "trustedRootSha256", "reviewGateCaSha256", "hostname", "machineIdSha256", "validFrom", "validUntil"].sort();
 const unsigned = JSON.parse(fs.readFileSync(unsignedPath, "utf8"));
-if (JSON.stringify(Object.keys(unsigned).sort()) !== JSON.stringify(exact) || unsigned.schemaVersion !== "forge-security-identity-v1") throw new Error("unsigned Forge identity has missing or unknown fields");
-for (const field of ["trustedRootSha256", "reviewGateCaSha256", "machineIdSha256"]) if (!/^[a-f0-9]{64}$/.test(unsigned[field])) throw new Error(`${field} is invalid`);
-// THE SAME STRUCTURAL RULES THE PRODUCTION LOADER ENFORCES, applied before a signature exists rather
-// than after. A signature over a document the target will refuse is worth less than no signature: it
+// THE KEY SET FIRST, because the sweep below iterates these fields and has to know it is seeing all of
+// them and only them. The schemaVersion VALUE is checked after the sweep, for the same reason the digest
+// patterns are: a control character in it should be reported as a control character.
+if (JSON.stringify(Object.keys(unsigned).sort()) !== JSON.stringify(exact)) throw new Error("unsigned Forge identity has missing or unknown fields");
+// THE STRUCTURAL RULES THE PRODUCTION LOADER ENFORCES, AND TWO IT DOES NOT, applied before a signature
+// exists rather than after. The extras are deliberate and the direction is safe: this refuses C1
+// controls and the Unicode separators, and the loader's own predicate was widened to match rather than
+// left to disagree with the comment. A signature over a document the target will refuse is worth less than no signature: it
 // looks like a completed ceremony and only fails on the host, where a second ceremony is the remedy.
 // EVERY CONTROL CHARACTER, not only the ASCII ones. Review found the predicate stopped at U+007F, so a
 // C1 control such as U+0085 NEXT LINE signed cleanly — and U+0085, U+2028 and U+2029 are line terminators
@@ -29,6 +33,11 @@ for (const [field, present] of Object.entries(unsigned)) {
   if (hasControlCharacter(present)) throw new Error(`${field} contains a control character, and every field is joined into the statement being signed`);
   if (!present.length) throw new Error(`${field} must be non-empty`);
 }
+if (unsigned.schemaVersion !== "forge-security-identity-v1") throw new Error("unsigned Forge identity has missing or unknown fields");
+// AFTER the sweep, not before. A review pointed out that running the digest patterns first meant a
+// control character in one of those fields was reported as a pattern failure, so a test could not tell
+// the two rules apart and the sweep was covered by three fields rather than ten.
+for (const field of ["trustedRootSha256", "reviewGateCaSha256", "machineIdSha256"]) if (!/^[a-f0-9]{64}$/.test(unsigned[field])) throw new Error(`${field} is invalid`);
 if (!/^[A-Za-z0-9_-]+$/.test(unsigned.ownerPublicKey)) throw new Error("ownerPublicKey must be base64url, as the loader parses it");
 for (const field of ["validFrom", "validUntil"]) {
   if (Number.isNaN(Date.parse(unsigned[field])) || new Date(unsigned[field]).toISOString() !== unsigned[field]) throw new Error(`${field} must be an exact ISO-8601 instant`);

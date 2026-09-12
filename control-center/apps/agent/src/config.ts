@@ -83,9 +83,6 @@ export function stateDir(): string {
   return path.join(path.dirname(configPath), "agent-state");
 }
 
-/** Where this process's configuration lives. Read-only, so a caller cannot move the trust anchor. */
-export function configurationPath(): string { return configPath; }
-
 /**
  * THE CONFIGURATION IS A TRUST ANCHOR, so refuse to read one anybody can rewrite.
  *
@@ -131,6 +128,12 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
   const openToOthers = (mode: number) => (mode & 0o022) !== 0;
   const owned = (uid: number) => uid === 0 || uid === self;
   const target = path.resolve(file);
+  // A note on the two different mode rules below. DIRECTORIES are judged on write, because reading a
+  // directory tells nobody anything they should not know. The FILE is judged on read as well: it carries
+  // the enrolment credential and, on a v2 runtime, private keys, and `install.sh` creates it 0600. A
+  // review pointed out that permitting 0644 here contradicted what the rest of this file says about the
+  // same file — the check said "who can change the identifiers" while its own docstring justified itself
+  // on secrets. It now says both.
     // NO LINKS ANYWHERE IN THE PATH, and this rule replaces two cleverer ones that were each defeated.
     //
     // First I resolved the path and measured the destination. A review owned a directory, put a link in
@@ -169,7 +172,7 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
   // until somebody writes to it, and a device can have side effects merely from being opened, so the
   // open must not happen until the thing at the end of the path is known to be an ordinary file.
   if (!stat.isFile()) throw new Error(`${target} is not a regular file; the agent's configuration is a file, and opening whatever else is there can block or have effects of its own`);
-  if (openToOthers(stat.mode)) throw new Error(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
+  if ((stat.mode & 0o077) !== 0) throw new Error(`${target} is readable or writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it chooses which owner-signed Forge identity this host accepts and anyone who can read it has the credential`);
   if (!owned(stat.uid)) throw new Error(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);
 
   // MEASURED, THEN OPENED, THEN PROVED TO BE THE SAME THING. Every directory above this file has just
@@ -178,12 +181,23 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
   // descriptor is not the inode that was measured, the whole walk described a different file.
   const handle = fs.openSync(target, "r");
   try {
-    const opened = fs.fstatSync(handle);
-    if (opened.dev !== stat.dev || opened.ino !== stat.ino) throw new Error(`${target} changed between being checked and being opened; the file that was measured is not the file this descriptor holds`);
+    assertOpenedWhatWasMeasured(stat, fs.fstatSync(handle), target);
     return fs.readFileSync(handle, "utf8");
   } finally {
     fs.closeSync(handle);
   }
+}
+
+/**
+ * The descriptor holds the inode that was measured, or nothing here described the file being read.
+ *
+ * A separate exported function so that a test can put two stats side by side and watch it refuse. The
+ * behaviour cannot be staged through `readProtectedConfiguration` itself: nothing interleaves with a
+ * synchronous call in this process, so the substitution it guards against cannot be arranged from inside
+ * a test, and a rule no test can execute is a rule nobody has checked.
+ */
+export function assertOpenedWhatWasMeasured(measured: { dev: number; ino: number }, opened: { dev: number; ino: number }, target: string) {
+  if (opened.dev !== measured.dev || opened.ino !== measured.ino) throw new Error(`${target} changed between being checked and being opened; the file that was measured is not the file this descriptor holds`);
 }
 
 export function loadConfig() {
@@ -233,8 +247,16 @@ export function saveConfig(config: AgentConfig) {
   const body = `${JSON.stringify(agentConfigSchema.parse(config), null, 2)}\n`;
   const pending = `${configPath}.pending-${process.pid}`;
   let handle: number | undefined;
+  let mine = false;
   try {
-    handle = fs.openSync(pending, "w", 0o600);
+    // EXCLUSIVELY. A review pointed out that "w" adopts a file somebody else already created: with the
+    // configuration in a sticky world-writable directory, an unprivileged user pre-creates one pending
+    // file per candidate pid at mode 0666, this rename installs it as the configuration, and the
+    // enrolment credential is theirs to read. `wx` refuses instead, loudly. The production layout is
+    // 0750 and agent-owned so nobody could plant one there, but the rule above accepts a sticky parent,
+    // and every sibling this design writes has to be safe in every layout the rule accepts.
+    handle = fs.openSync(pending, "wx", 0o600);
+    mine = true;
     fs.writeFileSync(handle, body);
     fs.fsyncSync(handle);
     fs.closeSync(handle);
@@ -249,7 +271,9 @@ export function saveConfig(config: AgentConfig) {
     }
   } catch (error) {
     if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the write failure is the one worth reporting */ } }
-    try { fs.rmSync(pending, { force: true }); } catch { /* as above */ }
+    // Only what this call created. A collision means somebody else's file is sitting there, and deleting
+    // it would destroy the evidence of the very thing the exclusive open exists to catch.
+    if (mine) { try { fs.rmSync(pending, { force: true }); } catch { /* as above */ } }
     throw error;
   }
 }

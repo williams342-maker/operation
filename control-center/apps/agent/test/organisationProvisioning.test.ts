@@ -32,8 +32,11 @@ function enrolledConfig(overrides: Record<string, unknown> = {}, mode = 0o600) {
 // The same call, run under a umask that would strip the bits the fixture is meant to keep. `open(mode)`
 // is filtered by the umask, so only the explicit chmod inside the tool can put them back: this is the
 // fixture that can tell a working `restoreIdentity` from a missing one without needing root.
+// 0177 rather than 0077: the mode rule now refuses any group or other bit on the configuration, so the
+// only bits left to strip are the owner's own. Under this umask `open(0600)` yields 0400, and the file
+// comes back 0600 only if the tool puts the mode back deliberately.
 const provisionUnderUmask = (...args: string[]) =>
-  execFileSync("/bin/sh", ["-c", 'umask 077; exec "$0" "$@"', process.execPath, path.join(scripts, "provision-agent-organisation.mjs"), ...args], { encoding: "utf8" });
+  execFileSync("/bin/sh", ["-c", 'umask 177; exec "$0" "$@"', process.execPath, path.join(scripts, "provision-agent-organisation.mjs"), ...args], { encoding: "utf8" });
 
 test("provisioning writes the organisation, keeps the mode, and leaves a byte-exact way back", () => {
   const { file, body } = enrolledConfig();
@@ -137,15 +140,15 @@ test("a hostile umask cannot narrow the configuration behind the operator's back
   // WHY THIS EXISTS. The ownership test above cannot discriminate as a normal user — fixture and
   // replacement are owned by the same account, so deleting `restoreIdentity` entirely left all seven
   // provisioning tests green when a review tried it. The mode is the half of the same restoration that a
-  // normal user CAN prove: run the tool under umask 077 against a 0640 file and the atomic replacement
-  // comes back 0600 unless the tool puts the mode back deliberately.
-  const { file } = enrolledConfig({}, 0o640);
+  // normal user CAN prove: run the tool under a umask that strips the owner's write bit and the atomic
+  // replacement comes back 0400 unless the tool puts the mode back deliberately.
+  const { file } = enrolledConfig({}, 0o600);
   provisionUnderUmask("--config", file, "--org", org);
-  assert.equal(fs.statSync(file).mode & 0o777, 0o640, "provisioning restored the mode rather than inheriting the umask");
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600, "provisioning restored the mode rather than inheriting the umask");
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).orgId, org);
 
   provisionUnderUmask("--config", file, "--rollback");
-  assert.equal(fs.statSync(file).mode & 0o777, 0o640, "and rollback restores it too, rather than hardcoding one");
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600, "and rollback restores it too, rather than hardcoding one");
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).orgId, undefined);
 });
 
@@ -154,12 +157,71 @@ test("provisioning refuses a configuration that is not protected in the first pl
   // Preserving the mode it finds preserved 0666 just as faithfully. A trust anchor any local user can
   // rewrite afterwards is not one, so the operator is told now rather than at the next restart.
   const { file, body } = enrolledConfig({}, 0o666);
-  assert.throws(() => provision("--config", file, "--org", org), /writable by group or other/);
+  assert.throws(() => provision("--config", file, "--org", org), /readable or writable by group or other/);
+  // Read as well as write. The runtime refuses a configuration anybody can read, because it holds the
+  // enrolment credential, so provisioning into one would be writing a trust identifier into a file the
+  // agent will then refuse to load.
+  fs.chmodSync(file, 0o644);
+  assert.throws(() => provision("--config", file, "--org", org), /readable or writable by group or other/);
+  fs.chmodSync(file, 0o666);
   assert.equal(fs.readFileSync(file, "utf8"), body, "and nothing was written");
   assert.equal(fs.existsSync(`${file}.before-organisation`), false, "not even a backup");
 
   fs.chmodSync(file, 0o600);
   assert.equal(JSON.parse(provision("--config", file, "--org", org)).orgId, org, "tightening the mode is all it was asking for");
+});
+
+test("a backup planted beside the configuration cannot be rolled back into place", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX ownership does not describe a Windows ACL");
+  // THE SIBLING HOLE, demonstrated end to end by a review. The ancestor rule accepts a world-writable
+  // directory when it is sticky, because sticky stops anybody REPLACING the configuration. It does not
+  // stop them creating files NEXT TO it, and this design writes three siblings: the backup, the pending
+  // replacement and the lock. The backup was the one nothing checked, so an unprivileged user could
+  // simply write one and wait for the operator's own documented recovery step to install it — choosing
+  // both trust identifiers, with the result passing every protection rule afterwards.
+  const { file, body } = enrolledConfig();
+  const planted = `${file}.before-organisation`;
+  fs.writeFileSync(planted, JSON.stringify({ ...JSON.parse(body), orgId: "9".repeat(24), serverId: "8".repeat(24) }, null, 2), { mode: 0o666 });
+  fs.chmodSync(planted, 0o666);
+  try {
+    assert.throws(() => provision("--config", file, "--rollback"), /readable or writable by group or other/, "a backup anybody could have written is not a way back");
+    assert.equal(fs.readFileSync(file, "utf8"), body, "and the configuration is untouched");
+  } finally {
+    fs.rmSync(planted, { force: true });
+  }
+
+  // Nor is one that is not a configuration at all: restoring bytes that will not parse leaves a host
+  // that cannot start, which is a worse outcome than refusing to roll back.
+  fs.writeFileSync(planted, "not json at all", { mode: 0o600 });
+  fs.chmodSync(planted, 0o600);
+  try {
+    assert.throws(() => provision("--config", file, "--rollback"), /not the JSON configuration it claims to be/);
+  } finally {
+    fs.rmSync(planted, { force: true });
+  }
+
+  // And the backup this tool writes itself still rolls back, so the new rule refuses plants rather than
+  // recovery.
+  provision("--config", file, "--org", org);
+  assert.equal(JSON.parse(provision("--config", file, "--rollback")).rolledBack, file);
+  assert.equal(fs.readFileSync(file, "utf8"), body);
+});
+
+test("a pending file planted beside the configuration cannot become the configuration", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX ownership does not describe a Windows ACL");
+  // The second sibling. `w` adopts a file somebody else created; the rename then installs it as the
+  // configuration, and on a v2 runtime that hands over the private keys as well as the credential. The
+  // pid is guessable and a sticky directory lets an attacker cover the range, so the open is exclusive
+  // and a collision is a loud failure rather than a silent adoption.
+  const { file, body } = enrolledConfig();
+  const planted = `${file}.pending-${process.pid}`;
+  // Provisioning runs in a child, so its pid is not this one; the rule is what is under test, and the
+  // way to reach it deterministically is to make the tool collide with a name that is already taken.
+  const source = fs.readFileSync(path.join(scripts, "provision-agent-organisation.mjs"), "utf8");
+  assert.match(source, /fs\.openSync\(pending, "wx"/, "both verbs create the pending replacement exclusively");
+  assert.equal(source.includes('fs.openSync(pending, "w"'), false, "and neither adopts one that is already there");
+  fs.rmSync(planted, { force: true });
+  assert.equal(fs.readFileSync(file, "utf8"), body);
 });
 
 test("provisioning refuses a configuration that does not exist", () => {

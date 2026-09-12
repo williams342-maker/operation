@@ -46,7 +46,7 @@ const resolveOwner = (spec) => {
     return fail(`--expect-owner ${spec} is neither a uid nor an account this host knows`);
   }
 };
-const assertProtected = (file) => {
+const assertProtected = (file, { exactOwner = false } = {}) => {
   if (process.platform === "win32") return; // POSIX mode bits do not describe a Windows ACL
   const self = process.getuid ? process.getuid() : 0;
   const openToOthers = (mode) => (mode & 0o022) !== 0;
@@ -83,15 +83,20 @@ const assertProtected = (file) => {
   // A regular file, checked before anything opens it: a FIFO here would block whoever ran this until
   // somebody wrote to the other end, and a device can have effects merely from being opened.
   if (!stat.isFile()) fail(`${target} is not a regular file; --config names the agent's configuration, and provisioning will not write through whatever else is there`);
-  if (openToOthers(stat.mode)) fail(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
-  if (stated !== undefined) {
+  // Read as well as write, for the file. It holds the enrolment credential and, on a v2 runtime, private
+  // keys; the runtime refuses to load one anybody can read, so provisioning into one would be writing a
+  // trust identifier into a file the agent will then refuse. Directories are still judged on write.
+  if ((stat.mode & 0o077) !== 0) fail(`${target} is readable or writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
+  // `--expect-owner` is an assertion about the CONFIGURATION — "this is the host you think it is" — so it
+  // is matched exactly there and not applied to the backup, which this tool wrote itself and which is
+  // root-owned whenever an operator provisioned as root.
+  if (exactOwner && stated !== undefined) {
     if (stat.uid !== stated) fail(`${target} belongs to uid ${stat.uid}, and --expect-owner ${expected} says it should belong to ${stated}; provisioning the wrong host's configuration is the mistake this flag exists to catch`);
   } else if (!owned(stat.uid)) {
     fail(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}). If that is the account the agent runs as, say so with --expect-owner; this tool will not guess which non-root owner is legitimate`);
   }
 };
 if (!fs.existsSync(configPath)) fail(`${configPath} does not exist; provisioning writes into an enrolled agent's configuration, it does not create one`);
-assertProtected(configPath);
 
 // ONE LOCK FOR BOTH VERBS. Exclusive creation of the backup serialises two provisionings against each
 // other, and does nothing about a rollback arriving in the middle of one: a review interleaved them and
@@ -107,10 +112,15 @@ try {
 }
 process.on("exit", () => { try { fs.closeSync(lockHandle); } catch { /* releasing is best effort */ } try { fs.rmSync(lockPath, { force: true }); } catch { /* as above */ } });
 
+// CHECKED INSIDE THE LOCK, not before it. A review pointed out that the protection check ran first and
+// everything it established could therefore have changed by the time the lock was held. Nothing else in
+// this script may touch the configuration before this line.
+assertProtected(configPath, { exactOwner: true });
+
 // The identity of the file as it stands: a replacement is a NEW inode, so its owner and mode have to be
 // put back deliberately. Running this as root over an agent-owned configuration would otherwise leave a
 // root-owned file the service cannot read, which is an outage dressed as a provisioning step.
-const identityOf = (file) => { const stat = fs.statSync(file); return { uid: stat.uid, gid: stat.gid, mode: stat.mode & 0o777 }; };
+const identityOf = (file) => { const stat = fs.lstatSync(file); return { uid: stat.uid, gid: stat.gid, mode: stat.mode & 0o777 }; };
 const restoreIdentity = (file, identity) => {
   fs.chmodSync(file, identity.mode);
   try {
@@ -127,10 +137,25 @@ const restoreIdentity = (file, identity) => {
 // bytes that were there, or refuses; it never reconstructs a configuration from what it thinks it knows.
 if (has("--rollback")) {
   if (!fs.existsSync(backupPath)) fail(`no backup to roll back to at ${backupPath}`);
+  // THE BACKUP IS AN INPUT, AND IT WAS THE ONE INPUT NOTHING CHECKED. A review put the configuration in
+  // a sticky world-writable directory — which the ancestor rule accepts, because sticky stops anyone
+  // REPLACING the file — and then simply created the backup beside it as an unprivileged user. The
+  // operator's own documented recovery step installed it, and the result passed every protection rule,
+  // so a local user had chosen both trust identifiers without forging anything. Sticky does not stop
+  // siblings being created, and this design writes three of them, so each has to be safe on its own.
+  assertProtected(backupPath);
   const saved = fs.readFileSync(backupPath);
+  try {
+    JSON.parse(saved.toString("utf8"));
+  } catch (error) {
+    fail(`${backupPath} is not the JSON configuration it claims to be (${error?.message ?? "unparseable"}); restoring it would leave this host unable to start`);
+  }
   const identity = identityOf(configPath);
   const pending = `${configPath}.pending-${process.pid}`;
-  const handle = fs.openSync(pending, "w", identity.mode);
+  // Exclusively: "w" adopts a file somebody else already created, and in a sticky directory an
+  // unprivileged user can create one per candidate pid and have it renamed into place as the
+  // configuration.
+  const handle = fs.openSync(pending, "wx", identity.mode);
   try {
     fs.writeFileSync(handle, saved);
     fs.fsyncSync(handle);
@@ -172,7 +197,7 @@ try {
 const identity = identityOf(configPath);
 const body = `${JSON.stringify({ ...config, orgId }, null, 2)}\n`;
 const pending = `${configPath}.pending-${process.pid}`;
-const handle = fs.openSync(pending, "w", identity.mode);
+const handle = fs.openSync(pending, "wx", identity.mode);
 try {
   fs.writeFileSync(handle, body);
   fs.fsyncSync(handle);

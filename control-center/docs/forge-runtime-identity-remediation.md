@@ -24,7 +24,10 @@ server this agent belongs to. The problem was where those two values came from.
 Both paths were mine, added to make the check satisfiable on a host that had never been provisioned. They
 made it satisfiable by removing what it was checking.
 
-## 2. Repair 1 — the control plane establishes nothing
+## 2. Repair 1 — the control plane's responses establish nothing
+
+*Read this heading together with section 5. Poll responses establish neither identifier; enrolment still establishes
+the server id once, and that residual is analysed there rather than hidden behind this heading.*
 
 `learnRuntimeIdentity`, `adoptRuntimeIdentity`, `establishRuntimeIdentity` and `startupIdentity` are gone
 from `apps/agent/src/agent.ts`. The poll response type no longer carries an identity field, and the API's
@@ -89,10 +92,14 @@ Behaviour worth knowing before you run it:
 - **The path must end in a regular file, and that is checked before anything is opened.** Opening a FIFO
   for reading blocks until somebody writes to the other end, and a device can have effects merely from
   being opened, so nothing is opened until what is at the end of the path is known to be an ordinary
-  file. The order is measure, then open, then compare the device and inode numbers of the descriptor
-  against what was measured. Every directory above the file has just been shown to be trusted, so the
-  argument that nobody untrusted could substitute it in between is sound; the comparison makes it a fact
-  instead of an argument, in a place where the argument has already been wrong twice.
+  file. **In the agent**, the order goes further: measure, open, then compare the device and inode numbers
+  of the descriptor against what was measured, and read from that descriptor. Every directory above the
+  file has just been shown to be trusted, so the argument that nobody untrusted could substitute it in
+  between is sound; the comparison makes it a fact instead of an argument, in a place where the argument
+  has already been wrong twice. **The tool does not do this** — it checks by path, then reads, writes a
+  replacement and renames by path — and an earlier version of this bullet said it did. It takes the lock
+  before it checks, and both it and the agent refuse a path with any untrusted component, but if you need
+  a descriptor-bound guarantee it is the agent that gives you one.
 - **Ownership is stated rather than guessed.** Without `--expect-owner` the file and its directories must
   belong to root or to whoever is running the tool. With it, the file must belong to the named account
   and a mismatch is a refusal, and that account is trusted for the directories too. The flag exists
@@ -110,8 +117,21 @@ Behaviour worth knowing before you run it:
   there and the field count is checked. The other trust identifier lives in this same file.
 - **An organisation already set is not silently replaced.** Pass `--replacing <current value>` to state
   that you mean it. Re-provisioning the same value is a no-op and does not write a second backup.
-- **One lock covers both verbs**, at `<config>.provisioning-lock`, released however the process exits. A
-  rollback cannot run inside a provisioning.
+- **One lock covers both verbs**, at `<config>.provisioning-lock`, taken before the configuration is
+  checked and released however the process exits. A rollback cannot run inside a provisioning, and the
+  agent's own enrolment takes the same lock.
+- **Every file this writes beside the configuration is safe on its own.** The ancestor rule accepts a
+  world-writable directory when it is sticky, because sticky stops anybody replacing the configuration —
+  but it does not stop them creating files NEXT to it, and this design writes three: the backup, the
+  pending replacement and the lock. A review demonstrated the hole end to end: an unprivileged user wrote
+  the backup and the operator's own recovery step installed it, choosing both trust identifiers with the
+  result passing every protection rule afterwards. The backup is now checked exactly as the configuration
+  is and must parse as JSON before it can be restored, and both verbs create their pending replacement
+  exclusively, so a planted one is a loud failure rather than a silent adoption. A planted lock file
+  still blocks provisioning until somebody removes it; that is a refusal, and the message names the path.
+- **The configuration must not be readable by group or other either.** It holds the enrolment credential
+  and, on a v2 runtime, private keys; `install.sh` creates it 0600. An earlier version of this rule judged
+  the file on write alone, which contradicted what the rest of the codebase says about the same file.
 
 ### Exact rollback
 
@@ -126,6 +146,21 @@ never reconstructs a configuration from what it thinks it knows: if the backup i
 Restart the agent afterwards; the configuration is read at startup.
 
 Held by `apps/agent/test/organisationProvisioning.test.ts`.
+
+### A sequencing hazard the lock does not cover
+
+`scripts/install-reviewed-agent.sh` also rewrites this file, and its rollback restores a snapshot taken at
+activation time. If that snapshot predates a provisioning, rolling the agent release back removes the
+organisation and the agent then refuses to start. **After any agent-release rollback, re-provision and
+confirm the organisation before restarting the service.**
+
+The installer takes no configuration lock, and this document does not claim it does. A lock would not fix
+the hazard above, which is a matter of sequence rather than concurrency: the snapshot was already stale
+when it was taken. The remaining concurrency gap is narrower — an activation running at the same moment as
+a provisioning — and closing it means adding lock acquisition and release across four reassigned `trap`
+handlers in a script that sits on the production activation path, where a leaked lock would block both the
+provisioning tool and the agent's enrolment. That trade is not worth making silently, so it is written
+down here instead and left as the owner's call.
 
 ## 4. Repair 3 — the signing tool rejects control characters
 
@@ -258,5 +293,24 @@ None of the following has been done, and none of it can be done without the owne
   invisible to both walks, because resolution reports only the far end and `stat` follows the chain, so
   the attacker's hop is never visited. Resolution is gone from the trust decision entirely: every
   component of the path is measured as it is, and a link anywhere is a refusal.
-- Independent review, round 6: in progress.
+- Independent review, round 6: the previous reviewer's service refused the request at its own content
+  filter, twice, on an existing thread and on a fresh session. That is a refusal to look, not a verdict.
+  A different reviewer ran the round instead. **NO-GO**, two demonstrated findings and seven smaller ones,
+  all addressed.
+  - **Demonstrated.** Sticky ancestors are accepted, and sticky does not stop an untrusted user creating
+    files beside the configuration. The backup was unchecked, so one could be planted and installed by
+    the operator's own rollback; the pending replacement was opened with `w`, so a planted one could be
+    renamed into place and the credential read out of it. Both closed. The production layout is 0750 and
+    agent-owned, so no real host was exposed — the defect was that the rule declared a layout acceptable
+    in which it was.
+  - **Documentation claimed more than the code did**, in three places: the tool described as
+    descriptor-bound when only the runtime is, a heading saying the control plane establishes nothing
+    when enrolment still establishes the server id, and a guard comment describing a design that two
+    repairs ago ceased to exist. All corrected.
+  - **Smaller.** The protection check permitted a world-readable configuration while its own reasoning
+    cited the credential inside it; the loader's control-character rule was laxer than the signer that
+    claimed parity with it; an exported helper had no caller; and two tests asserted source text while
+    standing between two mutations and a green suite. The inode comparison is now its own function with a
+    behavioural test, and the one remaining source-text assertion says so in its name.
+- Independent review, round 7: not yet run.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

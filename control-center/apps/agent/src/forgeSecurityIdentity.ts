@@ -18,8 +18,12 @@ const sha256 = (value: Buffer | string) => crypto.createHash("sha256").update(va
 // reaching a regex by accident; in this line they are the subject of it, and the test named for
 // canonical statement separators asserts the behaviour. The disable must sit immediately above the code
 // it applies to, so it goes last.
+//
+// The range covers the C1 controls and the Unicode separators as well as ASCII. The signing tools
+// refuse those, and a loader that accepted them would mean a document minted by some other route was
+// still acceptable on the host, and the signer's claim of parity with this schema would be false.
 // eslint-disable-next-line no-control-regex
-const identityText = z.string().min(1).refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "control characters are forbidden");
+const identityText = z.string().min(1).refine((value) => !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(value), "control characters are forbidden");
 export const forgeSecurityIdentitySchema = z.object({
   schemaVersion: z.literal("forge-security-identity-v1"),
   orgId: identityText, serverId: identityText, ownerPublicKey: z.string().min(1).regex(/^[A-Za-z0-9_-]+$/),
