@@ -94,12 +94,16 @@ jobs:
       # api +1: the validator knowing CONTROL_CENTER_RELEASE_MANIFEST, and diagnosing its absence.
       # agent +5: the runtime learning which organisation it belongs to, which nothing ever wrote, so the
       # Forge identity check could not pass on any host.
+      # agent +9: the third remediation round -- the protection check walked around by an attacker-owned
+      # ancestor, by a symlink, and by a swap between the check and the read; the root operator locked out
+      # of the tool by the first version of its own ownership rule; and a server id erased by an answer
+      # that carried none. Skips do not move.
       # agent +13: the second remediation round -- enrolment held to the rule the rest of the file keeps,
       # the configuration proved to be protected rather than merely called protected, a umask fixture that
       # can tell a restored mode from an inherited one, and the C1 line terminators the control-character
       # sweep used to walk past. The skip count does NOT move: the one case that would have needed root is
       # written down as a comment in the suite instead of sitting there as a test that never runs.
-      CI_EXPECTED_TESTS: "479"
+      CI_EXPECTED_TESTS: "488"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -197,12 +201,14 @@ jobs:
       #                   install, load, and one refusal for each thing a ceremony can get wrong
       #   agent net -1    security review replaced the identity bootstrap: the adoption tests are gone,
       #                   provisioning and poll-refusal tests are here instead
+      #   agent +9        remediation round three: the resolved path, the descriptor-bound read, ancestor
+      #                   ownership, --expect-owner, and the preservation case no test separated
       #   agent +13       remediation round two: enrolment refusing a changed server and surviving a
       #                   provisioning that lands mid-request, the configuration proved protected rather
       #                   than assumed, a umask fixture that discriminates a restored mode, and the
       #                   non-ASCII line terminators the control-character sweep used to walk past
-      CI_EXPECTED_TEST_SUITES: "agent=192,api=134,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "773"
+      CI_EXPECTED_TEST_SUITES: "agent=201,api=134,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "782"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

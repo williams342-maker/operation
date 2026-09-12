@@ -10,27 +10,42 @@ import test from "node:test";
 // the control plane or from the signed document. A later review pointed out that nothing enforced the
 // protection: the file could be 0666, provisioning preserved that, and loading never looked — so any local
 // user rewrote both trust identifiers and the agent accepted them, defeating the repair without forging
-// anything. These tests are that enforcement.
+// anything. A round after that broke the first enforcement three more ways: an attacker-owned directory,
+// a symlink, and a swap between the check and the read. These tests are that enforcement.
 //
 // POSIX mode bits do not describe a Windows ACL, so the check does nothing there and neither do these.
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "agent-protection-"));
 const configFile = path.join(scratch, "agent.local.json");
 const enrolled = { controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32), orgId: "6a5dab47776e3028ac9b604b", serverId: "6a5f685ff8195a8813879bd7" };
-fs.writeFileSync(configFile, `${JSON.stringify(enrolled, null, 2)}\n`, { mode: 0o600 });
-fs.chmodSync(configFile, 0o600);
+const write = (file: string, mode = 0o600) => { fs.writeFileSync(file, `${JSON.stringify(enrolled, null, 2)}\n`, { mode }); fs.chmodSync(file, mode); };
+write(configFile);
 
 process.env.CONTROL_CENTER_AGENT_CONFIG = configFile;
-const { assertConfigurationIsProtected, loadConfig } = await import("../src/config.js");
+const { readProtectedConfiguration, loadConfig } = await import("../src/config.js");
 
 const linuxOnly = (t: { skip: (why: string) => void }) => {
   if (process.platform === "win32") { t.skip("POSIX mode bits do not describe a Windows ACL"); return true; }
   return false;
 };
+// Nobody, on every distribution this runs on.
+const somebodyElse = 65534;
+const amRoot = () => process.getuid?.() === 0;
+// THE SAME RULE, REACHED FROM WHICHEVER SIDE THIS RUN CAN MOVE. The rule is "belongs to neither root nor
+// me". A root session can hand the fixture to a third account and ask the real question; an unprivileged
+// one cannot chown at all, so it asks the function to be somebody else instead. Both arrive at the same
+// comparison and neither skips, so the rule is proved wherever this suite runs — root in a local WSL
+// session, an unprivileged runner in CI.
+const givenAway = (target: string): { self?: number } => {
+  if (!amRoot()) return { self: somebodyElse };
+  fs.chownSync(target, somebodyElse, somebodyElse);
+  return {};
+};
+const givenBack = (target: string) => { if (amRoot()) fs.chownSync(target, 0, 0); };
 
-test("a configuration only its owner can write is accepted", (t) => {
+test("a configuration only its owner can write is accepted, and its contents come back", (t) => {
   if (linuxOnly(t)) return;
-  fs.chmodSync(configFile, 0o600);
-  assertConfigurationIsProtected(configFile);
+  write(configFile);
+  assert.equal(JSON.parse(readProtectedConfiguration(configFile)).orgId, enrolled.orgId);
   assert.equal(loadConfig().orgId, enrolled.orgId, "and it is the file this process actually reads");
 });
 
@@ -39,11 +54,11 @@ test("a configuration anybody can write is refused, and so is the agent", (t) =>
   // The attack this closes: the file carries the organisation and server id the owner-signed Forge
   // identity is matched against, so whoever can write it chooses which identity this host accepts.
   for (const mode of [0o666, 0o622, 0o660, 0o620]) {
-    fs.chmodSync(configFile, mode);
-    assert.throws(() => assertConfigurationIsProtected(configFile), /writable by group or other/, `mode 0${mode.toString(8)} must be refused`);
+    write(configFile, mode);
+    assert.throws(() => readProtectedConfiguration(configFile), /writable by group or other/, `mode 0${mode.toString(8)} must be refused`);
     assert.throws(() => loadConfig(), /writable by group or other/, `and loading must refuse it too, at mode 0${mode.toString(8)}`);
   }
-  fs.chmodSync(configFile, 0o600);
+  write(configFile);
 });
 
 test("a readable-but-not-writable configuration is still accepted", (t) => {
@@ -51,10 +66,41 @@ test("a readable-but-not-writable configuration is still accepted", (t) => {
   // The rule is about who can CHANGE the identifiers. Group read is a deployment choice, not a defeat, and
   // refusing it would refuse hosts that are doing nothing wrong.
   for (const mode of [0o640, 0o644, 0o400]) {
-    fs.chmodSync(configFile, mode);
-    assertConfigurationIsProtected(configFile);
+    write(configFile, mode);
+    readProtectedConfiguration(configFile);
   }
-  fs.chmodSync(configFile, 0o600);
+  write(configFile);
+});
+
+test("a configuration belonging to neither root nor this runtime is refused", (t) => {
+  if (linuxOnly(t)) return;
+  // The fixture sits directly in the temporary directory, which is root-owned, so every ancestor passes
+  // and the file is the only thing left to fail — which is what makes this the FILE rule rather than the
+  // directory one below.
+  const inTmp = path.join(os.tmpdir(), `agent-owner-${process.pid}.json`);
+  write(inTmp);
+  try {
+    assert.throws(() => readProtectedConfiguration(inTmp, givenAway(inTmp)), /agent-owner-.*belongs to uid/, "the FILE is what is refused here");
+    givenBack(inTmp);
+    readProtectedConfiguration(inTmp);
+  } finally {
+    fs.rmSync(inTmp, { force: true });
+  }
+});
+
+test("a directory belonging to neither root nor this runtime is refused, whatever its mode", (t) => {
+  if (linuxOnly(t)) return;
+  // A directory's owner may replace what is in it however tight the mode is, and the sticky bit exempts
+  // the owner rather than binding them — so an attacker-owned 0755 ancestor passed the mode rule alone.
+  // The subject here is a directory rather than the file, and the ancestor rules run first, so this is
+  // the check that speaks. The file itself stays acceptable throughout, as the read after the refusal
+  // shows: what was rejected was the tree, not the configuration.
+  try {
+    assert.throws(() => readProtectedConfiguration(configFile, givenAway(scratch)), new RegExp(`${path.basename(scratch)} belongs to uid`), "the DIRECTORY is what is refused here");
+  } finally {
+    givenBack(scratch);
+  }
+  readProtectedConfiguration(configFile);
 });
 
 test("a directory anybody can write is refused, whatever the file's own mode says", (t) => {
@@ -62,26 +108,104 @@ test("a directory anybody can write is refused, whatever the file's own mode say
   // A writable parent means the file is renamed away and replaced, so its 0600 protects nothing.
   const open = fs.mkdtempSync(path.join(os.tmpdir(), "agent-open-dir-"));
   const inside = path.join(open, "agent.local.json");
-  fs.writeFileSync(inside, `${JSON.stringify(enrolled)}\n`, { mode: 0o600 });
-  fs.chmodSync(inside, 0o600);
+  write(inside);
   fs.chmodSync(open, 0o777);
   try {
-    assert.throws(() => assertConfigurationIsProtected(inside), /writable by group or other/);
-    // And the same directory with the sticky bit set is fine, because others may create there but cannot
-    // touch what is not theirs — which is exactly how /tmp holds these fixtures.
+    assert.throws(() => readProtectedConfiguration(inside), /writable by group or other/);
+    // And the same directory with the sticky bit set passes the MODE rule, because others may create
+    // there but not touch what is not theirs — which is exactly how the temporary directory holds these
+    // fixtures. Ownership is a separate rule and is tested above.
     fs.chmodSync(open, 0o1777);
-    assertConfigurationIsProtected(inside);
+    readProtectedConfiguration(inside);
   } finally {
     fs.chmodSync(open, 0o700);
     fs.rmSync(open, { recursive: true, force: true });
   }
 });
 
-// WHAT IS NOT TESTED HERE, AND WHY THERE IS NO SKIPPED TEST STANDING IN FOR IT.
+test("a configuration that is a symbolic link is refused", (t) => {
+  if (linuxOnly(t)) return;
+  // A review pointed a 0600 symlink at a file in a 0777 directory and every rule passed: the checks
+  // described the link's own path and the read followed it somewhere else entirely.
+  const exposed = fs.mkdtempSync(path.join(os.tmpdir(), "agent-exposed-"));
+  const realFile = path.join(exposed, "agent.local.json");
+  write(realFile);
+  fs.chmodSync(exposed, 0o777);
+  const link = path.join(scratch, "linked.json");
+  fs.symlinkSync(realFile, link);
+  try {
+    assert.throws(() => readProtectedConfiguration(link), /symbolic link/);
+  } finally {
+    fs.rmSync(link, { force: true });
+    fs.chmodSync(exposed, 0o700);
+    fs.rmSync(exposed, { recursive: true, force: true });
+  }
+});
+
+test("the tree that is checked is the file's real one, not the one the path spells", (t) => {
+  if (linuxOnly(t)) return;
+  // Resolution is not only about the last component. Here the configuration is a real file with a tight
+  // mode in a tight directory, reached through a link — and its REAL parent's parent is world-writable,
+  // which is where the file can be taken from underneath it. Walking the path as written never visits
+  // that directory at all: every component it does visit is fine, and the check returns happy.
+  const exposed = fs.mkdtempSync(path.join(os.tmpdir(), "agent-exposed-tree-"));
+  const inner = path.join(exposed, "inner");
+  fs.mkdirSync(inner, { mode: 0o700 });
+  fs.chmodSync(inner, 0o700);
+  const realFile = path.join(inner, "agent.local.json");
+  write(realFile);
+  fs.chmodSync(exposed, 0o777);
+  const via = path.join(scratch, "via");
+  fs.symlinkSync(inner, via);
+  try {
+    assert.throws(() => readProtectedConfiguration(path.join(via, "agent.local.json")), new RegExp(`${path.basename(exposed)} is writable by group or other`));
+  } finally {
+    fs.rmSync(via, { force: true });
+    fs.chmodSync(exposed, 0o700);
+    fs.rmSync(exposed, { recursive: true, force: true });
+  }
+});
+
+test("what is read is the file that was checked, not the name that was checked", async (t) => {
+  if (linuxOnly(t)) return;
+  // THE INTERLEAVING, and an honest account of how much of it a test can reach. A review replaced the
+  // configuration between the check and the read and was handed the attacker's organisation. The fix is
+  // to open once and ask every question of the descriptor, including the read.
+  //
+  // Nothing can interleave with a synchronous call in this process, so the behaviour cannot be staged
+  // from inside a test. What CAN be shown is the platform fact the fix rests on, and that the code
+  // actually rests on it. Both halves are here, and the second is a structural assertion precisely
+  // because no behaviour in this process can distinguish it.
+  const racy = path.join(scratch, "racy.json");
+  write(racy);
+  const original = fs.readFileSync(racy, "utf8");
+  const handle = fs.openSync(racy, "r");
+  try {
+    const replacement = path.join(scratch, "replacement.json");
+    fs.writeFileSync(replacement, JSON.stringify({ ...enrolled, orgId: "9".repeat(24) }, null, 2), { mode: 0o666 });
+    fs.chmodSync(replacement, 0o666);
+    fs.renameSync(replacement, racy);
+    assert.equal(fs.readFileSync(handle, "utf8"), original, "a rename over the name does not reach an open descriptor");
+    assert.notEqual(fs.readFileSync(racy, "utf8"), original, "while the same read by NAME gets the replacement, which is the whole difference");
+  } finally {
+    fs.closeSync(handle);
+    fs.rmSync(racy, { force: true });
+  }
+
+  const source = await fs.promises.readFile(new URL("../src/config.ts", import.meta.url), "utf8");
+  const body = source.slice(source.indexOf("export function readProtectedConfiguration"), source.indexOf("export function loadConfig"));
+  assert.match(body, /fs\.fstatSync\(handle\)/, "the file's own properties are measured on the descriptor");
+  assert.match(body, /return fs\.readFileSync\(handle, "utf8"\)/, "and the contents come from the same descriptor, not from a second lookup by name");
+});
+
+// The ownership cases above adapt: given root they really hand the fixture to another account, and given
+// an unprivileged runner they ask the comparison to be somebody else. CI is the second of those, so on CI
+// they prove the comparisons are made and that each names the right subject, rather than proving the
+// kernel refuses a genuine third-party file. The Linux gate requires zero skips precisely so that a test
+// which never runs cannot sit in the suite looking like coverage, so this is written down rather than
+// stood in for by something that would show green without executing.
 //
-// The check also refuses a configuration belonging to a third account, and proving that needs root: a
-// normal user cannot chown a file to somebody else, so the fixture and the process are always the same
-// uid and the assertion cannot fail. The Linux gate requires zero skips precisely so that a test which
-// never runs cannot sit in the suite looking like coverage, and a root-gated case would be exactly that.
-// The rule is stated in `assertConfigurationIsProtected`, the mode rules above are the part that can be
-// proved, and this comment is the honest account of the gap rather than a green tick over it.
+// The resolution itself is also a name lookup: an attacker who owns an ancestor can swap a component
+// between `realpath` and `open`. They get a different inode, which is then measured and refused unless it
+// too is protected, so the remaining window is a denial of service rather than an accepted identity. Node
+// exposes no `openat`, so that is the floor rather than a decision.

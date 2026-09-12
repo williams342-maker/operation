@@ -100,3 +100,18 @@ test("enrolment will not write its configuration underneath a provisioning", asy
   assert.equal((await maybeEnroll()).agentId, "agent-1");
   assert.equal(fs.existsSync(lock), false, "the lock is released on the way out");
 });
+
+test("an established server id survives a response that carries none", async () => {
+  // A review mutated `config.serverId || result.serverId` down to `result.serverId` alone and every test
+  // still passed, because in each of them the two values agreed or the runtime had none. This is the case
+  // that separates them: the runtime knows who it is, the answer does not say, and the answer must not
+  // erase it. An empty server id fails the Forge comparison closed, so this is an availability hole as
+  // well as a rule broken.
+  unenrolled({ serverId: server });
+  answer = { ...answer, serverId: "" };
+
+  const enrolled = await maybeEnroll();
+
+  assert.equal(enrolled.serverId, server, "the established server id is preserved, not overwritten with nothing");
+  assert.equal(JSON.parse(fs.readFileSync(configFile, "utf8")).serverId, server);
+});

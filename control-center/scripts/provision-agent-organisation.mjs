@@ -15,6 +15,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const value = (name) => { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1]; };
 const has = (name) => process.argv.includes(name);
@@ -28,19 +29,48 @@ const backupPath = `${configPath}.before-organisation`;
 // Provisioning preserves the mode it finds, and a review pointed out that this happily preserved 0666: on
 // such a host any local user rewrites the organisation and the server id afterwards and the agent accepts
 // them, which defeats the independently protected input this whole repair exists to establish, without
-// forging anything. The agent applies the same rule when it loads (`assertConfigurationIsProtected`); the
-// two are deliberately the same rule stated twice, because the tool cannot import the runtime's TypeScript
-// and an operator should be told at provisioning time rather than at the next restart.
+// forging anything. The agent applies the same rule when it loads (`readProtectedConfiguration`); the two
+// are deliberately the same rule stated twice, because the tool cannot import the runtime's TypeScript and
+// an operator should be told at provisioning time rather than at the next restart.
+//
+// ONE DELIBERATE DIFFERENCE, AND IT IS THE WHOLE POINT OF THE TOOL. The runtime accepts a file owned by
+// root or by itself, because the runtime IS the agent account. An operator is usually root, and the file
+// usually belongs to the agent — the ownership restoration below exists for exactly that case — so
+// copying the runtime's rule locked the supported workflow out of its own tool. Root therefore states the
+// account with `--expect-owner`, rather than the tool guessing which non-root owner is legitimate.
+const resolveOwner = (spec) => {
+  if (/^[0-9]+$/.test(spec)) return Number(spec);
+  try {
+    return Number(execFileSync("id", ["-u", "--", spec], { encoding: "utf8" }).trim());
+  } catch {
+    return fail(`--expect-owner ${spec} is neither a uid nor an account this host knows`);
+  }
+};
 const assertProtected = (file) => {
   if (process.platform === "win32") return; // POSIX mode bits do not describe a Windows ACL
   const self = process.getuid ? process.getuid() : 0;
   const openToOthers = (mode) => (mode & 0o022) !== 0;
-  const stat = fs.statSync(file);
-  if (openToOthers(stat.mode)) fail(`${file} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
-  if (stat.uid !== 0 && stat.uid !== self) fail(`${file} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account could rewrite whatever is provisioned here`);
-  for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
+  const owned = (uid) => uid === 0 || uid === self;
+  // Resolved, because a configuration that is a symlink into a 0777 directory satisfied every rule while
+  // the writes went somewhere else entirely. The last component must be the file, so that the path this
+  // locks and the path it checks cannot come apart.
+  if (fs.lstatSync(file).isSymbolicLink()) fail(`${file} is a symbolic link; point --config at the configuration itself`);
+  const target = fs.realpathSync(file);
+  const stat = fs.statSync(target);
+  if (openToOthers(stat.mode)) fail(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
+  const expected = value("--expect-owner");
+  if (expected !== undefined) {
+    const wanted = resolveOwner(expected);
+    if (stat.uid !== wanted) fail(`${target} belongs to uid ${stat.uid}, and --expect-owner ${expected} says it should belong to ${wanted}; provisioning the wrong host's configuration is the mistake this flag exists to catch`);
+  } else if (!owned(stat.uid)) {
+    fail(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}). If that is the account the agent runs as, say so with --expect-owner; this tool will not guess which non-root owner is legitimate`);
+  }
+  for (let directory = path.dirname(target); ; directory = path.dirname(directory)) {
     const above = fs.statSync(directory);
-    if (openToOthers(above.mode) && (above.mode & 0o1000) === 0) fail(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${file} can be renamed away and replaced whatever its own mode says`);
+    if (openToOthers(above.mode) && (above.mode & 0o1000) === 0) fail(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
+    // A directory's owner may replace what is in it whatever the mode says, and the sticky bit exempts
+    // the owner rather than binding them. An attacker-owned 0755 ancestor passed the mode rule alone.
+    if (!owned(above.uid)) fail(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it`);
     if (path.dirname(directory) === directory) break;
   }
 };

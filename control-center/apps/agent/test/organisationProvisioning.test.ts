@@ -111,9 +111,20 @@ test("a rollback cannot run inside a provisioning, and vice versa", () => {
 
 test("provisioning reports the ownership it preserved", (t) => {
   if (process.platform === "win32") return t.skip("ownership is a Linux property; the mode is asserted above");
+  // HOW STRONG THIS IS DEPENDS ON WHO IS RUNNING IT, and that is stated rather than hidden. A replacement
+  // is a new inode, so the owner has to be put back deliberately; the failure it prevents is root
+  // provisioning an agent-owned configuration and leaving a root-owned file the service cannot read.
+  // Given root, this stages exactly that — the fixture is handed to another account first, so removing
+  // the `chown` alone fails here. Given an unprivileged runner, which is what CI is, nothing can create a
+  // file owned by somebody else, so the assertions below degrade to "the owner did not change" and the
+  // mode half is what the umask test above proves. No skip either way.
   const { file } = enrolledConfig();
+  const root = process.getuid?.() === 0;
+  // And when the fixture is handed away, the tool is told whose it is — which is the supported root
+  // workflow end to end rather than two features tested apart from each other.
+  if (root) fs.chownSync(file, 65534, 65534);
   const before = fs.statSync(file);
-  const result = JSON.parse(provision("--config", file, "--org", org));
+  const result = JSON.parse(provision("--config", file, "--org", org, ...(root ? ["--expect-owner", "65534"] : [])));
   const after = fs.statSync(file);
   assert.equal(result.owner, `${before.uid}:${before.gid}`);
   assert.equal(after.uid, before.uid, "a replacement is a new inode, so the owner has to be put back deliberately");
@@ -154,4 +165,82 @@ test("provisioning refuses a configuration that is not protected in the first pl
 test("provisioning refuses a configuration that does not exist", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-absent-"));
   assert.throws(() => provision("--config", path.join(directory, "agent.local.json"), "--org", org), /does not exist/);
+});
+
+test("root provisioning an agent-owned configuration is supported, and states the account", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX ownership does not describe a Windows ACL");
+  // A review found the first protection rule locked the tool out of its own supported workflow: copying
+  // the runtime's "root or me" rule means an operator running as root refuses every file the agent owns,
+  // which is the exact case the ownership restoration exists for. Root states the account instead. The
+  // flag is checked from both sides here, which is what a normal user can prove without chown.
+  const { file, body } = enrolledConfig();
+  const mine = String(process.getuid?.() ?? 0);
+  assert.throws(() => provision("--config", file, "--org", org, "--expect-owner", String(65534)), /--expect-owner 65534 says it should belong to 65534/);
+  assert.equal(fs.readFileSync(file, "utf8"), body, "a mismatch writes nothing");
+  assert.throws(() => provision("--config", file, "--org", org, "--expect-owner", "no-such-account-here"), /neither a uid nor an account/);
+  assert.equal(JSON.parse(provision("--config", file, "--org", org, "--expect-owner", mine)).orgId, org, "and the matching account provisions");
+});
+
+test("provisioning refuses a configuration that is a symbolic link", (t) => {
+  if (process.platform === "win32") return t.skip("symlink creation needs a privilege on Windows that CI does not grant");
+  // A 0600 link into a 0777 directory satisfied every rule while the writes went somewhere else.
+  const { file } = enrolledConfig();
+  const exposed = fs.mkdtempSync(path.join(os.tmpdir(), "agent-exposed-"));
+  const behind = path.join(exposed, "agent.local.json");
+  fs.copyFileSync(file, behind);
+  fs.chmodSync(behind, 0o600);
+  const link = path.join(path.dirname(file), "linked.json");
+  fs.symlinkSync(behind, link);
+  // And a link in the MIDDLE of the path, where the last component really is a file: the tree that gets
+  // walked has to be the file's real one. Here every component the written path names is tight, and the
+  // real grandparent is world-writable, which is where the file can be taken from underneath it.
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "agent-outer-"));
+  const inner = path.join(outer, "inner");
+  fs.mkdirSync(inner, { mode: 0o700 });
+  fs.chmodSync(inner, 0o700);
+  fs.copyFileSync(file, path.join(inner, "agent.local.json"));
+  fs.chmodSync(path.join(inner, "agent.local.json"), 0o600);
+  fs.chmodSync(outer, 0o777);
+  const via = path.join(path.dirname(file), "via");
+  fs.symlinkSync(inner, via);
+  try {
+    assert.throws(() => provision("--config", link, "--org", org), /symbolic link/);
+    assert.equal(JSON.parse(fs.readFileSync(behind, "utf8")).orgId, undefined, "and nothing was written through it");
+    assert.throws(() => provision("--config", path.join(via, "agent.local.json"), "--org", org), new RegExp(`${path.basename(outer)} is writable by group or other`));
+  } finally {
+    fs.rmSync(via, { force: true });
+    fs.chmodSync(outer, 0o700);
+    fs.rmSync(outer, { recursive: true, force: true });
+    fs.rmSync(link, { force: true });
+    fs.rmSync(exposed, { recursive: true, force: true });
+  }
+});
+
+test("provisioning refuses a configuration under a directory anybody can write", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX mode bits do not describe a Windows ACL");
+  // A writable parent means the file is renamed away and replaced whatever its own mode says, so the
+  // tool has to walk the tree rather than look at the one file it was pointed at. The tool also refuses
+  // an ancestor belonging to a third account, for the separate reason that a directory's owner may
+  // replace its entries and the sticky bit exempts them; that rule needs a second account to exercise
+  // and is proved on the runtime side, where the comparison can be asked to be somebody else.
+  const { file } = enrolledConfig();
+  const parent = path.dirname(file);
+  fs.chmodSync(parent, 0o777);
+  try {
+    assert.throws(() => provision("--config", file, "--org", org), /writable by group or other/);
+  } finally {
+    fs.chmodSync(parent, 0o700);
+  }
+  // And the ownership half of the same rule, when this run is privileged enough to stage it: a directory
+  // whose owner is a third account, at a mode nobody could object to. Its owner may still replace what is
+  // in it. An unprivileged runner cannot create such a directory, so there it is the runtime suite that
+  // carries this rule, by asking the comparison to be somebody else.
+  if (process.getuid?.() === 0) {
+    fs.chownSync(parent, 65534, 65534);
+    try {
+      assert.throws(() => provision("--config", file, "--org", org), new RegExp(`${path.basename(parent)} belongs to uid 65534`));
+    } finally {
+      fs.chownSync(parent, 0, 0);
+    }
+  }
 });

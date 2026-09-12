@@ -96,36 +96,70 @@ export function configurationPath(): string { return configPath; }
  * without forging anything. This file also holds the enrolment credential, so the same check is worth
  * making for its own sake.
  *
- * WHAT IS CHECKED. The file must not be writable by group or other, and must belong to root or to
- * whoever is running. Every directory above it must likewise not be writable by group or other, because
- * a writable parent means the file can simply be renamed out of the way and replaced — unless the sticky
- * bit is set, which is exactly the case where others may create but not touch what is not theirs.
+ * WHAT IS CHECKED, and each line of it is a review finding rather than a precaution.
+ *
+ * The path is RESOLVED before anything is measured. A first version walked the path as written, so a
+ * configuration that was a symlink into a 0777 directory satisfied every rule: the checks described one
+ * file and the read took another.
+ *
+ * The file is OPENED ONCE and everything after that is a question about the open descriptor. A first
+ * version measured a name and then read a name, and a review replaced the file in between and was
+ * handed the attacker's organisation and server id. `fstat` describes the inode this function is
+ * holding, and the contents are read from that same descriptor, so there is no second lookup to win.
+ *
+ * The file must not be writable by group or other, and must belong to root or to whoever is running.
+ * Every directory above it must satisfy BOTH of those too: mode, because a writable parent means the
+ * file is renamed away and replaced whatever its own mode says; and owner, because a directory's owner
+ * may replace its entries no matter what the mode is — including a sticky one, which exempts the owner.
+ * A first version checked ancestor modes only, and an attacker-owned 0755 directory sailed through.
  *
  * WHAT IS NOT. POSIX mode bits do not describe a Windows ACL, so this checks nothing there and says so
  * rather than pretending. It does not defend against root, or against the owner of the file; both of
- * those already control the host.
+ * those already control the host. And the resolution itself is a name lookup: an attacker who controls
+ * an ancestor can still swap a component between `realpath` and `open`. What that buys them is a
+ * different inode, which is then measured and refused unless it too is protected — so the remaining
+ * window is a denial of service, not an accepted identity. Node exposes no `openat`, so this is the
+ * floor rather than a choice.
+ *
+ * `self` is a parameter so the ownership rule can be exercised without root: a test that cannot make a
+ * file belong to somebody else can ask this function who it thinks it is instead.
  */
-export function assertConfigurationIsProtected(file: string) {
-  if (process.platform === "win32") return;
-  const self = process.getuid ? process.getuid() : 0;
+export function readProtectedConfiguration(file: string, options: { self?: number } = {}): string {
+  if (process.platform === "win32") return fs.readFileSync(file, "utf8");
+  const self = options.self ?? (process.getuid ? process.getuid() : 0);
   const openToOthers = (mode: number) => (mode & 0o022) !== 0;
   const owned = (uid: number) => uid === 0 || uid === self;
-  const stat = fs.statSync(file);
-  if (openToOthers(stat.mode)) throw new Error(`${file} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
-  if (!owned(stat.uid)) throw new Error(`${file} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);
-  for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
-    const above = fs.statSync(directory);
-    const sticky = (above.mode & 0o1000) !== 0;
-    if (openToOthers(above.mode) && !sticky) throw new Error(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${file} can be renamed away and replaced whatever its own mode says`);
-    if (path.dirname(directory) === directory) break;
+  // The last component must be the file itself. Resolving it would be safe — everything below measures
+  // the resolved target — but the lock this runtime shares with the provisioning tool is named after the
+  // path as given, and a configuration that is a link means the two tools can disagree about what they
+  // are protecting. A configuration is a file.
+  if (fs.lstatSync(file).isSymbolicLink()) throw new Error(`${file} is a symbolic link; the agent's configuration must be the file itself, so that what is checked and what is locked are the same thing`);
+  const target = fs.realpathSync(file);
+  const handle = fs.openSync(target, "r");
+  try {
+    // Ancestors first, then the file. The order is not cosmetic: a test that cannot create a file owned
+    // by somebody else can still separate these two rules by choosing where the fixture lives, and only
+    // in this order does each rule get a case where it is the one that speaks.
+    for (let directory = path.dirname(target); ; directory = path.dirname(directory)) {
+      const above = fs.statSync(directory);
+      const sticky = (above.mode & 0o1000) !== 0;
+      if (openToOthers(above.mode) && !sticky) throw new Error(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
+      if (!owned(above.uid)) throw new Error(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, sticky bit or not`);
+      if (path.dirname(directory) === directory) break;
+    }
+    const stat = fs.fstatSync(handle);
+    if (openToOthers(stat.mode)) throw new Error(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
+    if (!owned(stat.uid)) throw new Error(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);
+    return fs.readFileSync(handle, "utf8");
+  } finally {
+    fs.closeSync(handle);
   }
 }
 
 export function loadConfig() {
   const fallback = path.resolve(process.cwd(), "agent.example.json");
   const file = fs.existsSync(configPath) ? configPath : fallback;
-  assertConfigurationIsProtected(file);
-  return agentConfigSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+  return agentConfigSchema.parse(JSON.parse(readProtectedConfiguration(file)));
 }
 
 /**
