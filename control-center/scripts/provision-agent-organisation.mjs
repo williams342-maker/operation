@@ -46,7 +46,7 @@ const resolveOwner = (spec) => {
     return fail(`--expect-owner ${spec} is neither a uid nor an account this host knows`);
   }
 };
-const assertProtected = (file, { exactOwner = false } = {}) => {
+const assertProtected = (file, { exactOwner = false, label = "--config names the agent's configuration" } = {}) => {
   if (process.platform === "win32") return; // POSIX mode bits do not describe a Windows ACL
   const self = process.getuid ? process.getuid() : 0;
   const openToOthers = (mode) => (mode & 0o022) !== 0;
@@ -82,7 +82,7 @@ const assertProtected = (file, { exactOwner = false } = {}) => {
   const stat = fs.lstatSync(target);
   // A regular file, checked before anything opens it: a FIFO here would block whoever ran this until
   // somebody wrote to the other end, and a device can have effects merely from being opened.
-  if (!stat.isFile()) fail(`${target} is not a regular file; --config names the agent's configuration, and provisioning will not write through whatever else is there`);
+  if (!stat.isFile()) fail(`${target} is not a regular file; ${label}, and provisioning will not write through whatever else is there`);
   // Read as well as write, for the file. It holds the enrolment credential and, on a v2 runtime, private
   // keys; the runtime refuses to load one anybody can read, so provisioning into one would be writing a
   // trust identifier into a file the agent will then refuse. Directories are still judged on write.
@@ -168,7 +168,7 @@ if (has("--rollback")) {
   // operator's own documented recovery step installed it, and the result passed every protection rule,
   // so a local user had chosen both trust identifiers without forging anything. Sticky does not stop
   // siblings being created, and this design writes three of them, so each has to be safe on its own.
-  assertProtected(backupPath);
+  assertProtected(backupPath, { label: "that path is where this tool keeps the way back" });
   let saved;
   try {
     saved = fs.readFileSync(backupPath);
@@ -221,6 +221,14 @@ try {
 } catch (error) {
   fail(`cannot read ${configPath} (${error?.code ?? "unknown"}); the protection rules accept a configuration owned by root, so an unprivileged operator can pass every check and still not be able to read it — run as the account that owns it`);
 }
+// THE SAME BAR ON THE WAY IN. A review pointed out the tool would happily provision into `{}` or `[]`,
+// report success, and then refuse to undo itself — the first state it could reach where it had made a
+// change it would not reverse, which inverts its own rule that the way out exists before the way in.
+// Nothing was destroyed, since the original bytes are in the backup, but only a hand copy could get them
+// back. The "nothing else moved" net below cannot see this either: `Object.keys([])` is empty, so an
+// array turning into an object satisfies the field count exactly.
+const incoming = readsAsConfiguration(before);
+if (!incoming.ok) fail(`${configPath} is not an agent configuration — ${incoming.why}; provisioning it would write an organisation into something this tool could not then roll back`);
 const config = JSON.parse(before.toString("utf8"));
 const existing = typeof config.orgId === "string" ? config.orgId : "";
 if (existing && existing !== orgId) {
@@ -257,7 +265,7 @@ try {
     // the agent's own enrolment until a human removed it. The same rule this file states in four other
     // places, and the rollback verb ten lines down already applies to the same file. A directory here
     // was also reported as "you cannot read it", which is advice no account can act on.
-    assertProtected(backupPath);
+    assertProtected(backupPath, { label: "that path is where this tool keeps the way back" });
     let unreadable;
     let verdict;
     try {

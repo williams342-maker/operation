@@ -353,6 +353,26 @@ test("a backup that is not a regular file is refused by both verbs, quickly and 
   }
 });
 
+test("provisioning refuses to write into something that is not a configuration", () => {
+  // THE WAY IN, held to the bar the way out already had. A review pointed out the tool would provision
+  // into `{}` or `[]`, report success, and then refuse to roll itself back — the one state it could
+  // reach where it had made a change it would not reverse, which is the opposite of the rule it states
+  // about itself. Nothing was destroyed, but only a hand copy could undo it.
+  //
+  // The field-count net cannot see this: `Object.keys([])` is empty, so an array becoming an object
+  // satisfies it exactly. That is why the bar has to be applied to the input rather than inferred later.
+  for (const [content, why] of [["[]", /JSON but not an object/], ["{}", /no controlCenterUrl/], ["null", /JSON but not an object/], ['{"agentId":"a"}', /no controlCenterUrl/]] as const) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-not-config-"));
+    const file = path.join(directory, "agent.local.json");
+    fs.writeFileSync(file, content, { mode: 0o600 });
+    fs.chmodSync(file, 0o600);
+    assert.throws(() => provision("--config", file, "--org", org), why, `${content} is not something to provision into`);
+    assert.throws(() => provision("--config", file, "--org", org), /could not then roll back/);
+    assert.equal(fs.readFileSync(file, "utf8"), content, "and it is left exactly as it was");
+    assert.equal(fs.existsSync(`${file}.before-organisation`), false, "with no backup written");
+  }
+});
+
 test("a backup that parses but is not a configuration is refused by both verbs", (t) => {
   if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
   // "Parses as JSON" was never the question. A review restored `[]` over a working configuration end to

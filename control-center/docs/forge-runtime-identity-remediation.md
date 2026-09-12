@@ -392,5 +392,25 @@ None of the following has been done, and none of it can be done without the owne
     `[]` over a working configuration end to end, through the very check added to prevent a host being
     left unable to start. Both the classifier and the rollback now require an object carrying a
     control-centre URL.
-- Independent review, round 11: not yet run.
+- Independent review, round 11: **GO**. No functional defect in the security path, and no rule the suite
+  cannot distinguish. One should-fix, now closed: the tool applied its "is this a configuration" bar to
+  the backup but not to the file it was about to provision, so it would write into `{}` or `[]`, report
+  success, and then refuse to roll itself back. Nothing was destroyed — the original bytes were in the
+  backup — but only a hand copy could undo it, and that is the opposite of the rule this tool states
+  about itself. The reviewer also confirmed the two things I asked about: applying the protection check
+  to the backup refuses no layout the runbook describes, and `controlCenterUrl` is required with no
+  default by the schema and emitted by every producer of a configuration in the repository.
+- **130 mutations were run across rounds 6 to 11 and 129 were caught by a named test.** The survivor is a
+  redundant internal assertion whose outcome another mutation covers.
+
+## 8. What this GO is and is not
+
+It is an independent reviewer finding no defect it can demonstrate, after eleven rounds in which it
+demonstrated eighteen. It is not the human security review. **That NO-GO stands until the human reviewer
+lifts it**, and nothing here should be read as replacing it — the independent rounds exist to make the
+human's re-review worth their time, not to substitute for it.
+
+Still owner-only, unchanged by any of this: the Sigstore trusted root and the review-gate CA must be
+chosen before anything is signed, the key ceremony is the owner's, and the review-gate executor decision
+remains downstream of all of it. Production has not been touched at any point.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.
