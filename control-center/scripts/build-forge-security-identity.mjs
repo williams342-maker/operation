@@ -76,11 +76,12 @@ const unsigned = {
   validUntil,
 };
 
-// The same sweep the signer performs, here too, so a document that cannot be signed is never built in
-// the first place: every value that reaches the signed statement, checked whatever field it sits in.
-for (const [field, present] of Object.entries(unsigned)) {
-  if (typeof present === "string" && hasControlCharacter(present)) throw new Error(`${field} contains a control character, and every field is joined into the statement being signed`);
-}
+// NO SWEEP HERE, deliberately. Every field this builds is already constrained by a rule above — the
+// digests by their hex pattern, the key by base64url, the timestamps by exact-instant parsing, the three
+// text fields by the control-character check — and every value arrives as a command-line string, so
+// there is no other type to guard against. A review demonstrated that deleting a sweep here changed no
+// test, which is the honest signal that it was covering nothing. The signer, which accepts a document
+// from anywhere, keeps its own.
 
 const body = `${JSON.stringify(unsigned, null, 2)}\n`;
 fs.writeFileSync(output, body, { flag: "wx", mode: 0o444 });

@@ -42,7 +42,15 @@ async function maybeEnroll() {
     binarySha256: config.binarySha256,
     capabilities: [...advertisedCapabilities]
   });
-  const nextConfig = { ...config, serverId: result.serverId, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
+  // ENROLMENT MAY ESTABLISH A SERVER ID, NEVER REPLACE ONE. Review pointed out that overwriting here
+  // contradicted the rule the rest of this file now keeps: an identifier the Forge check matches against
+  // must not be changeable by the control plane. Establishing one on a host that has never had one is the
+  // bootstrap; changing one that is already written down is the thing to refuse, loudly, rather than
+  // silently pointing this runtime at a different server.
+  if (config.serverId && result.serverId && config.serverId !== result.serverId) {
+    throw new Error(`This runtime is configured for server ${config.serverId} and enrolment returned ${result.serverId}; refusing to change it. Provision deliberately if the host really has moved.`);
+  }
+  const nextConfig = { ...config, serverId: config.serverId || result.serverId, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
   saveConfig(nextConfig);
   return nextConfig;
 }

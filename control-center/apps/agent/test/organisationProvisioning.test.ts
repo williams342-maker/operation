@@ -67,3 +67,48 @@ test("provisioning refuses anything that is not an organisation id", () => {
   }
   assert.equal(fs.readFileSync(file, "utf8"), body);
 });
+
+test("provisioning changes the organisation and nothing else", () => {
+  // A review mutated the script to also write `serverId` and every test still passed: the other trust
+  // identifier lives in this same file, so "changes only the organisation" has to be asserted field by
+  // field rather than assumed from the one field anybody looked at.
+  const { file } = enrolledConfig({ pollIntervalSeconds: 45, allowedRoots: ["/srv"] });
+  const before = JSON.parse(fs.readFileSync(file, "utf8"));
+  provision("--config", file, "--org", org);
+  const after = JSON.parse(fs.readFileSync(file, "utf8"));
+
+  assert.equal(after.serverId, server, "the server id is untouched");
+  assert.deepEqual(Object.keys(after).sort(), [...Object.keys(before), "orgId"].sort(), "no field appeared or vanished");
+  for (const [field, previous] of Object.entries(before)) {
+    assert.deepEqual(after[field], previous, `${field} is unchanged`);
+  }
+});
+
+test("a rollback cannot run inside a provisioning, and vice versa", () => {
+  // Interleaved, a review finished with the new organisation installed and no backup to return to. The
+  // lock covers both verbs; this holds it and watches each verb refuse rather than proceed.
+  const { file } = enrolledConfig();
+  const lock = `${file}.provisioning-lock`;
+  fs.writeFileSync(lock, "held by this test", { flag: "wx" });
+  try {
+    assert.throws(() => provision("--config", file, "--org", org), /in progress/);
+    assert.throws(() => provision("--config", file, "--rollback"), /in progress/);
+  } finally {
+    fs.rmSync(lock, { force: true });
+  }
+  // And with the lock released, the same call works — so the refusal was the lock, not something else.
+  assert.equal(JSON.parse(provision("--config", file, "--org", org)).orgId, org);
+  assert.equal(fs.existsSync(lock), false, "the lock is released on the way out");
+});
+
+test("provisioning reports the ownership it preserved", (t) => {
+  if (process.platform === "win32") return t.skip("ownership is a Linux property; the mode is asserted above");
+  const { file } = enrolledConfig();
+  const before = fs.statSync(file);
+  const result = JSON.parse(provision("--config", file, "--org", org));
+  const after = fs.statSync(file);
+  assert.equal(result.owner, `${before.uid}:${before.gid}`);
+  assert.equal(after.uid, before.uid, "a replacement is a new inode, so the owner has to be put back deliberately");
+  assert.equal(after.gid, before.gid);
+  assert.equal(after.mode & 0o777, before.mode & 0o777);
+});

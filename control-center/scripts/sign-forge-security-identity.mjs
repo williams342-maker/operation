@@ -14,16 +14,16 @@ for (const field of ["trustedRootSha256", "reviewGateCaSha256", "machineIdSha256
 // than after. A signature over a document the target will refuse is worth less than no signature: it
 // looks like a completed ceremony and only fails on the host, where a second ceremony is the remedy.
 const hasControlCharacter = (text) => [...String(text)].some((character) => { const code = character.codePointAt(0); return code < 32 || code === 127; });
-// EVERY FIELD, not the three that happen to have a rule of their own today. The statement the owner
-// signs is the fields joined with newlines, so a control character anywhere in it can shift a boundary
-// and let two different identities produce the same signed bytes. The specific rules below still exist
-// for their better messages; this one exists so a field added later is covered before anyone remembers
-// to cover it.
+// TYPE FIRST, THEN CONTENT, FOR EVERY FIELD. Checking only string values left every other type
+// unchecked, and the statement is built by JOINING these values: an array or an object is stringified
+// on the way in, so a nested value carrying a newline produced a cryptographically valid signature over
+// a statement with an extra line in it. The loader would refuse such a document, but a signer that
+// signs it is a signer that lies. Sweeping every field also covers one added later, before anyone
+// remembers to cover it.
 for (const [field, present] of Object.entries(unsigned)) {
-  if (typeof present === "string" && hasControlCharacter(present)) throw new Error(`${field} contains a control character, and every field is joined into the statement being signed`);
-}
-for (const field of ["orgId", "serverId", "hostname"]) {
-  if (!unsigned[field]) throw new Error(`${field} must be non-empty`);
+  if (typeof present !== "string") throw new Error(`${field} must be a string; every field is joined into the statement being signed, and anything else is stringified on the way`);
+  if (hasControlCharacter(present)) throw new Error(`${field} contains a control character, and every field is joined into the statement being signed`);
+  if (!present.length) throw new Error(`${field} must be non-empty`);
 }
 if (!/^[A-Za-z0-9_-]+$/.test(unsigned.ownerPublicKey)) throw new Error("ownerPublicKey must be base64url, as the loader parses it");
 for (const field of ["validFrom", "validUntil"]) {

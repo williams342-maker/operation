@@ -147,6 +147,29 @@ test("a control character in ANY identity field is refused, not only the three w
   ]), /control character/);
 });
 
+test("a field that is not a string never reaches a signature", () => {
+  // The sweep checked string values only, so an array or an object walked past it and was stringified
+  // into the statement on the way: a review obtained a cryptographically valid signature over a statement
+  // carrying an extra newline that way. The loader would refuse that document, but a signer that signs it
+  // is a signer that lies.
+  const { root, identityPath } = ceremony();
+  const base = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")) };
+  delete base.ownerSignature;
+  const keyDirectory = path.join(root, "types-key");
+  node("generate-forge-owner-key.mjs", [keyDirectory]);
+  const signWith = (unsigned: Record<string, unknown>, label: string) => {
+    const file = path.join(root, `${label}.json`);
+    fs.writeFileSync(file, `${JSON.stringify(unsigned, null, 2)}\n`);
+    return () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `${label}-signed.json`)]);
+  };
+  assert.throws(signWith({ ...base, orgId: [["alpha\nbeta"]] }, "nested-array"), /orgId must be a string/);
+  assert.throws(signWith({ ...base, hostname: { toString: "x" } }, "object-hostname"), /hostname must be a string/);
+  // These two are caught earlier, by the digest pattern and the instant parse — which is the point: a
+  // non-string is refused wherever it lands, not only by the sweep.
+  assert.throws(signWith({ ...base, machineIdSha256: 12345 }, "numeric-digest"), /machineIdSha256/);
+  assert.throws(signWith({ ...base, validUntil: null }, "null-window"), /validUntil/);
+});
+
 test("the signer refuses a key that is not the one the document names", () => {
   const { root, identityPath } = ceremony();
   const otherKey = path.join(root, "other-key");
