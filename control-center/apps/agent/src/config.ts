@@ -89,6 +89,31 @@ export function loadConfig() {
   return agentConfigSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
 }
 
+/**
+ * REPLACED, NEVER TRUNCATED IN PLACE.
+ *
+ * This file holds the enrolment credential. Writing over it directly means a full disk, or a crash
+ * between truncate and write, leaves invalid JSON — and the next start fails in `loadConfig`, losing the
+ * credential along with whatever was being saved. A review reproduced exactly that with a partial write
+ * followed by ENOSPC.
+ *
+ * So: write a sibling, fsync it, rename over the target. Rename is atomic within a filesystem, so a
+ * reader always sees one whole version or the other, and a failure leaves the old one in place.
+ */
 export function saveConfig(config: AgentConfig) {
-  fs.writeFileSync(configPath, `${JSON.stringify(agentConfigSchema.parse(config), null, 2)}\n`, { mode: 0o600 });
+  const body = `${JSON.stringify(agentConfigSchema.parse(config), null, 2)}\n`;
+  const pending = `${configPath}.pending-${process.pid}`;
+  let handle: number | undefined;
+  try {
+    handle = fs.openSync(pending, "w", 0o600);
+    fs.writeFileSync(handle, body);
+    fs.fsyncSync(handle);
+    fs.closeSync(handle);
+    handle = undefined;
+    fs.renameSync(pending, configPath);
+  } catch (error) {
+    if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the write failure is the one worth reporting */ } }
+    try { fs.rmSync(pending, { force: true }); } catch { /* as above */ }
+    throw error;
+  }
 }

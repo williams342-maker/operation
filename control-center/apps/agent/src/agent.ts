@@ -305,11 +305,7 @@ async function reportUpdaterResults(config: AgentConfig, resultsDirectory = "/va
 
 async function main() {
   const config = await maybeEnroll();
-  // Establish, not merely check: a runtime that has never been told its organisation adopts it from the
-  // owner-signed identity here, because the check below it runs before the first poll and would
-  // otherwise refuse forever on a host that has no way to learn.
-  establishRuntimeIdentity(config);
-  validateForgeRuntimeIdentity(config);
+  startupIdentity(config);
   // Resolved once here as well as per poll, so an ENFORCING executor with unusable gate configuration
   // fails to START rather than logging a poll error every interval while looking alive.
   reviewEnforcement(config);
@@ -375,6 +371,18 @@ export function establishRuntimeIdentity(config: AgentConfig, load = loadForgeSe
   const security = load();
   if (adoptRuntimeIdentity(config, security.identity)) persist(config);
   return security;
+}
+
+/**
+ * The startup sequence, in one place so it can be exercised: ESTABLISH, then check.
+ *
+ * The order is the whole fix. Checking first refuses a runtime that has never been told its
+ * organisation, and it refuses before the first poll, so such a host can never reach anything that would
+ * tell it. `main` delegates here rather than repeating the two calls.
+ */
+export function startupIdentity(config: AgentConfig, load = loadForgeSecurityMaterial, persist = saveConfig): ReturnType<typeof loadForgeSecurityMaterial> {
+  establishRuntimeIdentity(config, load, persist);
+  return validateForgeRuntimeIdentity(config, load);
 }
 
 export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
