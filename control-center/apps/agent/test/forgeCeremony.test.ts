@@ -147,6 +147,38 @@ test("a control character in ANY identity field is refused, not only the three w
   ]), /control character/);
 });
 
+test("a line terminator that is not ASCII is refused as well", () => {
+  // The predicate stopped at U+007F, so a review signed a document whose hostname carried U+0085 NEXT
+  // LINE and verified the signature. U+0085, U+2028 and U+2029 are line terminators to a great many
+  // parsers even though they are not the byte the statement is joined with, and "reject control
+  // characters in all identity fields" is not honoured by rejecting only the ASCII ones.
+  const { root, identityPath } = ceremony();
+  const base = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")) };
+  delete base.ownerSignature;
+  const keyDirectory = path.join(root, "c1-key");
+  node("generate-forge-owner-key.mjs", [keyDirectory]);
+
+  for (const [label, character] of [["c1-next-line", ""], ["c1-string-terminator", ""], ["line-separator", " "], ["paragraph-separator", " "]]) {
+    const file = path.join(root, `${label}.json`);
+    fs.writeFileSync(file, `${JSON.stringify({ ...base, hostname: `${base.hostname}${character}injected` }, null, 2)}\n`);
+    assert.throws(
+      () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `${label}-signed.json`)]),
+      /control character/,
+      `${label} must not reach a signature`,
+    );
+  }
+
+  // And the builder refuses the same thing, so the two tools agree rather than one catching the other's work.
+  const { trustedRootPath, reviewGateCaPath, ownerPublicKey } = ceremony();
+  assert.throws(() => node("build-forge-security-identity.mjs", [
+    "--org", org, "--server", server, "--hostname", `${hostname}`,
+    "--machine-id-sha256", sha256(machineId), "--owner-public-key", ownerPublicKey,
+    "--trusted-root", trustedRootPath, "--review-gate-ca", reviewGateCaPath,
+    "--valid-from", "2026-09-01T00:00:00.000Z", "--valid-until", "2027-09-01T00:00:00.000Z",
+    "--output", path.join(root, "c1-built.json"),
+  ]), /control character/);
+});
+
 test("a field that is not a string never reaches a signature", () => {
   // The sweep checked string values only, so an array or an object walked past it and was stringified
   // into the statement on the way: a review obtained a cryptographically valid signature over a statement

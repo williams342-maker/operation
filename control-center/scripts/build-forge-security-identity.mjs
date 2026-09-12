@@ -37,7 +37,11 @@ if (!/^[A-Za-z0-9_-]+$/.test(ownerPublicKey)) throw new Error("--owner-public-ke
 // Written by code point rather than a pattern: a character class containing the escapes for NUL and
 // 0x1f is exactly the kind of source that gets normalised into REAL control bytes somewhere between
 // here and the file, which then makes this a binary blob to git and to every reviewer.
-const hasControlCharacter = (text) => [...text].some((character) => { const code = character.codePointAt(0); return code < 32 || code === 127; });
+// EVERY CONTROL CHARACTER, not only the ASCII ones. Review found the predicate stopped at U+007F, so a
+// C1 control such as U+0085 NEXT LINE signed cleanly — and U+0085, U+2028 and U+2029 are line terminators
+// to a great many parsers even though they are not the byte the statement is joined with. Anything a
+// reader might treat as a line break has to be refused here rather than argued about later.
+const hasControlCharacter = (text) => [...String(text)].some((character) => { const code = character.codePointAt(0); return code < 32 || (code >= 127 && code <= 159) || code === 0x2028 || code === 0x2029; });
 for (const [name, field] of [["--org", orgId], ["--server", serverId], ["--hostname", hostname]]) {
   // Control characters are the subject of the check, not an accident: these values are joined with
   // newlines into the statement the owner signs, so one containing a newline could shift a field

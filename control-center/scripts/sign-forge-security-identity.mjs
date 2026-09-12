@@ -13,7 +13,11 @@ for (const field of ["trustedRootSha256", "reviewGateCaSha256", "machineIdSha256
 // THE SAME STRUCTURAL RULES THE PRODUCTION LOADER ENFORCES, applied before a signature exists rather
 // than after. A signature over a document the target will refuse is worth less than no signature: it
 // looks like a completed ceremony and only fails on the host, where a second ceremony is the remedy.
-const hasControlCharacter = (text) => [...String(text)].some((character) => { const code = character.codePointAt(0); return code < 32 || code === 127; });
+// EVERY CONTROL CHARACTER, not only the ASCII ones. Review found the predicate stopped at U+007F, so a
+// C1 control such as U+0085 NEXT LINE signed cleanly — and U+0085, U+2028 and U+2029 are line terminators
+// to a great many parsers even though they are not the byte the statement is joined with. Anything a
+// reader might treat as a line break has to be refused here rather than argued about later.
+const hasControlCharacter = (text) => [...String(text)].some((character) => { const code = character.codePointAt(0); return code < 32 || (code >= 127 && code <= 159) || code === 0x2028 || code === 0x2029; });
 // TYPE FIRST, THEN CONTENT, FOR EVERY FIELD. Checking only string values left every other type
 // unchecked, and the statement is built by JOINING these values: an array or an object is stringified
 // on the way in, so a nested value carrying a newline produced a cryptographically valid signature over

@@ -59,6 +59,12 @@ the configuration before and after. Record that output; it is the evidence the s
 
 Behaviour worth knowing before you run it:
 
+- **The configuration must already be protected, and provisioning refuses if it is not.** Not writable by
+  group or other, owned by root or by whoever is running, and no directory above it writable by group or
+  other unless it is sticky. A trust anchor any local user can rewrite afterwards is not one, and the
+  earlier version happily preserved a mode of 0666. The agent applies the same rule when it loads, so a
+  host that slips out of compliance later refuses to start rather than quietly accepting whatever is in
+  the file.
 - **The backup is written and flushed before the configuration is touched.** The way out exists before
   the way in.
 - **Owner and mode are carried over from the file being replaced.** A replacement is a new inode. Run as
@@ -162,5 +168,21 @@ None of the following has been done, and none of it can be done without the owne
   non-string field; provisioning did not restore ownership; the lock did not cover both verbs; enrolment
   overwrote an established server id; two tests asserted less than they claimed. All five are fixed in
   34e93050.
-- Independent review, round 2: in progress.
+- Independent review, round 2 of the remediation: NO-GO, five findings, all real and all fixed.
+  - **High.** Nothing enforced the protected half of "independently protected local input". Provisioning
+    preserved a mode of 0666 and loading never looked, so any local user rewrote both identifiers and the
+    agent accepted them, defeating the repair without forging anything. Both the tool and `loadConfig`
+    now require the file and its ancestry to be closed to other writers.
+  - **Medium.** Enrolment read the configuration, awaited the network, and saved that stale snapshot. A
+    provisioning landing inside the await was erased, so a control plane choosing when to answer chose
+    whether provisioning survived. The read-modify-write now happens inside the provisioning tool's own
+    lock.
+  - **Medium.** The ownership test could not fail: fixture and replacement were owned by the same
+    account, so deleting the restoration entirely left every provisioning test green. A umask fixture now
+    discriminates the mode half without root, and the ownership half skips honestly when not root.
+  - **Medium.** The enrolment guard had no test. Removing it and writing the returned server id straight
+    through left every runtime-identity and poll-identity test green.
+  - **Low.** The control-character predicate stopped at U+007F, so U+0085 NEXT LINE signed cleanly. It
+    now covers the C1 range and the Unicode line and paragraph separators.
+- Independent review, round 3: in progress.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

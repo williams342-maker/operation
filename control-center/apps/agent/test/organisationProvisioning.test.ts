@@ -19,13 +19,21 @@ const provision = (...args: string[]) => execFileSync(process.execPath, [path.jo
 const org = "6a5dab47776e3028ac9b604b";
 const server = "6a5f685ff8195a8813879bd7";
 
-function enrolledConfig(overrides: Record<string, unknown> = {}) {
+function enrolledConfig(overrides: Record<string, unknown> = {}, mode = 0o600) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-provision-"));
   const file = path.join(directory, "agent.local.json");
   const body = `${JSON.stringify({ controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32), serverId: server, ...overrides }, null, 2)}\n`;
-  fs.writeFileSync(file, body, { mode: 0o600 });
+  fs.writeFileSync(file, body, { mode });
+  // Explicitly, because writeFileSync's mode is filtered by whatever umask this test run inherited.
+  fs.chmodSync(file, mode);
   return { directory, file, body };
 }
+
+// The same call, run under a umask that would strip the bits the fixture is meant to keep. `open(mode)`
+// is filtered by the umask, so only the explicit chmod inside the tool can put them back: this is the
+// fixture that can tell a working `restoreIdentity` from a missing one without needing root.
+const provisionUnderUmask = (...args: string[]) =>
+  execFileSync("/bin/sh", ["-c", 'umask 077; exec "$0" "$@"', process.execPath, path.join(scripts, "provision-agent-organisation.mjs"), ...args], { encoding: "utf8" });
 
 test("provisioning writes the organisation, keeps the mode, and leaves a byte-exact way back", () => {
   const { file, body } = enrolledConfig();
@@ -111,4 +119,39 @@ test("provisioning reports the ownership it preserved", (t) => {
   assert.equal(after.uid, before.uid, "a replacement is a new inode, so the owner has to be put back deliberately");
   assert.equal(after.gid, before.gid);
   assert.equal(after.mode & 0o777, before.mode & 0o777);
+});
+
+test("a hostile umask cannot narrow the configuration behind the operator's back", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX mode bits do not describe a Windows ACL");
+  // WHY THIS EXISTS. The ownership test above cannot discriminate as a normal user — fixture and
+  // replacement are owned by the same account, so deleting `restoreIdentity` entirely left all seven
+  // provisioning tests green when a review tried it. The mode is the half of the same restoration that a
+  // normal user CAN prove: run the tool under umask 077 against a 0640 file and the atomic replacement
+  // comes back 0600 unless the tool puts the mode back deliberately.
+  const { file } = enrolledConfig({}, 0o640);
+  provisionUnderUmask("--config", file, "--org", org);
+  assert.equal(fs.statSync(file).mode & 0o777, 0o640, "provisioning restored the mode rather than inheriting the umask");
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).orgId, org);
+
+  provisionUnderUmask("--config", file, "--rollback");
+  assert.equal(fs.statSync(file).mode & 0o777, 0o640, "and rollback restores it too, rather than hardcoding one");
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).orgId, undefined);
+});
+
+test("provisioning refuses a configuration that is not protected in the first place", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX mode bits do not describe a Windows ACL");
+  // Preserving the mode it finds preserved 0666 just as faithfully. A trust anchor any local user can
+  // rewrite afterwards is not one, so the operator is told now rather than at the next restart.
+  const { file, body } = enrolledConfig({}, 0o666);
+  assert.throws(() => provision("--config", file, "--org", org), /writable by group or other/);
+  assert.equal(fs.readFileSync(file, "utf8"), body, "and nothing was written");
+  assert.equal(fs.existsSync(`${file}.before-organisation`), false, "not even a backup");
+
+  fs.chmodSync(file, 0o600);
+  assert.equal(JSON.parse(provision("--config", file, "--org", org)).orgId, org, "tightening the mode is all it was asking for");
+});
+
+test("provisioning refuses a configuration that does not exist", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-absent-"));
+  assert.throws(() => provision("--config", path.join(directory, "agent.local.json"), "--org", org), /does not exist/);
 });

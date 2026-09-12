@@ -83,10 +83,75 @@ export function stateDir(): string {
   return path.join(path.dirname(configPath), "agent-state");
 }
 
+/** Where this process's configuration lives. Read-only, so a caller cannot move the trust anchor. */
+export function configurationPath(): string { return configPath; }
+
+/**
+ * THE CONFIGURATION IS A TRUST ANCHOR, so refuse to read one anybody can rewrite.
+ *
+ * Security review required an INDEPENDENTLY PROTECTED local input for the Forge identity comparison, and
+ * a later review pointed out that nothing enforced the "protected" half: provisioning preserved whatever
+ * mode it found, including 0666, and loading never looked. On such a host any local user rewrites both
+ * trust identifiers and the agent accepts them, which is the defeat the whole repair exists to prevent —
+ * without forging anything. This file also holds the enrolment credential, so the same check is worth
+ * making for its own sake.
+ *
+ * WHAT IS CHECKED. The file must not be writable by group or other, and must belong to root or to
+ * whoever is running. Every directory above it must likewise not be writable by group or other, because
+ * a writable parent means the file can simply be renamed out of the way and replaced — unless the sticky
+ * bit is set, which is exactly the case where others may create but not touch what is not theirs.
+ *
+ * WHAT IS NOT. POSIX mode bits do not describe a Windows ACL, so this checks nothing there and says so
+ * rather than pretending. It does not defend against root, or against the owner of the file; both of
+ * those already control the host.
+ */
+export function assertConfigurationIsProtected(file: string) {
+  if (process.platform === "win32") return;
+  const self = process.getuid ? process.getuid() : 0;
+  const openToOthers = (mode: number) => (mode & 0o022) !== 0;
+  const owned = (uid: number) => uid === 0 || uid === self;
+  const stat = fs.statSync(file);
+  if (openToOthers(stat.mode)) throw new Error(`${file} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
+  if (!owned(stat.uid)) throw new Error(`${file} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);
+  for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
+    const above = fs.statSync(directory);
+    const sticky = (above.mode & 0o1000) !== 0;
+    if (openToOthers(above.mode) && !sticky) throw new Error(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${file} can be renamed away and replaced whatever its own mode says`);
+    if (path.dirname(directory) === directory) break;
+  }
+}
+
 export function loadConfig() {
   const fallback = path.resolve(process.cwd(), "agent.example.json");
   const file = fs.existsSync(configPath) ? configPath : fallback;
+  assertConfigurationIsProtected(file);
   return agentConfigSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+}
+
+/**
+ * ONE LOCK, SHARED WITH THE PROVISIONING TOOL, over a read-modify-write of the configuration.
+ *
+ * Enrolment used to read the configuration, await the network, and then save the snapshot it had read.
+ * A review provisioned an organisation during that await and watched the enrolment response put the old
+ * empty value back: a control plane that chooses when to answer therefore chooses whether provisioning
+ * survives. Re-reading inside the lock closes the window, and the tool holds the same lock, so neither
+ * can run inside the other.
+ */
+export function withConfigurationLock<T>(operation: () => T): T {
+  const lockPath = `${configPath}.provisioning-lock`;
+  let handle: number;
+  try {
+    handle = fs.openSync(lockPath, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "EEXIST") throw new Error(`another provisioning or rollback is in progress (${lockPath}); this runtime will not write its configuration underneath one`);
+    throw error;
+  }
+  try {
+    return operation();
+  } finally {
+    try { fs.closeSync(handle); } catch { /* releasing is best effort */ }
+    try { fs.rmSync(lockPath, { force: true }); } catch { /* as above */ }
+  }
 }
 
 /**

@@ -2,7 +2,7 @@
 import { agentPollRequestSchema, agentSigningKey, deploymentCapabilities, isTaskExpired, verifyTaskEnvelope, verifyTaskEnvelopeV2, isPrivilegedTaskType, authorizePrivilegedTask, privilegedSubPayload, type TaskEnvelope, type TaskPayload, type TaskType } from "@control-center/shared";
 import fs from "node:fs";
 import path from "node:path";
-import { loadConfig, saveConfig, stateDir, type AgentConfig } from "./config.js";
+import { loadConfig, saveConfig, stateDir, withConfigurationLock, type AgentConfig } from "./config.js";
 import { enroll, signedPost } from "./client.js";
 import { collectApplicationDiscovery, collectCompose, collectDocker, collectGit, collectHttp, collectMongo, collectSystem } from "./inspectors.js";
 import { executeConfigurationDeployment } from "./configurationDeployment.js";
@@ -19,7 +19,7 @@ function writeUpdaterHeartbeat(config: AgentConfig, discoveryComplete: boolean) 
 
 type ClaimedTask = { envelope: TaskEnvelope; payload: TaskPayload };
 
-async function maybeEnroll() {
+export async function maybeEnroll() {
   const config = loadConfig();
   const token = process.env.CONTROL_CENTER_ENROLLMENT_TOKEN;
   if (config.agentId && config.agentSecret) return config;
@@ -42,17 +42,25 @@ async function maybeEnroll() {
     binarySha256: config.binarySha256,
     capabilities: [...advertisedCapabilities]
   });
-  // ENROLMENT MAY ESTABLISH A SERVER ID, NEVER REPLACE ONE. Review pointed out that overwriting here
-  // contradicted the rule the rest of this file now keeps: an identifier the Forge check matches against
-  // must not be changeable by the control plane. Establishing one on a host that has never had one is the
-  // bootstrap; changing one that is already written down is the thing to refuse, loudly, rather than
-  // silently pointing this runtime at a different server.
-  if (config.serverId && result.serverId && config.serverId !== result.serverId) {
-    throw new Error(`This runtime is configured for server ${config.serverId} and enrolment returned ${result.serverId}; refusing to change it. Provision deliberately if the host really has moved.`);
-  }
-  const nextConfig = { ...config, serverId: config.serverId || result.serverId, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
-  saveConfig(nextConfig);
-  return nextConfig;
+  // THE SNAPSHOT READ BEFORE THE AWAIT IS STALE, and saving it is a lost update. A review provisioned an
+  // organisation while this request was in flight and watched the response write the old empty value back
+  // over it, which hands a control plane that chooses when to answer the power to undo provisioning and
+  // stop the host starting. So the configuration is read AGAIN here, inside the lock the provisioning
+  // tool also takes, and the enrolment fields are merged onto what is actually on disk.
+  return withConfigurationLock(() => {
+    const current = loadConfig();
+    // ENROLMENT MAY ESTABLISH A SERVER ID, NEVER REPLACE ONE. Review pointed out that overwriting here
+    // contradicted the rule the rest of this file now keeps: an identifier the Forge check matches
+    // against must not be changeable by the control plane. Establishing one on a host that has never had
+    // one is the bootstrap; changing one that is already written down is the thing to refuse, loudly,
+    // rather than silently pointing this runtime at a different server.
+    if (current.serverId && result.serverId && current.serverId !== result.serverId) {
+      throw new Error(`This runtime is configured for server ${current.serverId} and enrolment returned ${result.serverId}; refusing to change it. Provision deliberately if the host really has moved.`);
+    }
+    const nextConfig = { ...current, serverId: current.serverId || result.serverId, agentId: result.agentId, agentSecret: result.agentSecret, pollIntervalSeconds: result.pollIntervalSeconds };
+    saveConfig(nextConfig);
+    return nextConfig;
+  });
 }
 
 export type ReviewEnforcement =

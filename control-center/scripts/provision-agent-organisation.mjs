@@ -24,6 +24,29 @@ const configPath = value("--config");
 if (!configPath || !path.isAbsolute(configPath)) fail("--config must be an absolute path to the agent configuration");
 const backupPath = `${configPath}.before-organisation`;
 
+// THE POINT OF THIS FILE IS THAT IT IS PROTECTED, so refuse to write a trust anchor into one that is not.
+// Provisioning preserves the mode it finds, and a review pointed out that this happily preserved 0666: on
+// such a host any local user rewrites the organisation and the server id afterwards and the agent accepts
+// them, which defeats the independently protected input this whole repair exists to establish, without
+// forging anything. The agent applies the same rule when it loads (`assertConfigurationIsProtected`); the
+// two are deliberately the same rule stated twice, because the tool cannot import the runtime's TypeScript
+// and an operator should be told at provisioning time rather than at the next restart.
+const assertProtected = (file) => {
+  if (process.platform === "win32") return; // POSIX mode bits do not describe a Windows ACL
+  const self = process.getuid ? process.getuid() : 0;
+  const openToOthers = (mode) => (mode & 0o022) !== 0;
+  const stat = fs.statSync(file);
+  if (openToOthers(stat.mode)) fail(`${file} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
+  if (stat.uid !== 0 && stat.uid !== self) fail(`${file} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account could rewrite whatever is provisioned here`);
+  for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
+    const above = fs.statSync(directory);
+    if (openToOthers(above.mode) && (above.mode & 0o1000) === 0) fail(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${file} can be renamed away and replaced whatever its own mode says`);
+    if (path.dirname(directory) === directory) break;
+  }
+};
+if (!fs.existsSync(configPath)) fail(`${configPath} does not exist; provisioning writes into an enrolled agent's configuration, it does not create one`);
+assertProtected(configPath);
+
 // ONE LOCK FOR BOTH VERBS. Exclusive creation of the backup serialises two provisionings against each
 // other, and does nothing about a rollback arriving in the middle of one: a review interleaved them and
 // finished with the new organisation installed and no backup to go back to. The lock covers the whole
