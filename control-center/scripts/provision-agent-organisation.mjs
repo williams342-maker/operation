@@ -97,8 +97,9 @@ const assertProtected = (file, { exactOwner = false } = {}) => {
   }
 };
 if (!fs.existsSync(configPath)) fail(`${configPath} does not exist; provisioning writes into an enrolled agent's configuration, it does not create one`);
-// A cheap look before the lock, so a mistyped --config does not leave a lock file beside somebody else's
-// file on its way to being refused. A symlink is allowed past this glance deliberately: the real check
+// A cheap look before the lock, so a mistyped --config does not even transiently create a lock file
+// beside somebody else's file on its way to being refused. The exit handler would remove it either way;
+// what this buys is that a kill in that window leaves nothing behind. A symlink is allowed past this glance deliberately: the real check
 // runs under the lock and has a better thing to say about links than this line does.
 if (process.platform !== "win32") { const glance = fs.lstatSync(configPath); if (!glance.isFile() && !glance.isSymbolicLink()) fail(`${configPath} is not a regular file; --config names the agent's configuration`); }
 
@@ -112,7 +113,10 @@ try {
   lockHandle = fs.openSync(lockPath, "wx", 0o600);
 } catch (error) {
   if (error?.code === "EEXIST") fail(`another provisioning or rollback is in progress (${lockPath}); remove it only if you are certain no other process is running`);
-  throw error;
+  // The other reachable one, found by a test that tried to roll back as an account which could read the
+  // configuration but not write beside it. Provisioning writes three files into that directory, so this
+  // is a refusal before anything is touched rather than an error halfway through.
+  fail(`cannot create the lock at ${lockPath} (${error?.code ?? "unknown"}); provisioning writes beside the configuration, so run as an account that can write ${path.dirname(lockPath)}`);
 }
 process.on("exit", () => { try { fs.closeSync(lockHandle); } catch { /* releasing is best effort */ } try { fs.rmSync(lockPath, { force: true }); } catch { /* as above */ } });
 
@@ -168,13 +172,21 @@ if (has("--rollback")) {
   // unprivileged user can create one per candidate pid and have it renamed into place as the
   // configuration.
   const handle = fs.openSync(pending, "wx", identity.mode);
+  let restored = false;
   try {
-    fs.writeFileSync(handle, saved);
-    fs.fsyncSync(handle);
-  } finally { fs.closeSync(handle); }
-  // Explicitly, because the mode passed to open is filtered by the umask of whoever is running.
-  restoreIdentity(pending, identity);
-  fs.renameSync(pending, configPath);
+    try {
+      fs.writeFileSync(handle, saved);
+      fs.fsyncSync(handle);
+    } catch (error) {
+      fail(`cannot write the restored configuration at ${pending} (${error?.code ?? "unknown"}); the configuration and the backup are both unchanged`);
+    } finally { fs.closeSync(handle); }
+    // Explicitly, because the mode passed to open is filtered by the umask of whoever is running.
+    restoreIdentity(pending, identity);
+    fs.renameSync(pending, configPath);
+    restored = true;
+  } finally {
+    if (!restored) { try { fs.rmSync(pending, { force: true }); } catch { /* best effort */ } }
+  }
   fs.rmSync(backupPath, { force: true });
   process.stdout.write(`${JSON.stringify({ rolledBack: configPath, sha256: crypto.createHash("sha256").update(saved).digest("hex") }, null, 2)}\n`);
   process.exit(0);
@@ -205,13 +217,32 @@ let backupHandle;
 try {
   backupHandle = fs.openSync(backupPath, "wx", 0o600);
 } catch (error) {
-  if (error?.code === "EEXIST") fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
+  if (error?.code === "EEXIST") {
+    // AND SAY WHICH KIND OF LEFTOVER IT IS. A review followed the remedy this message names and found a
+    // loop: an interrupted run can leave a backup that does not parse, this branch sent the operator to
+    // `--rollback`, and the rollback then refused the same file for not being a configuration — with the
+    // only way forward being to delete by hand the file this message had just called the way out.
+    let recoverable = true;
+    try { JSON.parse(fs.readFileSync(backupPath, "utf8")); } catch { recoverable = false; }
+    if (recoverable) fail(`a backup from an earlier provisioning is already at ${backupPath}; roll back with --rollback, or move that file aside yourself if you are certain it is stale. This script will not overwrite the way out.`);
+    fail(`there is a file at ${backupPath} that is not a configuration, so it is not a way back — an earlier run was interrupted before it could write one. Remove it and provision again; nothing has been changed here.`);
+  }
   fail(`cannot write the backup at ${backupPath} (${error?.code ?? "unknown"}); nothing has been changed`);
 }
+let backedUp = false;
 try {
-  fs.writeFileSync(backupHandle, before);
-  fs.fsyncSync(backupHandle);
-} finally { fs.closeSync(backupHandle); }
+  try {
+    fs.writeFileSync(backupHandle, before);
+    fs.fsyncSync(backupHandle);
+  } catch (error) {
+    fail(`cannot write the backup at ${backupPath} (${error?.code ?? "unknown"}); nothing has been changed`);
+  } finally { fs.closeSync(backupHandle); }
+  backedUp = true;
+} finally {
+  // A half-written backup is worse than none: it is the file the next run will find and refuse, and the
+  // file an operator would restore. Removed on any failure, so the next attempt starts clean.
+  if (!backedUp) { try { fs.rmSync(backupPath, { force: true }); } catch { /* best effort */ } }
+}
 
 // Owner and mode preserved from what was there, not assumed: this file holds the enrolment credential,
 // and a provisioning step that widened it, or handed it to a different account, is a worse outcome than
@@ -220,12 +251,26 @@ const identity = identityOf(configPath);
 const body = `${JSON.stringify({ ...config, orgId }, null, 2)}\n`;
 const pending = `${configPath}.pending-${crypto.randomBytes(8).toString("hex")}`;
 const handle = fs.openSync(pending, "wx", identity.mode);
+// NOTHING ORPHANED ON THE WAY OUT. A review filled the filesystem and found the half-written replacement
+// left behind, and the random name made that worse rather than better: a pid-derived name littered at
+// most one file per pid and a later run would trip over it, while a random one mints a fresh name on
+// every failure that nothing will ever reuse or list. Each orphan can hold the whole configuration —
+// the enrolment credential and, on a v2 runtime, the private keys — so it is secret-bearing litter with
+// no lifecycle at all. `restoreIdentity` throws too, so this is not only the out-of-space path.
+let installed = false;
 try {
-  fs.writeFileSync(handle, body);
-  fs.fsyncSync(handle);
-} finally { fs.closeSync(handle); }
-restoreIdentity(pending, identity);
-fs.renameSync(pending, configPath);
+  try {
+    fs.writeFileSync(handle, body);
+    fs.fsyncSync(handle);
+  } catch (error) {
+    fail(`cannot write the replacement configuration at ${pending} (${error?.code ?? "unknown"}); the configuration is unchanged and the backup is still at ${backupPath}`);
+  } finally { fs.closeSync(handle); }
+  restoreIdentity(pending, identity);
+  fs.renameSync(pending, configPath);
+  installed = true;
+} finally {
+  if (!installed) { try { fs.rmSync(pending, { force: true }); } catch { /* best effort */ } }
+}
 
 const after = fs.readFileSync(configPath);
 const written = JSON.parse(after.toString("utf8"));

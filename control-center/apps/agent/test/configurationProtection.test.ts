@@ -273,7 +273,12 @@ test("planted pending files can neither become the configuration nor stop it bei
   write(configFile);
   const before = fs.readFileSync(configFile, "utf8");
   const planted: string[] = [];
-  for (let pid = 1; pid <= 300; pid += 1) {
+  // THIS PROCESS'S OWN PID FIRST, which is the whole point and which an earlier version of this test left
+  // out. `saveConfig` runs in-process, so the name the defect would have used is a certainty rather than
+  // a guess — and planting 1..300 while the real pid was in the thousands meant the defect could be put
+  // back and this test would still pass. A review found that by restoring it and watching only the
+  // structural assertion object.
+  for (const pid of [process.pid, ...Array.from({ length: 300 }, (_, i) => i + 1)]) {
     const name = `${configFile}.pending-${pid}`;
     fs.writeFileSync(name, JSON.stringify({ ...enrolled, agentSecret: "planted" }), { mode: 0o666 });
     fs.chmodSync(name, 0o666);

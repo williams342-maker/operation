@@ -133,9 +133,19 @@ Behaviour worth knowing before you run it:
   good — with the retry wedged on a second unhandled error, on the backup the tool calls the way out. An
   unguessable name has nothing to collide with. A planted lock file still blocks provisioning until
   somebody removes it; that is a refusal, and the message names the path.
-- **Every refusal on this path explains itself.** A backup left by an earlier provisioning, a backup a
-  non-root operator cannot read, a mistyped `--config`: each says what happened and what to do, rather
-  than printing a stack trace at somebody in the middle of a ceremony.
+- **Every refusal on this path explains itself, and no two of them form a loop.** A backup left by an
+  earlier provisioning, a backup that is not a configuration, a backup you cannot read, a directory you
+  cannot write, a mistyped `--config`, a full disk: each says what happened and what to do. The
+  leftover-backup case is split in two on purpose. A review followed the remedy the single message named
+  and found the rollback refusing the same file for not parsing, leaving no way forward but to delete by
+  hand the file that message had just called the way out. A backup that is not a configuration is not a
+  way out, and now says so.
+- **Nothing is orphaned on the way out.** Both verbs remove the replacement they were writing if anything
+  after the open fails, and a half-written backup is removed rather than left for the next run to find
+  and refuse. This matters more since the replacement was given a random name: a name derived from the
+  process id littered at most one file per id and a later run would trip over it, while a random one
+  mints a fresh name on every failure that nothing will ever reuse or list — and each one can hold the
+  whole configuration, credential and private keys included.
 - **The configuration must not be readable by group or other either.** It holds the enrolment credential
   and, on a v2 runtime, private keys; `install.sh` creates it 0600. An earlier version of this rule judged
   the file on write alone, which contradicted what the rest of the codebase says about the same file.
@@ -337,5 +347,17 @@ None of the following has been done, and none of it can be done without the owne
   - The reviewer withdrew the previous round's finding about the activation script and agreed the lock
     would be the wrong trade. Its suggestion is taken: that script's rollback now prints the
     re-provisioning reminder itself, where the operator is actually looking.
-- Independent review, round 8: not yet run.
+- Independent review, round 8: **NO-GO**, narrow. No trust-boundary defect remained; three demonstrated
+  defects did, all in what the previous round had changed.
+  - **A test that did not measure its own name.** The agent-side flood planted process ids 1 to 300 while
+    the process doing the saving had an id in the thousands, so the defect it existed to catch could be
+    put straight back and only the structural assertion objected. It plants its own id first now, which
+    for an in-process save is a certainty rather than a guess.
+  - **The random name made the leak unbounded.** Neither verb removed the replacement it was writing when
+    anything after the open failed. Fixed in both, along with the half-written backup.
+  - **Two correct messages that formed a loop.** See the runbook above.
+  - Two smaller ones: the two remaining unwrapped writes, and a message with no test. Both closed, and
+    reaching the second honestly needed a second account and the layout where it is genuinely reachable —
+    a directory the agent owns, holding a backup root wrote.
+- Independent review, round 9: not yet run.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

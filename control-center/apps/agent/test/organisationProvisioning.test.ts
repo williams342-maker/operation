@@ -252,6 +252,72 @@ test("a backup left by an earlier provisioning is explained, not thrown", (t) =>
   const { file } = enrolledConfig();
   provision("--config", file, "--org", org);
   assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /will not overwrite the way out/);
+
+  // AND THE TWO MESSAGES MUST NOT FORM A LOOP. An interrupted run can leave a backup that does not parse.
+  // A review followed the remedy the message above names and found the rollback refusing the same file
+  // for not being a configuration, so the only way forward was to delete by hand the file that message
+  // had just called the way out. A backup that is not a configuration is not a way out, and now says so.
+  fs.writeFileSync(`${file}.before-organisation`, "{ truncated", { mode: 0o600 });
+  fs.chmodSync(`${file}.before-organisation`, 0o600);
+  assert.throws(() => provision("--config", file, "--org", "9".repeat(24), "--replacing", org), /not a configuration, so it is not a way back/);
+  assert.throws(() => provision("--config", file, "--rollback"), /not the JSON configuration it claims to be/, "and the rollback still refuses it, which is why the other message had to change");
+});
+
+test("an operator who cannot read the backup is told to run as the account that provisioned", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX ownership does not describe a Windows ACL");
+  if (process.getuid?.() !== 0) return;
+  // Root provisions, so the backup is root-owned. A colleague rolling back as themselves passes every
+  // protection rule — root is an allowed owner — and then cannot read the file. A review pointed out
+  // this branch had no test. Reaching it needs a second account, so a privileged run stages it and an
+  // unprivileged one asserts nothing extra; there is no skip either way.
+  //
+  // The script is copied somewhere the other account can reach, because a checkout under /root is not
+  // traversable by anybody else and that would fail for a reason this test is not about.
+  const reachable = fs.mkdtempSync(path.join(os.tmpdir(), "agent-reachable-"));
+  fs.chmodSync(reachable, 0o755);
+  const tool = path.join(reachable, "provision.mjs");
+  fs.copyFileSync(path.join(scripts, "provision-agent-organisation.mjs"), tool);
+  fs.chmodSync(tool, 0o755);
+
+  const { file, directory } = enrolledConfig();
+  provision("--config", file, "--org", org);
+  const rollbackAsNobody = () => execFileSync("runuser", ["-u", "nobody", "--", process.execPath, tool, "--config", file, "--rollback"], { encoding: "utf8" });
+  try {
+    // First, the account cannot even write beside the configuration, so it never reaches the backup.
+    fs.chmodSync(directory, 0o755);
+    assert.throws(rollbackAsNobody, /run as an account that can write/);
+
+    // Now the layout where the branch is actually reachable, and it is a real one: the directory belongs
+    // to the agent account, root provisioned into it, and the backup root wrote is not readable by the
+    // agent. Every protection rule passes — root is an allowed owner — and the read is what fails.
+    fs.chownSync(directory, 65534, 65534);
+    assert.throws(rollbackAsNobody, /run the rollback as the account that provisioned/);
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).orgId, org, "and nothing was rolled back");
+  } finally {
+    fs.chownSync(directory, 0, 0);
+    fs.chmodSync(directory, 0o700);
+    fs.rmSync(reachable, { recursive: true, force: true });
+  }
+});
+
+test("a completed run leaves no replacement behind, and the cleanup that covers a failed one", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX modes do not describe a Windows ACL");
+  // The behavioural half: after a provisioning and a rollback there is no pending file left anywhere.
+  const { file, directory } = enrolledConfig();
+  provision("--config", file, "--org", org);
+  provision("--config", file, "--rollback");
+  assert.deepEqual(fs.readdirSync(directory).filter((entry) => entry.includes(".pending-")), [], "nothing left over");
+
+  // The structural half, named as such. A review forced the failure with a full filesystem and found the
+  // half-written replacement orphaned — and because the name is random, every failure mints a fresh one
+  // that nothing will ever reuse or list, each able to hold the credential and the private keys. The
+  // failure paths that reach it (out of space, and a refused chown) cannot be staged from this harness,
+  // so what is asserted is that both verbs remove what they created rather than that they were watched
+  // doing it.
+  const source = fs.readFileSync(path.join(scripts, "provision-agent-organisation.mjs"), "utf8");
+  assert.equal(source.match(/if \(!installed\) \{ try \{ fs\.rmSync\(pending, \{ force: true \}\); \}/g)?.length, 1, "the provisioning verb");
+  assert.equal(source.match(/if \(!restored\) \{ try \{ fs\.rmSync\(pending, \{ force: true \}\); \}/g)?.length, 1, "and the rollback verb");
+  assert.equal(source.match(/if \(!backedUp\) \{ try \{ fs\.rmSync\(backupPath, \{ force: true \}\); \}/g)?.length, 1, "and a half-written backup is not left to be found");
 });
 
 test("provisioning refuses a configuration that does not exist", () => {
