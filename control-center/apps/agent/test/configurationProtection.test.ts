@@ -132,7 +132,8 @@ test("a directory anybody can write is refused, whatever the file's own mode say
 test("a configuration that is a symbolic link is refused", (t) => {
   if (linuxOnly(t)) return;
   // A review pointed a 0600 symlink at a file in a 0777 directory and every rule passed: the checks
-  // described the link's own path and the read followed it somewhere else entirely.
+  // described the link's own path and the read followed it somewhere else entirely. No component of the
+  // path may be a link now, and the file is a component like any other.
   const exposed = fs.mkdtempSync(path.join(os.tmpdir(), "agent-exposed-"));
   const realFile = path.join(exposed, "agent.local.json");
   write(realFile);
@@ -148,38 +149,44 @@ test("a configuration that is a symbolic link is refused", (t) => {
   }
 });
 
-test("the tree that is checked is the file's real one, not the one the path spells", (t) => {
+test("a link anywhere in the path is refused, including one in a trusted directory", (t) => {
   if (linuxOnly(t)) return;
-  // Resolution is not only about the last component. Here the configuration is a real file with a tight
-  // mode in a tight directory, reached through a link — and its REAL parent's parent is world-writable,
-  // which is where the file can be taken from underneath it. Walking the path as written never visits
-  // that directory at all: every component it does visit is fine, and the check returns happy.
+  // The link here sits in a directory this process owns and points at a configuration that is beyond
+  // reproach, so nothing about it is suspicious on its face. It is still refused, and that is the point:
+  // an earlier version allowed exactly this on the grounds that a trusted party had arranged it, and a
+  // review then chained a second link off the far end into a directory it owned. Neither resolving the
+  // path nor walking it as written can see the middle of a chain.
   const exposed = fs.mkdtempSync(path.join(os.tmpdir(), "agent-exposed-tree-"));
   const inner = path.join(exposed, "inner");
   fs.mkdirSync(inner, { mode: 0o700 });
   fs.chmodSync(inner, 0o700);
-  const realFile = path.join(inner, "agent.local.json");
-  write(realFile);
-  fs.chmodSync(exposed, 0o777);
+  write(path.join(inner, "agent.local.json"));
   const via = path.join(scratch, "via");
   fs.symlinkSync(inner, via);
   try {
-    assert.throws(() => readProtectedConfiguration(path.join(via, "agent.local.json")), new RegExp(`${path.basename(exposed)} is writable by group or other`));
+    assert.throws(() => readProtectedConfiguration(path.join(via, "agent.local.json")), new RegExp(`${path.basename(via)} is a symbolic link`));
+    // And the same file by its own name is accepted, so the refusal was the link and nothing else.
+    readProtectedConfiguration(path.join(inner, "agent.local.json"));
   } finally {
     fs.rmSync(via, { force: true });
-    fs.chmodSync(exposed, 0o700);
     fs.rmSync(exposed, { recursive: true, force: true });
   }
 });
 
-test("a directory that only SELECTS the configuration is trusted too", (t) => {
+test("a chooser hidden in the MIDDLE of a symlink chain cannot select the configuration", (t) => {
   if (linuxOnly(t)) return;
-  // THE SELECTION ATTACK, which protecting the destination does not touch. A review owned a directory,
-  // put a link in it, and swung that link between two configurations that were both perfectly protected:
-  // every check passed both times and the runtime came back with two different organisations. Nobody had
-  // to write a file the checks look at — choosing which protected file is read is choosing the identity.
+  // THE ATTACK THAT KILLED TWO EARLIER RULES, in its final form. A link in a directory this process owns
+  // points at a link in a directory an attacker owns, which points at a protected configuration:
   //
-  // Both paths are walked now, so the question is not only "is the destination safe" but "who chose it".
+  //   <trusted>/entry  ->  <attacker>/pick  ->  <protected A or B>/
+  //
+  // `realpath` reports only the far end and `stat` follows the whole chain, so a walk of the resolved
+  // path and a walk of the written path BOTH miss the attacker's directory entirely. Swinging `pick`
+  // between two configurations that are each beyond reproach changed the runtime's organisation and
+  // server id with nothing an endpoint check could object to.
+  //
+  // There is no resolution left to fool: every component is measured as it is, and a link is a refusal.
+  const trusted = fs.mkdtempSync(path.join(os.tmpdir(), "agent-trusted-"));
   const chooser = fs.mkdtempSync(path.join(os.tmpdir(), "agent-chooser-"));
   const a = fs.mkdtempSync(path.join(os.tmpdir(), "agent-org-a-"));
   const b = fs.mkdtempSync(path.join(os.tmpdir(), "agent-org-b-"));
@@ -188,38 +195,44 @@ test("a directory that only SELECTS the configuration is trusted too", (t) => {
     fs.writeFileSync(inside, JSON.stringify({ ...enrolled, orgId }), { mode: 0o600 });
     fs.chmodSync(inside, 0o600);
   }
-  const via = path.join(chooser, "via");
-  fs.symlinkSync(a, via);
-  const through = path.join(via, "agent.local.json");
+  const pick = path.join(chooser, "pick");
+  const entry = path.join(trusted, "entry");
+  fs.symlinkSync(a, pick);
+  fs.symlinkSync(pick, entry);
+  const through = path.join(entry, "agent.local.json");
   try {
-    // Both destinations are beyond reproach: read directly, each is accepted and gives its own identity.
+    // Both destinations are beyond reproach: read by their own names, each is accepted.
     assert.equal(JSON.parse(readProtectedConfiguration(path.join(a, "agent.local.json"))).orgId, "1".repeat(24));
     assert.equal(JSON.parse(readProtectedConfiguration(path.join(b, "agent.local.json"))).orgId, "2".repeat(24));
-    // Reached through a directory the attacker owns, the same destinations are refused — and the refusal
-    // names the chooser, not the file, because the file was never the problem.
-    fs.chmodSync(chooser, 0o777);
-    assert.throws(() => readProtectedConfiguration(through), new RegExp(`${path.basename(chooser)} is writable by group or other`));
-    // The ownership half of the same rule, when the run can stage it. Asking the function to be somebody
-    // else cannot isolate it here: that makes every directory in both chains untrusted at once, so the
-    // walk speaks about whichever it reaches first rather than about the chooser. Handing the chooser
-    // away, which needs root, is the only way to make it the one thing that is wrong.
-    fs.chmodSync(chooser, 0o755);
-    if (amRoot()) {
-      fs.chownSync(chooser, somebodyElse, somebodyElse);
-      try {
-        assert.throws(() => readProtectedConfiguration(through), new RegExp(`${path.basename(chooser)} belongs to uid`));
-      } finally {
-        fs.chownSync(chooser, 0, 0);
-      }
-    }
-    // And with the chooser trusted, the link is an operator's own arrangement and is honoured.
-    fs.chmodSync(chooser, 0o700);
-    assert.equal(JSON.parse(readProtectedConfiguration(through)).orgId, "1".repeat(24));
-    fs.rmSync(via, { force: true });
-    fs.symlinkSync(b, via);
-    assert.equal(JSON.parse(readProtectedConfiguration(through)).orgId, "2".repeat(24), "a trusted party may still repoint it; that is administration, not an attack");
+
+    // Reached through the chain, refused — at the first link, which is in the TRUSTED directory. That is
+    // what makes the rule hold: the attacker's hop is never reached, and never has to be.
+    assert.throws(() => readProtectedConfiguration(through), new RegExp(`${path.basename(entry)} is a symbolic link`));
+    fs.rmSync(pick, { force: true });
+    fs.symlinkSync(b, pick);
+    assert.throws(() => readProtectedConfiguration(through), new RegExp(`${path.basename(entry)} is a symbolic link`), "and swinging the attacker's hop changes nothing, because the answer never depended on it");
   } finally {
-    for (const directory of [chooser, a, b]) { try { fs.chmodSync(directory, 0o700); } catch { /* best effort */ } fs.rmSync(directory, { recursive: true, force: true }); }
+    for (const directory of [trusted, chooser, a, b]) { try { fs.chmodSync(directory, 0o700); } catch { /* best effort */ } fs.rmSync(directory, { recursive: true, force: true }); }
+  }
+});
+
+test("a directory in the path that belongs to nobody trusted is still refused on its own", (t) => {
+  if (linuxOnly(t)) return;
+  // Without any link at all: an ordinary directory in the path, owned by a third account. Its owner can
+  // replace what is in it, so it chooses the configuration just as surely as a link would.
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "agent-outer-"));
+  const inner = path.join(outer, "inner");
+  fs.mkdirSync(inner, { mode: 0o700 });
+  fs.chmodSync(inner, 0o700);
+  const inside = path.join(inner, "agent.local.json");
+  write(inside);
+  try {
+    assert.throws(() => readProtectedConfiguration(inside, givenAway(outer)), new RegExp(`${path.basename(outer)} belongs to uid`));
+    givenBack(outer);
+    readProtectedConfiguration(inside);
+  } finally {
+    givenBack(outer);
+    fs.rmSync(outer, { recursive: true, force: true });
   }
 });
 

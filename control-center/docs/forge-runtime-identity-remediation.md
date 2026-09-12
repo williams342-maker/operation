@@ -77,11 +77,15 @@ Behaviour worth knowing before you run it:
   anchor any local user can rewrite afterwards is not one, and the earliest version happily preserved a
   mode of 0666. The agent applies the same rules when it loads, and reads through the descriptor it
   checked, so a replacement at the name cannot be handed back as the answer.
-- **Two chains are checked, not one: the path as written and the path it resolves to.** Resolving alone
-  protects the destination and says nothing about who chose it. A review owned a directory, put a link in
-  it, and swung that link between two configurations that were both perfectly protected; every check
-  passed both times and the answer was a different organisation each time. Choosing which protected file
-  is read is choosing the identity, so the ancestry as written has to be trusted as well.
+- **No component of the path may be a symbolic link.** This rule replaced two cleverer ones that were
+  each defeated. Resolving the path and measuring the destination protects the inode and says nothing
+  about who chose the inode: a review owned a directory, put a link in it, and swung that link between
+  two configurations that were both beyond reproach, getting a different organisation each time. Walking
+  the written path as well still missed a link in the MIDDLE of a chain, because resolution reports only
+  the far end and `stat` follows the whole thing. A chain of lookups has as many chances to be redirected
+  as it has links, and an endpoint check counts none of them. So there is no resolution: every component
+  from the root down is measured as it is. On a host where a directory above the configuration is
+  legitimately a link, this refuses, and the operator points it at the real path.
 - **Ownership is stated rather than guessed.** Without `--expect-owner` the file and its directories must
   belong to root or to whoever is running the tool. With it, the file must belong to the named account
   and a mismatch is a refusal, and that account is trusted for the directories too. The flag exists
@@ -242,5 +246,10 @@ None of the following has been done, and none of it can be done without the owne
     account is now trusted for the tree.
   - **Low.** The ceremony test put all four line terminators through the signer and only one through the
     builder, so deleting the separators from the builder alone passed. It tries all four on both now.
-- Independent review, round 5: in progress.
+- Independent review, round 5 of the remediation: NO-GO, one finding, real and fixed. The two-chain walk
+  was still an endpoint check. A link in a trusted directory pointing at a link in an untrusted one is
+  invisible to both walks, because resolution reports only the far end and `stat` follows the chain, so
+  the attacker's hop is never visited. Resolution is gone from the trust decision entirely: every
+  component of the path is measured as it is, and a link anywhere is a refusal.
+- Independent review, round 6: in progress.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

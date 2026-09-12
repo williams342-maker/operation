@@ -98,9 +98,10 @@ export function configurationPath(): string { return configPath; }
  *
  * WHAT IS CHECKED, and each line of it is a review finding rather than a precaution.
  *
- * The path is RESOLVED before anything is measured. A first version walked the path as written, so a
- * configuration that was a symlink into a 0777 directory satisfied every rule: the checks described one
- * file and the read took another.
+ * NO COMPONENT OF THE PATH IS A LINK. A first version walked the path as written, so a configuration
+ * that was a symlink into a 0777 directory satisfied every rule: the checks described one file and the
+ * read took another. Two later versions resolved the path instead, and each was defeated by a link the
+ * check could not see; the reasoning is with the loop below.
  *
  * The file is OPENED ONCE and everything after that is a question about the open descriptor. A first
  * version measured a name and then read a name, and a review replaced the file in between and was
@@ -115,14 +116,8 @@ export function configurationPath(): string { return configPath; }
  *
  * WHAT IS NOT. POSIX mode bits do not describe a Windows ACL, so this checks nothing there and says so
  * rather than pretending. It does not defend against root, or against the owner of the file; both of
- * those already control the host. The resolution is still a sequence of name lookups, so there is a
- * window between `realpath` and `open` — but every directory in both chains has just been required to
- * belong to root or to this process, so the only party who can swap a component during that window is
- * one already trusted to change the file outright. An earlier version of this comment called the window
- * a denial of service while the written path went unchecked, and that was wrong: an untrusted directory
- * in the written path let somebody CHOOSE which protected configuration was read, which is an accepted
- * identity rather than a refusal. Node exposes no `openat`; with both chains checked, what is left is a
- * race between parties who could each simply edit the file.
+ * those already control the host. On a system where a directory above the configuration is legitimately
+ * a symlink, this refuses and an operator has to point it at the real path; that is deliberate.
  *
  * `self` is a parameter so the ownership rule can be exercised without root: a test that cannot make a
  * file belong to somebody else can ask this function who it thinks it is instead.
@@ -132,38 +127,41 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
   const self = options.self ?? (process.getuid ? process.getuid() : 0);
   const openToOthers = (mode: number) => (mode & 0o022) !== 0;
   const owned = (uid: number) => uid === 0 || uid === self;
-  // The last component must be the file itself. Resolving it would be safe — everything below measures
-  // the resolved target — but the lock this runtime shares with the provisioning tool is named after the
-  // path as given, and a configuration that is a link means the two tools can disagree about what they
-  // are protecting. A configuration is a file.
-  if (fs.lstatSync(file).isSymbolicLink()) throw new Error(`${file} is a symbolic link; the agent's configuration must be the file itself, so that what is checked and what is locked are the same thing`);
-  const target = fs.realpathSync(file);
+  const target = path.resolve(file);
   const handle = fs.openSync(target, "r");
   try {
-    // BOTH CHAINS, and the second one is a review finding rather than belt and braces.
+    // NO LINKS ANYWHERE IN THE PATH, and this rule replaces two cleverer ones that were each defeated.
     //
-    // Resolving throws the written path away, and the written path is what SELECTS the destination. A
-    // review put a symlink in a directory it owned, pointed it at a perfectly protected configuration,
-    // and then pointed it at a different perfectly protected configuration: every check passed both
-    // times and the runtime came back with two different organisations and server ids. Protecting the
-    // inode says nothing about who chose which inode. So the ancestry as written is walked too, and an
-    // untrusted component anywhere in it is a refusal — that directory's owner is choosing this
-    // runtime's identity even though they never touched a file the checks look at.
+    // First I resolved the path and measured the destination. A review owned a directory, put a link in
+    // it, and swung the link between two configurations that were both perfectly protected: every check
+    // passed and the runtime came back with a different organisation each time. Protecting the inode
+    // says nothing about who chose the inode. So I walked the written path as well — and a review then
+    // pointed a link in a TRUSTED directory at a link in an untrusted one. `realpath` returns only the
+    // far end and `stat` follows the whole chain, so the middle of it was visited by neither walk.
     //
-    // Ancestors before the file, in both walks. The order is not cosmetic: a test that cannot create a
-    // file owned by somebody else can still separate these rules by choosing where the fixture lives,
-    // and only in this order does each rule get a case where it is the one that speaks.
-    const walk = (from: string, subject: string) => {
-      for (let directory = path.dirname(from); ; directory = path.dirname(directory)) {
-        const above = fs.statSync(directory);
-        const sticky = (above.mode & 0o1000) !== 0;
-        if (openToOthers(above.mode) && !sticky) throw new Error(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${subject} can be renamed away and replaced whatever its own mode says`);
-        if (!owned(above.uid)) throw new Error(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, or point it somewhere else, sticky bit or not`);
-        if (path.dirname(directory) === directory) break;
-      }
-    };
-    walk(file, file);
-    if (target !== file) walk(target, target);
+    // The lesson is that a chain of lookups has as many chances to be redirected as it has links, and
+    // an endpoint check counts none of them. So there is no resolution here at all. Every component
+    // from the root down is `lstat`ed, a link anywhere is a refusal, and what is measured is therefore
+    // exactly what is opened. It also settles a smaller question: the lock this runtime shares with the
+    // provisioning tool is named after the path as given, and with no links the given path is the only
+    // path, so the two cannot disagree about what they are protecting.
+    //
+    // Ancestors before the file. The order is not cosmetic: a test that cannot create a file owned by
+    // somebody else can still separate these rules by choosing where the fixture lives, and only in this
+    // order does each rule get a case where it is the one that speaks.
+    const chain: string[] = [];
+    for (let entry = target; ; entry = path.dirname(entry)) {
+      chain.unshift(entry);
+      if (path.dirname(entry) === entry) break;
+    }
+    for (const entry of chain) {
+      const info = fs.lstatSync(entry);
+      if (info.isSymbolicLink()) throw new Error(`${entry} is a symbolic link, and the agent's configuration path must contain none: whoever owns the directory holding a link chooses which file is read, and neither resolving the path nor walking it as written can see a link in the middle of the chain`);
+      if (entry === target) break;
+      const sticky = (info.mode & 0o1000) !== 0;
+      if (openToOthers(info.mode) && !sticky) throw new Error(`${entry} is writable by group or other (mode 0${(info.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
+      if (!owned(info.uid)) throw new Error(`${entry} belongs to uid ${info.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, sticky bit or not`);
+    }
     const stat = fs.fstatSync(handle);
     if (openToOthers(stat.mode)) throw new Error(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
     if (!owned(stat.uid)) throw new Error(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);

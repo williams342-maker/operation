@@ -58,11 +58,27 @@ const assertProtected = (file) => {
   const expected = value("--expect-owner");
   const stated = expected === undefined ? undefined : resolveOwner(expected);
   const owned = (uid) => uid === 0 || uid === self || uid === stated;
-  // Resolved, because a configuration that is a symlink into a 0777 directory satisfied every rule while
-  // the writes went somewhere else entirely. The last component must be the file, so that the path this
-  // locks and the path it checks cannot come apart.
-  if (fs.lstatSync(file).isSymbolicLink()) fail(`${file} is a symbolic link; point --config at the configuration itself`);
-  const target = fs.realpathSync(file);
+  // NO LINKS ANYWHERE IN THE PATH. Two cleverer rules were each defeated: resolving and measuring the
+  // destination said nothing about who CHOSE the destination, and adding a walk of the written path
+  // still missed a link in the middle of the chain, because `realpath` returns only the far end and
+  // `stat` follows the whole thing. A chain of lookups has as many chances to be redirected as it has
+  // links. So every component from the root down is lstat-ed, and a link anywhere is a refusal: what is
+  // measured is exactly what is opened, and the path this locks is the only path there is.
+  const chain = [];
+  for (let entry = path.resolve(file); ; entry = path.dirname(entry)) {
+    chain.unshift(entry);
+    if (path.dirname(entry) === entry) break;
+  }
+  const target = chain[chain.length - 1];
+  for (const entry of chain) {
+    const info = fs.lstatSync(entry);
+    if (info.isSymbolicLink()) fail(`${entry} is a symbolic link, and the configuration path must contain none: whoever owns the directory holding a link chooses which file is provisioned`);
+    if (entry === target) break;
+    if (openToOthers(info.mode) && (info.mode & 0o1000) === 0) fail(`${entry} is writable by group or other (mode 0${(info.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
+    // A directory's owner may replace what is in it whatever the mode says, and the sticky bit exempts
+    // the owner rather than binding them. An attacker-owned 0755 ancestor passed the mode rule alone.
+    if (!owned(info.uid)) fail(`${entry} belongs to uid ${info.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it`);
+  }
   const stat = fs.statSync(target);
   if (openToOthers(stat.mode)) fail(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
   if (stated !== undefined) {
@@ -70,21 +86,6 @@ const assertProtected = (file) => {
   } else if (!owned(stat.uid)) {
     fail(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}). If that is the account the agent runs as, say so with --expect-owner; this tool will not guess which non-root owner is legitimate`);
   }
-  // BOTH CHAINS. Resolving throws the written path away, and the written path is what SELECTS the
-  // destination: a review owned a directory, put a symlink in it, and swung it between two perfectly
-  // protected configurations. Every check passed each time and the answer was a different identity.
-  const walk = (from, subject) => {
-    for (let directory = path.dirname(from); ; directory = path.dirname(directory)) {
-      const above = fs.statSync(directory);
-      if (openToOthers(above.mode) && (above.mode & 0o1000) === 0) fail(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${subject} can be renamed away and replaced whatever its own mode says`);
-      // A directory's owner may replace what is in it whatever the mode says, and the sticky bit exempts
-      // the owner rather than binding them. An attacker-owned 0755 ancestor passed the mode rule alone.
-      if (!owned(above.uid)) fail(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, or point it somewhere else`);
-      if (path.dirname(directory) === directory) break;
-    }
-  };
-  walk(file, file);
-  if (target !== file) walk(target, target);
 };
 if (!fs.existsSync(configPath)) fail(`${configPath} does not exist; provisioning writes into an enrolled agent's configuration, it does not create one`);
 assertProtected(configPath);

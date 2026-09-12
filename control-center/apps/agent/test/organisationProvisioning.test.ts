@@ -202,9 +202,12 @@ test("root provisioning an agent-owned configuration is supported, and states th
   }
 });
 
-test("provisioning refuses a configuration that is a symbolic link", (t) => {
+test("provisioning refuses a link anywhere in the configuration path", (t) => {
   if (process.platform === "win32") return t.skip("symlink creation needs a privilege on Windows that CI does not grant");
-  // A 0600 link into a 0777 directory satisfied every rule while the writes went somewhere else.
+  // Three shapes, and the third is the one that defeated two earlier rules. A link as the configuration
+  // itself; a link as a directory in the path; and a link in a TRUSTED directory pointing at a link in
+  // an untrusted one, where `realpath` reports only the far end and `stat` follows the whole chain, so
+  // an endpoint check on either path never visits the directory doing the choosing.
   const { file } = enrolledConfig();
   const exposed = fs.mkdtempSync(path.join(os.tmpdir(), "agent-exposed-"));
   const behind = path.join(exposed, "agent.local.json");
@@ -212,43 +215,23 @@ test("provisioning refuses a configuration that is a symbolic link", (t) => {
   fs.chmodSync(behind, 0o600);
   const link = path.join(path.dirname(file), "linked.json");
   fs.symlinkSync(behind, link);
-  // And a link in the MIDDLE of the path, where the last component really is a file: the tree that gets
-  // walked has to be the file's real one. Here every component the written path names is tight, and the
-  // real grandparent is world-writable, which is where the file can be taken from underneath it.
-  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "agent-outer-"));
-  const inner = path.join(outer, "inner");
-  fs.mkdirSync(inner, { mode: 0o700 });
-  fs.chmodSync(inner, 0o700);
-  fs.copyFileSync(file, path.join(inner, "agent.local.json"));
-  fs.chmodSync(path.join(inner, "agent.local.json"), 0o600);
-  fs.chmodSync(outer, 0o777);
-  const via = path.join(path.dirname(file), "via");
-  fs.symlinkSync(inner, via);
-  try {
-    assert.throws(() => provision("--config", link, "--org", org), /symbolic link/);
-    assert.equal(JSON.parse(fs.readFileSync(behind, "utf8")).orgId, undefined, "and nothing was written through it");
-    assert.throws(() => provision("--config", path.join(via, "agent.local.json"), "--org", org), new RegExp(`${path.basename(outer)} is writable by group or other`));
 
-    // And the mirror image, which resolving alone cannot see: the destination is beyond reproach and the
-    // directory holding the link is not. Whoever owns that directory chooses which protected
-    // configuration gets provisioned, without touching anything the destination checks look at.
-    fs.chmodSync(outer, 0o700);
-    const chooser = fs.mkdtempSync(path.join(os.tmpdir(), "agent-chooser-"));
-    const pick = path.join(chooser, "pick");
-    fs.symlinkSync(inner, pick);
-    fs.chmodSync(chooser, 0o777);
-    try {
-      assert.throws(() => provision("--config", path.join(pick, "agent.local.json"), "--org", org), new RegExp(`${path.basename(chooser)} is writable by group or other`));
-    } finally {
-      fs.chmodSync(chooser, 0o700);
-      fs.rmSync(chooser, { recursive: true, force: true });
-    }
-    fs.chmodSync(outer, 0o777);
+  const chooser = fs.mkdtempSync(path.join(os.tmpdir(), "agent-chooser-"));
+  const pick = path.join(chooser, "pick");
+  fs.symlinkSync(exposed, pick);
+  const entry = path.join(path.dirname(file), "entry");
+  fs.symlinkSync(pick, entry);
+  try {
+    assert.throws(() => provision("--config", link, "--org", org), /is a symbolic link/);
+    assert.equal(JSON.parse(fs.readFileSync(behind, "utf8")).orgId, undefined, "and nothing was written through it");
+    assert.throws(() => provision("--config", path.join(entry, "agent.local.json"), "--org", org), new RegExp(`${path.basename(entry)} is a symbolic link`));
+    assert.equal(JSON.parse(fs.readFileSync(behind, "utf8")).orgId, undefined, "nor through the chain");
+    // The destination itself is fine, by its own name, so each refusal was the link and nothing else.
+    assert.equal(JSON.parse(provision("--config", behind, "--org", org)).orgId, org);
   } finally {
-    fs.rmSync(via, { force: true });
-    fs.chmodSync(outer, 0o700);
-    fs.rmSync(outer, { recursive: true, force: true });
     fs.rmSync(link, { force: true });
+    fs.rmSync(entry, { force: true });
+    fs.rmSync(chooser, { recursive: true, force: true });
     fs.rmSync(exposed, { recursive: true, force: true });
   }
 });

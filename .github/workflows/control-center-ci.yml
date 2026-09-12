@@ -94,6 +94,8 @@ jobs:
       # api +1: the validator knowing CONTROL_CENTER_RELEASE_MANIFEST, and diagnosing its absence.
       # agent +5: the runtime learning which organisation it belongs to, which nothing ever wrote, so the
       # Forge identity check could not pass on any host.
+      # agent +1: the fifth remediation round -- a chooser hidden in the middle of a symlink chain, which
+      # neither an endpoint check nor a written-path walk can see.
       # agent +1: the fourth remediation round -- a directory that only SELECTS which protected
       # configuration is read, which resolving the path threw away.
       # agent +9: the third remediation round -- the protection check walked around by an attacker-owned
@@ -105,7 +107,7 @@ jobs:
       # can tell a restored mode from an inherited one, and the C1 line terminators the control-character
       # sweep used to walk past. The skip count does NOT move: the one case that would have needed root is
       # written down as a comment in the suite instead of sitting there as a test that never runs.
-      CI_EXPECTED_TESTS: "489"
+      CI_EXPECTED_TESTS: "490"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -203,6 +205,9 @@ jobs:
       #                   install, load, and one refusal for each thing a ceremony can get wrong
       #   agent net -1    security review replaced the identity bootstrap: the adoption tests are gone,
       #                   provisioning and poll-refusal tests are here instead
+      #   agent +1        remediation round five: no component of the configuration path may be a link,
+      #                   because a chain of lookups can be redirected at every hop and endpoint checks
+      #                   count none of them
       #   agent +1        remediation round four: the written path's own ancestry, because whoever owns a
       #                   directory in it chooses which protected configuration is the answer
       #   agent +9        remediation round three: the resolved path, the descriptor-bound read, ancestor
@@ -211,8 +216,8 @@ jobs:
       #                   provisioning that lands mid-request, the configuration proved protected rather
       #                   than assumed, a umask fixture that discriminates a restored mode, and the
       #                   non-ASCII line terminators the control-character sweep used to walk past
-      CI_EXPECTED_TEST_SUITES: "agent=202,api=134,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "783"
+      CI_EXPECTED_TEST_SUITES: "agent=203,api=134,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "784"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
