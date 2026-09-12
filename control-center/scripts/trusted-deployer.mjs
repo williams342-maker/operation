@@ -641,11 +641,22 @@ export function detectForeignPortConflicts(model, services, projectName, contain
  * says neither.
  */
 export function observeInstalledAgent(root = "/opt/opsworkbench-agent", isActive = () => execFileSync("systemctl", ["is-active", "opsworkbench-agent.service"], { encoding: "utf8" }).trim()) {
-  let release;
+  // A RELEASE, or an honest account of why it is not one. `realpathSync` resolves whatever is there:
+  // a regular file, or a link out to some unrelated directory, both came back looking like an installed
+  // release. What the record calls a release now has to be a directory inside the install root, and
+  // anything else is reported as the pointer it actually is, with the reason beside it.
+  let release = null;
+  let pointsAt = null;
+  let problem = null;
   try {
-    release = fs.realpathSync(path.join(root, "current"));
+    const resolved = fs.realpathSync(path.join(root, "current"));
+    pointsAt = resolved;
+    const installRoot = path.resolve(root);
+    if (!fs.statSync(resolved).isDirectory()) problem = "the current pointer does not resolve to a directory";
+    else if (resolved !== installRoot && !resolved.startsWith(`${installRoot}${path.sep}`)) problem = "the current pointer resolves outside the agent install root";
+    else release = resolved;
   } catch {
-    release = null;
+    problem = "the current pointer could not be read";
   }
   let state;
   try {
@@ -655,7 +666,7 @@ export function observeInstalledAgent(root = "/opt/opsworkbench-agent", isActive
     // answer rather than a failure.
     state = String(error?.stdout ?? "").trim() || null;
   }
-  return { release, state, observedAt: new Date().toISOString() };
+  return { release, pointsAt, problem, state, observedAt: new Date().toISOString() };
 }
 
 export function measurePredecessorImages(model, services, projectName, containers, adoptedContainerIds = new Set()) {

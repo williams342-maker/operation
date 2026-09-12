@@ -1258,6 +1258,7 @@ test("the record says the agent was left alone, and what that costs", async () =
   // asserting it back is the feature agreeing with itself, and it left a mutation that emptied the entry
   // completely alive.
   const upState = {};
+  const observation = { release: "/opt/opsworkbench-agent/releases/0.0.9-operate", pointsAt: "/opt/opsworkbench-agent/releases/0.0.9-operate", problem: null, state: "active", observedAt: "2026-09-12T00:00:00.000Z" };
   const { item } = releaseFixture();
   item.agent = "unchanged";
   const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
@@ -1267,6 +1268,7 @@ test("the record says the agent was left alone, and what that costs", async () =
     verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
     verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
     agentControl: () => assert.fail("nothing should touch the agent"),
+    observeAgent: () => observation,
     compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
     runningContainers: () => composeRunning(upState.up),
     readiness: async () => true,
@@ -1277,8 +1279,10 @@ test("the record says the agent was left alone, and what that costs", async () =
   const entry = record.imageEvidence.find((component) => component.role === "agent");
   assert.ok(entry, "the record still has an agent entry");
   assert.equal(entry.installed, false, "and it says the agent was not installed");
-  assert.ok(entry.retained && "release" in entry.retained && "state" in entry.retained, "and carries a measurement of what is retained, even when the answer is unknown");
-  assert.match(entry.retained.observedAt, /^\d{4}-\d{2}-\d{2}T/, "stamped when it was observed, because it is an observation");
+  // A KNOWN observation, asserted verbatim. Checking that the fields merely exist let a fabricated
+  // constant through: a hard-coded release, state and timestamp passed every test while the real
+  // observation was never called at all.
+  assert.deepEqual(entry.retained, observation, "the record carries the observation that was taken, unchanged");
   assert.match(entry.notCovered, /rehearsal/, "and names what the rehearsal therefore does not cover");
   assert.equal(entry.rollbackSnapshot, undefined, "there is no rollback target for a component nothing touched");
 });
@@ -1347,4 +1351,22 @@ test("the retained agent is measured, not described", () => {
   const resolved = observeInstalledAgent(root, () => { const error = new Error("inactive"); error.stdout = "inactive\n"; throw error; });
   assert.equal(resolved.release, fs.realpathSync(release), "the release current resolves to is what is recorded");
   assert.equal(resolved.state, "inactive", "and a unit that is down reports its state rather than an error");
+  assert.equal(resolved.problem, null);
+
+  // Two shapes that resolved happily and were recorded as installed releases: a regular file, and a
+  // link to a directory outside the install root.
+  const fileRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-file-"));
+  fs.writeFileSync(path.join(fileRoot, "current"), "not a release");
+  const asFile = observeInstalledAgent(fileRoot, () => "active");
+  assert.equal(asFile.release, null, "a regular file is not a release");
+  assert.equal(asFile.pointsAt, fs.realpathSync(path.join(fileRoot, "current")), "but what it points at is still recorded");
+  assert.match(asFile.problem, /directory/);
+
+  const strayRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-stray-"));
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "agent-elsewhere-"));
+  fs.symlinkSync(elsewhere, path.join(strayRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  const stray = observeInstalledAgent(strayRoot, () => "active");
+  assert.equal(stray.release, null, "a pointer out of the install root is not a release either");
+  assert.equal(stray.pointsAt, fs.realpathSync(elsewhere));
+  assert.match(stray.problem, /outside the agent install root/);
 });

@@ -98,7 +98,8 @@ api, web and admin services do not depend on that material.
 
 Under `unchanged` the installer is not run at all — not even to take a snapshot, because a rollback
 target recorded for a component nothing touches is a record that lies quietly. The rollback-ready record
-carries an agent entry saying it was not installed, a MEASUREMENT of what is retained — the release
-`current` resolves to and whether the unit is up, each recorded as unknown when it cannot be read — and
+carries an agent entry saying it was not installed, a measurement of what is retained — the release
+`current` resolves to, but only when that is a directory inside the install root, otherwise the pointer
+and the reason it is not a release, together with whether the unit is up — and
 the limit that follows: the schema rehearsal exercises the application against the database, not an older
 agent against a newer release.
