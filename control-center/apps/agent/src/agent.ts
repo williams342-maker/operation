@@ -277,8 +277,12 @@ async function pollOnce() {
     docker: await collectDocker().catch(() => []),
     discovery: await collectApplicationDiscovery(config).catch(() => undefined)
   };
-  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { orgId?: string; serverId?: string; tasks?: ClaimedTask[] };
-  if (learnRuntimeIdentity(config, response)) saveConfig(config);
+  // THE RESPONSE CANNOT TELL THIS RUNTIME WHO IT IS. It used to fill a missing server id, and a first
+  // version of the organisation fix filled that too — which would have let the control plane decide
+  // which owner-signed Forge identity this host accepts. Security review required the path gone rather
+  // than merely unreachable, because unreachable is a property of today's call order and not of the
+  // design. Identity comes from the owner-signed document at startup; nothing on the wire adds to it.
+  const response = await signedPost(config, "/api/agent/poll", agentPollRequestSchema.parse(initial)) as { tasks?: ClaimedTask[] };
   writeUpdaterHeartbeat(config, Boolean(initial.discovery));
   for (const task of response.tasks || []) {
     try {
@@ -321,41 +325,6 @@ async function main() {
   await pollOnce();
 }
 
-/**
- * The organisation and server this runtime belongs to, learned from the control plane ONLY while the
- * configuration does not already say.
- *
- * Nothing populated `orgId` before: the poll response carried a server id and nothing else, so
- * `config.orgId` stayed at its empty default on every host, and the Forge identity check below — which
- * compares an owner-signed document against it — could not pass anywhere, however correct the signed
- * material was.
- *
- * Never overwritten once known. These two values decide WHICH owner-signed identity this runtime will
- * accept, so a control plane that could replace them could choose that for it. An operator writing them
- * into the configuration file wins over anything the network says.
- */
-export function learnRuntimeIdentity(config: AgentConfig, response: { orgId?: string; serverId?: string }): boolean {
-  let learned = false;
-  if (!config.serverId && response.serverId) { config.serverId = response.serverId; learned = true; }
-  if (!config.orgId && response.orgId) { config.orgId = response.orgId; learned = true; }
-  return learned;
-}
-
-/**
- * Adopt the ids this runtime has never been told, from material the OWNER signed.
- *
- * The deadlock this breaks: a runtime with no `orgId` cannot pass the identity check, and the check runs
- * at startup before the first poll — so it can never reach the network that would tell it. Learning from
- * the control plane cannot solve that, because the runtime never gets that far.
- *
- * The identity document can, and it is the right source: `loadForgeSecurityMaterial` has already
- * verified the owner's signature over it and bound it to this host's name, its machine id and a validity
- * window before we see it here. Adopting from it makes the OWNER authoritative for who this runtime is,
- * not the control plane.
- *
- * A CONFLICT IS NEVER ADOPTED. Anything the configuration already says wins, and a document naming
- * someone else is refused exactly as before.
- */
 export function adoptRuntimeIdentity(config: AgentConfig, identity: { orgId: string; serverId: string }): boolean {
   if ((config.orgId && config.orgId !== identity.orgId) || (config.serverId && config.serverId !== identity.serverId)) {
     throw new Error("Forge security identity does not match this enrolled agent runtime");

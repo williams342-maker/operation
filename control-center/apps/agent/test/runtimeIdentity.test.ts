@@ -12,7 +12,7 @@ const configFile = path.join(scratch, "agent.local.json");
 fs.writeFileSync(configFile, JSON.stringify({ controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32) }));
 process.env.CONTROL_CENTER_AGENT_CONFIG = configFile;
 process.env.NODE_ENV = "test";
-const { adoptRuntimeIdentity, establishRuntimeIdentity, learnRuntimeIdentity, startupIdentity, validateForgeRuntimeIdentity } = await import("../src/agent.js");
+const { adoptRuntimeIdentity, establishRuntimeIdentity, startupIdentity, validateForgeRuntimeIdentity } = await import("../src/agent.js");
 const { loadConfig, saveConfig } = await import("../src/config.js");
 
 // WHY THIS FILE EXISTS. `validateForgeRuntimeIdentity` compares an owner-signed identity against
@@ -25,34 +25,8 @@ const baseConfig = { controlCenterUrl: "https://control.test", agentId: "agent-1
 const org = "6a5dab47776e3028ac9b604b";
 const server = "6a5f685ff8195a8813879bd7";
 
-test("the runtime learns both ids when it has neither, and reports that it did", () => {
-  const config = { ...baseConfig };
-  assert.equal(learnRuntimeIdentity(config, { orgId: org, serverId: server }), true);
-  assert.equal(config.orgId, org);
-  assert.equal(config.serverId, server);
-});
 
-test("what the runtime already knows is never replaced by what the network says", () => {
-  // These two values decide WHICH owner-signed identity this runtime will accept. A control plane that
-  // could replace them could choose that for it, so an operator's configuration wins over any answer.
-  const config = { ...baseConfig, orgId: org, serverId: server };
-  assert.equal(learnRuntimeIdentity(config, { orgId: "0".repeat(24), serverId: "1".repeat(24) }), false, "nothing to learn, so nothing is written");
-  assert.equal(config.orgId, org);
-  assert.equal(config.serverId, server);
 
-  // And one known, one not: only the missing half moves.
-  const half = { ...baseConfig, serverId: server };
-  assert.equal(learnRuntimeIdentity(half, { orgId: org, serverId: "1".repeat(24) }), true);
-  assert.equal(half.orgId, org, "the missing one is learned");
-  assert.equal(half.serverId, server, "the known one is left alone");
-});
-
-test("a response that says nothing changes nothing", () => {
-  const config = { ...baseConfig };
-  assert.equal(learnRuntimeIdentity(config, {}), false);
-  assert.equal(learnRuntimeIdentity(config, { orgId: "", serverId: "" }), false, "an empty answer is not an answer");
-  assert.equal(config.orgId, "");
-});
 
 test("a runtime that was never told who it is says exactly that", () => {
   // The distinction matters at one moment: the owner's signing ceremony. "Does not match" sends an
@@ -173,4 +147,20 @@ test("the configuration file survives a write that fails half way", (t) => {
   assert.equal(fs.readFileSync(configFile, "utf8"), before, "the old configuration is still there, whole");
   assert.doesNotThrow(() => loadConfig(), "and still readable");
   assert.deepEqual(fs.readdirSync(path.dirname(configFile)).filter((name) => name.includes(".pending-")), [], "and no half-written sibling is left behind");
+});
+
+// --- The control plane is not allowed a say ---------------------------------------------------------
+//
+// A first version of the organisation fix let the poll response fill a missing id. Security review
+// required that path removed rather than merely unreachable: unreachable is a property of today's call
+// order, and a refactor can change that without anyone noticing it changed a trust boundary.
+
+
+test("the agent source contains no path from a response to either identifier", () => {
+  // A behavioural test can only cover the call sites that exist today. This one covers the requirement
+  // itself: that no such assignment is reachable from a response object at all.
+  const source = fs.readFileSync(new URL("../src/agent.ts", import.meta.url), "utf8");
+  assert.equal(/config\.orgId\s*=\s*response/.test(source), false, "no response may assign the organisation");
+  assert.equal(/config\.serverId\s*=\s*response/.test(source), false, "nor the server");
+  assert.equal(source.includes("learnRuntimeIdentity"), false, "the helper that did this is gone, not merely unused");
 });
