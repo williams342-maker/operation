@@ -179,6 +179,27 @@ test("root provisioning an agent-owned configuration is supported, and states th
   assert.equal(fs.readFileSync(file, "utf8"), body, "a mismatch writes nothing");
   assert.throws(() => provision("--config", file, "--org", org, "--expect-owner", "no-such-account-here"), /neither a uid nor an account/);
   assert.equal(JSON.parse(provision("--config", file, "--org", org, "--expect-owner", mine)).orgId, org, "and the matching account provisions");
+
+  // THE LAYOUT THIS REPOSITORY ACTUALLY BUILDS. `install.sh` creates the configuration directory with
+  // `install -d -m 0750 -o $AGENT_USER`, so the directory belongs to the agent as well as the file. A
+  // review found the first version of this flag accepted the named account for the file and still
+  // demanded root for its parent, which refuses every host the installer produces. Only a privileged run
+  // can stage that ownership, so only a privileged run asserts it.
+  if (process.getuid?.() === 0) {
+    const { file: deployed } = enrolledConfig();
+    const directory = path.dirname(deployed);
+    fs.chmodSync(directory, 0o750);
+    fs.chownSync(deployed, 65534, 65534);
+    fs.chownSync(directory, 65534, 65534);
+    try {
+      assert.throws(() => provision("--config", deployed, "--org", org), /neither root nor this process/);
+      assert.equal(JSON.parse(provision("--config", deployed, "--org", org, "--expect-owner", "65534")).orgId, org, "the installer's own layout provisions once the account is named");
+      assert.equal(fs.statSync(deployed).uid, 65534, "and the file still belongs to the agent afterwards");
+    } finally {
+      fs.chownSync(directory, 0, 0);
+      fs.chmodSync(directory, 0o700);
+    }
+  }
 });
 
 test("provisioning refuses a configuration that is a symbolic link", (t) => {
@@ -207,6 +228,22 @@ test("provisioning refuses a configuration that is a symbolic link", (t) => {
     assert.throws(() => provision("--config", link, "--org", org), /symbolic link/);
     assert.equal(JSON.parse(fs.readFileSync(behind, "utf8")).orgId, undefined, "and nothing was written through it");
     assert.throws(() => provision("--config", path.join(via, "agent.local.json"), "--org", org), new RegExp(`${path.basename(outer)} is writable by group or other`));
+
+    // And the mirror image, which resolving alone cannot see: the destination is beyond reproach and the
+    // directory holding the link is not. Whoever owns that directory chooses which protected
+    // configuration gets provisioned, without touching anything the destination checks look at.
+    fs.chmodSync(outer, 0o700);
+    const chooser = fs.mkdtempSync(path.join(os.tmpdir(), "agent-chooser-"));
+    const pick = path.join(chooser, "pick");
+    fs.symlinkSync(inner, pick);
+    fs.chmodSync(chooser, 0o777);
+    try {
+      assert.throws(() => provision("--config", path.join(pick, "agent.local.json"), "--org", org), new RegExp(`${path.basename(chooser)} is writable by group or other`));
+    } finally {
+      fs.chmodSync(chooser, 0o700);
+      fs.rmSync(chooser, { recursive: true, force: true });
+    }
+    fs.chmodSync(outer, 0o777);
   } finally {
     fs.rmSync(via, { force: true });
     fs.chmodSync(outer, 0o700);

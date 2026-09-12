@@ -71,17 +71,24 @@ the configuration before and after. Record that output; it is the evidence the s
 Behaviour worth knowing before you run it:
 
 - **The configuration must already be protected, and provisioning refuses if it is not.** Not writable by
-  group or other; not a symbolic link; no directory above it writable by group or other unless it is
-  sticky, and none of them belonging to a third account, because a directory's owner may replace what is
-  in it whatever the mode says and the sticky bit exempts the owner rather than binding them. The tree
-  that gets checked is the file's real one, since a link in the middle of a path hides the ancestry that
-  matters. A trust anchor any local user can rewrite afterwards is not one, and the earliest version
-  happily preserved a mode of 0666. The agent applies the same rules when it loads, and reads through the
-  descriptor it checked, so a replacement at the name cannot be handed back as the answer.
-- **Ownership is stated rather than guessed.** Without `--expect-owner` the file must belong to root or to
-  whoever is running the tool. With it, the file must belong to the named account, and a mismatch is a
-  refusal. The flag exists because the supported workflow is root provisioning a file the agent owns, and
-  a rule of "root or me" refuses precisely that case when "me" is root.
+  group or other; not a symbolic link; and no directory above it writable by group or other unless it is
+  sticky, nor belonging to an account that is not trusted, because a directory's owner may replace what
+  is in it whatever the mode says and the sticky bit exempts the owner rather than binding them. A trust
+  anchor any local user can rewrite afterwards is not one, and the earliest version happily preserved a
+  mode of 0666. The agent applies the same rules when it loads, and reads through the descriptor it
+  checked, so a replacement at the name cannot be handed back as the answer.
+- **Two chains are checked, not one: the path as written and the path it resolves to.** Resolving alone
+  protects the destination and says nothing about who chose it. A review owned a directory, put a link in
+  it, and swung that link between two configurations that were both perfectly protected; every check
+  passed both times and the answer was a different organisation each time. Choosing which protected file
+  is read is choosing the identity, so the ancestry as written has to be trusted as well.
+- **Ownership is stated rather than guessed.** Without `--expect-owner` the file and its directories must
+  belong to root or to whoever is running the tool. With it, the file must belong to the named account
+  and a mismatch is a refusal, and that account is trusted for the directories too. The flag exists
+  because the supported workflow is root provisioning a file the agent owns; a rule of "root or me"
+  refuses precisely that case when "me" is root. It covers the tree as well as the file because
+  `install.sh` creates the configuration directory with `install -d -m 0750 -o $AGENT_USER`, so on every
+  host this repository builds, the directory belongs to the agent too.
 - **The backup is written and flushed before the configuration is touched.** The way out exists before
   the way in.
 - **Owner and mode are carried over from the file being replaced.** A replacement is a new inode. Run as
@@ -223,5 +230,17 @@ None of the following has been done, and none of it can be done without the owne
     service is started on `agent.json`. Corrected, with an instruction to ask the unit rather than this
     page.
   - **Low.** "Even with root" overstated the hostname and machine-id bindings. Corrected above.
-- Independent review, round 4: in progress.
+- Independent review, round 4 of the remediation: NO-GO, three findings, all real and all fixed.
+  - **High.** Resolving the path threw away the ancestry that SELECTS the destination. An attacker who
+    owned a directory could put a link in it and swing it between two perfectly protected
+    configurations, getting a different organisation and server id each time without touching anything
+    the checks looked at. Both chains are walked now. This also corrected a claim: the remaining
+    resolve-then-open window was described as denial of service only, and while the written path went
+    unchecked that was wrong.
+  - **Medium.** `--expect-owner` trusted the named account for the file but still demanded root for the
+    directories above it, which refuses the layout `install.sh` produces on every host. The stated
+    account is now trusted for the tree.
+  - **Low.** The ceremony test put all four line terminators through the signer and only one through the
+    builder, so deleting the separators from the builder alone passed. It tries all four on both now.
+- Independent review, round 5: in progress.
 - The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.

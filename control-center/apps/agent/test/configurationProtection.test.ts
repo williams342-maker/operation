@@ -172,6 +172,57 @@ test("the tree that is checked is the file's real one, not the one the path spel
   }
 });
 
+test("a directory that only SELECTS the configuration is trusted too", (t) => {
+  if (linuxOnly(t)) return;
+  // THE SELECTION ATTACK, which protecting the destination does not touch. A review owned a directory,
+  // put a link in it, and swung that link between two configurations that were both perfectly protected:
+  // every check passed both times and the runtime came back with two different organisations. Nobody had
+  // to write a file the checks look at — choosing which protected file is read is choosing the identity.
+  //
+  // Both paths are walked now, so the question is not only "is the destination safe" but "who chose it".
+  const chooser = fs.mkdtempSync(path.join(os.tmpdir(), "agent-chooser-"));
+  const a = fs.mkdtempSync(path.join(os.tmpdir(), "agent-org-a-"));
+  const b = fs.mkdtempSync(path.join(os.tmpdir(), "agent-org-b-"));
+  for (const [directory, orgId] of [[a, "1".repeat(24)], [b, "2".repeat(24)]] as const) {
+    const inside = path.join(directory, "agent.local.json");
+    fs.writeFileSync(inside, JSON.stringify({ ...enrolled, orgId }), { mode: 0o600 });
+    fs.chmodSync(inside, 0o600);
+  }
+  const via = path.join(chooser, "via");
+  fs.symlinkSync(a, via);
+  const through = path.join(via, "agent.local.json");
+  try {
+    // Both destinations are beyond reproach: read directly, each is accepted and gives its own identity.
+    assert.equal(JSON.parse(readProtectedConfiguration(path.join(a, "agent.local.json"))).orgId, "1".repeat(24));
+    assert.equal(JSON.parse(readProtectedConfiguration(path.join(b, "agent.local.json"))).orgId, "2".repeat(24));
+    // Reached through a directory the attacker owns, the same destinations are refused — and the refusal
+    // names the chooser, not the file, because the file was never the problem.
+    fs.chmodSync(chooser, 0o777);
+    assert.throws(() => readProtectedConfiguration(through), new RegExp(`${path.basename(chooser)} is writable by group or other`));
+    // The ownership half of the same rule, when the run can stage it. Asking the function to be somebody
+    // else cannot isolate it here: that makes every directory in both chains untrusted at once, so the
+    // walk speaks about whichever it reaches first rather than about the chooser. Handing the chooser
+    // away, which needs root, is the only way to make it the one thing that is wrong.
+    fs.chmodSync(chooser, 0o755);
+    if (amRoot()) {
+      fs.chownSync(chooser, somebodyElse, somebodyElse);
+      try {
+        assert.throws(() => readProtectedConfiguration(through), new RegExp(`${path.basename(chooser)} belongs to uid`));
+      } finally {
+        fs.chownSync(chooser, 0, 0);
+      }
+    }
+    // And with the chooser trusted, the link is an operator's own arrangement and is honoured.
+    fs.chmodSync(chooser, 0o700);
+    assert.equal(JSON.parse(readProtectedConfiguration(through)).orgId, "1".repeat(24));
+    fs.rmSync(via, { force: true });
+    fs.symlinkSync(b, via);
+    assert.equal(JSON.parse(readProtectedConfiguration(through)).orgId, "2".repeat(24), "a trusted party may still repoint it; that is administration, not an attack");
+  } finally {
+    for (const directory of [chooser, a, b]) { try { fs.chmodSync(directory, 0o700); } catch { /* best effort */ } fs.rmSync(directory, { recursive: true, force: true }); }
+  }
+});
+
 test("what is read is the file that was checked, not the name that was checked", async (t) => {
   if (linuxOnly(t)) return;
   // THE INTERLEAVING, and an honest account of how much of it a test can reach. A review replaced the
@@ -211,7 +262,9 @@ test("what is read is the file that was checked, not the name that was checked",
 // which never runs cannot sit in the suite looking like coverage, so this is written down rather than
 // stood in for by something that would show green without executing.
 //
-// The resolution itself is also a name lookup: an attacker who owns an ancestor can swap a component
-// between `realpath` and `open`. They get a different inode, which is then measured and refused unless it
-// too is protected, so the remaining window is a denial of service rather than an accepted identity. Node
-// exposes no `openat`, so that is the floor rather than a decision.
+// The resolution is still a sequence of name lookups, so a window remains between resolving and opening.
+// Both chains are checked now, though, so every directory that could be swapped during it belongs to root
+// or to this process — parties who could edit the file directly. An earlier version of this note called
+// that window a denial of service while the written path went unchecked, which was wrong: an untrusted
+// directory there let somebody choose which protected configuration was read, and choosing the identity
+// is not a refusal. Node exposes no `openat`.

@@ -115,11 +115,14 @@ export function configurationPath(): string { return configPath; }
  *
  * WHAT IS NOT. POSIX mode bits do not describe a Windows ACL, so this checks nothing there and says so
  * rather than pretending. It does not defend against root, or against the owner of the file; both of
- * those already control the host. And the resolution itself is a name lookup: an attacker who controls
- * an ancestor can still swap a component between `realpath` and `open`. What that buys them is a
- * different inode, which is then measured and refused unless it too is protected — so the remaining
- * window is a denial of service, not an accepted identity. Node exposes no `openat`, so this is the
- * floor rather than a choice.
+ * those already control the host. The resolution is still a sequence of name lookups, so there is a
+ * window between `realpath` and `open` — but every directory in both chains has just been required to
+ * belong to root or to this process, so the only party who can swap a component during that window is
+ * one already trusted to change the file outright. An earlier version of this comment called the window
+ * a denial of service while the written path went unchecked, and that was wrong: an untrusted directory
+ * in the written path let somebody CHOOSE which protected configuration was read, which is an accepted
+ * identity rather than a refusal. Node exposes no `openat`; with both chains checked, what is left is a
+ * race between parties who could each simply edit the file.
  *
  * `self` is a parameter so the ownership rule can be exercised without root: a test that cannot make a
  * file belong to somebody else can ask this function who it thinks it is instead.
@@ -137,16 +140,30 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
   const target = fs.realpathSync(file);
   const handle = fs.openSync(target, "r");
   try {
-    // Ancestors first, then the file. The order is not cosmetic: a test that cannot create a file owned
-    // by somebody else can still separate these two rules by choosing where the fixture lives, and only
-    // in this order does each rule get a case where it is the one that speaks.
-    for (let directory = path.dirname(target); ; directory = path.dirname(directory)) {
-      const above = fs.statSync(directory);
-      const sticky = (above.mode & 0o1000) !== 0;
-      if (openToOthers(above.mode) && !sticky) throw new Error(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
-      if (!owned(above.uid)) throw new Error(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, sticky bit or not`);
-      if (path.dirname(directory) === directory) break;
-    }
+    // BOTH CHAINS, and the second one is a review finding rather than belt and braces.
+    //
+    // Resolving throws the written path away, and the written path is what SELECTS the destination. A
+    // review put a symlink in a directory it owned, pointed it at a perfectly protected configuration,
+    // and then pointed it at a different perfectly protected configuration: every check passed both
+    // times and the runtime came back with two different organisations and server ids. Protecting the
+    // inode says nothing about who chose which inode. So the ancestry as written is walked too, and an
+    // untrusted component anywhere in it is a refusal — that directory's owner is choosing this
+    // runtime's identity even though they never touched a file the checks look at.
+    //
+    // Ancestors before the file, in both walks. The order is not cosmetic: a test that cannot create a
+    // file owned by somebody else can still separate these rules by choosing where the fixture lives,
+    // and only in this order does each rule get a case where it is the one that speaks.
+    const walk = (from: string, subject: string) => {
+      for (let directory = path.dirname(from); ; directory = path.dirname(directory)) {
+        const above = fs.statSync(directory);
+        const sticky = (above.mode & 0o1000) !== 0;
+        if (openToOthers(above.mode) && !sticky) throw new Error(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${subject} can be renamed away and replaced whatever its own mode says`);
+        if (!owned(above.uid)) throw new Error(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, or point it somewhere else, sticky bit or not`);
+        if (path.dirname(directory) === directory) break;
+      }
+    };
+    walk(file, file);
+    if (target !== file) walk(target, target);
     const stat = fs.fstatSync(handle);
     if (openToOthers(stat.mode)) throw new Error(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
     if (!owned(stat.uid)) throw new Error(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);

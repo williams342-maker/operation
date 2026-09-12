@@ -50,7 +50,14 @@ const assertProtected = (file) => {
   if (process.platform === "win32") return; // POSIX mode bits do not describe a Windows ACL
   const self = process.getuid ? process.getuid() : 0;
   const openToOthers = (mode) => (mode & 0o022) !== 0;
-  const owned = (uid) => uid === 0 || uid === self;
+  // THE STATED ACCOUNT IS TRUSTED FOR THE WHOLE PATH, not only the file. A review pointed out that the
+  // installer creates /etc/opsworkbench-agent itself with `install -d -m 0750 -o $AGENT_USER`, so the
+  // directory belongs to the agent too — and a rule that accepted the named owner for the file while
+  // demanding root for its parent refused the exact layout this repository builds. An operator who says
+  // the agent account is legitimate has said so about the tree it owns.
+  const expected = value("--expect-owner");
+  const stated = expected === undefined ? undefined : resolveOwner(expected);
+  const owned = (uid) => uid === 0 || uid === self || uid === stated;
   // Resolved, because a configuration that is a symlink into a 0777 directory satisfied every rule while
   // the writes went somewhere else entirely. The last component must be the file, so that the path this
   // locks and the path it checks cannot come apart.
@@ -58,21 +65,26 @@ const assertProtected = (file) => {
   const target = fs.realpathSync(file);
   const stat = fs.statSync(target);
   if (openToOthers(stat.mode)) fail(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
-  const expected = value("--expect-owner");
-  if (expected !== undefined) {
-    const wanted = resolveOwner(expected);
-    if (stat.uid !== wanted) fail(`${target} belongs to uid ${stat.uid}, and --expect-owner ${expected} says it should belong to ${wanted}; provisioning the wrong host's configuration is the mistake this flag exists to catch`);
+  if (stated !== undefined) {
+    if (stat.uid !== stated) fail(`${target} belongs to uid ${stat.uid}, and --expect-owner ${expected} says it should belong to ${stated}; provisioning the wrong host's configuration is the mistake this flag exists to catch`);
   } else if (!owned(stat.uid)) {
     fail(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}). If that is the account the agent runs as, say so with --expect-owner; this tool will not guess which non-root owner is legitimate`);
   }
-  for (let directory = path.dirname(target); ; directory = path.dirname(directory)) {
-    const above = fs.statSync(directory);
-    if (openToOthers(above.mode) && (above.mode & 0o1000) === 0) fail(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
-    // A directory's owner may replace what is in it whatever the mode says, and the sticky bit exempts
-    // the owner rather than binding them. An attacker-owned 0755 ancestor passed the mode rule alone.
-    if (!owned(above.uid)) fail(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it`);
-    if (path.dirname(directory) === directory) break;
-  }
+  // BOTH CHAINS. Resolving throws the written path away, and the written path is what SELECTS the
+  // destination: a review owned a directory, put a symlink in it, and swung it between two perfectly
+  // protected configurations. Every check passed each time and the answer was a different identity.
+  const walk = (from, subject) => {
+    for (let directory = path.dirname(from); ; directory = path.dirname(directory)) {
+      const above = fs.statSync(directory);
+      if (openToOthers(above.mode) && (above.mode & 0o1000) === 0) fail(`${directory} is writable by group or other (mode 0${(above.mode & 0o7777).toString(8)}), so ${subject} can be renamed away and replaced whatever its own mode says`);
+      // A directory's owner may replace what is in it whatever the mode says, and the sticky bit exempts
+      // the owner rather than binding them. An attacker-owned 0755 ancestor passed the mode rule alone.
+      if (!owned(above.uid)) fail(`${directory} belongs to uid ${above.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, or point it somewhere else`);
+      if (path.dirname(directory) === directory) break;
+    }
+  };
+  walk(file, file);
+  if (target !== file) walk(target, target);
 };
 if (!fs.existsSync(configPath)) fail(`${configPath} does not exist; provisioning writes into an enrolled agent's configuration, it does not create one`);
 assertProtected(configPath);

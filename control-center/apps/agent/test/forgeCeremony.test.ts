@@ -171,15 +171,20 @@ test("a line terminator that is not ASCII is refused as well", () => {
     );
   }
 
-  // And the builder refuses the same thing, so the two tools agree rather than one catching the other's work.
+  // And the builder refuses EVERY one of them, not just the first. A review deleted the two separators
+  // from the builder alone and every ceremony test still passed, because this half of the case only ever
+  // tried U+0085: the two tools are supposed to agree, and a test that checks one of them on four
+  // characters and the other on one cannot tell when they stop agreeing.
   const { trustedRootPath, reviewGateCaPath, ownerPublicKey } = ceremony();
-  assert.throws(() => node("build-forge-security-identity.mjs", [
-    "--org", org, "--server", server, "--hostname", `${hostname}${String.fromCodePoint(0x85)}`,
-    "--machine-id-sha256", sha256(machineId), "--owner-public-key", ownerPublicKey,
-    "--trusted-root", trustedRootPath, "--review-gate-ca", reviewGateCaPath,
-    "--valid-from", "2026-09-01T00:00:00.000Z", "--valid-until", "2027-09-01T00:00:00.000Z",
-    "--output", path.join(root, "c1-built.json"),
-  ]), /control character/);
+  for (const [label, character] of [["c1-next-line", 0x85], ["c1-string-terminator", 0x9c], ["line-separator", 0x2028], ["paragraph-separator", 0x2029]] as const) {
+    assert.throws(() => node("build-forge-security-identity.mjs", [
+      "--org", org, "--server", server, "--hostname", `${hostname}${String.fromCodePoint(character)}`,
+      "--machine-id-sha256", sha256(machineId), "--owner-public-key", ownerPublicKey,
+      "--trusted-root", trustedRootPath, "--review-gate-ca", reviewGateCaPath,
+      "--valid-from", "2026-09-01T00:00:00.000Z", "--valid-until", "2027-09-01T00:00:00.000Z",
+      "--output", path.join(root, `c1-built-${label}.json`),
+    ]), /control characters/, `the builder must refuse ${label} too`);
+  }
 });
 
 test("a field that is not a string never reaches a signature", () => {
