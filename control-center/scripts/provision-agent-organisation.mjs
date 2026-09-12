@@ -79,7 +79,10 @@ const assertProtected = (file) => {
     // the owner rather than binding them. An attacker-owned 0755 ancestor passed the mode rule alone.
     if (!owned(info.uid)) fail(`${entry} belongs to uid ${info.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it`);
   }
-  const stat = fs.statSync(target);
+  const stat = fs.lstatSync(target);
+  // A regular file, checked before anything opens it: a FIFO here would block whoever ran this until
+  // somebody wrote to the other end, and a device can have effects merely from being opened.
+  if (!stat.isFile()) fail(`${target} is not a regular file; --config names the agent's configuration, and provisioning will not write through whatever else is there`);
   if (openToOthers(stat.mode)) fail(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); tighten it to 0600 before provisioning a trust identifier into it`);
   if (stated !== undefined) {
     if (stat.uid !== stated) fail(`${target} belongs to uid ${stat.uid}, and --expect-owner ${expected} says it should belong to ${stated}; provisioning the wrong host's configuration is the mistake this flag exists to catch`);

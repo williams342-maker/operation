@@ -86,6 +86,13 @@ Behaviour worth knowing before you run it:
   as it has links, and an endpoint check counts none of them. So there is no resolution: every component
   from the root down is measured as it is. On a host where a directory above the configuration is
   legitimately a link, this refuses, and the operator points it at the real path.
+- **The path must end in a regular file, and that is checked before anything is opened.** Opening a FIFO
+  for reading blocks until somebody writes to the other end, and a device can have effects merely from
+  being opened, so nothing is opened until what is at the end of the path is known to be an ordinary
+  file. The order is measure, then open, then compare the device and inode numbers of the descriptor
+  against what was measured. Every directory above the file has just been shown to be trusted, so the
+  argument that nobody untrusted could substitute it in between is sound; the comparison makes it a fact
+  instead of an argument, in a place where the argument has already been wrong twice.
 - **Ownership is stated rather than guessed.** Without `--expect-owner` the file and its directories must
   belong to root or to whoever is running the tool. With it, the file must belong to the named account
   and a mismatch is a refusal, and that account is trusted for the directories too. The flag exists

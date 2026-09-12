@@ -103,10 +103,13 @@ export function configurationPath(): string { return configPath; }
  * read took another. Two later versions resolved the path instead, and each was defeated by a link the
  * check could not see; the reasoning is with the loop below.
  *
- * The file is OPENED ONCE and everything after that is a question about the open descriptor. A first
- * version measured a name and then read a name, and a review replaced the file in between and was
- * handed the attacker's organisation and server id. `fstat` describes the inode this function is
- * holding, and the contents are read from that same descriptor, so there is no second lookup to win.
+ * The file is MEASURED, then OPENED, then PROVED to be the same inode, and the contents come from that
+ * descriptor. A first version measured a name and then read a name, and a review replaced the file in
+ * between and was handed the attacker's organisation and server id. Opening first would close that hole
+ * too, but it would mean opening whatever is at the end of the path before knowing what it is — and a
+ * FIFO blocks the process until somebody writes to it. So the order is check, open, compare device and
+ * inode: nothing is opened until it is known to be an ordinary protected file, and the comparison turns
+ * "nobody untrusted could have substituted it" from an argument into a fact.
  *
  * The file must not be writable by group or other, and must belong to root or to whoever is running.
  * Every directory above it must satisfy BOTH of those too: mode, because a writable parent means the
@@ -128,8 +131,6 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
   const openToOthers = (mode: number) => (mode & 0o022) !== 0;
   const owned = (uid: number) => uid === 0 || uid === self;
   const target = path.resolve(file);
-  const handle = fs.openSync(target, "r");
-  try {
     // NO LINKS ANYWHERE IN THE PATH, and this rule replaces two cleverer ones that were each defeated.
     //
     // First I resolved the path and measured the destination. A review owned a directory, put a link in
@@ -149,22 +150,36 @@ export function readProtectedConfiguration(file: string, options: { self?: numbe
     // Ancestors before the file. The order is not cosmetic: a test that cannot create a file owned by
     // somebody else can still separate these rules by choosing where the fixture lives, and only in this
     // order does each rule get a case where it is the one that speaks.
-    const chain: string[] = [];
-    for (let entry = target; ; entry = path.dirname(entry)) {
-      chain.unshift(entry);
-      if (path.dirname(entry) === entry) break;
-    }
-    for (const entry of chain) {
-      const info = fs.lstatSync(entry);
-      if (info.isSymbolicLink()) throw new Error(`${entry} is a symbolic link, and the agent's configuration path must contain none: whoever owns the directory holding a link chooses which file is read, and neither resolving the path nor walking it as written can see a link in the middle of the chain`);
-      if (entry === target) break;
-      const sticky = (info.mode & 0o1000) !== 0;
-      if (openToOthers(info.mode) && !sticky) throw new Error(`${entry} is writable by group or other (mode 0${(info.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
-      if (!owned(info.uid)) throw new Error(`${entry} belongs to uid ${info.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, sticky bit or not`);
-    }
-    const stat = fs.fstatSync(handle);
-    if (openToOthers(stat.mode)) throw new Error(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
-    if (!owned(stat.uid)) throw new Error(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);
+  const chain: string[] = [];
+  for (let entry = target; ; entry = path.dirname(entry)) {
+    chain.unshift(entry);
+    if (path.dirname(entry) === entry) break;
+  }
+  let measured: fs.Stats | undefined;
+  for (const entry of chain) {
+    const info = fs.lstatSync(entry);
+    if (info.isSymbolicLink()) throw new Error(`${entry} is a symbolic link, and the agent's configuration path must contain none: whoever owns the directory holding a link chooses which file is read, and neither resolving the path nor walking it as written can see a link in the middle of the chain`);
+    if (entry === target) { measured = info; break; }
+    const sticky = (info.mode & 0o1000) !== 0;
+    if (openToOthers(info.mode) && !sticky) throw new Error(`${entry} is writable by group or other (mode 0${(info.mode & 0o7777).toString(8)}), so ${target} can be renamed away and replaced whatever its own mode says`);
+    if (!owned(info.uid)) throw new Error(`${entry} belongs to uid ${info.uid}, which is neither root nor this process (${self}); the owner of a directory may replace what is in it, sticky bit or not`);
+  }
+  const stat = measured!;
+  // A REGULAR FILE, and this is checked before anything is opened. Opening a FIFO for reading blocks
+  // until somebody writes to it, and a device can have side effects merely from being opened, so the
+  // open must not happen until the thing at the end of the path is known to be an ordinary file.
+  if (!stat.isFile()) throw new Error(`${target} is not a regular file; the agent's configuration is a file, and opening whatever else is there can block or have effects of its own`);
+  if (openToOthers(stat.mode)) throw new Error(`${target} is writable by group or other (mode 0${(stat.mode & 0o7777).toString(8)}); it carries this runtime's organisation, server id and enrolment credential, so anyone who can write it can choose which owner-signed Forge identity this host accepts`);
+  if (!owned(stat.uid)) throw new Error(`${target} belongs to uid ${stat.uid}, which is neither root nor this process (${self}); that account can rewrite the identifiers the Forge check is matched against`);
+
+  // MEASURED, THEN OPENED, THEN PROVED TO BE THE SAME THING. Every directory above this file has just
+  // been shown to belong to root or to this process, so nobody untrusted can substitute the file between
+  // the two calls — but "nobody can" is an argument, and the device and inode numbers are a fact. If the
+  // descriptor is not the inode that was measured, the whole walk described a different file.
+  const handle = fs.openSync(target, "r");
+  try {
+    const opened = fs.fstatSync(handle);
+    if (opened.dev !== stat.dev || opened.ino !== stat.ino) throw new Error(`${target} changed between being checked and being opened; the file that was measured is not the file this descriptor holds`);
     return fs.readFileSync(handle, "utf8");
   } finally {
     fs.closeSync(handle);

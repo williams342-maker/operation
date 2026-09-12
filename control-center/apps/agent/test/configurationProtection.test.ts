@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
 
 // THE "PROTECTED" HALF OF "INDEPENDENTLY PROTECTED LOCAL INPUT".
 //
@@ -236,16 +237,44 @@ test("a directory in the path that belongs to nobody trusted is still refused on
   }
 });
 
-test("what is read is the file that was checked, not the name that was checked", async (t) => {
+test("a path that ends in something other than a regular file is refused before it is opened", (t) => {
+  if (linuxOnly(t)) return;
+  // A FIFO is the case that matters: opening one for reading blocks until somebody writes to the other
+  // end, so a check that opened first and asked questions afterwards would hang the agent rather than
+  // refuse. The order is measure, then open, and this is the fixture that tells the two apart — the
+  // assertion is that the call RETURNS, with a refusal, rather than what the refusal says.
+  const pipe = path.join(scratch, "fifo.json");
+  execFileSync("mkfifo", ["-m", "600", pipe]);
+  try {
+    assert.throws(() => readProtectedConfiguration(pipe), /not a regular file/);
+  } finally {
+    fs.rmSync(pipe, { force: true });
+  }
+  // A directory at the end of the path is the same rule and a likelier typo.
+  assert.throws(() => readProtectedConfiguration(scratch), /not a regular file/);
+});
+
+test("the descriptor that is read is proved to be the inode that was measured", (t) => {
+  if (linuxOnly(t)) return;
+  // Every directory above the file has just been shown to belong to root or to this process, so the
+  // argument that nobody untrusted can swap the file between the measurement and the open is sound. The
+  // device and inode comparison makes it a fact instead of an argument, which is worth having in a
+  // security path where the argument has already been wrong twice.
+  const source = fs.readFileSync(new URL("../src/config.ts", import.meta.url), "utf8");
+  const body = source.slice(source.indexOf("export function readProtectedConfiguration"), source.indexOf("export function loadConfig"));
+  assert.match(body, /opened\.dev !== stat\.dev \|\| opened\.ino !== stat\.ino/, "the opened inode is compared against the measured one");
+  assert.match(body, /return fs\.readFileSync\(handle, "utf8"\)/, "and the contents come from that descriptor, not from a second lookup by name");
+});
+
+test("what is read is the file that was checked, not the name that was checked", (t) => {
   if (linuxOnly(t)) return;
   // THE INTERLEAVING, and an honest account of how much of it a test can reach. A review replaced the
   // configuration between the check and the read and was handed the attacker's organisation. The fix is
   // to open once and ask every question of the descriptor, including the read.
   //
   // Nothing can interleave with a synchronous call in this process, so the behaviour cannot be staged
-  // from inside a test. What CAN be shown is the platform fact the fix rests on, and that the code
-  // actually rests on it. Both halves are here, and the second is a structural assertion precisely
-  // because no behaviour in this process can distinguish it.
+  // from inside a test. What this shows is the platform fact the fix rests on; that the code rests on it
+  // is the structural assertion in the test below, which is where it belongs.
   const racy = path.join(scratch, "racy.json");
   write(racy);
   const original = fs.readFileSync(racy, "utf8");
@@ -262,10 +291,6 @@ test("what is read is the file that was checked, not the name that was checked",
     fs.rmSync(racy, { force: true });
   }
 
-  const source = await fs.promises.readFile(new URL("../src/config.ts", import.meta.url), "utf8");
-  const body = source.slice(source.indexOf("export function readProtectedConfiguration"), source.indexOf("export function loadConfig"));
-  assert.match(body, /fs\.fstatSync\(handle\)/, "the file's own properties are measured on the descriptor");
-  assert.match(body, /return fs\.readFileSync\(handle, "utf8"\)/, "and the contents come from the same descriptor, not from a second lookup by name");
 });
 
 // The ownership cases above adapt: given root they really hand the fixture to another account, and given

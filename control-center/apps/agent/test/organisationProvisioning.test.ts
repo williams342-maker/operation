@@ -236,6 +236,22 @@ test("provisioning refuses a link anywhere in the configuration path", (t) => {
   }
 });
 
+test("provisioning refuses a path that ends in something other than a regular file", (t) => {
+  if (process.platform === "win32") return t.skip("named pipes are not POSIX FIFOs on Windows");
+  // The order has to be measure, then open. A FIFO opened for reading blocks until somebody writes to
+  // the other end, so a tool that opened first would hang the operator instead of refusing — remove the
+  // check and this test stops failing and starts never finishing, which is the same point made louder.
+  const { directory } = enrolledConfig();
+  const pipe = path.join(directory, "fifo.json");
+  execFileSync("mkfifo", ["-m", "600", pipe]);
+  try {
+    assert.throws(() => provision("--config", pipe, "--org", org), /not a regular file/);
+  } finally {
+    fs.rmSync(pipe, { force: true });
+  }
+  assert.throws(() => provision("--config", directory, "--org", org), /not a regular file/);
+});
+
 test("provisioning refuses a configuration under a directory anybody can write", (t) => {
   if (process.platform === "win32") return t.skip("POSIX mode bits do not describe a Windows ACL");
   // A writable parent means the file is renamed away and replaced whatever its own mode says, so the
