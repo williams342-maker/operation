@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import test from "node:test";
-import { deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
+import { observeInstalledAgent, deployPreparedRelease, establishRollbackBeforeMutation, inspectImmutableImage, inspectPlatformImages, parseDeploymentPlan, prepareReviewedRelease, verifyCompatibilityEvidence, verifyForgeEvidence, reverifyPreparedRelease, normalizeImageReference, isReleaseDirectoryFor, isReadinessEndpoint, detectForeignPortConflicts, measurePredecessorImages, readAdoptedContainerIds } from "../../scripts/trusted-deployer.mjs";
 
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const commit = "a".repeat(40); const tree = "b".repeat(40); const rollbackCommit = "c".repeat(40); const rollbackTree = "d".repeat(40);
@@ -21,6 +21,7 @@ function plan(root) { return {
   compatibilityEvidence: { path: path.join(root, "compatibility.json"), sha256: "c".repeat(64) },
   readiness: ["https://example.test/healthz", "https://example.test/", "https://admin.example.test/"],
   identityEndpoint: "https://example.test/healthz",
+  agent: "install",
 }; }
 
 const tarBlock = (name, type = "0", body = Buffer.alloc(0)) => {
@@ -1210,4 +1211,191 @@ test("containers belonging to another compose project do not satisfy the running
     acceptancePasses: 1, switchCurrent: () => { switched = true; },
   }), (error) => { assert.match(error.message, /was rolled back/); assert.match(error.message, /not exactly one running container of this project/); return true; });
   assert.equal(switched, false, "the release pointer never moved");
+});
+
+// --- Deploying without replacing the agent ---------------------------------------------------------
+//
+// The agent and the application are separate components that this tool alone couples. Every agent since
+// Forge landed refuses to start without owner-signed material at /etc/opsworkbench-forge, which the
+// target has never had, so activating it turned each control-center upgrade into a deployment that
+// failed at the last step and rolled itself back. The application services do not depend on it.
+
+test("a plan must say what it does to the agent, in so many words", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-plan-"));
+  const valid = plan(root);
+  assert.equal(parseDeploymentPlan(valid).agent, "install");
+  assert.equal(parseDeploymentPlan({ ...valid, agent: "unchanged" }).agent, "unchanged");
+  assert.throws(() => parseDeploymentPlan(without(valid, "agent")), /missing or unknown fields/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, agent: "" }), /installed or left unchanged/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, agent: true }), /installed or left unchanged/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, agent: "skip" }), /installed or left unchanged/);
+});
+
+test("an unchanged agent is never prepared, activated or rolled back", async () => {
+  const upState = {};
+  const { item } = releaseFixture();
+  item.agent = "unchanged";
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const agentCalls = [];
+  const result = await deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: (args) => { agentCalls.push(args[0]); },
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  });
+  assert.equal(result.status, "deployed", "the application still deploys");
+  assert.deepEqual(agentCalls, [], "the installer is not run at all, not even to take a snapshot");
+});
+
+test("the record says the agent was left alone, and what that costs", async () => {
+  // Read out of the record the DEPLOYMENT wrote, not one the test built: constructing the entry here and
+  // asserting it back is the feature agreeing with itself, and it left a mutation that emptied the entry
+  // completely alive.
+  const upState = {};
+  const observation = { release: "/opt/opsworkbench-agent/releases/0.0.9-operate", pointsAt: "/opt/opsworkbench-agent/releases/0.0.9-operate", problem: null, state: "active", observedAt: "2026-09-12T00:00:00.000Z" };
+  const { item } = releaseFixture();
+  item.agent = "unchanged";
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  await deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: () => assert.fail("nothing should touch the agent"),
+    observeAgent: () => observation,
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  });
+  const record = JSON.parse(fs.readFileSync(path.join(preparation.stage, "rollback-ready.json"), "utf8"));
+  const entry = record.imageEvidence.find((component) => component.role === "agent");
+  assert.ok(entry, "the record still has an agent entry");
+  assert.equal(entry.installed, false, "and it says the agent was not installed");
+  // A KNOWN observation, asserted verbatim. Checking that the fields merely exist let a fabricated
+  // constant through: a hard-coded release, state and timestamp passed every test while the real
+  // observation was never called at all.
+  assert.deepEqual(entry.retained, observation, "the record carries the observation that was taken, unchanged");
+  assert.match(entry.notCovered, /rehearsal/, "and names what the rehearsal therefore does not cover");
+  assert.equal(entry.rollbackSnapshot, undefined, "there is no rollback target for a component nothing touched");
+});
+
+test("an agent failure still rolls the deployment back when the plan does install one", async () => {
+  // The other half: `unchanged` must not be a way to lose the protection that exists for `install`.
+  const upState = {};
+  const { item } = releaseFixture();
+  assert.equal(item.agent, "install");
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const agentCalls = [];
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: (args) => { agentCalls.push(args[0]); if (args[0] === "activate") throw new Error("candidate agent did not produce its exact heartbeat"); },
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit: upState.up?.api === item.candidateImages.api ? commit : rollbackCommit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  }), /was rolled back/);
+  assert.deepEqual(agentCalls, ["prepare", "activate", "rollback"], "the snapshot, the attempt, and the recovery");
+});
+
+test("a deployment that fails with an unchanged agent does not try to roll one back", async () => {
+  // The success path was covered and the failure path was not, so replacing the rollback guard with
+  // `agentActivationAttempted || !installsAgent` — recovering from a snapshot that was never taken —
+  // passed all 57 tests.
+  const upState = {};
+  const { item } = releaseFixture();
+  item.agent = "unchanged";
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const agentCalls = [];
+  let rolledBack = false;
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: (args) => { agentCalls.push(args[0]); },
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); if (args[0] === "up" && env.OPSWORKBENCH_API_IMAGE === item.rollback.images.api) rolledBack = true; },
+    runningContainers: () => composeRunning(upState.up),
+    // The deployment fails at readiness, so the whole recovery path runs.
+    readiness: async () => rolledBack,
+    identity: async () => ({ source: "manifest", commit: rolledBack ? rollbackCommit : commit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  }), /was rolled back/);
+  assert.equal(rolledBack, true, "the application really was rolled back");
+  assert.deepEqual(agentCalls, [], "and the agent installer was still never called, in either direction");
+});
+
+test("the retained agent is measured, not described", () => {
+  // The record used to say the agent was "whatever this host already had", which reads like an
+  // observation and is not one: two hosts running different agents, or none, produced the same words.
+  const observed = observeInstalledAgent(path.join(os.tmpdir(), "no-such-agent-root"), () => "active");
+  assert.equal(observed.release, null, "an unreadable current release is recorded as unknown, not guessed");
+  assert.equal(observed.state, "active");
+  assert.match(observed.observedAt, /^\d{4}-\d{2}-\d{2}T/);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-root-"));
+  const release = path.join(root, "releases", "1.2.3-operate");
+  fs.mkdirSync(release, { recursive: true });
+  fs.symlinkSync(release, path.join(root, "current"), process.platform === "win32" ? "junction" : "dir");
+  const resolved = observeInstalledAgent(root, () => { const error = new Error("inactive"); error.stdout = "inactive\n"; throw error; });
+  assert.equal(resolved.release, fs.realpathSync(release), "the release current resolves to is what is recorded");
+  assert.equal(resolved.state, "inactive", "and a unit that is down reports its state rather than an error");
+  assert.equal(resolved.problem, null);
+
+  // Two shapes that resolved happily and were recorded as installed releases: a regular file, and a
+  // link to a directory outside the install root.
+  const fileRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-file-"));
+  fs.writeFileSync(path.join(fileRoot, "current"), "not a release");
+  const asFile = observeInstalledAgent(fileRoot, () => "active");
+  assert.equal(asFile.release, null, "a regular file is not a release");
+  assert.equal(asFile.pointsAt, fs.realpathSync(path.join(fileRoot, "current")), "but what it points at is still recorded");
+  assert.match(asFile.problem, /directory/);
+
+  const strayRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-stray-"));
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "agent-elsewhere-"));
+  fs.symlinkSync(elsewhere, path.join(strayRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  const stray = observeInstalledAgent(strayRoot, () => "active");
+  assert.equal(stray.release, null, "a pointer out of the install root is not a release either");
+  assert.equal(stray.pointsAt, fs.realpathSync(elsewhere));
+  assert.match(stray.problem, /inside the agent install root/);
+
+  // A root that is itself a symlink. Comparing a canonical target against an uncanonical root called
+  // a perfectly good release outside the install root.
+  const realRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-real-"));
+  const linkedRoot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agent-link-")), "root");
+  const linkedRelease = path.join(realRoot, "releases", "2.0.0-operate");
+  fs.mkdirSync(linkedRelease, { recursive: true });
+  fs.symlinkSync(linkedRelease, path.join(realRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  fs.symlinkSync(realRoot, linkedRoot, process.platform === "win32" ? "junction" : "dir");
+  const throughLink = observeInstalledAgent(linkedRoot, () => "active");
+  assert.equal(throughLink.problem, null, "a symlinked install root is still the install root");
+  assert.equal(throughLink.release, fs.realpathSync(linkedRelease));
+
+  // And the root itself is not a release: this recorded the whole install directory as the running
+  // release, with no problem noted.
+  const selfRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-self-"));
+  fs.symlinkSync(selfRoot, path.join(selfRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  const self = observeInstalledAgent(selfRoot, () => "active");
+  assert.equal(self.release, null, "the install root is not a release");
+  assert.match(self.problem, /inside the agent install root/);
+
+  // A child whose name merely STARTS with two dots is a child. The prefix test rejected it as traversal.
+  const dottedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-dotted-"));
+  const dotted = path.join(dottedRoot, "..retained");
+  fs.mkdirSync(dotted);
+  fs.symlinkSync(dotted, path.join(dottedRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  const dottedObservation = observeInstalledAgent(dottedRoot, () => "active");
+  assert.equal(dottedObservation.problem, null, "a directory named ..retained is inside the root, not above it");
+  assert.equal(dottedObservation.release, fs.realpathSync(dotted));
 });

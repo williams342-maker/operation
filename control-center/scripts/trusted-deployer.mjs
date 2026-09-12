@@ -57,7 +57,7 @@ export function parseDeploymentPlan(value) {
   // `attestationBundles` is OPTIONAL, so the key list depends on whether the plan carries it. Adding it
   // unconditionally would have refused every existing plan; leaving it out of the list would have let
   // an unknown key through the one check whose job is to refuse unknown keys.
-  const keys = ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness", "identityEndpoint"];
+  const keys = ["schemaVersion", "tag", "commit", "tree", "bundleDirectory", "stagingRoot", "releaseRoot", "composeProject", "candidateImages", "platform", "rollback", "forgeEvidence", "compatibilityEvidence", "readiness", "identityEndpoint", "agent"];
   if (value && typeof value === "object" && "attestationBundles" in value) keys.push("attestationBundles");
   exactKeys(value, keys, "deployment plan");
   if ("attestationBundles" in value && (typeof value.attestationBundles !== "string" || !path.isAbsolute(value.attestationBundles))) throw new Error("attestationBundles must be an absolute path");
@@ -134,6 +134,15 @@ export function parseDeploymentPlan(value) {
   // is. A deployment that cannot be told apart from the release it replaced is not verified, and an
   // optional check is one a plan can leave out on the day it matters.
   if (!isReadinessEndpoint(value.identityEndpoint)) throw new Error("an identity endpoint is required, HTTPS unless it is on loopback");
+  // REQUIRED AND EXPLICIT, with no default either way. Whether a deployment replaces the privileged
+  // component that executes tasks on this host is not something a plan should be able to leave unsaid,
+  // and it is not something a reader should have to infer from an absent field.
+  //
+  // `unchanged` exists because the two lines are only coupled by this tool. The agent in every release
+  // since Forge landed refuses to start without owner-signed material at /etc/opsworkbench-forge, which
+  // this target has never had, so activating it turned every control-center upgrade into a failed
+  // deployment that rolled itself back. The application services do not depend on that material.
+  if (value.agent !== "install" && value.agent !== "unchanged") throw new Error("the plan must say whether the agent is installed or left unchanged");
   return structuredClone(value);
 }
 
@@ -625,6 +634,58 @@ export function detectForeignPortConflicts(model, services, projectName, contain
  * Recording which container was chosen makes the choice auditable. Requiring it to be running, or to be
  * one a person deliberately stopped, is what makes it right.
  */
+/**
+ * The agent this host is running, as far as it can be seen from here: the release `current` resolves to
+ * and whether the service is up. Both are recorded as null when they cannot be read, because "not
+ * observed" and "nothing there" are different facts and a record that blurs them is worse than one that
+ * says neither.
+ */
+export function observeInstalledAgent(root = "/opt/opsworkbench-agent", isActive = () => execFileSync("systemctl", ["is-active", "opsworkbench-agent.service"], { encoding: "utf8" }).trim()) {
+  // A RELEASE, or an honest account of why it is not one. `realpathSync` resolves whatever is there:
+  // a regular file, or a link out to some unrelated directory, both came back looking like an installed
+  // release. What the record calls a release now has to be a directory inside the install root, and
+  // anything else is reported as the pointer it actually is, with the reason beside it.
+  let release = null;
+  let pointsAt = null;
+  let problem = null;
+  try {
+    const resolved = fs.realpathSync(path.join(root, "current"));
+    pointsAt = resolved;
+    // BOTH SIDES CANONICAL. Comparing a resolved target against an unresolved root called a perfectly
+    // good release "outside the install root" the moment the root itself was a symlink — and on a
+    // case-insensitive filesystem, the moment the casing differed.
+    let installRoot;
+    try {
+      installRoot = fs.realpathSync(root);
+    } catch {
+      installRoot = path.resolve(root);
+    }
+    const contained = (child, parent) => {
+      const relative = path.relative(parent, child);
+      // `startsWith("..")` also rejects a legitimate child named `..retained`. Only the traversal itself
+      // disqualifies: exactly `..`, or a path that begins by climbing.
+      return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+    };
+    const sameCase = process.platform === "win32" ? (value) => value.toLowerCase() : (value) => value;
+    if (!fs.statSync(resolved).isDirectory()) problem = "the current pointer does not resolve to a directory";
+    // STRICTLY BELOW the root, never the root itself: a `current` pointing at the install directory
+    // reported the whole install root as the running release, with no problem noted.
+    else if (!contained(sameCase(resolved), sameCase(installRoot))) problem = "the current pointer does not resolve to a release inside the agent install root";
+    else release = resolved;
+  } catch {
+    problem = "the current pointer could not be read";
+  }
+  let state;
+  try {
+    state = isActive();
+  } catch (error) {
+    // `systemctl is-active` exits non-zero for an inactive unit and still prints its state, which is the
+    // answer rather than a failure.
+    state = String(error?.stdout ?? "").trim() || null;
+  }
+  return { release, pointsAt, problem, state, observedAt: new Date().toISOString() };
+}
+
 export function measurePredecessorImages(model, services, projectName, containers, adoptedContainerIds = new Set()) {
   const measured = {};
   for (const service of services) {
@@ -943,11 +1004,16 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   // model a second time -- with the ROLLBACK image digests interpolated into it, which is the
   // combination the recovery path would actually run and is not otherwise exercised.
   compose(["config", "--quiet"], rollbackEnv, preparation.rollbackCompose);
+  const installsAgent = plan.agent === "install";
   const agentScript = path.join(preparation.controlCenter, "scripts", "install-reviewed-agent.sh");
+  // Required in the release either way: a bundle without it is malformed, and a later plan may install
+  // from this very tree. What `unchanged` skips is RUNNING it, not shipping it.
   if (!fs.existsSync(agentScript) || !fs.lstatSync(agentScript).isFile()) throw new Error("version-controlled reviewed agent installer is absent");
   const agentBackup = path.join(preparation.stage, "agent-rollback");
   const agentControl = hooks.agentControl ?? ((args) => execFileSync("bash", [agentScript, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
-  agentControl(["prepare", preparation.agentExtracted, agentBackup]);
+  // No snapshot when nothing is being replaced. Taking one would put a rollback target in the durable
+  // record for a component this deployment never touches, which is a record that lies quietly.
+  if (installsAgent) agentControl(["prepare", preparation.agentExtracted, agentBackup]);
   const priorCurrent = readCurrentRelease(plan.releaseRoot);
   if (priorCurrent.target !== path.resolve(plan.rollback.releaseDirectory)) throw new Error("verified rollback release is not the currently active predecessor");
   const rollbackEvidence = hostVerified(plan)
@@ -964,7 +1030,17 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
       notItsOwnCompose: "the rollback runs the candidate's compose file, because the rollback release carries none",
     }]
     : [];
-  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, ...rollbackEvidence, platformEvidence, { role: "agent", rollbackSnapshot: agentBackup }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
+  const rollbackReady = establishRollbackBeforeMutation(preparation, [...imageEvidence, ...rollbackEvidence, platformEvidence, installsAgent
+    ? { role: "agent", rollbackSnapshot: agentBackup }
+    // Written down rather than omitted. A reader of this record must be able to tell "the agent was not
+    // touched" from "nobody thought about the agent", and the limit belongs here too: the running agent
+    // may now predate the release being served, and the schema rehearsal covers the application against
+    // the database, not the agent against the application.
+    //
+    // WHAT IS RETAINED IS MEASURED, not described. The first version of this said the agent was
+    // "whatever this host already had", which reads like an observation and is not one: two hosts
+    // running different agents, or none at all, produced identical records.
+    : { role: "agent", installed: false, retained: (hooks.observeAgent ?? observeInstalledAgent)(), notCovered: "the rehearsal does not exercise an older agent against this release" }, { role: "release-pointer", currentLink: priorCurrent.link, rollbackTarget: priorCurrent.target }]);
   // OPSWORKBENCH_REVIEW_GATE_IMAGE is still exported even though the candidate Compose file no longer
   // reads it. It is not dead: the ROLLBACK file comes from the rollback release's own tree, and any
   // release cut before the gate was removed still declares that service with `:?` -- an unset variable
@@ -975,8 +1051,10 @@ export async function deployPreparedRelease(preparation, hooks = {}) {
   try {
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", ...applicationServices], candidateEnv, preparation.compose);
     compose(["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "edge"], candidateEnv, preparation.compose);
-    agentActivationAttempted = true;
-    agentControl(["activate", preparation.agentExtracted, plan.tag, plan.commit, agentBackup]);
+    if (installsAgent) {
+      agentActivationAttempted = true;
+      agentControl(["activate", preparation.agentExtracted, plan.tag, plan.commit, agentBackup]);
+    }
     for (let pass = 0; pass < (hooks.acceptancePasses ?? 3); pass += 1) {
       for (const url of plan.readiness) if (!await ready(url)) throw new Error(`readiness refused: ${url}`);
       if (hooks.wait) await hooks.wait();

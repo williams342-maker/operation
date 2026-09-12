@@ -82,3 +82,24 @@ service confidently report the version it had just failed to become.
 
 A live rollback release is never written to. Its manifest must already be present and match the verified
 bundle byte for byte, which is also what binds that directory to the release the plan says it is.
+
+## Deploying without replacing the agent
+
+A plan must say, in so many words, whether it installs the candidate's agent (`agent: "install"`) or
+leaves the one already running alone (`agent: "unchanged"`). There is no default: whether a deployment
+replaces the privileged component that executes tasks on this host is not something a plan should be
+able to leave unsaid.
+
+`unchanged` exists because the two lines are coupled only by this tool. Every agent built since Forge
+landed calls `validateForgeRuntimeIdentity` at startup and refuses to run without owner-signed material
+in `/etc/opsworkbench-forge`, which this target has never had. Activating it therefore turned each
+control-center upgrade into a deployment that failed at the last step and rolled itself back, twice. The
+api, web and admin services do not depend on that material.
+
+Under `unchanged` the installer is not run at all — not even to take a snapshot, because a rollback
+target recorded for a component nothing touches is a record that lies quietly. The rollback-ready record
+carries an agent entry saying it was not installed, a measurement of what is retained — the release
+`current` resolves to, but only when that is a directory inside the install root, otherwise the pointer
+and the reason it is not a release, together with whether the unit is up — and
+the limit that follows: the schema rehearsal exercises the application against the database, not an older
+agent against a newer release.
