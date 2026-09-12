@@ -1368,5 +1368,25 @@ test("the retained agent is measured, not described", () => {
   const stray = observeInstalledAgent(strayRoot, () => "active");
   assert.equal(stray.release, null, "a pointer out of the install root is not a release either");
   assert.equal(stray.pointsAt, fs.realpathSync(elsewhere));
-  assert.match(stray.problem, /outside the agent install root/);
+  assert.match(stray.problem, /inside the agent install root/);
+
+  // A root that is itself a symlink. Comparing a canonical target against an uncanonical root called
+  // a perfectly good release outside the install root.
+  const realRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-real-"));
+  const linkedRoot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agent-link-")), "root");
+  const linkedRelease = path.join(realRoot, "releases", "2.0.0-operate");
+  fs.mkdirSync(linkedRelease, { recursive: true });
+  fs.symlinkSync(linkedRelease, path.join(realRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  fs.symlinkSync(realRoot, linkedRoot, process.platform === "win32" ? "junction" : "dir");
+  const throughLink = observeInstalledAgent(linkedRoot, () => "active");
+  assert.equal(throughLink.problem, null, "a symlinked install root is still the install root");
+  assert.equal(throughLink.release, fs.realpathSync(linkedRelease));
+
+  // And the root itself is not a release: this recorded the whole install directory as the running
+  // release, with no problem noted.
+  const selfRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-self-"));
+  fs.symlinkSync(selfRoot, path.join(selfRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  const self = observeInstalledAgent(selfRoot, () => "active");
+  assert.equal(self.release, null, "the install root is not a release");
+  assert.match(self.problem, /inside the agent install root/);
 });

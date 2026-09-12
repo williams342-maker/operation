@@ -651,9 +651,24 @@ export function observeInstalledAgent(root = "/opt/opsworkbench-agent", isActive
   try {
     const resolved = fs.realpathSync(path.join(root, "current"));
     pointsAt = resolved;
-    const installRoot = path.resolve(root);
+    // BOTH SIDES CANONICAL. Comparing a resolved target against an unresolved root called a perfectly
+    // good release "outside the install root" the moment the root itself was a symlink — and on a
+    // case-insensitive filesystem, the moment the casing differed.
+    let installRoot;
+    try {
+      installRoot = fs.realpathSync(root);
+    } catch {
+      installRoot = path.resolve(root);
+    }
+    const contained = (child, parent) => {
+      const relative = path.relative(parent, child);
+      return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+    };
+    const sameCase = process.platform === "win32" ? (value) => value.toLowerCase() : (value) => value;
     if (!fs.statSync(resolved).isDirectory()) problem = "the current pointer does not resolve to a directory";
-    else if (resolved !== installRoot && !resolved.startsWith(`${installRoot}${path.sep}`)) problem = "the current pointer resolves outside the agent install root";
+    // STRICTLY BELOW the root, never the root itself: a `current` pointing at the install directory
+    // reported the whole install root as the running release, with no problem noted.
+    else if (!contained(sameCase(resolved), sameCase(installRoot))) problem = "the current pointer does not resolve to a release inside the agent install root";
     else release = resolved;
   } catch {
     problem = "the current pointer could not be read";
