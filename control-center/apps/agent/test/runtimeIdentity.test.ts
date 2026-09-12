@@ -9,7 +9,7 @@ import type { AgentConfig } from "../src/config.js";
 // somewhere harmless BEFORE it is loaded. A static import would run the real thing against this machine.
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "agent-identity-"));
 const configFile = path.join(scratch, "agent.local.json");
-fs.writeFileSync(configFile, JSON.stringify({ controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32) }));
+fs.writeFileSync(configFile, JSON.stringify({ controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32) }), { mode: 0o600 });
 process.env.CONTROL_CENTER_AGENT_CONFIG = configFile;
 process.env.NODE_ENV = "test";
 const { validateForgeRuntimeIdentity } = await import("../src/agent.js");

@@ -15,7 +15,7 @@ import test, { mock } from "node:test";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "agent-poll-identity-"));
 const configFile = path.join(scratch, "agent.local.json");
 const enrolled = { controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32) };
-fs.writeFileSync(configFile, JSON.stringify(enrolled));
+fs.writeFileSync(configFile, JSON.stringify(enrolled), { mode: 0o600 });
 process.env.CONTROL_CENTER_AGENT_CONFIG = configFile;
 process.env.NODE_ENV = "test";
 
@@ -36,7 +36,7 @@ const { pollOnce } = await import("../src/agent.js");
 test("a poll response cannot establish either Forge trust identifier", async () => {
   // `pollOnce` loads its own configuration from the file this test points it at, so the file IS the
   // subject: if a response could establish an identity, this is where it would land.
-  fs.writeFileSync(configFile, JSON.stringify(enrolled));
+  fs.writeFileSync(configFile, JSON.stringify(enrolled), { mode: 0o600 });
   const before = fs.readFileSync(configFile, "utf8");
 
   await pollOnce();
@@ -51,7 +51,7 @@ test("a poll response cannot establish either Forge trust identifier", async () 
 test("a poll response cannot replace an identifier the runtime already has", async () => {
   const org = "6a5dab47776e3028ac9b604b";
   const server = "6a5f685ff8195a8813879bd7";
-  fs.writeFileSync(configFile, JSON.stringify({ ...enrolled, orgId: org, serverId: server }));
+  fs.writeFileSync(configFile, JSON.stringify({ ...enrolled, orgId: org, serverId: server }), { mode: 0o600 });
   const before = fs.readFileSync(configFile, "utf8");
 
   await pollOnce();

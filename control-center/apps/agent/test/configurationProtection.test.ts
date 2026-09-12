@@ -17,7 +17,13 @@ import test from "node:test";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "agent-protection-"));
 const configFile = path.join(scratch, "agent.local.json");
 const enrolled = { controlCenterUrl: "https://control.test", agentId: "agent-1", agentSecret: "s".repeat(32), orgId: "6a5dab47776e3028ac9b604b", serverId: "6a5f685ff8195a8813879bd7" };
-const write = (file: string, mode = 0o600) => { fs.writeFileSync(file, `${JSON.stringify(enrolled, null, 2)}\n`, { mode }); fs.chmodSync(file, mode); };
+// Widened before writing, because a fixture left at 0400 cannot be rewritten by the account that owns it
+// — only by root, which is why this passed locally and failed on an unprivileged runner.
+const write = (file: string, mode = 0o600) => {
+  if (fs.existsSync(file)) fs.chmodSync(file, 0o600);
+  fs.writeFileSync(file, JSON.stringify(enrolled, null, 2));
+  fs.chmodSync(file, mode);
+};
 write(configFile);
 
 process.env.CONTROL_CENTER_AGENT_CONFIG = configFile;
