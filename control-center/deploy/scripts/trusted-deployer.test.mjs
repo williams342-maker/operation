@@ -1389,4 +1389,13 @@ test("the retained agent is measured, not described", () => {
   const self = observeInstalledAgent(selfRoot, () => "active");
   assert.equal(self.release, null, "the install root is not a release");
   assert.match(self.problem, /inside the agent install root/);
+
+  // A child whose name merely STARTS with two dots is a child. The prefix test rejected it as traversal.
+  const dottedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-dotted-"));
+  const dotted = path.join(dottedRoot, "..retained");
+  fs.mkdirSync(dotted);
+  fs.symlinkSync(dotted, path.join(dottedRoot, "current"), process.platform === "win32" ? "junction" : "dir");
+  const dottedObservation = observeInstalledAgent(dottedRoot, () => "active");
+  assert.equal(dottedObservation.problem, null, "a directory named ..retained is inside the root, not above it");
+  assert.equal(dottedObservation.release, fs.realpathSync(dotted));
 });

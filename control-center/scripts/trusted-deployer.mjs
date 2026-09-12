@@ -662,7 +662,9 @@ export function observeInstalledAgent(root = "/opt/opsworkbench-agent", isActive
     }
     const contained = (child, parent) => {
       const relative = path.relative(parent, child);
-      return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+      // `startsWith("..")` also rejects a legitimate child named `..retained`. Only the traversal itself
+      // disqualifies: exactly `..`, or a path that begins by climbing.
+      return relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
     };
     const sameCase = process.platform === "win32" ? (value) => value.toLowerCase() : (value) => value;
     if (!fs.statSync(resolved).isDirectory()) problem = "the current pointer does not resolve to a directory";
