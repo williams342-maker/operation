@@ -94,6 +94,8 @@ jobs:
       # api +1: the validator knowing CONTROL_CENTER_RELEASE_MANIFEST, and diagnosing its absence.
       # agent +5: the runtime learning which organisation it belongs to, which nothing ever wrote, so the
       # Forge identity check could not pass on any host.
+      # agent +7: condition 1 of the security review's CONDITIONAL GO -- an agent-release rollback must
+      # verify the identity it restores rather than trust a snapshot that predates the provisioning.
       # agent +1: the eleventh round -- the tool would provision into something that was not a
       # configuration and then refuse to roll itself back.
       # agent +2: the tenth round -- a named pipe left where the backup goes hung the tool and orphaned
@@ -124,7 +126,7 @@ jobs:
       # can tell a restored mode from an inherited one, and the C1 line terminators the control-character
       # sweep used to walk past. The skip count does NOT move: the one case that would have needed root is
       # written down as a comment in the suite instead of sitting there as a test that never runs.
-      CI_EXPECTED_TESTS: "510"
+      CI_EXPECTED_TESTS: "517"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -244,8 +246,8 @@ jobs:
       #                   provisioning that lands mid-request, the configuration proved protected rather
       #                   than assumed, a umask fixture that discriminates a restored mode, and the
       #                   non-ASCII line terminators the control-character sweep used to walk past
-      CI_EXPECTED_TEST_SUITES: "agent=223,api=134,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "804"
+      CI_EXPECTED_TEST_SUITES: "agent=230,api=134,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "811"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

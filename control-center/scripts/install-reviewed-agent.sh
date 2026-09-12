@@ -37,12 +37,43 @@ probe_credentials_for() {
   printf '%s\n' "${built[@]}"
 }
 
+# THE IDENTITY HALF OF A ROLLBACK, as a function and a verb so a test can run the real thing.
+# Security review made verifying it a condition: a rollback must not trust a snapshot that may predate
+# the Forge provisioning. An identifier that is live survives; one never set is not invented; a
+# disagreement resolves in favour of what was live, because the snapshot is not current truth.
+reconcile_identity() {
+  node -e '
+    const fs = require("fs"), file = process.argv[1], liveOrg = process.argv[2] || "", liveServer = process.argv[3] || "";
+    const stat = fs.statSync(file);
+    const config = JSON.parse(fs.readFileSync(file, "utf8"));
+    const next = { ...config, orgId: liveOrg || config.orgId || "", serverId: liveServer || config.serverId || "" };
+    const changed = ["orgId", "serverId"].filter((field) => (config[field] || "") !== next[field]);
+    if (!changed.length) { console.log("reviewed agent rollback: restored identity matches what was live; nothing carried forward"); process.exit(0); }
+    const pending = file + ".identity-pending";
+    fs.writeFileSync(pending, JSON.stringify(next, null, 2) + String.fromCharCode(10), { mode: stat.mode & 0o777 });
+    fs.chmodSync(pending, stat.mode & 0o777);
+    fs.chownSync(pending, stat.uid, stat.gid);
+    fs.renameSync(pending, file);
+    const after = JSON.parse(fs.readFileSync(file, "utf8"));
+    for (const field of changed) if (after[field] !== next[field]) { console.error("reviewed agent rollback: could not restore " + field); process.exit(1); }
+    console.log("reviewed agent rollback: the snapshot was stale for " + changed.join(" and ") + "; carried the live value forward");
+  ' "$1" "${2:-}" "${3:-}"
+}
+
 if [ "$command" = probe-credentials ]; then
   probe_user="${1:-}"; probe_group="${2:-}"
   [ -n "$probe_user" ] && [ -n "$probe_group" ] || fail "usage: probe-credentials <user> <group>"
   id -u "$probe_user" >/dev/null 2>&1 || fail "no such account: $probe_user"
   getent group "$probe_group" >/dev/null || fail "no such group: $probe_group"
   probe_credentials_for "$probe_user" "$probe_group"
+  exit 0
+fi
+
+if [ "$command" = reconcile-identity ]; then
+  target_config="${1:-}"
+  [ -n "$target_config" ] || fail "usage: reconcile-identity <config> [liveOrgId] [liveServerId]"
+  [ -f "$target_config" ] || fail "no configuration at $target_config"
+  reconcile_identity "$target_config" "${2:-}" "${3:-}"
   exit 0
 fi
 
@@ -168,19 +199,28 @@ if [ "$command" = rollback ]; then
   case "$prior" in "$install_root"/releases/*|"$install_root"/source) ;; *) fail "rollback target escaped the agent install root" ;; esac
   [ -d "$prior" ] && [ -s "$backup/agent.json" ] || fail "agent rollback target is unavailable"
   printf '%s  %s\n' "$(cat "$backup/prior-agent.sha256")" "$prior/control-center/apps/agent/dist/agent.js" | sha256sum -c - >/dev/null || fail "rollback agent identity changed"
+  # THE LIVE IDENTITY, READ BEFORE THE SNAPSHOT LANDS ON TOP OF IT. Security review made this a condition
+  # of the Forge go-ahead: a rollback must VERIFY the restored identity rather than trust a snapshot that
+  # may predate the provisioning. The snapshot is taken at activation; the Forge organisation is written
+  # separately, afterwards, by scripts/provision-agent-organisation.mjs. A release rollback is about the
+  # RELEASE, so an identifier that is live must survive it.
+  live_identity="$(node -e 'const fs=require("fs");try{const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(`${c.orgId||""} ${c.serverId||""}`)}catch{process.stdout.write(" ")}' "$config_root/agent.json")"
+  live_org="${live_identity%% *}"; live_server="${live_identity##* }"
+
   cp -a -- "$backup/agent.json" "$config_root/agent.json.rollback-pending"; mv -fT -- "$config_root/agent.json.rollback-pending" "$config_root/agent.json"
+
+  # AND CARRIED FORWARD IF THE SNAPSHOT LOST IT, atomically and with the file's own owner and mode. An
+  # identifier that was live must survive; one that was never set must not be invented; a disagreement is
+  # resolved in favour of what was live, because that is current truth and the snapshot is not. This runs
+  # BEFORE the service is restarted, so a host that cannot be made whole fails here rather than looking
+  # activated and refusing to start.
+  reconcile_identity "$config_root/agent.json" "$live_org" "$live_server" || fail "rollback could not reconcile the agent identity; the service has NOT been restarted"
   for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do [ ! -f "$backup/units/$unit" ] || install -o root -g root -m 0644 "$backup/units/$unit" "$unit_root/$unit"; done
   pending="$install_root/current.reviewed-rollback-$$"; trap 'rm -f -- "$pending"' EXIT
   ln -s -- "$prior" "$pending"; mv -Tf -- "$pending" "$install_root/current"; trap - EXIT
 
-  # THE SNAPSHOT MAY PREDATE A PROVISIONING. It is taken at activation, and the Forge organisation is
-  # written into agent.json separately by scripts/provision-agent-organisation.mjs. Restoring a snapshot
-  # from before that step removes the organisation, and the agent then refuses to start — fail-closed,
-  # but only if somebody knows to look. This is not a locking problem and a lock would not fix it: the
-  # snapshot was already stale when it was taken. So the operator is told here, where they are looking.
-  echo "reviewed agent rollback: agent.json was restored from the activation snapshot."
-  echo "  If this host was Forge-provisioned after that activation, the organisation id is now gone."
-  echo "  Re-provision and confirm it before restarting the service."
+  echo "reviewed agent rollback: agent.json was restored from the activation snapshot, with the live"
+  echo "  Forge identity verified against it. Confirm the organisation id before relying on this host."
   systemctl daemon-reload; systemctl restart "$service"; systemctl is-active --quiet "$service" || fail "rollback agent did not return"
   exit 0
 fi
