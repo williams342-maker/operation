@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test, { mock } from "node:test";
-import type { AgentConfig } from "../src/config.js";
 
 // THE CONTROL PLANE GETS NO SAY IN WHO THIS RUNTIME IS.
 //
@@ -25,7 +24,7 @@ mock.module(new URL("../src/client.ts", import.meta.url).href, {
   namedExports: {
     machineAccessHeaders: () => ({}),
     enroll: async () => { throw new Error("this test never enrols"); },
-    signedPost: async (_config: AgentConfig, endpoint: string) => {
+    signedPost: async (_config: unknown, endpoint: string) => {
       answered.push(endpoint);
       return { orgId: "9".repeat(24), serverId: "8".repeat(24), tasks: [] };
     },
@@ -35,34 +34,30 @@ mock.module(new URL("../src/client.ts", import.meta.url).href, {
 const { pollOnce } = await import("../src/agent.js");
 
 test("a poll response cannot establish either Forge trust identifier", async () => {
+  // `pollOnce` loads its own configuration from the file this test points it at, so the file IS the
+  // subject: if a response could establish an identity, this is where it would land.
+  fs.writeFileSync(configFile, JSON.stringify(enrolled));
   const before = fs.readFileSync(configFile, "utf8");
-  const config = {
-    ...enrolled, orgId: "", serverId: "", installationId: "", requestedSlug: "",
-    keyProtocolVersion: "agent-v1", agentVersion: "0.1.0", protocolVersion: "task-v1",
-    packageType: "tar", releaseChannel: "stable", allowedRoots: [], pollIntervalSeconds: 30, mongoChecks: {},
-  } as unknown as AgentConfig;
 
-  await pollOnce(config);
+  await pollOnce();
 
-  assert.ok(answered.includes("/api/agent/poll"), "the poll really happened, so the answer really was available to be believed");
-  assert.equal(config.orgId, "", "and it established no organisation");
-  assert.equal(config.serverId, "", "nor a server");
-  assert.equal(fs.readFileSync(configFile, "utf8"), before, "and wrote nothing to the configuration file");
+  assert.ok(answered.includes("/api/agent/poll"), "the poll really happened, so the answer really was there to be believed");
+  const after = JSON.parse(fs.readFileSync(configFile, "utf8"));
+  assert.equal(after.orgId, undefined, "no organisation was established");
+  assert.equal(after.serverId, undefined, "nor a server");
+  assert.equal(fs.readFileSync(configFile, "utf8"), before, "the configuration file is untouched");
 });
 
 test("a poll response cannot replace an identifier the runtime already has", async () => {
   const org = "6a5dab47776e3028ac9b604b";
   const server = "6a5f685ff8195a8813879bd7";
+  fs.writeFileSync(configFile, JSON.stringify({ ...enrolled, orgId: org, serverId: server }));
   const before = fs.readFileSync(configFile, "utf8");
-  const config = {
-    ...enrolled, orgId: org, serverId: server, installationId: "", requestedSlug: "",
-    keyProtocolVersion: "agent-v1", agentVersion: "0.1.0", protocolVersion: "task-v1",
-    packageType: "tar", releaseChannel: "stable", allowedRoots: [], pollIntervalSeconds: 30, mongoChecks: {},
-  } as unknown as AgentConfig;
 
-  await pollOnce(config);
+  await pollOnce();
 
-  assert.equal(config.orgId, org, "the established organisation is untouched");
-  assert.equal(config.serverId, server);
+  const after = JSON.parse(fs.readFileSync(configFile, "utf8"));
+  assert.equal(after.orgId, org, "the established organisation is untouched, whatever the answer said");
+  assert.equal(after.serverId, server);
   assert.equal(fs.readFileSync(configFile, "utf8"), before);
 });
