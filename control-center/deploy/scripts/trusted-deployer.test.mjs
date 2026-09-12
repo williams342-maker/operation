@@ -21,6 +21,7 @@ function plan(root) { return {
   compatibilityEvidence: { path: path.join(root, "compatibility.json"), sha256: "c".repeat(64) },
   readiness: ["https://example.test/healthz", "https://example.test/", "https://admin.example.test/"],
   identityEndpoint: "https://example.test/healthz",
+  agent: "install",
 }; }
 
 const tarBlock = (name, type = "0", body = Buffer.alloc(0)) => {
@@ -1210,4 +1211,95 @@ test("containers belonging to another compose project do not satisfy the running
     acceptancePasses: 1, switchCurrent: () => { switched = true; },
   }), (error) => { assert.match(error.message, /was rolled back/); assert.match(error.message, /not exactly one running container of this project/); return true; });
   assert.equal(switched, false, "the release pointer never moved");
+});
+
+// --- Deploying without replacing the agent ---------------------------------------------------------
+//
+// The agent and the application are separate components that this tool alone couples. Every agent since
+// Forge landed refuses to start without owner-signed material at /etc/opsworkbench-forge, which the
+// target has never had, so activating it turned each control-center upgrade into a deployment that
+// failed at the last step and rolled itself back. The application services do not depend on it.
+
+test("a plan must say what it does to the agent, in so many words", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-plan-"));
+  const valid = plan(root);
+  assert.equal(parseDeploymentPlan(valid).agent, "install");
+  assert.equal(parseDeploymentPlan({ ...valid, agent: "unchanged" }).agent, "unchanged");
+  assert.throws(() => parseDeploymentPlan(without(valid, "agent")), /missing or unknown fields/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, agent: "" }), /installed or left unchanged/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, agent: true }), /installed or left unchanged/);
+  assert.throws(() => parseDeploymentPlan({ ...valid, agent: "skip" }), /installed or left unchanged/);
+});
+
+test("an unchanged agent is never prepared, activated or rolled back", async () => {
+  const upState = {};
+  const { item } = releaseFixture();
+  item.agent = "unchanged";
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const agentCalls = [];
+  const result = await deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: (args) => { agentCalls.push(args[0]); },
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  });
+  assert.equal(result.status, "deployed", "the application still deploys");
+  assert.deepEqual(agentCalls, [], "the installer is not run at all, not even to take a snapshot");
+});
+
+test("the record says the agent was left alone, and what that costs", async () => {
+  // Read out of the record the DEPLOYMENT wrote, not one the test built: constructing the entry here and
+  // asserting it back is the feature agreeing with itself, and it left a mutation that emptied the entry
+  // completely alive.
+  const upState = {};
+  const { item } = releaseFixture();
+  item.agent = "unchanged";
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  await deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: () => assert.fail("nothing should touch the agent"),
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  });
+  const record = JSON.parse(fs.readFileSync(path.join(preparation.stage, "rollback-ready.json"), "utf8"));
+  const entry = record.imageEvidence.find((component) => component.role === "agent");
+  assert.ok(entry, "the record still has an agent entry");
+  assert.equal(entry.installed, false, "and it says the agent was not installed");
+  assert.ok(entry.running, "and what is running instead");
+  assert.match(entry.notCovered, /rehearsal/, "and names what the rehearsal therefore does not cover");
+  assert.equal(entry.rollbackSnapshot, undefined, "there is no rollback target for a component nothing touched");
+});
+
+test("an agent failure still rolls the deployment back when the plan does install one", async () => {
+  // The other half: `unchanged` must not be a way to lose the protection that exists for `install`.
+  const upState = {};
+  const { item } = releaseFixture();
+  assert.equal(item.agent, "install");
+  const preparation = prepareReviewedRelease(item, { verifyAttestation: () => ({ verified: true }) });
+  fs.symlinkSync(preparation.rollbackControlCenter, path.join(path.dirname(item.releaseRoot), "current"), process.platform === "win32" ? "junction" : "dir");
+  const hooks = identityImageHooks(item);
+  const agentCalls = [];
+  await assert.rejects(() => deployPreparedRelease(preparation, {
+    verifyAttestation: () => ({ verified: true }), verifyForge: async () => ({ ok: true }),
+    verifyCompatibility: hooks.verifyCompatibility, images: hooks.images, verifyPlatformImages: hooks.verifyPlatformImages,
+    agentControl: (args) => { agentCalls.push(args[0]); if (args[0] === "activate") throw new Error("candidate agent did not produce its exact heartbeat"); },
+    compose: (args, env) => { if (isModelQuery(args)) return resolvedModelJson; recordUp(upState)(args, env); },
+    runningContainers: () => composeRunning(upState.up),
+    readiness: async () => true,
+    identity: async () => ({ source: "manifest", commit: upState.up?.api === item.candidateImages.api ? commit : rollbackCommit }),
+    acceptancePasses: 1, switchCurrent: () => {},
+  }), /was rolled back/);
+  assert.deepEqual(agentCalls, ["prepare", "activate", "rollback"], "the snapshot, the attempt, and the recovery");
 });
