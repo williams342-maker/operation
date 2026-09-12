@@ -37,6 +37,15 @@ test("the variable the service reports its identity from is known, and its absen
   assert.equal(warning?.variable, "CONTROL_CENTER_RELEASE_MANIFEST");
   assert.equal(absent.valid, true, "and it does not fail startup on its own");
 
+  // Blank is not absent. The resolver reads any non-empty value as a configured path, so whitespace
+  // makes the identity unreadable rather than self-declared, and saying "none is configured" would send
+  // a reader looking for a missing variable that is right there.
+  const blank = validateEnvironment({ ...production, CONTROL_CENTER_RELEASE_MANIFEST: "   " });
+  assert.equal(blank.diagnostics.some((item) => item.code === "unverified_identity"), false);
+  assert.equal(blank.diagnostics.find((item) => item.code === "blank_release_manifest")?.level, "warning");
+  const empty = validateEnvironment({ ...production, CONTROL_CENTER_RELEASE_MANIFEST: "" });
+  assert.equal(empty.diagnostics.some((item) => item.code === "unverified_identity"), true, "an empty value is no manifest at all");
+
   // Development is not production, and must not be nagged about a release it does not have.
   const development = validateEnvironment({ NODE_ENV: "development" });
   assert.equal(development.diagnostics.some((item) => item.code === "unverified_identity"), false);

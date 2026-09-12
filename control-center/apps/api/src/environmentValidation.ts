@@ -24,7 +24,16 @@ export function validateEnvironment(env: NodeJS.ProcessEnv = process.env): Envir
   // BUILD_VERSION and GIT_COMMIT -- values typed at build time rather than measured -- and this host
   // served `phase2-staging` that way for months while running something else. A warning rather than an
   // error: development and a bare staging run legitimately have no release manifest to point at.
-  if (production && !present(env, "CONTROL_CENTER_RELEASE_MANIFEST")) diagnostics.push({ level: "warning", code: "unverified_identity", variable: "CONTROL_CENTER_RELEASE_MANIFEST", message: "No release manifest is configured, so the reported version and commit are self-declared rather than verified." });
+  // Two different states, because the identity resolver treats them differently and a diagnostic that
+  // blurs them sends a reader looking in the wrong place. It branches on the raw value: unset or empty
+  // means no manifest, and the endpoint falls back to BUILD_VERSION and GIT_COMMIT. Anything else is a
+  // configured path, INCLUDING one that is only whitespace, and a manifest it cannot read makes the
+  // identity `unverified` with an unknown version rather than a self-declared one.
+  if (production) {
+    const manifest = env.CONTROL_CENTER_RELEASE_MANIFEST;
+    if (!manifest) diagnostics.push({ level: "warning", code: "unverified_identity", variable: "CONTROL_CENTER_RELEASE_MANIFEST", message: "No release manifest is configured, so the reported version and commit are self-declared rather than verified." });
+    else if (!manifest.trim()) diagnostics.push({ level: "warning", code: "blank_release_manifest", variable: "CONTROL_CENTER_RELEASE_MANIFEST", message: "The release manifest path is blank, which reads as configured and unreadable: the reported identity will be unknown." });
+  }
   if (production && env.CONTROL_CENTER_BOOTSTRAP_MODE === "manual") diagnostics.push({ level: "warning", code: "bootstrap_open", variable: "CONTROL_CENTER_BOOTSTRAP_MODE", message: "Manual bootstrap must be disabled immediately after the first administrator is created." });
   for (const name of ["CONTROL_CENTER_SESSION_SECRET", "CONTROL_CENTER_CSRF_SECRET"]) if (production && present(env, name) && (env[name]!.length < 32 || /change-me|default|example/i.test(env[name]!))) diagnostics.push({ level: "error", code: "unsafe_secret", variable: name, message: `${name} must be a non-default value of at least 32 characters.` });
   const enabled = env.AI_ASSISTANT_ENABLED === "true"; const provider = env.AI_DEFAULT_PROVIDER || env.AI_PROVIDER || ""; const model = env.AI_DEFAULT_MODEL || env.AI_MODEL || ""; const allowedProviders = list(env.AI_ALLOWED_PROVIDERS || provider); const allowedModels = list(env.AI_ALLOWED_MODELS || model);
