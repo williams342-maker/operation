@@ -21,3 +21,23 @@ test("OpenAI readiness requires an allowlisted model and credential", () => { co
 test("Anthropic readiness detects provider-specific credentials", () => { const base = { ...production, AI_ASSISTANT_ENABLED: "true", AI_DEFAULT_PROVIDER: "anthropic", AI_DEFAULT_MODEL: "claude-test", AI_ALLOWED_PROVIDERS: "anthropic", AI_ALLOWED_MODELS: "claude-test" }; assert.equal(validateEnvironment(base).ai.state, "invalid"); assert.equal(validateEnvironment({ ...base, ANTHROPIC_API_KEY: "present" }).ai.state, "ready"); });
 test("mock readiness needs no credential but remains explicitly enabled", () => { const result = validateEnvironment({ ...production, AI_ASSISTANT_ENABLED: "true", AI_DEFAULT_PROVIDER: "mock", AI_DEFAULT_MODEL: "deterministic-v1", AI_ALLOWED_PROVIDERS: "mock", AI_ALLOWED_MODELS: "deterministic-v1" }); assert.equal(result.ai.state, "ready"); assert.equal(result.ai.credentialPresent, true); });
 test("disabled AI never becomes ready merely because credentials exist", () => { const result = validateEnvironment({ ...production, AI_DEFAULT_PROVIDER: "openai", AI_DEFAULT_MODEL: "gpt-test", OPENAI_API_KEY: "present" }); assert.equal(result.ai.state, "disabled"); assert.ok(result.diagnostics.some((item) => item.code === "ai_disabled_configuration_present")); });
+
+test("the variable the service reports its identity from is known, and its absence is diagnosed", () => {
+  // It was flagged as an unknown variable on the first deployment that used it, in the log line whose
+  // job is to say the environment is sound. And the other direction matters more: with no manifest
+  // configured, /healthz reports values typed at build time, which is how this host served
+  // `phase2-staging` for months while running something else.
+  const configured = validateEnvironment({ ...production, CONTROL_CENTER_RELEASE_MANIFEST: "/run/opsworkbench-release/manifest.json" });
+  assert.equal(configured.diagnostics.some((item) => item.variable === "CONTROL_CENTER_RELEASE_MANIFEST" && item.code === "unknown_variable"), false);
+  assert.equal(configured.diagnostics.some((item) => item.code === "unverified_identity"), false);
+
+  const absent = validateEnvironment({ ...production });
+  const warning = absent.diagnostics.find((item) => item.code === "unverified_identity");
+  assert.equal(warning?.level, "warning", "a warning, not an error: development has no manifest to point at");
+  assert.equal(warning?.variable, "CONTROL_CENTER_RELEASE_MANIFEST");
+  assert.equal(absent.valid, true, "and it does not fail startup on its own");
+
+  // Development is not production, and must not be nagged about a release it does not have.
+  const development = validateEnvironment({ NODE_ENV: "development" });
+  assert.equal(development.diagnostics.some((item) => item.code === "unverified_identity"), false);
+});
