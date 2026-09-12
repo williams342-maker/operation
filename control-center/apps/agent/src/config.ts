@@ -111,6 +111,13 @@ export function saveConfig(config: AgentConfig) {
     fs.closeSync(handle);
     handle = undefined;
     fs.renameSync(pending, configPath);
+    // The rename itself needs the DIRECTORY entry on disk to survive a power loss; fsyncing the file
+    // only guarantees its contents. Windows cannot open a directory for reading, so it can never do
+    // this, and refusing there would be refusing over a platform limitation rather than a failure.
+    if (process.platform !== "win32") {
+      const directory = fs.openSync(path.dirname(configPath), "r");
+      try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
+    }
   } catch (error) {
     if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the write failure is the one worth reporting */ } }
     try { fs.rmSync(pending, { force: true }); } catch { /* as above */ }

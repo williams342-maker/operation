@@ -159,8 +159,13 @@ test("the configuration file survives a write that fails half way", (t) => {
   // next start failed in loadConfig, losing the credential along with the ids being saved.
   const before = fs.readFileSync(configFile, "utf8");
   const real = fs.writeFileSync;
+  // HALF WAY, literally: some bytes reach the sibling before the failure, which is the shape of a full
+  // disk. Throwing before writing anything would have tested a cheaper case than the one that bites.
   t.mock.method(fs, "writeFileSync", (target: unknown, body: unknown, options?: unknown) => {
-    if (typeof target === "number") throw Object.assign(new Error("no space left on device"), { code: "ENOSPC" });
+    if (typeof target === "number") {
+      (real as (a: unknown, b: unknown, c?: unknown) => void)(target, String(body).slice(0, 37), options);
+      throw Object.assign(new Error("no space left on device"), { code: "ENOSPC" });
+    }
     return (real as (a: unknown, b: unknown, c?: unknown) => void)(target, body, options);
   });
   assert.throws(() => saveConfig({ ...loadConfig(), orgId: org, serverId: server }), /no space left on device/);
