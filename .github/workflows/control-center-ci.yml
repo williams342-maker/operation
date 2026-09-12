@@ -94,7 +94,7 @@ jobs:
       # api +1: the validator knowing CONTROL_CENTER_RELEASE_MANIFEST, and diagnosing its absence.
       # agent +5: the runtime learning which organisation it belongs to, which nothing ever wrote, so the
       # Forge identity check could not pass on any host.
-      CI_EXPECTED_TESTS: "462"
+      CI_EXPECTED_TESTS: "461"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -190,8 +190,10 @@ jobs:
       #                   could never have reached a host that had never been told
       #   agent +10       the Forge ceremony rehearsed end to end with a throwaway key: build, sign,
       #                   install, load, and one refusal for each thing a ceremony can get wrong
-      CI_EXPECTED_TEST_SUITES: "agent=175,api=134,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "756"
+      #   agent net -1    security review replaced the identity bootstrap: the adoption tests are gone,
+      #                   provisioning and poll-refusal tests are here instead
+      CI_EXPECTED_TEST_SUITES: "agent=174,api=134,review-gate=260,shared=153,web=34"
+      CI_EXPECTED_TESTS: "755"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.

@@ -95,6 +95,26 @@ test("the builder refuses what the target would reject later", () => {
   assert.throws(attempt({ "--review-gate-ca": trustedRootPath }), /not a PEM certificate/);
 });
 
+test("the signer enforces the loader's structural rules before a signature exists", () => {
+  // A signature over a document the target will refuse is worth less than no signature: it looks like a
+  // completed ceremony and only fails on the host, where the remedy is another ceremony.
+  const { root, identityPath } = ceremony();
+  const base = { ...JSON.parse(fs.readFileSync(identityPath, "utf8")) };
+  delete base.ownerSignature;
+  const keyDirectory = path.join(root, "signing-key");
+  node("generate-forge-owner-key.mjs", [keyDirectory]);
+  const signWith = (unsigned: Record<string, unknown>, label: string) => {
+    const file = path.join(root, `${label}.json`);
+    fs.writeFileSync(file, `${JSON.stringify(unsigned, null, 2)}\n`);
+    return () => node("sign-forge-security-identity.mjs", ["--private-key", path.join(keyDirectory, "forge-owner-private.pem"), "--unsigned", file, "--output", path.join(root, `${label}-signed.json`)]);
+  };
+  assert.throws(signWith({ ...base, hostname: "Ops\nWorkbench" }, "control-character"), /control characters/);
+  assert.throws(signWith({ ...base, orgId: "" }, "empty-org"), /non-empty/);
+  assert.throws(signWith({ ...base, validFrom: "2026-09-01" }, "loose-instant"), /exact ISO-8601 instant/);
+  assert.throws(signWith({ ...base, validUntil: base.validFrom }, "inverted"), /ends before it begins/);
+  assert.throws(signWith({ ...base, ownerPublicKey: "not base64url!" }, "bad-key"), /base64url/);
+});
+
 test("the signer refuses a key that is not the one the document names", () => {
   const { root, identityPath } = ceremony();
   const otherKey = path.join(root, "other-key");

@@ -309,7 +309,12 @@ async function reportUpdaterResults(config: AgentConfig, resultsDirectory = "/va
 
 async function main() {
   const config = await maybeEnroll();
-  startupIdentity(config);
+  // Checked, never established. The identity being validated is not evidence of which organisation this
+  // runtime belongs to — using it that way lets the document decide the value it is then matched
+  // against, which is a check comparing a thing to itself. Security review required an INDEPENDENT local
+  // input: `orgId` is provisioned into the protected agent configuration, `serverId` comes from
+  // enrolment, and an absent or empty value fails closed rather than being filled in from anywhere.
+  validateForgeRuntimeIdentity(config);
   // Resolved once here as well as per poll, so an ENFORCING executor with unusable gate configuration
   // fails to START rather than logging a poll error every interval while looking alive.
   reviewEnforcement(config);
@@ -325,40 +330,11 @@ async function main() {
   await pollOnce();
 }
 
-export function adoptRuntimeIdentity(config: AgentConfig, identity: { orgId: string; serverId: string }): boolean {
-  if ((config.orgId && config.orgId !== identity.orgId) || (config.serverId && config.serverId !== identity.serverId)) {
-    throw new Error("Forge security identity does not match this enrolled agent runtime");
-  }
-  let adopted = false;
-  if (!config.orgId) { config.orgId = identity.orgId; adopted = true; }
-  if (!config.serverId) { config.serverId = identity.serverId; adopted = true; }
-  return adopted;
-}
-
-/** Startup: load the owner-signed material, adopt what is missing, persist it, and return the material. */
-export function establishRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial, persist = saveConfig): ReturnType<typeof loadForgeSecurityMaterial> {
-  const security = load();
-  if (adoptRuntimeIdentity(config, security.identity)) persist(config);
-  return security;
-}
-
-/**
- * The startup sequence, in one place so it can be exercised: ESTABLISH, then check.
- *
- * The order is the whole fix. Checking first refuses a runtime that has never been told its
- * organisation, and it refuses before the first poll, so such a host can never reach anything that would
- * tell it. `main` delegates here rather than repeating the two calls.
- */
-export function startupIdentity(config: AgentConfig, load = loadForgeSecurityMaterial, persist = saveConfig): ReturnType<typeof loadForgeSecurityMaterial> {
-  establishRuntimeIdentity(config, load, persist);
-  return validateForgeRuntimeIdentity(config, load);
-}
-
 export function validateForgeRuntimeIdentity(config: AgentConfig, load = loadForgeSecurityMaterial): ReturnType<typeof loadForgeSecurityMaterial> {
   const security = load();
-  // Reached on every poll, by which time startup has established both ids. The empty case is still
-  // called out separately: it is not a mismatch, it is a runtime that was never told who it is, and at
-  // the owner's signing ceremony those two need different actions.
+  // FAILS CLOSED ON AN ABSENT OR EMPTY VALUE, and says which of the two problems it is. A runtime that
+  // was never provisioned and a runtime handed somebody else's document need different actions at the
+  // ceremony, and reporting the first as the second sends an operator hunting for a wrong file.
   if (!config.orgId || !config.serverId) throw new Error("This agent runtime has no organisation or server id configured, so an owner-signed Forge identity cannot be matched to it");
   if (security.identity.orgId !== config.orgId || security.identity.serverId !== config.serverId) throw new Error("Forge security identity does not match this enrolled agent runtime");
   return security;

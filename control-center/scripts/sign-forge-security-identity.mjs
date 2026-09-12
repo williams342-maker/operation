@@ -10,7 +10,18 @@ const exact = ["schemaVersion", "orgId", "serverId", "ownerPublicKey", "trustedR
 const unsigned = JSON.parse(fs.readFileSync(unsignedPath, "utf8"));
 if (JSON.stringify(Object.keys(unsigned).sort()) !== JSON.stringify(exact) || unsigned.schemaVersion !== "forge-security-identity-v1") throw new Error("unsigned Forge identity has missing or unknown fields");
 for (const field of ["trustedRootSha256", "reviewGateCaSha256", "machineIdSha256"]) if (!/^[a-f0-9]{64}$/.test(unsigned[field])) throw new Error(`${field} is invalid`);
-if (!unsigned.orgId || !unsigned.serverId || !unsigned.hostname || Date.parse(unsigned.validFrom) >= Date.parse(unsigned.validUntil)) throw new Error("Forge identity values or validity window are invalid");
+// THE SAME STRUCTURAL RULES THE PRODUCTION LOADER ENFORCES, applied before a signature exists rather
+// than after. A signature over a document the target will refuse is worth less than no signature: it
+// looks like a completed ceremony and only fails on the host, where a second ceremony is the remedy.
+const hasControlCharacter = (text) => [...String(text)].some((character) => { const code = character.codePointAt(0); return code < 32 || code === 127; });
+for (const field of ["orgId", "serverId", "hostname"]) {
+  if (!unsigned[field] || hasControlCharacter(unsigned[field])) throw new Error(`${field} must be non-empty and free of control characters: they are joined with newlines into the statement being signed, so one could shift a field boundary`);
+}
+if (!/^[A-Za-z0-9_-]+$/.test(unsigned.ownerPublicKey)) throw new Error("ownerPublicKey must be base64url, as the loader parses it");
+for (const field of ["validFrom", "validUntil"]) {
+  if (Number.isNaN(Date.parse(unsigned[field])) || new Date(unsigned[field]).toISOString() !== unsigned[field]) throw new Error(`${field} must be an exact ISO-8601 instant`);
+}
+if (Date.parse(unsigned.validFrom) >= Date.parse(unsigned.validUntil)) throw new Error("Forge identity validity window ends before it begins");
 const privateKey = crypto.createPrivateKey(fs.readFileSync(privateKeyPath));
 if (privateKey.asymmetricKeyType !== "ed25519") throw new Error("owner private key is not Ed25519");
 const derived = crypto.createPublicKey(privateKey).export({ type: "spki", format: "der" });
