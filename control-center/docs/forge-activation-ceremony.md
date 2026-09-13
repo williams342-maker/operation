@@ -123,6 +123,12 @@ journalctl -u opsworkbench-agent -n 50 --no-pager
 
 **Step 6 — record the after-state**, in the same shape as step 0, and keep both.
 
+If a rollback ran at step 4a, its output is part of this record. **A note about the server id is not
+routine.** An organisation disagreement is expected — the snapshot predates the provisioning, which is
+the whole reason the reconciliation exists. A server id disagreement means either this host re-enrolled
+from scratch or the snapshot belongs to a different host, and both are worth stopping for before the
+service is relied on.
+
 ## 4. Rollback, and why it no longer loses the organisation
 
 `install-reviewed-agent.sh rollback` now captures the live configuration **as a file**, before the

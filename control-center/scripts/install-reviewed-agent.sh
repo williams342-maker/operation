@@ -54,43 +54,73 @@ reconcile_identity() {
   node -e '
     const crypto = require("crypto"), fs = require("fs");
     const [file, livePath] = [process.argv[1], process.argv[2]];
-    // A REGULAR FILE, NOT A LINK, BEFORE ANYTHING IS OPENED. Both of them: the installer creates the
-    // configuration directory owned by the agent account, so the agent account can plant siblings there.
+    // REFUSALS THROW; THEY DO NOT EXIT. `process.exit` inside a `try` skips its `finally`, so the first
+    // version of this leaked the replacement it had just written — holding the credential, under a random
+    // name nothing will ever list — every time the ownership restore failed. The test written for that
+    // cleanup is what caught it. One handler at the bottom turns a refusal into a sentence and an exit.
+    const refuse = (message) => { throw new Error(message); };
     const readConfiguration = (path, what) => {
+      // A REGULAR FILE, NOT A LINK, BEFORE ANYTHING IS OPENED. Both of them, and this is not belt and
+      // braces: the installer creates the configuration directory 0750 owned by the AGENT account, so
+      // that account can plant siblings there, and a review used exactly that to have root write the
+      // credential wherever it liked. Every rule here is enforced inline rather than inherited from the
+      // directory, because the directory guarantees nothing. The full protection check in the
+      // provisioning tool is deliberately NOT imported: this script changes which release is current,
+      // and reaching into the release tree for a module at that moment makes the check depend on the
+      // thing being swapped underneath it.
       const info = fs.lstatSync(path);
-      if (!info.isFile()) { console.error("reviewed agent rollback: " + what + " at " + path + " is not a regular file"); process.exit(1); }
+      if (!info.isFile()) refuse(what + " at " + path + " is not a regular file");
       const parsed = JSON.parse(fs.readFileSync(path, "utf8"));
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || typeof parsed.controlCenterUrl !== "string") { console.error("reviewed agent rollback: " + what + " at " + path + " is not an agent configuration"); process.exit(1); }
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || typeof parsed.controlCenterUrl !== "string") refuse(what + " at " + path + " is not an agent configuration");
       return { info, parsed };
     };
-    const target = readConfiguration(file, "the restored configuration");
-    const live = readConfiguration(livePath, "the captured live configuration");
-    const next = { ...target.parsed, orgId: live.parsed.orgId || "", serverId: live.parsed.serverId || "" };
-    const changed = ["orgId", "serverId"].filter((field) => (target.parsed[field] || "") !== next[field]);
-    if (!changed.length) { console.log("reviewed agent rollback: the restored identity already matches what was live"); process.exit(0); }
-    // Named from random bytes and created exclusively, and every property is set on the DESCRIPTOR rather
-    // than on the name. A review planted a symlink at the fixed name this used to use and had root write
-    // the configuration, credential included, to a path of its choosing and then hand it over.
-    const pending = file + ".identity-" + crypto.randomBytes(8).toString("hex");
-    let handle;
-    try { handle = fs.openSync(pending, "wx", target.info.mode & 0o777); }
-    catch (error) { console.error("reviewed agent rollback: cannot create the replacement at " + pending + " (" + (error.code || "unknown") + ")"); process.exit(1); }
-    let installed = false;
     try {
-      fs.writeFileSync(handle, JSON.stringify(next, null, 2) + String.fromCharCode(10));
-      fs.fsyncSync(handle);
-      fs.fchmodSync(handle, target.info.mode & 0o777);
-      fs.fchownSync(handle, target.info.uid, target.info.gid);
-      fs.closeSync(handle); handle = undefined;
-      fs.renameSync(pending, file);
-      installed = true;
-    } finally {
-      if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the failure above is the one worth reporting */ } }
-      if (!installed) { try { fs.rmSync(pending, { force: true }); } catch { /* best effort */ } }
+      const target = readConfiguration(file, "the restored configuration");
+      const live = readConfiguration(livePath, "the captured live configuration");
+      const next = { ...target.parsed, orgId: live.parsed.orgId || "", serverId: live.parsed.serverId || "" };
+      const changed = ["orgId", "serverId"].filter((field) => (target.parsed[field] || "") !== next[field]);
+      if (!changed.length) { console.log("reviewed agent rollback: the restored identity already matches what was live"); process.exit(0); }
+      // Named from random bytes and created exclusively, and every property is set on the DESCRIPTOR
+      // rather than on the name. A review planted a symlink at the fixed name this used to use and had
+      // root write the configuration, credential included, to a path of its choosing.
+      const pending = file + ".identity-" + crypto.randomBytes(8).toString("hex");
+      let handle;
+      try { handle = fs.openSync(pending, "wx", target.info.mode & 0o777); }
+      catch (error) { refuse("cannot create the replacement at " + pending + " (" + (error.code || "unknown") + ")"); }
+      let installed = false;
+      try {
+        fs.writeFileSync(handle, JSON.stringify(next, null, 2) + String.fromCharCode(10));
+        fs.fsyncSync(handle);
+        fs.fchmodSync(handle, target.info.mode & 0o777);
+        try {
+          fs.fchownSync(handle, target.info.uid, target.info.gid);
+        } catch (error) {
+          // Not root, and the replacement already belongs to whoever is running: nothing to restore and
+          // nothing wrong. Anything else is an outage in waiting, so it says so rather than throwing an
+          // errno at somebody.
+          const current = fs.fstatSync(handle);
+          if (current.uid !== target.info.uid || current.gid !== target.info.gid) refuse("cannot restore ownership " + target.info.uid + ":" + target.info.gid + " (" + (error.code || "unknown") + "); run as the account that owns the configuration, or the agent will be left unable to read it");
+        }
+        fs.closeSync(handle); handle = undefined;
+        fs.renameSync(pending, file);
+        installed = true;
+      } finally {
+        if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the failure above is the one worth reporting */ } }
+        if (!installed) { try { fs.rmSync(pending, { force: true }); } catch { /* best effort */ } }
+      }
+      const after = readConfiguration(file, "the reconciled configuration").parsed;
+      for (const field of ["orgId", "serverId"]) if ((after[field] || "") !== next[field]) refuse("could not set " + field);
+      console.log("reviewed agent rollback: the snapshot disagreed about " + changed.join(" and ") + "; the live value stands");
+      // AND ONE OF THE TWO IS NOT ROUTINE. An orgId disagreement is the ordinary case: the snapshot
+      // predates the provisioning, which is the whole reason this reconciliation exists. A serverId
+      // disagreement is not. The snapshot is taken after enrolment, and enrolment refuses to change an
+      // established server id, so the two can differ only if this host re-enrolled from scratch or the
+      // snapshot belongs to a different host. Both are worth stopping to look at.
+      if (changed.includes("serverId")) console.log("reviewed agent rollback: NOTE - the server id disagreed, which is not the routine case. Either this host re-enrolled from scratch, or this snapshot is from another host. Confirm before relying on it.");
+    } catch (error) {
+      console.error("reviewed agent rollback: " + (error && error.message ? error.message : error));
+      process.exit(1);
     }
-    const after = readConfiguration(file, "the reconciled configuration").parsed;
-    for (const field of ["orgId", "serverId"]) if ((after[field] || "") !== next[field]) { console.error("reviewed agent rollback: could not set " + field); process.exit(1); }
-    console.log("reviewed agent rollback: the snapshot disagreed about " + changed.join(" and ") + "; the live value stands");
   ' "$1" "$2"
 }
 
@@ -245,7 +275,11 @@ if [ "$command" = rollback ]; then
   # and the rollback then announced that it had verified the identity. A copy either exists or does not.
   live_config="$(mktemp "$config_root/.agent-live-XXXXXX")" || fail "cannot capture the live configuration; the rollback has not started"
   trap 'rm -f -- "$live_config"' EXIT
-  cp -a -- "$config_root/agent.json" "$live_config" || fail "cannot capture the live configuration; the rollback has not started"
+  # Plain `cp`, deliberately: `-a` implies --preserve=all, so the capture inherited agent.json's OWNERSHIP
+  # and root handed the agent account a second readable copy of the enrolment credential — and, on a v2
+  # runtime, the private keys — for the duration of the rollback, in a directory that account can write.
+  # Copying into the file mktemp already created keeps it 0600 root-owned, which is all this needs.
+  cp -- "$config_root/agent.json" "$live_config" || fail "cannot capture the live configuration; the rollback has not started"
 
   cp -a -- "$backup/agent.json" "$config_root/agent.json.rollback-pending"; mv -fT -- "$config_root/agent.json.rollback-pending" "$config_root/agent.json"
 

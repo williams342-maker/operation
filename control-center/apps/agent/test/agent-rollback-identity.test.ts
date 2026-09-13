@@ -195,7 +195,66 @@ test("the file keeps its mode and owner, and nothing is left beside it", (t) => 
     const owned = fs.statSync(staged.restoredPath);
     assert.equal(owned.uid, 65534, "the agent still owns its own configuration");
     assert.equal(owned.gid, 65534);
+
+    // AND THE ORPHAN, staged for real rather than asserted by shape. A review pointed out this is
+    // reachable after all: a target owned by somebody else, in a directory the caller can write, makes
+    // the ownership restore fail after the replacement has been written. Without the cleanup that
+    // replacement is left behind holding the credential, under a random name nothing will ever list.
+    const failing = pair({ serverId: server }, { orgId: org, serverId: server });
+    fs.chmodSync(failing.directory, 0o777);
+    // Root-owned so the ownership restore cannot succeed, but readable so the failure is the chown rather
+    // than the read. The point is which step fails, not that some step does.
+    fs.chownSync(failing.restoredPath, 0, 0);
+    fs.chmodSync(failing.restoredPath, 0o644);
+    fs.chownSync(failing.livePath, 65534, 65534);
+    fs.chownSync(failing.directory, 65534, 65534);
+    const tool = path.join(failing.directory, "tool.sh");
+    fs.copyFileSync(installer, tool);
+    fs.chmodSync(tool, 0o755);
+    try {
+      assert.throws(
+        () => execFileSync("runuser", ["-u", "nobody", "--", "bash", tool, "reconcile-identity", failing.restoredPath, failing.livePath], { encoding: "utf8" }),
+        /cannot restore ownership/,
+        "and it explains itself rather than throwing an errno",
+      );
+      assert.deepEqual(fs.readdirSync(failing.directory).filter((entry) => entry.includes(".identity-")), [], "nothing orphaned, and nothing holding the credential");
+      assert.equal(JSON.parse(fs.readFileSync(failing.restoredPath, "utf8")).orgId, undefined, "and the configuration is untouched");
+    } finally {
+      fs.chownSync(failing.directory, 0, 0);
+      fs.chmodSync(failing.directory, 0o700);
+    }
   }
+});
+
+test("a server-id disagreement is not reported as though it were routine", (t) => {
+  if (linuxOnly(t)) return;
+  // An organisation disagreement is the ordinary case — the snapshot predates the provisioning, which is
+  // why this reconciliation exists at all. A server-id disagreement is not: the snapshot is taken after
+  // enrolment, and enrolment refuses to change an established server id, so the two can differ only if
+  // the host re-enrolled from scratch or the snapshot belongs to another host. Reconciling either way is
+  // right; reporting them in the same words is not.
+  const routine = pair({ serverId: server }, { orgId: org, serverId: server });
+  const said = reconcile(routine.restoredPath, routine.livePath);
+  assert.doesNotMatch(said, /NOTE/, "an organisation disagreement is the expected case and reads like one");
+
+  const anomalous = pair({ orgId: org, serverId: other }, { orgId: org, serverId: server });
+  const alarmed = reconcile(anomalous.restoredPath, anomalous.livePath);
+  assert.match(alarmed, /NOTE - the server id disagreed, which is not the routine case/);
+  assert.match(alarmed, /re-enrolled from scratch, or this snapshot is from another host/);
+  assert.equal(JSON.parse(fs.readFileSync(anomalous.restoredPath, "utf8")).serverId, server, "and it still reconciles rather than refusing");
+});
+
+test("an operator who cannot restore the ownership is told, not thrown at", (t) => {
+  if (linuxOnly(t)) return;
+  if (process.getuid?.() === 0) return t.skip("root can chown anything; this is about the unprivileged operator");
+  // Reached with nothing but a mode: a target this account does not own cannot have its ownership put
+  // back on the replacement. A review met the raw EPERM stack trace here, which is the unexplained-error
+  // class the provisioning tool spent two rounds removing. Staging a target owned by somebody else needs
+  // root, so what is proved unprivileged is the harmless half — chowning to the owner you already are is
+  // tolerated silently rather than treated as a failure.
+  const { restoredPath, livePath } = pair({ serverId: server }, { orgId: org, serverId: server });
+  reconcile(restoredPath, livePath);
+  assert.equal(JSON.parse(fs.readFileSync(restoredPath, "utf8")).orgId, org, "the ordinary unprivileged run is unaffected");
 });
 
 test("the verb refuses what it cannot act on, rather than half-acting", (t) => {
@@ -218,11 +277,14 @@ test("STRUCTURAL: the rollback calls the same function, before the restart, and 
   assert.equal(source.match(/reconcile_identity "/g)?.length, 2, "the verb and the rollback, and nothing else");
 
   const rollback = source.slice(source.indexOf('if [ "$command" = rollback ]'));
-  const captured = rollback.indexOf("cp -a -- \"$config_root/agent.json\" \"$live_config\"");
+  const captured = rollback.indexOf("cp -- \"$config_root/agent.json\" \"$live_config\"");
   const overwritten = rollback.indexOf("agent.json.rollback-pending");
   const reconciled = rollback.indexOf("reconcile_identity ");
   const restarted = rollback.indexOf("systemctl restart");
   assert.ok(captured > 0 && captured < overwritten, "the live configuration is captured before the snapshot lands on it");
+  // Plain `cp`, not `cp -a`: preserving everything hands the capture's ownership to the agent account and
+  // with it a second readable copy of the credential, in a directory that account can write.
+  assert.equal(rollback.includes('cp -a -- "$config_root/agent.json" "$live_config"'), false, "and not with --preserve=all");
   assert.ok(reconciled > overwritten && reconciled < restarted, "and reconciled after that, before the service is restarted");
   assert.match(rollback.slice(reconciled), /\|\| fail "rollback could not reconcile the agent identity/);
 
