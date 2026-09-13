@@ -433,6 +433,9 @@ remove it before merge.
 signing, not an agent upgrade, not Forge activation, not Review Gate deployment, not executor
 activation.
 
+**Two of the four are now discharged; 3 and 4 remain open and are the owner's.** Discharging condition 1
+authorises no production activation.
+
 **Why the merge commit's condition list runs 1, 3, 4.** It lists only the conditions the merge does not
 discharge, and keeps the numbers the verdict gave them so they can be cited unambiguously. Condition 2
 was discharged before the merge, so it is absent from that list by design rather than by omission. The
@@ -440,7 +443,7 @@ full set:
 
 | # | Condition | State |
 |---|---|---|
-| 1 | **Activation rollback race.** The activation script takes no configuration lock and its rollback can restore a snapshot predating provisioning. Blocks production Forge **activation**, not the merge | open, being taken by the ceremony route on a follow-up branch |
+| 1 | **Activation rollback race.** The activation script took no configuration lock and its rollback could restore a snapshot predating provisioning. Blocked production Forge **activation**, not the merge | **discharged** by PR #83 (`d1bf1bd0`) via the ceremony route the reviewer offered as option B, independently reviewed clean over three rounds |
 | 2 | **Exact candidate integrity.** The reviewed content must be what lands | **discharged** — see the verification below |
 | 3 | **Trust anchors.** The Sigstore trusted root may be used only after its exact provenance and digest are verified. The Review Gate CA is unresolved, and this verdict is **not** approval of an existing CA nor authorisation to generate one | open, owner's |
 | 4 | **Owner key.** Preserve the reviewed public-key trust relationship; do not rotate in this sequence | open, owner's |
