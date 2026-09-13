@@ -265,6 +265,23 @@ test("the verb refuses what it cannot act on, rather than half-acting", (t) => {
   assert.throws(() => execFileSync("bash", [installer, "reconcile-identity", path.join(directory, "agent.json")], { encoding: "utf8" }), /usage: reconcile-identity/);
 });
 
+test("a file that is not JSON is refused by name, saying which of the two it was", (t) => {
+  if (linuxOnly(t)) return;
+  // Two files go through the same helper and every other refusal in it says which. The parse did not,
+  // because it was the one step outside the labelling — and at rollback time, which of the restored
+  // configuration and the captured live one is unreadable is exactly what decides what to do next.
+  const { restoredPath, livePath } = pair({ orgId: org, serverId: server }, { orgId: org, serverId: server });
+  const before = fs.readFileSync(restoredPath, "utf8");
+
+  fs.writeFileSync(livePath, "{ truncated", { mode: 0o600 });
+  assert.throws(() => reconcile(restoredPath, livePath), /the captured live configuration at .* could not be read as JSON/);
+  assert.equal(fs.readFileSync(restoredPath, "utf8"), before, "and nothing was changed");
+
+  const broken = pair({}, { orgId: org, serverId: server });
+  fs.writeFileSync(broken.restoredPath, "{ truncated", { mode: 0o600 });
+  assert.throws(() => reconcile(broken.restoredPath, broken.livePath), /the restored configuration at .* could not be read as JSON/);
+});
+
 test("STRUCTURAL: the rollback calls the same function, before the restart, and never writes in place", (t) => {
   if (linuxOnly(t)) return;
   // The verb exists to make the rule executable and would be worthless if the rollback did its own thing
@@ -302,4 +319,18 @@ test("STRUCTURAL: the rollback calls the same function, before the restart, and 
   // reason: the replacement can hold the credential and the private keys, and a random name means a
   // leaked one is never reused, collided with, or listed.
   assert.equal(compact.includes("if(!installed){try{fs.rmSync(pending,{force:true})"), true, "the replacement is removed on any failure after the open");
+
+  // AND NOTHING IN THAT BLOCK EXITS. This is the rule the whole round exists for, and a review pointed
+  // out it was defended on CI by nothing at all: the behavioural test that catches it needs a file owned
+  // by another account, which an unprivileged process cannot create, so it is root-gated. The rule is a
+  // SHAPE, though, and a shape can be asserted anywhere — which is the standing rule from the sibling
+  // branch, that no rule may depend on a privileged run to be tested at all.
+  //
+  // The defect was not "a refusal used exit" in the abstract. It was an exit sitting inside a try whose
+  // finally did the cleanup, so the cleanup never ran and every ownership failure orphaned a file holding
+  // the credential. Both halves are asserted: refusals throw, and that block contains no exit.
+  assert.match(source, /const refuse = \(message\) => \{ throw new Error\(message\); \};/, "refusals throw");
+  const guarded = source.slice(source.indexOf("let installed = false;"), source.indexOf("} finally {", source.indexOf("let installed = false;")));
+  assert.ok(guarded.length > 0, "found the block the cleanup guards");
+  assert.equal(guarded.includes("process.exit"), false, "and nothing inside it exits past the finally that cleans up");
 });

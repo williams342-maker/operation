@@ -70,7 +70,16 @@ reconcile_identity() {
       // thing being swapped underneath it.
       const info = fs.lstatSync(path);
       if (!info.isFile()) refuse(what + " at " + path + " is not a regular file");
-      const parsed = JSON.parse(fs.readFileSync(path, "utf8"));
+      let parsed;
+      try {
+        parsed = JSON.parse(fs.readFileSync(path, "utf8"));
+      } catch (error) {
+        // Labelled like every other refusal in this helper. Two files come through here, and at rollback
+        // time which of them is unparseable is exactly what decides what the operator does next; an
+        // unwrapped parse error named neither. The throw-based refusals surfaced this, because labelled
+        // and incidental failures now leave by the same door and print in the same shape.
+        refuse(what + " at " + path + " could not be read as JSON (" + (error && error.message ? error.message : error) + ")");
+      }
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || typeof parsed.controlCenterUrl !== "string") refuse(what + " at " + path + " is not an agent configuration");
       return { info, parsed };
     };
@@ -95,9 +104,12 @@ reconcile_identity() {
         try {
           fs.fchownSync(handle, target.info.uid, target.info.gid);
         } catch (error) {
-          // Not root, and the replacement already belongs to whoever is running: nothing to restore and
-          // nothing wrong. Anything else is an outage in waiting, so it says so rather than throwing an
-          // errno at somebody.
+          // WHICH CASE THIS IS FOR, because a review pointed out it reads as coverage without being
+          // covered: `fchown` throws only when the owner differs from yours, and then `current` cannot
+          // match `target` and it refuses anyway. The branch fires in a container or user namespace
+          // WITHOUT CAP_CHOWN, where root chowning a file to the owner it already has fails harmlessly.
+          // That is a real deployment shape, so the tolerance stays; anything else is an outage in
+          // waiting and says so rather than throwing an errno at somebody.
           const current = fs.fstatSync(handle);
           if (current.uid !== target.info.uid || current.gid !== target.info.gid) refuse("cannot restore ownership " + target.info.uid + ":" + target.info.gid + " (" + (error.code || "unknown") + "); run as the account that owns the configuration, or the agent will be left unable to read it");
         }
