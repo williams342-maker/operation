@@ -402,15 +402,62 @@ None of the following has been done, and none of it can be done without the owne
   default by the schema and emitted by every producer of a configuration in the repository.
 - **130 mutations were run across rounds 6 to 11 and 129 were caught by a named test.** The survivor is a
   redundant internal assertion whose outcome another mutation covers.
+- **Human security review: CONDITIONAL GO on `9b063f12`**, discharging the NO-GO on `8d8e49fb`. Until
+  that answer arrived an independent GO did not lift it, and that remains the rule for any future
+  candidate: **no verdict transfers to a commit it was not given on.** The conditions are in section 9.
 
 ## 8. What this GO is and is not
 
 It is an independent reviewer finding no defect it can demonstrate, after eleven rounds in which it
-demonstrated eighteen. It is not the human security review. **That NO-GO stands until the human reviewer
-lifts it**, and nothing here should be read as replacing it — the independent rounds exist to make the
-human's re-review worth their time, not to substitute for it.
+demonstrated eighteen. **It is not the human security review**, and nothing here should be read as
+replacing it — the independent rounds exist to make the human's re-review worth their time, not to
+substitute for it.
+
+> **The human security review has since answered.** It returned **CONDITIONAL GO on `9b063f12`**,
+> discharging the NO-GO on `8d8e49fb`, and PR #82 merged as `f2f734d5`. Earlier revisions of this
+> section said the human NO-GO still stood; that was true when written and is no longer. The conditions
+> that survive the merge are in §9.
 
 Still owner-only, unchanged by any of this: the Sigstore trusted root and the review-gate CA must be
 chosen before anything is signed, the key ceremony is the owner's, and the review-gate executor decision
 remains downstream of all of it. Production has not been touched at any point.
-- The human reviewer's NO-GO stands until they say otherwise. An independent GO does not lift it.
+
+## 9. The human verdict, and the four conditions
+
+**CONDITIONAL GO on `9b063f12`**, discharging the NO-GO on `8d8e49fb`. All three required repairs
+closed. The enrolment `serverId` residual was **accepted** as a documented denial-of-service trust
+dependency rather than an acceptance path, with the instruction not to redesign enrolment solely to
+remove it before merge.
+
+**The verdict authorises merge preparation and nothing operational.** Not production provisioning, not
+signing, not an agent upgrade, not Forge activation, not Review Gate deployment, not executor
+activation.
+
+**Why the merge commit's condition list runs 1, 3, 4.** It lists only the conditions the merge does not
+discharge, and keeps the numbers the verdict gave them so they can be cited unambiguously. Condition 2
+was discharged before the merge, so it is absent from that list by design rather than by omission. The
+full set:
+
+| # | Condition | State |
+|---|---|---|
+| 1 | **Activation rollback race.** The activation script takes no configuration lock and its rollback can restore a snapshot predating provisioning. Blocks production Forge **activation**, not the merge | open, being taken by the ceremony route on a follow-up branch |
+| 2 | **Exact candidate integrity.** The reviewed content must be what lands | **discharged** — see the verification below |
+| 3 | **Trust anchors.** The Sigstore trusted root may be used only after its exact provenance and digest are verified. The Review Gate CA is unresolved, and this verdict is **not** approval of an existing CA nor authorisation to generate one | open, owner's |
+| 4 | **Owner key.** Preserve the reviewed public-key trust relationship; do not rotate in this sequence | open, owner's |
+
+### Condition 2, verified on `main` after the merge
+
+| | |
+|---|---|
+| merge commit | `f2f734d5` |
+| parents | exactly `8d8e49fb` and `9b063f12` |
+| reviewed candidate tree | `7aff6ceafa9ff0b0979d8089c78e2f21d4719522` |
+| security-critical files identical on `main` | **9 of 9**, 0 differing |
+
+A merge commit was used rather than a squash or a rebase, because the verdict permits pure merge
+mechanics only where they do not alter the reviewed security-critical content.
+
+**One gap in the received verdict is recorded here rather than resolved.** The text of condition 4
+arrived **truncated mid-sentence**, at *"If the key must be rotated, treat t…"*. The tail was never
+received. Nothing in this repository should be read as stating what the rotation procedure is, and the
+tail must be obtained before any rotation is contemplated.
