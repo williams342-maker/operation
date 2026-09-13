@@ -22,7 +22,7 @@ Three things write `/etc/opsworkbench-agent/agent.json`:
 |---|---|---|
 | the agent itself | enrolment only, when `agentId` and `agentSecret` are empty | credential, server id, poll interval |
 | `scripts/provision-agent-organisation.mjs` | the ceremony | the organisation, and nothing else |
-| `scripts/install-reviewed-agent.sh` | activation and rollback | version and digest, or a restored snapshot |
+| `scripts/install-reviewed-agent.sh` | activation and rollback | version and digest; a restored snapshot; **and, on rollback, the identity it reconciles against what was live** |
 
 The first two share a lock. The third does not, and threading one through it is the trade that was
 declined. There is also a second problem that no lock can fix: the activation snapshot is taken **at
@@ -42,6 +42,14 @@ sequence, in one session, and each completes before the next begins. Neither the
 be running when the activation script is.
 
 If you find yourself needing two terminals, stop. The ceremony has gone wrong.
+
+**That includes the activation script itself.** A review pointed out that an earlier draft stated this
+invariant and then wrote a sequence that never placed an activation or rollback run inside the
+stopped-agent window — the script was discussed separately, in section 4, as though it were outside the
+transaction. It is not. Any run of `install-reviewed-agent.sh` that touches `agent.json`, in either
+direction, belongs between step 1 and step 5 below. The exposure of getting this wrong is narrow, because
+the agent writes only at enrolment and so only a not-yet-enrolled host is at risk, but a procedure that
+states an invariant and does not implement it is worth less than one that says nothing.
 
 ## 3. The sequence
 
@@ -63,8 +71,8 @@ node -e 'const c=require("/etc/opsworkbench-agent/agent.json");console.log(c.org
 ls -la /etc/opsworkbench-agent/
 ```
 
-The listing matters. Any `.provisioning-lock`, `.before-organisation`, `.pending-*` or
-`.identity-pending` sibling means a previous run did not finish. **Resolve that before going further**;
+The listing matters. Any `.provisioning-lock`, `.before-organisation`, `.pending-*`, `.identity-*` or
+`.agent-live-*` sibling means a previous run did not finish. **Resolve that before going further**;
 the provisioning tool's own messages say how, and it will refuse rather than write over the way out.
 
 **Step 1 — stop the agent.** This is what makes the race unreachable rather than unlikely. A stopped
@@ -99,6 +107,11 @@ stat -c '%a %U:%G' /etc/opsworkbench-agent/agent.json
 ls -la /etc/opsworkbench-agent/
 ```
 
+**Step 4a — if a release activation or rollback is part of this transaction, run it now**, while the
+agent is still stopped. `install-reviewed-agent.sh` restarts the service itself, so afterwards the agent
+is running and the window is over; anything else you meant to do belongs before this step. A rollback
+prints what it did with the identity, and refuses before restarting if it cannot reconcile.
+
 **Step 5 — start the agent, and watch it.** A wrong or missing identifier is a refusal to start with a
 message that says which.
 
@@ -112,13 +125,22 @@ journalctl -u opsworkbench-agent -n 50 --no-pager
 
 ## 4. Rollback, and why it no longer loses the organisation
 
-`install-reviewed-agent.sh rollback` now reads the live identity **before** the snapshot lands on top of
-it, and reconciles afterwards:
+`install-reviewed-agent.sh rollback` now captures the live configuration **as a file**, before the
+snapshot lands on top of it, and reconciles against it afterwards:
 
-- an identifier that is live survives the rollback, because a release rollback is about the release;
-- one that was never set is not invented;
-- a disagreement resolves in favour of what was live, because the snapshot is not current truth;
-- the file keeps its own owner and mode, and the write is atomic;
+- **the live identity wins, including when it is empty.** The live configuration is what the running host
+  actually is, and the snapshot is older by construction. A first version let an empty live value lose to
+  the snapshot, so an organisation an operator had deliberately rolled back was reinstated by the next
+  release rollback — over a message saying nothing had been carried forward;
+- a file, rather than two strings, because a corrupt or unreadable configuration produced exactly the
+  same empty pair as a host with no identity, so "I could not tell" became "there is nothing to carry".
+  A capture either exists and reads as a configuration, or the rollback refuses;
+- the replacement is named from random bytes, created exclusively, and has its mode and owner set on the
+  DESCRIPTOR rather than on the name. A review planted a link at the fixed name this used to use and had
+  root write the configuration, credential included, to a path of its choosing, then watched the
+  ownership change hand it over;
+- neither the configuration nor the capture may be a symlink, or anything but a regular file;
+- the file keeps its own owner and mode, the write is atomic, and nothing is left beside it on a failure;
 - all of it runs **before** the service is restarted, so a host that cannot be made whole fails there
   rather than looking activated and refusing to start.
 

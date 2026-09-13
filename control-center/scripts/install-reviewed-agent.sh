@@ -38,26 +38,60 @@ probe_credentials_for() {
 }
 
 # THE IDENTITY HALF OF A ROLLBACK, as a function and a verb so a test can run the real thing.
-# Security review made verifying it a condition: a rollback must not trust a snapshot that may predate
-# the Forge provisioning. An identifier that is live survives; one never set is not invented; a
-# disagreement resolves in favour of what was live, because the snapshot is not current truth.
+#
+# Security review made verifying it a condition: a rollback must not trust a snapshot that may predate the
+# Forge provisioning. The LIVE configuration is passed in as a file, captured before the snapshot lands on
+# top of it, because a review pointed out that round-tripping the two identifiers through argv as a
+# space-delimited string both truncates a value containing whitespace and cannot distinguish "the live
+# identity is empty" from "the live identity could not be read". A file can be absent, and absence is a
+# refusal rather than a shrug.
+#
+# LIVE WINS ABSOLUTELY, including when it is empty. The live configuration is what the running host
+# actually is; the snapshot is older by construction. A first version made an empty live value lose to the
+# snapshot, so a deliberate `--rollback` of the organisation was undone by the next release rollback and
+# the message said nothing had been carried forward. That was wrong twice.
 reconcile_identity() {
   node -e '
-    const fs = require("fs"), file = process.argv[1], liveOrg = process.argv[2] || "", liveServer = process.argv[3] || "";
-    const stat = fs.statSync(file);
-    const config = JSON.parse(fs.readFileSync(file, "utf8"));
-    const next = { ...config, orgId: liveOrg || config.orgId || "", serverId: liveServer || config.serverId || "" };
-    const changed = ["orgId", "serverId"].filter((field) => (config[field] || "") !== next[field]);
-    if (!changed.length) { console.log("reviewed agent rollback: restored identity matches what was live; nothing carried forward"); process.exit(0); }
-    const pending = file + ".identity-pending";
-    fs.writeFileSync(pending, JSON.stringify(next, null, 2) + String.fromCharCode(10), { mode: stat.mode & 0o777 });
-    fs.chmodSync(pending, stat.mode & 0o777);
-    fs.chownSync(pending, stat.uid, stat.gid);
-    fs.renameSync(pending, file);
-    const after = JSON.parse(fs.readFileSync(file, "utf8"));
-    for (const field of changed) if (after[field] !== next[field]) { console.error("reviewed agent rollback: could not restore " + field); process.exit(1); }
-    console.log("reviewed agent rollback: the snapshot was stale for " + changed.join(" and ") + "; carried the live value forward");
-  ' "$1" "${2:-}" "${3:-}"
+    const crypto = require("crypto"), fs = require("fs");
+    const [file, livePath] = [process.argv[1], process.argv[2]];
+    // A REGULAR FILE, NOT A LINK, BEFORE ANYTHING IS OPENED. Both of them: the installer creates the
+    // configuration directory owned by the agent account, so the agent account can plant siblings there.
+    const readConfiguration = (path, what) => {
+      const info = fs.lstatSync(path);
+      if (!info.isFile()) { console.error("reviewed agent rollback: " + what + " at " + path + " is not a regular file"); process.exit(1); }
+      const parsed = JSON.parse(fs.readFileSync(path, "utf8"));
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || typeof parsed.controlCenterUrl !== "string") { console.error("reviewed agent rollback: " + what + " at " + path + " is not an agent configuration"); process.exit(1); }
+      return { info, parsed };
+    };
+    const target = readConfiguration(file, "the restored configuration");
+    const live = readConfiguration(livePath, "the captured live configuration");
+    const next = { ...target.parsed, orgId: live.parsed.orgId || "", serverId: live.parsed.serverId || "" };
+    const changed = ["orgId", "serverId"].filter((field) => (target.parsed[field] || "") !== next[field]);
+    if (!changed.length) { console.log("reviewed agent rollback: the restored identity already matches what was live"); process.exit(0); }
+    // Named from random bytes and created exclusively, and every property is set on the DESCRIPTOR rather
+    // than on the name. A review planted a symlink at the fixed name this used to use and had root write
+    // the configuration, credential included, to a path of its choosing and then hand it over.
+    const pending = file + ".identity-" + crypto.randomBytes(8).toString("hex");
+    let handle;
+    try { handle = fs.openSync(pending, "wx", target.info.mode & 0o777); }
+    catch (error) { console.error("reviewed agent rollback: cannot create the replacement at " + pending + " (" + (error.code || "unknown") + ")"); process.exit(1); }
+    let installed = false;
+    try {
+      fs.writeFileSync(handle, JSON.stringify(next, null, 2) + String.fromCharCode(10));
+      fs.fsyncSync(handle);
+      fs.fchmodSync(handle, target.info.mode & 0o777);
+      fs.fchownSync(handle, target.info.uid, target.info.gid);
+      fs.closeSync(handle); handle = undefined;
+      fs.renameSync(pending, file);
+      installed = true;
+    } finally {
+      if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the failure above is the one worth reporting */ } }
+      if (!installed) { try { fs.rmSync(pending, { force: true }); } catch { /* best effort */ } }
+    }
+    const after = readConfiguration(file, "the reconciled configuration").parsed;
+    for (const field of ["orgId", "serverId"]) if ((after[field] || "") !== next[field]) { console.error("reviewed agent rollback: could not set " + field); process.exit(1); }
+    console.log("reviewed agent rollback: the snapshot disagreed about " + changed.join(" and ") + "; the live value stands");
+  ' "$1" "$2"
 }
 
 if [ "$command" = probe-credentials ]; then
@@ -70,10 +104,11 @@ if [ "$command" = probe-credentials ]; then
 fi
 
 if [ "$command" = reconcile-identity ]; then
-  target_config="${1:-}"
-  [ -n "$target_config" ] || fail "usage: reconcile-identity <config> [liveOrgId] [liveServerId]"
+  target_config="${1:-}"; live_config="${2:-}"
+  [ -n "$target_config" ] && [ -n "$live_config" ] || fail "usage: reconcile-identity <restored config> <captured live config>"
   [ -f "$target_config" ] || fail "no configuration at $target_config"
-  reconcile_identity "$target_config" "${2:-}" "${3:-}"
+  [ -f "$live_config" ] || fail "no captured live configuration at $live_config"
+  reconcile_identity "$target_config" "$live_config"
   exit 0
 fi
 
@@ -204,23 +239,28 @@ if [ "$command" = rollback ]; then
   # may predate the provisioning. The snapshot is taken at activation; the Forge organisation is written
   # separately, afterwards, by scripts/provision-agent-organisation.mjs. A release rollback is about the
   # RELEASE, so an identifier that is live must survive it.
-  live_identity="$(node -e 'const fs=require("fs");try{const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(`${c.orgId||""} ${c.serverId||""}`)}catch{process.stdout.write(" ")}' "$config_root/agent.json")"
-  live_org="${live_identity%% *}"; live_server="${live_identity##* }"
+  # THE LIVE CONFIGURATION, CAPTURED AS A FILE BEFORE THE SNAPSHOT LANDS ON TOP OF IT. Not read into two
+  # shell variables: a review pointed out that a corrupt or unreadable agent.json produced exactly the
+  # same empty pair as a host with no identity, so "I could not tell" became "there is nothing to carry"
+  # and the rollback then announced that it had verified the identity. A copy either exists or does not.
+  live_config="$(mktemp "$config_root/.agent-live-XXXXXX")" || fail "cannot capture the live configuration; the rollback has not started"
+  trap 'rm -f -- "$live_config"' EXIT
+  cp -a -- "$config_root/agent.json" "$live_config" || fail "cannot capture the live configuration; the rollback has not started"
 
   cp -a -- "$backup/agent.json" "$config_root/agent.json.rollback-pending"; mv -fT -- "$config_root/agent.json.rollback-pending" "$config_root/agent.json"
 
-  # AND CARRIED FORWARD IF THE SNAPSHOT LOST IT, atomically and with the file's own owner and mode. An
-  # identifier that was live must survive; one that was never set must not be invented; a disagreement is
-  # resolved in favour of what was live, because that is current truth and the snapshot is not. This runs
-  # BEFORE the service is restarted, so a host that cannot be made whole fails here rather than looking
-  # activated and refusing to start.
-  reconcile_identity "$config_root/agent.json" "$live_org" "$live_server" || fail "rollback could not reconcile the agent identity; the service has NOT been restarted"
+  # AND RECONCILED AGAINST IT, atomically and with the file's own owner and mode. The live identity wins,
+  # including when it is empty, because the live configuration is what the running host actually is and
+  # the snapshot is older by construction. This runs BEFORE the service is restarted, so a host that
+  # cannot be made whole fails here rather than looking activated and refusing to start.
+  reconcile_identity "$config_root/agent.json" "$live_config" || fail "rollback could not reconcile the agent identity; the service has NOT been restarted"
+  rm -f -- "$live_config"; trap - EXIT
   for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do [ ! -f "$backup/units/$unit" ] || install -o root -g root -m 0644 "$backup/units/$unit" "$unit_root/$unit"; done
   pending="$install_root/current.reviewed-rollback-$$"; trap 'rm -f -- "$pending"' EXIT
   ln -s -- "$prior" "$pending"; mv -Tf -- "$pending" "$install_root/current"; trap - EXIT
 
-  echo "reviewed agent rollback: agent.json was restored from the activation snapshot, with the live"
-  echo "  Forge identity verified against it. Confirm the organisation id before relying on this host."
+  echo "reviewed agent rollback: agent.json was restored from the activation snapshot, and its Forge"
+  echo "  identity reconciled against the configuration that was live. Confirm it before relying on this host."
   systemctl daemon-reload; systemctl restart "$service"; systemctl is-active --quiet "$service" || fail "rollback agent did not return"
   exit 0
 fi
