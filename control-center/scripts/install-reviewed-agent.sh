@@ -37,12 +37,120 @@ probe_credentials_for() {
   printf '%s\n' "${built[@]}"
 }
 
+# THE IDENTITY HALF OF A ROLLBACK, as a function and a verb so a test can run the real thing.
+#
+# Security review made verifying it a condition: a rollback must not trust a snapshot that may predate the
+# Forge provisioning. The LIVE configuration is passed in as a file, captured before the snapshot lands on
+# top of it, because a review pointed out that round-tripping the two identifiers through argv as a
+# space-delimited string both truncates a value containing whitespace and cannot distinguish "the live
+# identity is empty" from "the live identity could not be read". A file can be absent, and absence is a
+# refusal rather than a shrug.
+#
+# LIVE WINS ABSOLUTELY, including when it is empty. The live configuration is what the running host
+# actually is; the snapshot is older by construction. A first version made an empty live value lose to the
+# snapshot, so a deliberate `--rollback` of the organisation was undone by the next release rollback and
+# the message said nothing had been carried forward. That was wrong twice.
+reconcile_identity() {
+  node -e '
+    const crypto = require("crypto"), fs = require("fs");
+    const [file, livePath] = [process.argv[1], process.argv[2]];
+    // REFUSALS THROW; THEY DO NOT EXIT. `process.exit` inside a `try` skips its `finally`, so the first
+    // version of this leaked the replacement it had just written — holding the credential, under a random
+    // name nothing will ever list — every time the ownership restore failed. The test written for that
+    // cleanup is what caught it. One handler at the bottom turns a refusal into a sentence and an exit.
+    const refuse = (message) => { throw new Error(message); };
+    const readConfiguration = (path, what) => {
+      // A REGULAR FILE, NOT A LINK, BEFORE ANYTHING IS OPENED. Both of them, and this is not belt and
+      // braces: the installer creates the configuration directory 0750 owned by the AGENT account, so
+      // that account can plant siblings there, and a review used exactly that to have root write the
+      // credential wherever it liked. Every rule here is enforced inline rather than inherited from the
+      // directory, because the directory guarantees nothing. The full protection check in the
+      // provisioning tool is deliberately NOT imported: this script changes which release is current,
+      // and reaching into the release tree for a module at that moment makes the check depend on the
+      // thing being swapped underneath it.
+      const info = fs.lstatSync(path);
+      if (!info.isFile()) refuse(what + " at " + path + " is not a regular file");
+      let parsed;
+      try {
+        parsed = JSON.parse(fs.readFileSync(path, "utf8"));
+      } catch (error) {
+        // Labelled like every other refusal in this helper. Two files come through here, and at rollback
+        // time which of them is unparseable is exactly what decides what the operator does next; an
+        // unwrapped parse error named neither. The throw-based refusals surfaced this, because labelled
+        // and incidental failures now leave by the same door and print in the same shape.
+        refuse(what + " at " + path + " could not be read as JSON (" + (error && error.message ? error.message : error) + ")");
+      }
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || typeof parsed.controlCenterUrl !== "string") refuse(what + " at " + path + " is not an agent configuration");
+      return { info, parsed };
+    };
+    try {
+      const target = readConfiguration(file, "the restored configuration");
+      const live = readConfiguration(livePath, "the captured live configuration");
+      const next = { ...target.parsed, orgId: live.parsed.orgId || "", serverId: live.parsed.serverId || "" };
+      const changed = ["orgId", "serverId"].filter((field) => (target.parsed[field] || "") !== next[field]);
+      if (!changed.length) { console.log("reviewed agent rollback: the restored identity already matches what was live"); process.exit(0); }
+      // Named from random bytes and created exclusively, and every property is set on the DESCRIPTOR
+      // rather than on the name. A review planted a symlink at the fixed name this used to use and had
+      // root write the configuration, credential included, to a path of its choosing.
+      const pending = file + ".identity-" + crypto.randomBytes(8).toString("hex");
+      let handle;
+      try { handle = fs.openSync(pending, "wx", target.info.mode & 0o777); }
+      catch (error) { refuse("cannot create the replacement at " + pending + " (" + (error.code || "unknown") + ")"); }
+      let installed = false;
+      try {
+        fs.writeFileSync(handle, JSON.stringify(next, null, 2) + String.fromCharCode(10));
+        fs.fsyncSync(handle);
+        fs.fchmodSync(handle, target.info.mode & 0o777);
+        try {
+          fs.fchownSync(handle, target.info.uid, target.info.gid);
+        } catch (error) {
+          // WHICH CASE THIS IS FOR, because a review pointed out it reads as coverage without being
+          // covered: `fchown` throws only when the owner differs from yours, and then `current` cannot
+          // match `target` and it refuses anyway. The branch fires in a container or user namespace
+          // WITHOUT CAP_CHOWN, where root chowning a file to the owner it already has fails harmlessly.
+          // That is a real deployment shape, so the tolerance stays; anything else is an outage in
+          // waiting and says so rather than throwing an errno at somebody.
+          const current = fs.fstatSync(handle);
+          if (current.uid !== target.info.uid || current.gid !== target.info.gid) refuse("cannot restore ownership " + target.info.uid + ":" + target.info.gid + " (" + (error.code || "unknown") + "); run as the account that owns the configuration, or the agent will be left unable to read it");
+        }
+        fs.closeSync(handle); handle = undefined;
+        fs.renameSync(pending, file);
+        installed = true;
+      } finally {
+        if (handle !== undefined) { try { fs.closeSync(handle); } catch { /* the failure above is the one worth reporting */ } }
+        if (!installed) { try { fs.rmSync(pending, { force: true }); } catch { /* best effort */ } }
+      }
+      const after = readConfiguration(file, "the reconciled configuration").parsed;
+      for (const field of ["orgId", "serverId"]) if ((after[field] || "") !== next[field]) refuse("could not set " + field);
+      console.log("reviewed agent rollback: the snapshot disagreed about " + changed.join(" and ") + "; the live value stands");
+      // AND ONE OF THE TWO IS NOT ROUTINE. An orgId disagreement is the ordinary case: the snapshot
+      // predates the provisioning, which is the whole reason this reconciliation exists. A serverId
+      // disagreement is not. The snapshot is taken after enrolment, and enrolment refuses to change an
+      // established server id, so the two can differ only if this host re-enrolled from scratch or the
+      // snapshot belongs to a different host. Both are worth stopping to look at.
+      if (changed.includes("serverId")) console.log("reviewed agent rollback: NOTE - the server id disagreed, which is not the routine case. Either this host re-enrolled from scratch, or this snapshot is from another host. Confirm before relying on it.");
+    } catch (error) {
+      console.error("reviewed agent rollback: " + (error && error.message ? error.message : error));
+      process.exit(1);
+    }
+  ' "$1" "$2"
+}
+
 if [ "$command" = probe-credentials ]; then
   probe_user="${1:-}"; probe_group="${2:-}"
   [ -n "$probe_user" ] && [ -n "$probe_group" ] || fail "usage: probe-credentials <user> <group>"
   id -u "$probe_user" >/dev/null 2>&1 || fail "no such account: $probe_user"
   getent group "$probe_group" >/dev/null || fail "no such group: $probe_group"
   probe_credentials_for "$probe_user" "$probe_group"
+  exit 0
+fi
+
+if [ "$command" = reconcile-identity ]; then
+  target_config="${1:-}"; live_config="${2:-}"
+  [ -n "$target_config" ] && [ -n "$live_config" ] || fail "usage: reconcile-identity <restored config> <captured live config>"
+  [ -f "$target_config" ] || fail "no configuration at $target_config"
+  [ -f "$live_config" ] || fail "no captured live configuration at $live_config"
+  reconcile_identity "$target_config" "$live_config"
   exit 0
 fi
 
@@ -168,19 +276,37 @@ if [ "$command" = rollback ]; then
   case "$prior" in "$install_root"/releases/*|"$install_root"/source) ;; *) fail "rollback target escaped the agent install root" ;; esac
   [ -d "$prior" ] && [ -s "$backup/agent.json" ] || fail "agent rollback target is unavailable"
   printf '%s  %s\n' "$(cat "$backup/prior-agent.sha256")" "$prior/control-center/apps/agent/dist/agent.js" | sha256sum -c - >/dev/null || fail "rollback agent identity changed"
+  # THE LIVE IDENTITY, READ BEFORE THE SNAPSHOT LANDS ON TOP OF IT. Security review made this a condition
+  # of the Forge go-ahead: a rollback must VERIFY the restored identity rather than trust a snapshot that
+  # may predate the provisioning. The snapshot is taken at activation; the Forge organisation is written
+  # separately, afterwards, by scripts/provision-agent-organisation.mjs. A release rollback is about the
+  # RELEASE, so an identifier that is live must survive it.
+  # THE LIVE CONFIGURATION, CAPTURED AS A FILE BEFORE THE SNAPSHOT LANDS ON TOP OF IT. Not read into two
+  # shell variables: a review pointed out that a corrupt or unreadable agent.json produced exactly the
+  # same empty pair as a host with no identity, so "I could not tell" became "there is nothing to carry"
+  # and the rollback then announced that it had verified the identity. A copy either exists or does not.
+  live_config="$(mktemp "$config_root/.agent-live-XXXXXX")" || fail "cannot capture the live configuration; the rollback has not started"
+  trap 'rm -f -- "$live_config"' EXIT
+  # Plain `cp`, deliberately: `-a` implies --preserve=all, so the capture inherited agent.json's OWNERSHIP
+  # and root handed the agent account a second readable copy of the enrolment credential — and, on a v2
+  # runtime, the private keys — for the duration of the rollback, in a directory that account can write.
+  # Copying into the file mktemp already created keeps it 0600 root-owned, which is all this needs.
+  cp -- "$config_root/agent.json" "$live_config" || fail "cannot capture the live configuration; the rollback has not started"
+
   cp -a -- "$backup/agent.json" "$config_root/agent.json.rollback-pending"; mv -fT -- "$config_root/agent.json.rollback-pending" "$config_root/agent.json"
+
+  # AND RECONCILED AGAINST IT, atomically and with the file's own owner and mode. The live identity wins,
+  # including when it is empty, because the live configuration is what the running host actually is and
+  # the snapshot is older by construction. This runs BEFORE the service is restarted, so a host that
+  # cannot be made whole fails here rather than looking activated and refusing to start.
+  reconcile_identity "$config_root/agent.json" "$live_config" || fail "rollback could not reconcile the agent identity; the service has NOT been restarted"
+  rm -f -- "$live_config"; trap - EXIT
   for unit in opsworkbench-agent.service opsworkbench-agent-updater.service opsworkbench-agent-updater.path; do [ ! -f "$backup/units/$unit" ] || install -o root -g root -m 0644 "$backup/units/$unit" "$unit_root/$unit"; done
   pending="$install_root/current.reviewed-rollback-$$"; trap 'rm -f -- "$pending"' EXIT
   ln -s -- "$prior" "$pending"; mv -Tf -- "$pending" "$install_root/current"; trap - EXIT
 
-  # THE SNAPSHOT MAY PREDATE A PROVISIONING. It is taken at activation, and the Forge organisation is
-  # written into agent.json separately by scripts/provision-agent-organisation.mjs. Restoring a snapshot
-  # from before that step removes the organisation, and the agent then refuses to start — fail-closed,
-  # but only if somebody knows to look. This is not a locking problem and a lock would not fix it: the
-  # snapshot was already stale when it was taken. So the operator is told here, where they are looking.
-  echo "reviewed agent rollback: agent.json was restored from the activation snapshot."
-  echo "  If this host was Forge-provisioned after that activation, the organisation id is now gone."
-  echo "  Re-provision and confirm it before restarting the service."
+  echo "reviewed agent rollback: agent.json was restored from the activation snapshot, and its Forge"
+  echo "  identity reconciled against the configuration that was live. Confirm it before relying on this host."
   systemctl daemon-reload; systemctl restart "$service"; systemctl is-active --quiet "$service" || fail "rollback agent did not return"
   exit 0
 fi
