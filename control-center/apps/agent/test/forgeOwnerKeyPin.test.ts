@@ -49,7 +49,7 @@ function identitySignedBy(privateKeyPem: string, publicKeyBase64Url: string) {
   fs.writeFileSync(reviewGateCaPath, "-----BEGIN CERTIFICATE-----\npinned\n-----END CERTIFICATE-----\n", { mode: 0o444 });
 
   const unsigned = {
-    schemaVersion: "forge-security-identity-v1",
+    schemaVersion: "forge-security-identity-v1" as const,
     orgId: org,
     serverId: server,
     ownerPublicKey: publicKeyBase64Url,
