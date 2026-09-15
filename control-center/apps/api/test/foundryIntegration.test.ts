@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import test from "node:test";
+import { ObjectId } from "mongodb";
+import { isolatedTestMongoUrl } from "../src/testDbGuard.js";
+
+const enabled = process.env.CONTROL_CENTER_RUN_DB_TESTS === "true" && Boolean(process.env.MONGO_URL_TEST);
+test("Foundry mounted API: isolation, replay, conflicts, decisions and approval", { skip: !enabled, timeout: 60000 }, async t => {
+  const isolated = isolatedTestMongoUrl();
+  process.env.NODE_ENV = "test";
+  process.env.MONGO_URL = isolated.url;
+  process.env.CONTROL_CENTER_DB = isolated.dbName;
+  const { collections, client, db, connectDb } = await import("../src/db.js");
+  const { app } = await import("../src/server.js");
+  const { createSession } = await import("../src/auth.js");
+  await connectDb();
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise<void>(resolve => server.once("listening", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as any).port}/api`;
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await db.dropDatabase(); await client.close(); });
+  const now = new Date();
+  async function session(role = "Owner") {
+    const orgId = new ObjectId();
+    await collections.organizations.insertOne({ _id: orgId, name: "Disposable Foundry Test", slug: orgId.toHexString(), createdAt: now, updatedAt: now });
+    const user = { _id: new ObjectId(), orgId, email: "test@example.invalid", name: "Test owner", role: role as any, passwordHash: "unusable-test-hash", createdAt: now, updatedAt: now };
+    await collections.users.insertOne(user);
+    const value = await createSession(user);
+    return { cookie: `cc_session=${value.sessionToken}`, "x-csrf-token": value.csrfToken };
+  }
+  const owner = await session(); const other = await session(); const denied = await session("unknown");
+  async function request(path: string, method = "GET", body?: unknown, headers: Record<string, string> = owner) {
+    const response = await fetch(origin + path, { method, headers: { "content-type": "application/json", ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const text = await response.text();
+    let parsed: any; try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
+    return { status: response.status, body: parsed };
+  }
+  const base = "/website-builder/workflows";
+  assert.equal((await request(base, "GET", undefined, {})).status, 401);
+  assert.equal((await request(base, "GET", undefined, denied)).status, 403);
+  assert.equal((await request(base + "/from-prompt", "POST", { prompt: "Build a bakery" }, { cookie: owner.cookie })).status, 403);
+  assert.equal((await request(base + "/from-prompt", "POST", { prompt: "x" }, owner)).status, 400);
+  const key = randomUUID(); const createHeaders = { ...owner, "idempotency-key": key };
+  const prompt = { prompt: "Build a business called Cedar Bakery for local families." };
+  const concurrent = await Promise.all([request(base + "/from-prompt", "POST", prompt, createHeaders), request(base + "/from-prompt", "POST", prompt, createHeaders)]);
+  assert.deepEqual(concurrent.map(r => r.status).sort(), [200, 201]);
+  assert.equal(concurrent[0].body.workflow.id, concurrent[1].body.workflow.id);
+  let workflow = concurrent[0].body.workflow;
+  const project = base + "/" + workflow.id;
+  assert.equal((await request(base + "/from-prompt", "POST", { prompt: "Different content" }, createHeaders)).status, 409);
+  assert.equal((await request(base)).body.workflows.length, 1);
+  assert.equal((await request(base, "GET", undefined, other)).body.workflows.length, 0);
+  assert.equal((await request(project, "GET", undefined, other)).status, 404);
+  const mutationPaths = ["answers", "approve-brief", "approve-architecture", "select-brand", "approve-content", "approve-implementation", "prepare-preview", "approve-preview", "sections/hero/regenerate", "suggestions"];
+  for (const path of mutationPaths) assert.equal((await request(project + "/" + path, "POST", {}, { ...other, "if-match": "1" })).status, 404, path);
+  for (const path of ["brief", "sections/hero"]) assert.equal((await request(project + "/" + path, "PATCH", {}, { ...other, "if-match": "1" })).status, 404, path);
+  assert.equal((await request(project + "/artifact", "GET", undefined, other)).status, 404);
+  const headers = () => ({ ...owner, "if-match": String(workflow.version) });
+  assert.equal((await request(project + "/prepare-preview", "POST", {}, owner)).status, 409);
+  let result = await request(project + "/prepare-preview", "POST", {}, headers());
+  assert.equal(result.status, 200); workflow = result.body.workflow;
+  assert.equal(workflow.stage, "preview_ready"); assert.equal(workflow.approvals.length, 0);
+  assert.match(workflow.artifact.html, /default-src 'none'/);
+  const stale = headers(); const previousDigest = workflow.artifact.sha256; const previousArtifactVersion = workflow.artifact.version;
+  result = await request(project + "/brief", "PATCH", { businessName: "Updated Bakery" }, headers());
+  assert.equal(result.status, 200); workflow = result.body.workflow;
+  assert.notEqual(workflow.artifact.sha256, previousDigest); assert.ok(workflow.artifact.version > previousArtifactVersion);
+  assert.equal((await request(project + "/brief", "PATCH", { businessName: "Stale overwrite" }, stale)).status, 409);
+  assert.equal((await request(project + "/approve-preview", "POST", { artifactSha256: previousDigest }, stale)).status, 409);
+  assert.equal((await request(project + "/approve-preview", "POST", { artifactSha256: previousDigest }, headers())).status, 409);
+  const beforeRegenerate = workflow.artifact.version;
+  result = await request(project + "/sections/hero/regenerate", "POST", {}, headers());
+  assert.equal(result.status, 200); workflow = result.body.workflow;
+  assert.ok(workflow.artifact.version > beforeRegenerate);
+  const hero = workflow.sections.find((s: any) => s.id === "hero");
+  const rejected = `regen-hero:${hero.version}`;
+  result = await request(project + "/suggestions", "POST", { suggestionId: rejected, decision: "rejected" }, headers());
+  assert.equal(result.status, 200); workflow = result.body.workflow;
+  assert.equal((await request(project + "/suggestions", "POST", { suggestionId: rejected, decision: "accepted" }, headers())).status, 409);
+  const features = workflow.sections.find((s: any) => s.id === "features");
+  result = await request(project + "/suggestions", "POST", { suggestionId: `regen-features:${features.version}`, decision: "accepted" }, headers());
+  assert.equal(result.status, 200); workflow = result.body.workflow;
+  assert.equal(workflow.approvals.length, 0); assert.equal(workflow.suggestionDecisions.length, 2);
+  result = await request(project + "/approve-preview", "POST", { artifactSha256: workflow.artifact.sha256 }, headers());
+  assert.equal(result.status, 200); workflow = result.body.workflow;
+  assert.equal(workflow.approvals.length, 1); assert.equal(workflow.approvals[0].artifactSha256, workflow.artifact.sha256);
+  assert.equal((await request(project + "/brief", "PATCH", { businessName: "Bypass" }, headers())).status, 409);
+  assert.equal((await request(project + "/prepare-preview", "POST", {}, headers())).status, 409);
+  assert.equal((await request(project + "/sections/hero/regenerate", "POST", {}, headers())).status, 409);
+  assert.equal((await request(project)).body.workflow.artifact.sha256, workflow.artifact.sha256);
+  assert.equal(await collections.agentTasks.countDocuments(), 0);
+  assert.equal(await collections.creditLedger.countDocuments(), 0);
+  assert.equal((await request("/credits/summary")).status, 404);
+  // Lost response after an audit failure must leave one durable, attributable creation.
+  const insertAudit = collections.auditEvents.insertOne.bind(collections.auditEvents);
+  collections.auditEvents.insertOne = (async () => { throw new Error("Injected audit unavailable"); }) as any;
+  const failureHeaders = { ...owner, "idempotency-key": randomUUID() };
+  try { assert.equal((await request(base + "/from-prompt", "POST", prompt, failureHeaders)).status, 500); }
+  finally { collections.auditEvents.insertOne = insertAudit; }
+  const recovered = await request(base + "/from-prompt", "POST", prompt, failureHeaders);
+  assert.equal(recovered.status, 200); assert.equal(recovered.body.workflow.timelineEvents[0].type, "created");
+  assert.equal((await request(base)).body.workflows.length, 2);
+  const resumed = await request(base + "/from-prompt", "POST", prompt, { ...owner, "idempotency-key": randomUUID() });
+  const resumedId = resumed.body.workflow.id;
+  const customSections = workflow.sections.map((section: any) => ({ ...section, heading: "Preserved manual " + section.id }));
+  await collections.websiteBuildWorkflows.updateOne({ _id: new ObjectId(resumedId) }, { $set: { version: 2, stage: "content_review", architecture: workflow.architecture, brandDirections: workflow.brandDirections, selectedBrandId: "warm-human", sections: customSections } });
+  const prepared = await request(base + "/" + resumedId + "/prepare-preview", "POST", {}, { ...owner, "if-match": "2" });
+  assert.equal(prepared.status, 200);
+  assert.equal(prepared.body.workflow.selectedBrandId, "warm-human");
+  assert.deepEqual(prepared.body.workflow.sections, customSections);
+  assert.equal(prepared.body.workflow.approvals.length, 0);
+});

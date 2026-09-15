@@ -2,10 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Semantic design tokens as "R G B" channels (consumed via rgb(var(--x) / a)).
+   Dark is the platform default and applies with no attribute or [data-theme=dark].
+   Light is a complete, contrast-checked theme (WCAG AA for text/UI), not cosmetic. */
+:root,
+:root[data-theme="dark"] {
+  --color-background: 7 17 31;
+  --color-panel: 13 26 43;
+  --color-border: 34 48 71;
+  --color-text: 229 237 247;
+  --color-muted: 143 163 189;
+  --color-primary: 45 212 191;
+  --color-primary-foreground: 2 6 23;
+  --color-danger: 251 113 133;
+  --color-success: 34 197 94;
+  --color-warning: 245 158 11;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --color-background: 248 250 252; /* slate-50  */
+  --color-panel: 255 255 255;      /* white     */
+  --color-border: 226 232 240;     /* slate-200 */
+  --color-text: 15 23 42;          /* slate-900 — 15.6:1 on panel */
+  --color-muted: 71 85 105;        /* slate-600 — 5.7:1 on panel  */
+  --color-primary: 15 118 110;     /* teal-700  — 5.3:1 text on white */
+  --color-primary-foreground: 255 255 255; /* white on teal-700 — 4.5:1 */
+  --color-danger: 190 18 60;       /* rose-700  */
+  --color-success: 21 128 61;      /* green-700 */
+  --color-warning: 180 83 9;       /* amber-700 */
+  color-scheme: light;
+}
+
 body {
   margin: 0;
-  background: #07111f;
-  color: #e5edf7;
+  background: rgb(var(--color-background));
+  color: rgb(var(--color-text));
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -15,7 +47,7 @@ body {
 
 /* Keyboard focus is always visible, even on elements without a bespoke ring (WCAG 2.4.7). */
 :focus-visible {
-  outline: 2px solid #2dd4bf;
+  outline: 2px solid rgb(var(--color-primary));
   outline-offset: 2px;
 }
 

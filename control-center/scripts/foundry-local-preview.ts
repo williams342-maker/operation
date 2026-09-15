@@ -1,0 +1,25 @@
+// Disposable local harness. Never import this from a production entry point.
+import path from "node:path";
+import express from "express";
+import { ObjectId } from "mongodb";
+import { isolatedTestMongoUrl } from "../apps/api/src/testDbGuard.js";
+const isolated = isolatedTestMongoUrl();
+if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(isolated.url).hostname)) throw new Error("Local preview requires a loopback MongoDB test server");
+process.env.NODE_ENV = "test";
+process.env.MONGO_URL = isolated.url;
+process.env.CONTROL_CENTER_DB = isolated.dbName;
+process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "disabled";
+process.env.CONTROL_CENTER_SECURE_COOKIES = "false";
+const { app } = await import("../apps/api/src/server.js");
+const { collections, connectDb, db, client } = await import("../apps/api/src/db.js");
+const { hashPassword } = await import("../apps/api/src/crypto.js");
+await connectDb();
+const orgId = new ObjectId(); const now = new Date();
+await collections.organizations.insertOne({ _id: orgId, name: "Foundry local review", slug: orgId.toHexString(), createdAt: now, updatedAt: now });
+await collections.users.insertOne({ orgId, email: "foundry@example.invalid", name: "Local reviewer", role: "Owner", passwordHash: hashPassword("disposable-local-review-only"), createdAt: now, updatedAt: now });
+const dist = path.resolve("apps/web/dist");
+app.use("/api", (_req, res) => { res.status(404).json({ error: "Unavailable" }); });
+app.use(express.static(dist));
+app.get("*", (_req, res) => res.sendFile(path.join(dist, "index.html")));
+const server = app.listen(4179, "127.0.0.1", () => console.log("Disposable Foundry review app ready: http://127.0.0.1:4179"));
+process.on("SIGINT", async () => { server.close(); await db.dropDatabase(); await client.close(); process.exit(); });

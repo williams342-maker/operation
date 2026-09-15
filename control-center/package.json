@@ -24,6 +24,7 @@
     "agent-bootstrap:verify": "node scripts/verify-agent-bootstrap.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
     "@eslint/js": "^10.0.1",
     "esbuild": "^0.28.1",
     "eslint": "^10.7.0",

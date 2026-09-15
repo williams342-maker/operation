@@ -4,7 +4,7 @@ export function Card({ children }: PropsWithChildren) { return <section classNam
 // Shared focus ring for keyboard users (WCAG 2.4.7 visible focus). focus-visible only, so pointer
 // interactions stay clean. Reused across interactive primitives for a consistent, obvious focus state.
 const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-primary/90 disabled:opacity-50 ${focusRing} ${props.className || ""}`} />; }
+export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primaryForeground transition-colors hover:bg-primary/90 disabled:opacity-50 ${focusRing} ${props.className || ""}`} />; }
 export function GhostButton(props: ButtonHTMLAttributes<HTMLButtonElement>) { return <button {...props} className={`inline-flex min-h-[2.5rem] items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-background disabled:opacity-50 ${focusRing} ${props.className || ""}`} />; }
 // Destructive/irreversible actions (delete, clear). Danger-toned border + text so they are visually
 // distinct from neutral controls — not color alone: the label ("Delete"/"Clear") carries the meaning too.

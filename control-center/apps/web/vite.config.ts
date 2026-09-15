@@ -6,11 +6,11 @@ export default defineConfig({
   test: { environment: "jsdom", setupFiles: "./src/testSetup.ts", include: ["src/**/*.test.{ts,tsx}"] },
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port: Number(process.env.WEB_PORT || 5173),
     proxy: {
-      "/api": "http://127.0.0.1:3000",
-      "/healthz": "http://127.0.0.1:3000",
-      "/readyz": "http://127.0.0.1:3000"
+      "/api": process.env.API_PROXY || "http://127.0.0.1:3000",
+      "/healthz": process.env.API_PROXY || "http://127.0.0.1:3000",
+      "/readyz": process.env.API_PROXY || "http://127.0.0.1:3000"
     }
   }
 });
