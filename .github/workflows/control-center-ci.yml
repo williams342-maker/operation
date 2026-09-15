@@ -286,6 +286,9 @@ jobs:
           echo "mongod never reached PRIMARY" >&2
           docker logs mongo-rs >&2 || true
           exit 1
+      - name: Verify the checksum gate before relying on it
+        working-directory: .
+        run: bash control-center/scripts/test-verify-checksum-sidecar.sh
       - name: Scan tracked repository content with Gitleaks 8.30.1
         working-directory: .
         env:
@@ -304,7 +307,11 @@ jobs:
             "${release_url}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           grep "  ${asset}$" "${RUNNER_TEMP}/gitleaks-checksums.txt" \
             > "${RUNNER_TEMP}/gitleaks-checksum.txt"
-          (cd "${RUNNER_TEMP}" && sha256sum --check gitleaks-checksum.txt)
+          # See control-center/scripts/verify-checksum-sidecar.sh for why `sha256sum --check` is
+          # not enough on its own: it reports no count and no identity, so a grep that emitted two
+          # lines, or a line about a different asset, still exits 0.
+          bash "${GITHUB_WORKSPACE}/control-center/scripts/verify-checksum-sidecar.sh" \
+            "${RUNNER_TEMP}/gitleaks-checksum.txt" "${asset}"
           tar -xzf "${RUNNER_TEMP}/${asset}" -C "${tool_dir}" gitleaks
           git archive --format=tar HEAD | tar -xf - -C "${scan_dir}"
           "${tool_dir}/gitleaks" dir "${scan_dir}" \

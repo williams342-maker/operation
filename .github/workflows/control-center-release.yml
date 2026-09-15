@@ -57,7 +57,13 @@ jobs:
           curl --fail --location --silent --show-error --output "${RUNNER_TEMP}/${asset}" "${release_url}/${asset}"
           curl --fail --location --silent --show-error --output "${RUNNER_TEMP}/gitleaks-checksums.txt" "${release_url}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           grep "  ${asset}$" "${RUNNER_TEMP}/gitleaks-checksums.txt" > "${RUNNER_TEMP}/gitleaks-checksum.txt"
-          (cd "$RUNNER_TEMP" && sha256sum --check gitleaks-checksum.txt)
+          # `sha256sum --check` cannot tell you how many entries it verified or which asset they
+          # named: one good line plus a junk line, or two entries, both exit 0. That makes this
+          # step trust the grep above to have produced exactly the line intended, which is a
+          # trust the grep cannot repay if the upstream checksum format shifts. The gate decides
+          # the shape itself and recomputes the digest rather than delegating the verdict.
+          bash "${GITHUB_WORKSPACE}/control-center/scripts/verify-checksum-sidecar.sh" \
+            "${RUNNER_TEMP}/gitleaks-checksum.txt" "${asset}"
           tar -xzf "${RUNNER_TEMP}/${asset}" -C "$tool_dir" gitleaks
           git archive --format=tar HEAD | tar -xf - -C "$scan_dir"
           "$tool_dir/gitleaks" dir "$scan_dir" --no-banner --redact --exit-code 1
