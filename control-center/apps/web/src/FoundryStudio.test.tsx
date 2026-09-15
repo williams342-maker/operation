@@ -169,3 +169,14 @@ it("does not redirect or clear a newer draft when creation completes after navig
   finish({workflow:wf("brief_review")}); await Promise.resolve();
   expect(navigate).not.toHaveBeenCalled();expect(sessionStorage.getItem("foundry.draftPrompt")).toBe("Newer draft");
 });
+it("refreshes an untouched unnamed brief when automatic preparation advances the revision", async () => {
+  mocks.get.mockResolvedValue({workflow:wf("brief_review")});
+  mocks.advance.mockResolvedValue({workflow:wf("preview_ready",{version:2,artifact,validation})});
+  mocks.updateBrief.mockResolvedValue({workflow:wf("preview_ready",{version:3,artifact,validation,brief:{...brief,business:{name:"Named after preparation",description:PROMPT}}})});
+  render(<FoundryStudio route={{kind:"project",workflowId:"w1"}} navigate={vi.fn()} />);
+  await screen.findByTitle("Generated website preview");
+  await userEvent.type(screen.getByRole("textbox",{name:"Business or project name"}),"Named after preparation");
+  await userEvent.click(screen.getByRole("button",{name:"Save and refresh preview"}));
+  await waitFor(()=>expect(mocks.updateBrief).toHaveBeenCalledTimes(1));
+  expect(mocks.updateBrief.mock.calls[0][2]).toBe(2);
+});

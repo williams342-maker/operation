@@ -416,23 +416,24 @@ function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpda
   const [editing, setEditing] = useState((Boolean(savedDraft) || !hasName) && !locked);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(Boolean(savedDraft));
   const [baseVersion, setBaseVersion] = useState<number>(savedDraft?.version || workflow.version);
   const [form, setForm] = useState<{businessName:string;description:string;websiteType:string;primaryAction:string;requiredPages:string}>(savedDraft?.form || { businessName: hasName ? rawName! : "", description, websiteType: workflow.websiteType, primaryAction: brief.goals?.primaryAction || "", requiredPages: (brief.website?.requiredPages || []).map(String).join(", ") });
   useEffect(() => {
-    try { if (editing && !locked) sessionStorage.setItem(draftKey, JSON.stringify({ version: baseVersion, form })); else sessionStorage.removeItem(draftKey); } catch { /* Editing still works if storage is unavailable. */ }
-  }, [editing, locked, baseVersion, form]);
+    try { if (editing && dirty && !locked) sessionStorage.setItem(draftKey, JSON.stringify({ version: baseVersion, form })); else sessionStorage.removeItem(draftKey); } catch { /* Editing still works if storage is unavailable. */ }
+  }, [editing, dirty, locked, baseVersion, form]);
   useEffect(() => {
-    if (!editing) {
+    if (!editing || !dirty) {
       setForm({ businessName: hasName ? rawName! : "", description, websiteType: workflow.websiteType, primaryAction: brief.goals?.primaryAction || "", requiredPages: (brief.website?.requiredPages || []).map(String).join(", ") });
       setBaseVersion(workflow.version);
     }
-  }, [workflow.version, editing]);
+  }, [workflow.version, editing, dirty]);
   const save = async () => {
     if (locked) return;
     setSaving(true); setError(null);
     try {
       const res = await updateWorkflowBrief(workflow.id, { ...form, requiredPages: form.requiredPages.split(",").map((v: string) => v.trim()).filter(Boolean) }, baseVersion);
-      onUpdated(res.workflow); setEditing(false);
+      onUpdated(res.workflow); setDirty(false); setEditing(false);
     } catch (e) { setError(apiError(e)); } finally { setSaving(false); }
   };
   const rows: Array<{ label: string; value: string; source: "user" | "derived" }> = [
@@ -445,15 +446,15 @@ function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpda
   ];
   return (
     <section aria-labelledby="foundry-brief-title" className="rounded-2xl border border-border bg-panel p-4">
-      <div className="flex items-center justify-between gap-2"><h2 id="foundry-brief-title" className="font-semibold">Project brief</h2><button type="button" disabled={locked || saving} onClick={() => setEditing((v) => !v)} className="min-h-9 rounded-md border border-border px-3 py-1.5 text-sm">{editing ? "Cancel" : "Edit brief"}</button></div>
+      <div className="flex items-center justify-between gap-2"><h2 id="foundry-brief-title" className="font-semibold">Project brief</h2><button type="button" disabled={locked || saving} onClick={() => { setDirty(false); setEditing((v) => !v); }} className="min-h-9 rounded-md border border-border px-3 py-1.5 text-sm">{editing ? "Cancel" : "Edit brief"}</button></div>
       <p className="mt-1 text-xs text-muted">Foundry filled in sensible defaults from your request. Values marked <span className="font-medium text-text">Suggested</span> are safe to change.</p>
       {editing && !locked && <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
         {!hasName && <p className="text-xs text-muted">Name this project (optional). You can leave it blank to use a neutral preview name.</p>}
-        <label className="block text-xs font-medium">Business or project name<input aria-label="Business or project name" value={form.businessName} maxLength={80} onChange={(e) => setForm({ ...form, businessName: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
-        <label className="block text-xs font-medium">Purpose or description<textarea aria-label="Purpose or description" value={form.description} maxLength={4000} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
-        <label className="block text-xs font-medium">Website type<select aria-label="Website type" value={form.websiteType} onChange={(e) => setForm({ ...form, websiteType: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm"><option value="business">Business</option><option value="store">Store</option><option value="landing_page">Landing page</option><option value="redesign">Redesign</option><option value="connected_project">Connected project</option><option value="other">Other</option></select></label>
-        <label className="block text-xs font-medium">Primary call to action<input aria-label="Primary call to action" value={form.primaryAction} maxLength={80} onChange={(e) => setForm({ ...form, primaryAction: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
-        <label className="block text-xs font-medium">Key pages<input aria-label="Key pages" value={form.requiredPages} onChange={(e) => setForm({ ...form, requiredPages: e.target.value })} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /><span className="mt-1 block text-[11px] text-muted">Separate pages with commas.</span></label>
+        <label className="block text-xs font-medium">Business or project name<input aria-label="Business or project name" value={form.businessName} maxLength={80} onChange={(e) => { setDirty(true); setForm({ ...form, businessName: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
+        <label className="block text-xs font-medium">Purpose or description<textarea aria-label="Purpose or description" value={form.description} maxLength={4000} onChange={(e) => { setDirty(true); setForm({ ...form, description: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
+        <label className="block text-xs font-medium">Website type<select aria-label="Website type" value={form.websiteType} onChange={(e) => { setDirty(true); setForm({ ...form, websiteType: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm"><option value="business">Business</option><option value="store">Store</option><option value="landing_page">Landing page</option><option value="redesign">Redesign</option><option value="connected_project">Connected project</option><option value="other">Other</option></select></label>
+        <label className="block text-xs font-medium">Primary call to action<input aria-label="Primary call to action" value={form.primaryAction} maxLength={80} onChange={(e) => { setDirty(true); setForm({ ...form, primaryAction: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
+        <label className="block text-xs font-medium">Key pages<input aria-label="Key pages" value={form.requiredPages} onChange={(e) => { setDirty(true); setForm({ ...form, requiredPages: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /><span className="mt-1 block text-[11px] text-muted">Separate pages with commas.</span></label>
         <p className="text-xs text-muted">Saving updates the preview and requires a fresh final approval. The current preview remains visible if refresh fails.</p>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <button type="button" disabled={saving} onClick={save} className="min-h-10 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primaryForeground disabled:opacity-60">{saving ? "Saving…" : "Save and refresh preview"}</button>
