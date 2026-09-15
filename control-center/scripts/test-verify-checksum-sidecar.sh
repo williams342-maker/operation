@@ -92,21 +92,31 @@ chk "a nonexistent sidecar is refused" fail "does not exist" "$T/nope.sha256" "$
 # in input" and carries on -- so every check below it validated a string the file did not
 # contain. Measured: a 76-byte sidecar became a 74-character entry, and a digest with an
 # embedded NUL was ACCEPTED as well formed.
-printf '%s\000  %s\n' "${DIGEST:0:63}" "$ARCHIVE" > "$T/nul-digest.sha256"
-chk "a NUL inside the digest is refused" fail "NUL bytes" "$T/nul-digest.sha256" "$ARCHIVE"
+# Each of these three must be a sidecar that the gate would ACCEPT once the NUL is dropped --
+# otherwise the case proves only that something else rejected it. Round 2 caught exactly that:
+# a 63-character digest and a truncated filename were refused for their own reasons, so they
+# demonstrated the diagnostic rather than the fail-open. The digest below is the FULL 64
+# characters with a NUL in the middle, and the filename is the complete expected name.
+printf '%s\000%s  %s\n' "${DIGEST:0:32}" "${DIGEST:32}" "$ARCHIVE" > "$T/nul-digest.sha256"
+chk "a NUL inside an otherwise valid digest is refused" fail "NUL bytes" "$T/nul-digest.sha256" "$ARCHIVE"
 
-printf '%s  arti\000fact\n' "$DIGEST" > "$T/nul-name.sha256"
-chk "a NUL inside the filename is refused" fail "NUL bytes" "$T/nul-name.sha256" "$ARCHIVE"
+printf '%s  arti\000fact.tar.gz\n' "$DIGEST" > "$T/nul-name.sha256"
+chk "a NUL inside an otherwise correct filename is refused" fail "NUL bytes" "$T/nul-name.sha256" "$ARCHIVE"
 
 printf '%s  %s\000\n' "$DIGEST" "$ARCHIVE" > "$T/nul-tail.sha256"
 chk "a NUL after the filename is refused" fail "NUL bytes" "$T/nul-tail.sha256" "$ARCHIVE"
 
 # CRLF detection must not depend on which shell runs it. The original guard was
 # `grep -q $'\r'`, which Git Bash reads in text mode and never matches -- so under Git Bash the
-# CRLF case PASSED, on precisely the defect this gate exists for. Byte counting cannot be fooled
-# by a text-mode reader. The plain CRLF case above covers the behaviour; this pins the mechanism.
-printf '%s  %s\r\n' "$DIGEST" "$ARCHIVE" > "$T/crlf-mechanism.sha256"
-chk "CRLF is refused by byte count, not by grep" fail "carriage-return" "$T/crlf-mechanism.sha256" "$ARCHIVE"
+# CRLF case PASSED, on precisely the defect this gate exists for.
+#
+# This case is a DUPLICATE of the CRLF case above, kept deliberately and labelled as what it is:
+# review round 2 pointed out that it does not distinguish byte counting from any other working
+# detector, and an earlier comment here claimed it "pins the mechanism", which it does not. What
+# it does buy is a second CRLF assertion positioned among the byte-level cases, so removing the
+# NUL/CR block cannot leave CRLF silently uncovered.
+printf '%s  %s\r\n' "$DIGEST" "$ARCHIVE" > "$T/crlf-second.sha256"
+chk "CRLF is still refused among the byte-level cases" fail "carriage-return" "$T/crlf-second.sha256" "$ARCHIVE"
 
 # Backslash in the path. GNU sha256sum escapes such filenames by prefixing its whole output line
 # with a backslash, so a digest read with `cut -d' ' -f1` came back as "\<digest>" and the file

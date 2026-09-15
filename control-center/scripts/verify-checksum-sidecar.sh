@@ -38,8 +38,15 @@ EXPECTED_NAME="${2:-}"
 # `grep -q $'\r'` was the obvious way to find carriage returns and it is wrong: an independent
 # review ran the harness under Git Bash and the CRLF case PASSED, because that grep treats the
 # file as text and never sees the CR. The guard against the very defect this gate exists for did
-# not fire on one of the two shells it ships to. Deleting a byte and comparing lengths cannot be
-# fooled by a text-mode reader.
+# not fire on one of the two shells it ships to. Deleting a byte and comparing lengths does not
+# depend on how a tool classifies the file, and it is verified to work on both shells this ships
+# to -- which is a narrower claim than "cannot be fooled", and the narrower one is what the
+# evidence supports.
+#
+# It also assumes a STABLE input. The sidecar is read several times, so a file being rewritten
+# underneath this gate could pass the byte checks and then present different bytes to the parse.
+# That is acceptable for the CI use here, where the download has completed before the gate runs,
+# and it is written down because it would not be acceptable everywhere.
 #
 # NUL is rejected for a sharper reason. `entry="$(head -n 1 ...)"` silently DISCARDS NUL bytes --
 # bash warns "ignored null byte in input" and carries on -- so every check below would validate a
