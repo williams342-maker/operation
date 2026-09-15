@@ -42,7 +42,15 @@ try {
  for(const width of [320,390,768,1440]) await shot('workspace-'+width,width);
  await page.getByRole('button',{name:'Reject: Strengthen the homepage headline and call to action'}).click();
  await page.getByRole('button',{name:'Reject: Strengthen the homepage headline and call to action'}).waitFor({state:'detached'});
- await page.getByRole('button',{name:'Accept change',exact:true}).first().click();
+ // Accepting a suggestion bumps the workflow version, and the brief PATCH carries a version the
+ // server checks. Clicking straight through to Edit brief races that refresh: roughly half the
+ // time the save went out stale and the server correctly refused it with
+ //   409 {"error":"Project changed or version missing. Reload before making this decision."}
+ // which surfaced as this journey timing out waiting for the updated heading. The reject above
+ // already waits for its button to detach; the accept did not, and that asymmetry was the bug.
+ const acceptChange = page.getByRole('button',{name:'Accept change',exact:true}).first();
+ await acceptChange.click();
+ await acceptChange.waitFor({state:'detached'});
  await page.getByRole('button',{name:'Edit brief',exact:true}).click();
  await page.getByRole('textbox',{name:'Business or project name',exact:true}).fill('Cedar Bakery Updated');
  await page.getByRole('button',{name:'Save and refresh preview'}).click();
