@@ -1,4 +1,4 @@
-/* global document, innerWidth */
+/* global document, innerWidth, window */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +14,7 @@ try {
  page.on('pageerror',e=>errors.push(e.message));
  await context.route('**/*',route=>route.request().url().startsWith(origin) ? route.continue() : route.abort());
  page.on('request',req=>{if(req.method()!=='GET') requests.push({method:req.method(),url:new URL(req.url()).pathname});});
- async function shot(name,width=1440){await page.setViewportSize({width,height:1000}); await page.screenshot({path:path.join(out,name+'.png'),fullPage:true}); assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false, name+' horizontal overflow'); const accessibility=await new AxeBuilder({page}).exclude('iframe').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze(); await fs.writeFile(path.join(out,name+'-a11y.json'),JSON.stringify(accessibility.violations,null,2)); assert.deepEqual(accessibility.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[],name+' accessibility');}
+ async function shot(name,width=1440){await page.setViewportSize({width,height:1000}); await page.evaluate(()=>window.scrollTo(0,0)); await page.screenshot({path:path.join(out,name+'.png'),fullPage:true}); assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false, name+' horizontal overflow'); const accessibility=await new AxeBuilder({page}).exclude('iframe').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze(); await fs.writeFile(path.join(out,name+'-a11y.json'),JSON.stringify(accessibility.violations,null,2)); assert.deepEqual(accessibility.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[],name+' accessibility');}
  await page.goto(origin+'/foundry'); await page.getByRole('heading',{level:1}).waitFor();
  await shot('landing-desktop');await shot('landing-mobile',390);
  const login=await context.request.post(origin+'/api/auth/login',{data:{email:'foundry@example.invalid',password:'disposable-local-review-only'}});
@@ -44,6 +44,8 @@ try {
  await frame.getByRole('heading',{level:1}).filter({hasText:'Cedar Bakery Updated'}).waitFor();
  await frame.getByRole('link',{name:'Contact',exact:true}).click();
  assert.equal(page.url(),projectUrl);
+ await frame.getByRole('heading',{level:1}).filter({hasText:'Cedar Bakery Updated'}).waitFor();
+ await frame.getByRole('link',{name:'Home',exact:true}).click();
  await page.getByRole('button',{name:'Approve preview',exact:true}).click();
  await page.getByText('Preview approved.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Edit brief',exact:true}).isDisabled(),true);

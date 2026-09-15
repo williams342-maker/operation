@@ -260,7 +260,7 @@ function PreviewCanvas({ html, advancing, viewport, width, onViewport, onRefresh
       )}
       <div className="mt-4 flex justify-center overflow-x-auto rounded-xl bg-background p-3">
         {html ? (
-          <iframe title="Generated website preview" sandbox="" srcDoc={html} className="h-[640px] rounded-lg border border-border bg-white transition-[width]" style={{ width, maxWidth: "100%" }} />
+          <iframe title="Generated website preview" sandbox="" srcDoc={html.replace(/href="#/g, 'href="about:srcdoc#')} className="h-[640px] rounded-lg border border-border bg-white transition-[width]" style={{ width, maxWidth: "100%" }} />
         ) : advancing ? (
           <div role="status" className="flex h-[640px] w-full items-center justify-center gap-2 text-sm text-muted"><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> Building your first preview…</div>
         ) : (
