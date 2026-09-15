@@ -39,6 +39,7 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  WalletCards,
   Trash2,
   Users,
   X,
@@ -67,6 +68,14 @@ import { ConfigurationPage } from "./ConfigurationPage";
 import { AgentUpgradesPage } from "./AgentUpgradesPage";
 import { AiWorkforcePage } from "./AiWorkforcePage";
 import { TaskResultSummary } from "./TaskResultSummary";
+import { ThemeToggle, useTheme } from "./ThemeToggle";
+import type { Theme } from "./theme";
+import { FoundryLandingPage } from "./FoundryLandingPage";
+import { FoundryStudio, FoundryProjectsPage } from "./FoundryStudio";
+import { parseFoundryPath, type FoundryRoute } from "./foundryRoutes";
+import { useLocationPath } from "./useLocationPath";
+import { activateDraftScope, clearDraftPrompt, draftRequestKey, saveDraftPrompt } from "./foundryDraft";
+import { trackFoundry } from "./foundryAnalytics";
 import {
   Badge,
   Button,
@@ -87,6 +96,7 @@ type Page =
   | "ai-builder"
   | "seo"
   | "ai-workforce"
+  | "credits"
   | "org"
   | "users"
   | "servers"
@@ -365,26 +375,26 @@ function AiWebsiteBuilderPage() {
   const [selection, setSelection] = useState<(typeof websiteStartingPoints)[number]>();
   const [workflow, setWorkflow] = useState<any>(); const [question, setQuestion] = useState<any>(); const [answer, setAnswer] = useState(""); const [editing, setEditing] = useState<any>(); const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
   const history = useQuery({ queryKey: ["website-builder-workflows"], queryFn: () => api.get("/website-builder/workflows").then((r) => r.data?.workflows ?? []) });
-  const create = useMutation({ mutationFn: () => api.post("/website-builder/workflows", { websiteType: selection!.type }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); } });
-  const submit = useMutation({ mutationFn: () => api.post(`/website-builder/workflows/${workflow.id}/answers`, { questionId: question.id, value: answer }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setAnswer(""); } });
-  const action = useMutation({ mutationFn: ({ path, body }: { path: string; body?: any }) => api.post(`/website-builder/workflows/${workflow.id}/${path}`, body).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setEditing(undefined); } });
-  const saveSection = useMutation({ mutationFn: () => api.patch(`/website-builder/workflows/${workflow.id}/sections/${editing.id}`, { heading: editing.heading, body: editing.body, ...(editing.cta ? { cta: editing.cta } : {}) }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setEditing(undefined); } });
-  const regenerate = useMutation({ mutationFn: (sectionId: string) => api.post(`/website-builder/workflows/${workflow.id}/sections/${sectionId}/regenerate`).then((r) => r.data), onSuccess: (data) => setWorkflow(data.workflow) });
+  const create = useMutation({ mutationFn: () => api.post("/website-builder/workflows", { websiteType: selection!.type }, { headers: { "Idempotency-Key": draftRequestKey("guided:" + selection!.type) } }).then((r) => r.data), onSuccess: (data) => { clearDraftPrompt(); setWorkflow(data.workflow); setQuestion(data.question); } });
+  const submit = useMutation({ mutationFn: () => api.post(`/website-builder/workflows/${workflow.id}/answers`, { questionId: question.id, value: answer }, { headers: { "If-Match": String(workflow.version) } }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setAnswer(""); } });
+  const action = useMutation({ mutationFn: ({ path, body }: { path: string; body?: any }) => api.post(`/website-builder/workflows/${workflow.id}/${path}`, body, { headers: { "If-Match": String(workflow.version) } }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setQuestion(data.question); setEditing(undefined); } });
+  const saveSection = useMutation({ mutationFn: () => api.patch(`/website-builder/workflows/${workflow.id}/sections/${editing.id}`, { heading: editing.heading, body: editing.body, ...(editing.cta ? { cta: editing.cta } : {}) }, { headers: { "If-Match": String(workflow.version) } }).then((r) => r.data), onSuccess: (data) => { setWorkflow(data.workflow); setEditing(undefined); } });
+  const regenerate = useMutation({ mutationFn: (sectionId: string) => api.post(`/website-builder/workflows/${workflow.id}/sections/${sectionId}/regenerate`, {}, { headers: { "If-Match": String(workflow.version) } }).then((r) => r.data), onSuccess: (data) => setWorkflow(data.workflow) });
   const approve = (path: string, body?: any) => action.mutate({ path, body });
   if (workflow) {
     const stages = ["Discovery", "Brief", "Sitemap", "Brand", "Content", "Plan", "Preview", "Staging"];
     const stageIndex: Record<string, number> = { discovery: 0, brief_review: 1, architecture_review: 2, brand_review: 3, content_review: 4, implementation_approval: 5, preview_ready: 6, user_review: 6, staging_approval: 7 };
     const active = stageIndex[workflow.stage] ?? 0;
     return <div className="mx-auto max-w-7xl text-slate-950"><div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)_240px]">
-      <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="font-semibold">Website workflow</h2><ol className="mt-4 space-y-2">{stages.map((stage, index) => <li key={stage} className={`rounded-lg px-3 py-2 text-sm ${index === active ? "bg-blue-50 font-semibold text-blue-700" : index < active ? "text-emerald-700" : "text-slate-400"}`}>{index < active ? "✓ " : ""}{stage}</li>)}</ol><div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500"><div>Estimated credits: {workflow.estimatedCredits}</div><div className="mt-1">Used: {workflow.actualCredits}</div><div className="mt-1">Artifact version: {workflow.version}</div></div></aside>
+      <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="font-semibold">Website workflow</h2><ol className="mt-4 space-y-2">{stages.map((stage, index) => <li key={stage} className={`rounded-lg px-3 py-2 text-sm ${index === active ? "bg-blue-50 font-semibold text-blue-700" : index < active ? "text-emerald-700" : "text-slate-400"}`}>{index < active ? "✓ " : ""}{stage}</li>)}</ol><div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500"><div>Credits &amp; providers: Upcoming</div><div className="mt-1">Artifact version: {workflow.version}</div></div></aside>
       <main className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        {workflow.stage === "discovery" && question && <><div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided discovery</div><span className="text-sm text-slate-500">Question {Math.min(workflow.currentQuestionIndex + 1, 8)} of 8</span></div><div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-emerald-500" style={{ width: `${(workflow.currentQuestionIndex / 8) * 100}%` }} /></div><h2 className="mt-8 text-2xl font-bold">{question.prompt}</h2><p className="mt-2 text-sm text-slate-500">{question.help}</p><textarea aria-label="Your answer" value={answer} onChange={(event) => setAnswer(event.target.value)} rows={6} maxLength={4000} className="mt-6 w-full rounded-2xl border border-slate-300 p-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><div className="mt-4 flex items-center justify-between gap-4"><span className="text-xs text-slate-500">No AI credits used during manual discovery.</span><Button disabled={!answer.trim() || submit.isPending} onClick={() => submit.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{submit.isPending ? "Saving..." : "Save and continue"}</Button></div><ErrorText error={submit.error} /></>}
+        {workflow.stage === "discovery" && question && <><div className="flex flex-wrap items-center justify-between gap-3"><div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"><Sparkles className="h-4 w-4" /> Guided discovery</div><span className="text-sm text-slate-500">Question {Math.min(workflow.currentQuestionIndex + 1, 8)} of 8</span></div><div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-emerald-500" style={{ width: `${(workflow.currentQuestionIndex / 8) * 100}%` }} /></div><h2 className="mt-8 text-2xl font-bold">{question.prompt}</h2><p className="mt-2 text-sm text-slate-500">{question.help}</p><textarea aria-label="Your answer" value={answer} onChange={(event) => setAnswer(event.target.value)} rows={6} maxLength={4000} className="mt-6 w-full rounded-2xl border border-slate-300 p-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><div className="mt-4 flex items-center justify-between gap-4"><span className="text-xs text-slate-500">Manual discovery; paid providers are Upcoming.</span><Button disabled={!answer.trim() || submit.isPending} onClick={() => submit.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{submit.isPending ? "Saving..." : "Save and continue"}</Button></div><ErrorText error={submit.error} /></>}
         {workflow.stage === "brief_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Project brief · version {workflow.brief.version}</p><h2 className="mt-2 text-2xl font-bold">{workflow.brief.business.name}</h2><p className="mt-3 leading-7 text-slate-600">{workflow.brief.business.description}</p><dl className="mt-6 grid gap-4 sm:grid-cols-2">{[["Audience",workflow.brief.audience.primary],["Primary goal",workflow.brief.goals.primaryGoal],["Visitor action",workflow.brief.goals.primaryAction],["Required pages",workflow.brief.website.requiredPages.join(", ")],["Brand personality",workflow.brief.brand.personality.join(", ") || "Not specified"],["Launch target",workflow.brief.constraints.launchDate || "Not specified"]].map(([label,value]) => <div key={label} className="rounded-xl bg-slate-50 p-4"><dt className="text-xs font-semibold uppercase text-slate-500">{label}</dt><dd className="mt-2 text-sm">{value}</dd></div>)}</dl><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-brief")}>Approve brief and generate sitemap</Button></>}
         {workflow.stage === "architecture_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sitemap · version {workflow.architecture.version}</p><h2 className="mt-2 text-2xl font-bold">Review site architecture</h2><div className="mt-6 space-y-3">{workflow.architecture.pages.map((page: any) => <article key={page.id} className="rounded-xl border border-slate-200 p-4"><div className="flex justify-between gap-3"><div><h3 className="font-semibold">{page.title}</h3><p className="text-xs text-blue-600">{page.route}</p></div><span className="text-xs text-slate-500">{page.sections.length} sections</span></div><p className="mt-2 text-sm text-slate-600">{page.purpose}</p><p className="mt-2 text-xs text-slate-500">Primary action: {page.primaryAction}</p></article>)}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-architecture")}>Approve sitemap and create brand directions</Button></>}
         {workflow.stage === "brand_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Brand directions</p><h2 className="mt-2 text-2xl font-bold">Choose and lock a visual direction</h2><div className="mt-6 grid gap-4 lg:grid-cols-3">{workflow.brandDirections.map((direction: any) => <article key={direction.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex gap-2">{direction.colors.map((color: string) => <span key={color} className="h-8 flex-1 rounded-lg border" style={{ backgroundColor: color }} />)}</div><h3 className="mt-4 font-semibold">{direction.name}</h3><p className="mt-2 text-sm text-slate-600">{direction.rationale}</p><p className="mt-3 text-xs text-slate-500">{direction.headingStyle} · {direction.density}</p><Button className="mt-4 w-full bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("select-brand", { directionId: direction.id })}>Select this direction</Button></article>)}</div></>}
         {workflow.stage === "content_review" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Structured content</p><h2 className="mt-2 text-2xl font-bold">Review each page section</h2><div className="mt-6 space-y-3">{workflow.sections.map((section: any) => <article key={section.id} className="rounded-xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><span className="text-xs uppercase text-slate-400">{section.type} · v{section.version}</span><h3 className="mt-1 font-semibold">{section.heading}</h3><p className="mt-2 text-sm text-slate-600">{section.body}</p>{section.cta && <p className="mt-2 text-sm font-medium text-blue-600">CTA: {section.cta}</p>}</div><div className="flex gap-2"><GhostButton disabled={regenerate.isPending} onClick={() => regenerate.mutate(section.id)}>Regenerate</GhostButton><GhostButton onClick={() => setEditing({ ...section })}>Edit</GhostButton></div></div></article>)}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-content")}>Approve content and prepare implementation plan</Button></>}
-        {workflow.stage === "implementation_approval" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Implementation plan · version {workflow.implementationPlan.version}</p><h2 className="mt-2 text-2xl font-bold">Approve the isolated preview build</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><div className="text-sm font-semibold">Scope</div><p className="mt-2 text-sm text-slate-600">{workflow.implementationPlan.routeCount} routes, {workflow.implementationPlan.componentCount} reusable sections</p></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-sm font-semibold">Estimated cost</div><p className="mt-2 text-sm text-slate-600">{workflow.implementationPlan.estimatedCredits} credits</p></div></div><ul className="mt-5 space-y-2 text-sm text-slate-600">{workflow.implementationPlan.files.map((file: string) => <li key={file}>• {file}</li>)}</ul><div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Preview only. No repository or production deployment occurs at this gate. Rollback: {workflow.implementationPlan.rollback}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-implementation")}>Approve plan and build preview</Button></>}
-        {workflow.stage === "preview_ready" && <><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Validated static-site artifact</p><h2 className="mt-2 text-2xl font-bold">Desktop and mobile ready</h2></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{workflow.validation.checks} checks passed</span></div><div className="mt-5 flex gap-2" aria-label="Preview viewport"><GhostButton aria-pressed={previewViewport === "desktop"} onClick={() => setPreviewViewport("desktop")}>Desktop</GhostButton><GhostButton aria-pressed={previewViewport === "mobile"} onClick={() => setPreviewViewport("mobile")}>Mobile</GhostButton></div><div className={`mx-auto mt-4 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-xl transition-all ${previewViewport === "mobile" ? "max-w-sm" : "max-w-none"}`}><iframe title="Generated website preview" sandbox="" srcDoc={workflow.artifact.html} className={`w-full bg-white ${previewViewport === "mobile" ? "h-[680px]" : "h-[760px]"}`} /></div><div className="mt-3 text-xs text-slate-500">Artifact: {workflow.artifact.filename} · {workflow.artifact.bytes} bytes · SHA-256 {workflow.artifact.sha256.slice(0, 12)}…</div><div className="mt-5 flex flex-wrap gap-3"><Button className="bg-emerald-600 text-white" disabled={action.isPending} onClick={() => approve("approve-preview")}>Approve preview for staging</Button><a className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-sm" href={`/api/website-builder/workflows/${workflow.id}/artifact`} download={workflow.artifact.filename}>Download website</a><GhostButton onClick={() => setEditing({ ...workflow.sections[0] })}>Edit hero section</GhostButton><GhostButton disabled={regenerate.isPending} onClick={() => regenerate.mutate(workflow.sections[0].id)}>Regenerate hero</GhostButton></div></>}
+        {workflow.stage === "implementation_approval" && <><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Implementation plan · version {workflow.implementationPlan.version}</p><h2 className="mt-2 text-2xl font-bold">Approve the isolated preview build</h2><div className="mt-6 grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-slate-50 p-4"><div className="text-sm font-semibold">Scope</div><p className="mt-2 text-sm text-slate-600">{workflow.implementationPlan.routeCount} routes, {workflow.implementationPlan.componentCount} reusable sections</p></div><div className="rounded-xl bg-slate-50 p-4"><div className="text-sm font-semibold">Estimated cost</div><p className="mt-2 text-sm text-slate-600">Credits: Upcoming</p></div></div><ul className="mt-5 space-y-2 text-sm text-slate-600">{workflow.implementationPlan.files.map((file: string) => <li key={file}>• {file}</li>)}</ul><div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Preview only. No repository or production deployment occurs at this gate. Rollback: {workflow.implementationPlan.rollback}</div><Button className="mt-6 bg-blue-600 text-white" disabled={action.isPending} onClick={() => approve("approve-implementation")}>Approve plan and build preview</Button></>}
+        {workflow.stage === "preview_ready" && <><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Validated static-site artifact</p><h2 className="mt-2 text-2xl font-bold">Desktop and mobile ready</h2></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{workflow.validation.checks} checks passed</span></div><div className="mt-5 flex gap-2" aria-label="Preview viewport"><GhostButton aria-pressed={previewViewport === "desktop"} onClick={() => setPreviewViewport("desktop")}>Desktop</GhostButton><GhostButton aria-pressed={previewViewport === "mobile"} onClick={() => setPreviewViewport("mobile")}>Mobile</GhostButton></div><div className={`mx-auto mt-4 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-xl transition-all ${previewViewport === "mobile" ? "max-w-sm" : "max-w-none"}`}><iframe title="Generated website preview" sandbox="" srcDoc={workflow.artifact.html} className={`w-full bg-white ${previewViewport === "mobile" ? "h-[680px]" : "h-[760px]"}`} /></div><div className="mt-3 text-xs text-slate-500">Artifact: {workflow.artifact.filename} · {workflow.artifact.bytes} bytes · SHA-256 {workflow.artifact.sha256.slice(0, 12)}…</div><div className="mt-5 flex flex-wrap gap-3"><Button className="bg-emerald-600 text-white" disabled={action.isPending} onClick={() => approve("approve-preview", { artifactSha256: workflow.artifact.sha256 })}>Approve preview for staging</Button><a className="inline-flex items-center justify-center rounded-md border border-slate-300 px-3 py-2 text-sm" href={`/api/website-builder/workflows/${workflow.id}/artifact`} download={workflow.artifact.filename}>Download website</a><GhostButton onClick={() => setEditing({ ...workflow.sections[0] })}>Edit hero section</GhostButton><GhostButton disabled={regenerate.isPending} onClick={() => regenerate.mutate(workflow.sections[0].id)}>Regenerate hero</GhostButton></div></>}
         {workflow.stage === "staging_approval" && <div className="py-12 text-center"><ShieldCheck className="mx-auto h-14 w-14 text-emerald-500" /><h2 className="mt-5 text-3xl font-bold">Website design is staging-ready</h2><p className="mx-auto mt-3 max-w-xl text-slate-600">The brief, sitemap, brand direction, content, implementation plan, and preview are approved and versioned. A separate administrator approval and configured non-production target are required before deployment.</p><div className="mx-auto mt-6 max-w-lg rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Production publishing remains disabled.</div></div>}
         {editing && <div role="dialog" aria-label="Edit website section" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4"><div className="w-full max-w-xl rounded-2xl bg-white p-6"><h2 className="text-xl font-bold">Edit {editing.type} section</h2><label className="mt-4 block text-sm">Heading<input aria-label="Section heading" className="mt-1 h-11 w-full rounded-lg border px-3" value={editing.heading} onChange={(e) => setEditing({ ...editing, heading: e.target.value })} /></label><label className="mt-4 block text-sm">Body<textarea aria-label="Section body" className="mt-1 w-full rounded-lg border p-3" rows={5} value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} /></label>{editing.cta !== undefined && <label className="mt-4 block text-sm">Call to action<input aria-label="Section call to action" className="mt-1 h-11 w-full rounded-lg border px-3" value={editing.cta} onChange={(e) => setEditing({ ...editing, cta: e.target.value })} /></label>}<div className="mt-5 flex justify-end gap-3"><GhostButton onClick={() => setEditing(undefined)}>Cancel</GhostButton><Button className="bg-blue-600 text-white" disabled={!editing.heading.trim() || !editing.body.trim() || saveSection.isPending} onClick={() => saveSection.mutate()}>Save section</Button></div></div></div>}
         <ErrorText error={action.error || saveSection.error || regenerate.error} />
@@ -398,7 +408,7 @@ function AiWebsiteBuilderPage() {
       <h2 className="mt-5 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">What would you like to create?</h2>
       <p className="mt-3 max-w-2xl text-slate-600">Choose a starting point. OpsWorkbench will begin a guided discovery session and ask one useful question at a time. Nothing is generated or deployed yet.</p>
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{websiteStartingPoints.map((option) => { const { title, description, icon: Icon } = option; return <button key={title} type="button" aria-pressed={selection?.type === option.type} onClick={() => setSelection(option)} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selection?.type === option.type ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"}`}><Icon className="h-6 w-6 text-blue-600" /><h3 className="mt-4 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></button>; })}</div>
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><div className="font-medium">{selection?.title || "Select a starting point"}</div><div className="mt-1 text-sm text-slate-500">The next step is discovery. AI credit estimates appear before any paid work.</div></div><Button disabled={!selection || create.isPending} onClick={() => create.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{create.isPending ? "Starting..." : "Start guided discovery"}</Button></div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"><div><div className="font-medium">{selection?.title || "Select a starting point"}</div><div className="mt-1 text-sm text-slate-500">The next step is discovery. Credits and paid providers are Upcoming.</div></div><Button disabled={!selection || create.isPending} onClick={() => create.mutate()} className="bg-gradient-to-r from-blue-600 to-emerald-500 px-5 text-white">{create.isPending ? "Starting..." : "Start guided discovery"}</Button></div>
       <ErrorText error={create.error} />
       {!!history.data?.length && <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4"><h3 className="font-semibold">Continue a saved website</h3><div className="mt-3 grid gap-2 sm:grid-cols-2">{history.data.map((item: any) => <button key={item.id} className="rounded-xl border p-3 text-left text-sm hover:border-blue-400" onClick={() => api.get(`/website-builder/workflows/${item.id}`).then((r) => { setWorkflow(r.data.workflow); setQuestion(r.data.question); })}><span className="font-medium capitalize">{item.websiteType.replace(/_/g, " ")}</span><span className="ml-2 text-xs text-slate-500">{item.stage.replace(/_/g, " ")}</span></button>)}</div></div>}
       <div className="mt-5 flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p>Production publishing always requires explicit approval. Generated work is built in isolation and validated in staging first.</p></div>
@@ -1854,7 +1864,7 @@ function SeoOptimizerPage({ toast }: { toast: (message: string) => void }) {
   </div>;
 }
 
-function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
+function AppShell({ onLogout, logoutPending, logoutError, theme, onChangeTheme, onOpenFoundry }: { onLogout: () => void; logoutPending: boolean; logoutError: unknown; theme: Theme; onChangeTheme: (theme: Theme) => void; onOpenFoundry: () => void }) {
   const toast = useToast();
   const [page, setPage] = useState<Page>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
@@ -1870,6 +1880,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     ["ai-builder", "AI Website Builder", Sparkles],
     ["seo", "SEO Optimizer", LineChart],
     ["ai-workforce", "AI Workforce", Users],
+    ["credits", "Credits & Providers", WalletCards],
     ["org", "Organization", Settings],
     ["users", "Users", Users],
     ["servers", "Servers", Server],
@@ -1927,6 +1938,8 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
     <div className="min-h-screen md:pl-64">
       <div className="flex items-center justify-between border-b border-border bg-panel p-3 md:hidden">
         <div className="flex items-center gap-2 font-semibold"><Activity className="h-5 w-5 text-primary" /> OpsWorkbench</div>
+        <div className="flex items-center gap-2">
+        <ThemeToggle theme={theme} onChange={onChangeTheme} variant="icon" />
         <button
           ref={mobileNavigationTrigger}
           type="button"
@@ -1938,6 +1951,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         >
           {mobileNavigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
+        </div>
       </div>
       {mobileNavigationOpen && <button type="button" aria-label="Dismiss navigation" className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => closeMobileNavigation()} />}
       <aside
@@ -1949,6 +1963,13 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
         <div className="mb-4 flex items-center gap-2 px-2 font-semibold">
           <Activity className="h-5 w-5 text-primary" /> OpsWorkbench
         </div>
+        <button
+          type="button"
+          onClick={onOpenFoundry}
+          className="mb-3 flex min-h-11 w-full items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
+        >
+          <Sparkles className="h-4 w-4" /> Open Foundry
+        </button>
         {nav.map(([key, label, Icon]) => (
           <button
             key={key}
@@ -1976,11 +1997,12 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
             </button>
           </>
         )}
+        <ThemeToggle theme={theme} onChange={onChangeTheme} className="mt-4" />
         <button
           type="button"
           disabled={logoutPending}
           onClick={onLogout}
-          className="mt-4 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
+          className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:min-h-0"
         >
           <LogOut className="h-4 w-4" />
           {logoutPending ? "Signing out..." : "Sign out"}
@@ -2007,6 +2029,7 @@ function AppShell({ onLogout, logoutPending, logoutError }: { onLogout: () => vo
           {page === "ai-builder" && <AiWebsiteBuilderPage />}
           {page === "seo" && <SeoOptimizerPage toast={toast.show} />}
           {page === "ai-workforce" && <AiWorkforcePage toast={toast.show} />}
+          {page === "credits" && <Card><h1 className="text-xl font-semibold">Credits &amp; Providers — Upcoming</h1><p className="mt-2">Foundry currently prepares template previews. Paid providers, balances and credit adjustments are unavailable.</p></Card>}
           {page === "org" && <OrgSettings toast={toast.show} />}
           {page === "users" && <UsersPage toast={toast.show} />}
           {page === "servers" && <ServersPage toast={toast.show} />}
@@ -2047,11 +2070,84 @@ class ErrorBoundary extends React.Component<
     );
   }
 }
+// Full-screen Foundry chrome for the authenticated workspace — deliberately
+// minimal (not the ops cockpit): brand, theme toggle, a way back to OpsWorkbench,
+// projects, and sign out.
+function FoundryWorkspaceChrome({ theme, onChangeTheme, navigate, onLogout, logoutPending, children }: {
+  theme: Theme; onChangeTheme: (theme: Theme) => void; navigate: (path: string) => void; onLogout: () => void; logoutPending: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className="min-h-screen bg-background text-text">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/85 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={() => navigate("/foundry")} className="flex items-center gap-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" /> Foundry
+          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ThemeToggle theme={theme} onChange={onChangeTheme} variant="icon" />
+            <button type="button" onClick={() => navigate("/foundry/projects")} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-panel">My Projects</button>
+            <button type="button" onClick={() => navigate("/")} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-panel">OpsWorkbench</button>
+            <button type="button" disabled={logoutPending} onClick={onLogout} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm text-muted hover:bg-panel">{logoutPending ? "Signing out…" : "Sign out"}</button>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+    </div>
+  );
+}
+
+// The AI-first studio (single-prompt composer, activity timeline, live-preview
+// canvas, suggestions, approval controls) and the projects list, both inside the
+// minimal Foundry chrome. The guided builder remains available as the ops-shell
+// "AI Website Builder" page (advanced/manual path).
+function FoundryWorkspacePage({ route, theme, onChangeTheme, navigate, onLogout, logoutPending }: {
+  route: FoundryRoute; theme: Theme; onChangeTheme: (theme: Theme) => void; navigate: (path: string) => void; onLogout: () => void; logoutPending: boolean;
+}) {
+  const identity = useQuery({ queryKey: ["foundry-identity"], queryFn: () => api.get("/me").then(r => r.data), retry: false });
+  const [scope, setScope] = useState("");
+  useEffect(() => {
+    if (identity.data?.orgId && identity.data?.user?.id) {
+      const next = `${identity.data.orgId}:${identity.data.user.id}`;
+      activateDraftScope(next); setScope(next);
+    }
+  }, [identity.data]);
+  if (identity.error) return <p role="alert">Unable to establish your organization: {apiError(identity.error)}</p>;
+  if (!scope) return <p role="status">Loading your organization…</p>;
+  return (
+    <FoundryWorkspaceChrome theme={theme} onChangeTheme={onChangeTheme} navigate={navigate} onLogout={onLogout} logoutPending={logoutPending}>
+      {route.kind === "projects"
+        ? <FoundryProjectsPage navigate={navigate} />
+        : <FoundryStudio key={`${scope}:${route.kind === "project" ? route.workflowId : route.kind}`} route={route} navigate={navigate} />}
+    </FoundryWorkspaceChrome>
+  );
+}
+
+function FoundrySurface({ route, authed, theme, onChangeTheme, navigate, onLogout, logoutPending }: {
+  route: FoundryRoute; authed: boolean; theme: Theme; onChangeTheme: (theme: Theme) => void; navigate: (path: string) => void; onLogout: () => void; logoutPending: boolean;
+}) {
+  if (route.kind === "landing") {
+    return (
+      <><FoundryLandingPage
+        authed={authed}
+        theme={theme}
+        onChangeTheme={onChangeTheme}
+        onStart={(prompt) => { if (prompt.trim()) saveDraftPrompt(prompt); if (!authed) trackFoundry("foundry_authentication_required"); navigate("/foundry/new"); }}
+        onSignIn={() => navigate("/foundry/new")}
+        onViewProjects={() => navigate(authed ? "/foundry/projects" : "/foundry/new")}
+      />{authed && <div className="mx-auto max-w-7xl px-4 py-10"><FoundryProjectsPage navigate={navigate} /></div>}</>
+    );
+  }
+  return <FoundryWorkspacePage route={route} theme={theme} onChangeTheme={onChangeTheme} navigate={navigate} onLogout={onLogout} logoutPending={logoutPending} />;
+}
+
 export function Root() {
   const [authed, setAuthed] = useState(
     Boolean(localStorage.getItem("cc.csrf")),
   );
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
+  const [pathname, navigate] = useLocationPath();
+  const [theme, setThemeValue] = useTheme();
+  const foundryRoute = parseFoundryPath(pathname);
   React.useEffect(() => {
     const expireSession = () => {
       queryClient.clear();
@@ -2068,6 +2164,7 @@ export function Root() {
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
+      clearDraftPrompt();
       queryClient.clear();
       setAuthed(false);
     },
@@ -2078,12 +2175,29 @@ export function Root() {
         <p className="text-sm text-muted">Loading</p>
       </Centered>
     );
+  // Foundry is URL-routed and lives outside the ops shell. The public landing is
+  // viewable without auth; the workspace requires sign-in. An anonymous visitor
+  // heading into the workspace falls through to the auth flow below, then returns
+  // to the same URL with any preserved prompt draft.
+  if (foundryRoute && (authed || foundryRoute.kind === "landing")) {
+    return (
+      <FoundrySurface
+        route={foundryRoute}
+        authed={authed}
+        theme={theme}
+        onChangeTheme={setThemeValue}
+        navigate={navigate}
+        onLogout={() => logoutMutation.mutate()}
+        logoutPending={logoutMutation.isPending}
+      />
+    );
+  }
   if (!authed && !bootstrapComplete && status.data?.available)
     return <Bootstrap onComplete={() => setBootstrapComplete(true)} />;
   if (!authed && status.data?.replacementAvailable)
     return <OwnerReplacement onComplete={() => setAuthed(true)} />;
   return authed ? (
-    <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />
+    <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} theme={theme} onChangeTheme={setThemeValue} onOpenFoundry={() => navigate("/foundry")} />
   ) : (
     <Login onLogin={() => setAuthed(true)} />
   );

@@ -36,6 +36,7 @@ import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
 import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
+
 import { seoAuditRouter } from "./seoAuditRoutes.js";
 import { aiWorkforceRouter } from "./aiWorkforceRoutes.js";
 
@@ -501,6 +502,7 @@ router.use(aiSettingsRouter);
 router.use(configurationRouter);
 router.use(agentUpgradeRouter);
 router.use(websiteBuilderRouter);
+// Credits and paid providers are Upcoming; archived credit endpoints remain unmounted.
 router.use(seoAuditRouter);
 router.use(aiWorkforceRouter);
 router.use(managementRouter);

@@ -187,12 +187,14 @@ describe("Responsive navigation", () => {
     renderRoot();
     const trigger = await screen.findByRole("button", { name: "Open navigation" });
     await userEvent.click(trigger);
-    const overview = screen.getByRole("button", { name: /^Overview$/ });
-    await waitFor(() => expect(overview).toHaveFocus());
+    // "Open Foundry" is the first focusable item in the drawer, so it receives
+    // initial focus and is the wrap target of the Tab trap.
+    const firstItem = screen.getByRole("button", { name: /Open Foundry/i });
+    await waitFor(() => expect(firstItem).toHaveFocus());
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     expect(screen.getByRole("button", { name: /sign out/i })).toHaveFocus();
     await userEvent.tab();
-    expect(overview).toHaveFocus();
+    expect(firstItem).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(trigger).toHaveAttribute("aria-expanded", "false");
@@ -235,8 +237,8 @@ describe("Responsive navigation", () => {
 
   it("creates a workflow and saves one guided discovery answer at a time", async () => {
     mocks.apiPost
-      .mockResolvedValueOnce({ data: { workflow: { id: "workflow-1", currentQuestionIndex: 0, stage: "discovery" }, question: { id: "business_name", prompt: "What is the name of your business or organization?", help: "Use the public name visitors should see." } } })
-      .mockResolvedValueOnce({ data: { workflow: { id: "workflow-1", currentQuestionIndex: 1, stage: "discovery" }, question: { id: "business_purpose", prompt: "What does your business do?", help: "Describe your work." } } });
+      .mockResolvedValueOnce({ data: { workflow: { id: "workflow-1", version: 1, currentQuestionIndex: 0, stage: "discovery" }, question: { id: "business_name", prompt: "What is the name of your business or organization?", help: "Use the public name visitors should see." } } })
+      .mockResolvedValueOnce({ data: { workflow: { id: "workflow-1", version: 1, currentQuestionIndex: 1, stage: "discovery" }, question: { id: "business_purpose", prompt: "What does your business do?", help: "Describe your work." } } });
     renderRoot();
     await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
     await userEvent.click(screen.getByRole("button", { name: /^AI Website Builder$/ }));
@@ -245,10 +247,10 @@ describe("Responsive navigation", () => {
     expect(await screen.findByRole("heading", { name: "What is the name of your business or organization?" })).toBeInTheDocument();
     await userEvent.type(screen.getByRole("textbox", { name: "Your answer" }), "Acme Makers");
     await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
-    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(1, "/website-builder/workflows", { websiteType: "business" }));
-    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(2, "/website-builder/workflows/workflow-1/answers", { questionId: "business_name", value: "Acme Makers" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(1, "/website-builder/workflows", { websiteType: "business" }, { headers: { "Idempotency-Key": expect.any(String) } }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenNthCalledWith(2, "/website-builder/workflows/workflow-1/answers", { questionId: "business_name", value: "Acme Makers" }, { headers: { "If-Match": "1" } }));
     expect(await screen.findByRole("heading", { name: "What does your business do?" })).toBeInTheDocument();
-    expect(screen.getByText("No AI credits used during manual discovery.")).toBeInTheDocument();
+    expect(screen.getByText("Manual discovery; paid providers are Upcoming.")).toBeInTheDocument();
   });
 
   it("runs a read-only SEO audit and renders deterministic findings", async () => {
