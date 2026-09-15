@@ -33,12 +33,24 @@ EXPECTED_NAME="${2:-}"
 [ -f "$SIDECAR" ] || die "sidecar does not exist or is not a regular file: $SIDECAR"
 [ -s "$SIDECAR" ] || die "sidecar is empty: $SIDECAR"
 
-# Carriage returns anywhere. A CRLF sidecar makes the filename end in \r, which is the defect that
-# prompted this gate; we reject the byte rather than tolerating it, so the message names the cause
-# instead of leaving the caller with "No such file or directory".
-if LC_ALL=C grep -q $'\r' "$SIDECAR"; then
-  die "sidecar contains carriage-return bytes (CRLF); re-emit it with LF endings: $SIDECAR"
-fi
+# Byte-level rejections, done by COUNTING BYTES rather than by grep.
+#
+# `grep -q $'\r'` was the obvious way to find carriage returns and it is wrong: an independent
+# review ran the harness under Git Bash and the CRLF case PASSED, because that grep treats the
+# file as text and never sees the CR. The guard against the very defect this gate exists for did
+# not fire on one of the two shells it ships to. Deleting a byte and comparing lengths cannot be
+# fooled by a text-mode reader.
+#
+# NUL is rejected for a sharper reason. `entry="$(head -n 1 ...)"` silently DISCARDS NUL bytes --
+# bash warns "ignored null byte in input" and carries on -- so every check below would validate a
+# string the file does not contain. Measured: a 76-byte sidecar became a 74-character entry, and
+# a digest or filename with an embedded NUL was accepted as well-formed. That is a fail-open, and
+# it is why this check comes before anything reads the line.
+bytes_total="$(wc -c < "$SIDECAR")"
+[ "$bytes_total" = "$(LC_ALL=C tr -d '\000' < "$SIDECAR" | wc -c)" ] \
+  || die "sidecar contains NUL bytes, which shell reads silently discard: $SIDECAR"
+[ "$bytes_total" = "$(LC_ALL=C tr -d '\r' < "$SIDECAR" | wc -c)" ] \
+  || die "sidecar contains carriage-return bytes (CRLF); re-emit it with LF endings: $SIDECAR"
 
 # Must end with exactly one LF. A missing terminator is how a last line gets silently dropped by
 # line-based readers.
@@ -59,7 +71,9 @@ if [[ "$entry" =~ ^([0-9a-fA-F]{64})\ ([\ \*])(.+)$ ]]; then
   recorded_digest="${BASH_REMATCH[1]}"
   recorded_name="${BASH_REMATCH[3]}"
 else
-  die "malformed checksum line (want '<64 hex>  <filename>'): $entry"
+  # Truncated: a malformed sidecar can be arbitrarily long, and a gate that echoes a megabyte into
+  # a CI log to explain a one-line problem is its own small denial of service.
+  die "malformed checksum line (want '<64 hex>  <filename>'): ${entry:0:120}"
 fi
 
 [ "$recorded_name" = "$EXPECTED_NAME" ] \
@@ -73,7 +87,11 @@ target="$sidecar_dir/$recorded_name"
 [ -f "$target" ] || die "sidecar names something that is not a regular file: $target"
 [ -r "$target" ] || die "sidecar names a file that cannot be read: $target"
 
-computed_digest="$(sha256sum "$target" | cut -d' ' -f1)" \
+# Hashed through STDIN, not by filename. GNU sha256sum escapes a filename containing a backslash
+# or newline by prefixing the whole output line with "\", so `cut -d' ' -f1` would return
+# "\<digest>" and every such file would read as a mismatch. Feeding the bytes in means there is no
+# filename in the output to escape.
+computed_digest="$(sha256sum < "$target" | cut -d' ' -f1)" \
   || die "could not compute a digest for $target"
 [ -n "$computed_digest" ] || die "empty digest computed for $target"
 

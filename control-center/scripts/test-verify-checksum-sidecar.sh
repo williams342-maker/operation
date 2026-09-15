@@ -85,6 +85,39 @@ chk "a truncated digest is refused" fail "malformed checksum line" "$T/short.sha
 
 chk "a nonexistent sidecar is refused" fail "does not exist" "$T/nope.sha256" "$ARCHIVE"
 
+# --- REVIEW round 1: three defects an independent review found by RUNNING this ------------
+# All three were fail-open or false-fail, and not one was caught by the assertions above.
+
+# NUL. `entry="$(head -n 1 ...)"` silently DISCARDS NUL bytes -- bash warns "ignored null byte
+# in input" and carries on -- so every check below it validated a string the file did not
+# contain. Measured: a 76-byte sidecar became a 74-character entry, and a digest with an
+# embedded NUL was ACCEPTED as well formed.
+printf '%s\000  %s\n' "${DIGEST:0:63}" "$ARCHIVE" > "$T/nul-digest.sha256"
+chk "a NUL inside the digest is refused" fail "NUL bytes" "$T/nul-digest.sha256" "$ARCHIVE"
+
+printf '%s  arti\000fact\n' "$DIGEST" > "$T/nul-name.sha256"
+chk "a NUL inside the filename is refused" fail "NUL bytes" "$T/nul-name.sha256" "$ARCHIVE"
+
+printf '%s  %s\000\n' "$DIGEST" "$ARCHIVE" > "$T/nul-tail.sha256"
+chk "a NUL after the filename is refused" fail "NUL bytes" "$T/nul-tail.sha256" "$ARCHIVE"
+
+# CRLF detection must not depend on which shell runs it. The original guard was
+# `grep -q $'\r'`, which Git Bash reads in text mode and never matches -- so under Git Bash the
+# CRLF case PASSED, on precisely the defect this gate exists for. Byte counting cannot be fooled
+# by a text-mode reader. The plain CRLF case above covers the behaviour; this pins the mechanism.
+printf '%s  %s\r\n' "$DIGEST" "$ARCHIVE" > "$T/crlf-mechanism.sha256"
+chk "CRLF is refused by byte count, not by grep" fail "carriage-return" "$T/crlf-mechanism.sha256" "$ARCHIVE"
+
+# Backslash in the path. GNU sha256sum escapes such filenames by prefixing its whole output line
+# with a backslash, so a digest read with `cut -d' ' -f1` came back as "\<digest>" and the file
+# read as a mismatch -- a false FAILURE rather than a false pass, but wrong either way. Fixed by
+# hashing through stdin, where there is no filename in the output to escape.
+BS_DIR="$T/back\\slash"
+mkdir -p "$BS_DIR"
+printf 'pretend archive contents\n' > "$BS_DIR/$ARCHIVE"
+printf '%s  %s\n' "$DIGEST" "$ARCHIVE" > "$BS_DIR/ok.sha256"
+chk "a backslash in the path still verifies" pass "checksum sidecar verified" "$BS_DIR/ok.sha256" "$ARCHIVE"
+
 # --- identity ----------------------------------------------------------------------------
 # THE DISCRIMINATING CASE. Everything above still passes if the gate never compares the recorded
 # name to the expected one: the sidecar is well-formed, the file it names exists, and its digest
