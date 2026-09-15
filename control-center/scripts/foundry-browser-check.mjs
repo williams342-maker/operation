@@ -4,7 +4,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
-const origin='http://127.0.0.1:4179';
+import { resolveFoundryCheckConfig } from './foundry-check-config.mjs';
+// Resolved BEFORE the browser launches: a misconfigured origin or credential should fail in
+// milliseconds rather than after Chromium starts. See foundry-check-config.mjs for the rules,
+// the important one being that the local-preview credentials can never be sent off-box.
+const { origin, email, password, organizationSlug } = resolveFoundryCheckConfig(process.env);
 const out=path.resolve(process.env.FOUNDRY_EVIDENCE_DIR || '../../browser-evidence');
 await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({channel:process.env.FOUNDRY_BROWSER_CHANNEL || 'msedge',headless:true});
@@ -17,7 +21,9 @@ try {
  async function shot(name,width=1440){await page.setViewportSize({width,height:1000}); await page.evaluate(()=>window.scrollTo(0,0)); await page.screenshot({path:path.join(out,name+'.png'),fullPage:true}); assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false, name+' horizontal overflow'); const accessibility=await new AxeBuilder({page}).exclude('iframe').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze(); await fs.writeFile(path.join(out,name+'-a11y.json'),JSON.stringify(accessibility.violations,null,2)); assert.deepEqual(accessibility.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[],name+' accessibility');}
  await page.goto(origin+'/foundry'); await page.getByRole('heading',{level:1}).waitFor();
  await shot('landing-desktop');await shot('landing-mobile',390);
- const login=await context.request.post(origin+'/api/auth/login',{data:{email:'foundry@example.invalid',password:'disposable-local-review-only'}});
+ // organizationSlug is sent only when supplied: the login route falls back to the single-organisation
+ // lookup without it, which is correct for a one-org environment and fails in a multi-org one.
+ const login=await context.request.post(origin+'/api/auth/login',{data:{email,password,...(organizationSlug?{organizationSlug}:{})}});
  assert.equal(login.status(),200); const auth=await login.json();
  await page.evaluate(csrf=>localStorage.setItem('cc.csrf',csrf),auth.csrfToken);
  await page.goto(origin+'/foundry/new');
@@ -36,7 +42,15 @@ try {
  for(const width of [320,390,768,1440]) await shot('workspace-'+width,width);
  await page.getByRole('button',{name:'Reject: Strengthen the homepage headline and call to action'}).click();
  await page.getByRole('button',{name:'Reject: Strengthen the homepage headline and call to action'}).waitFor({state:'detached'});
- await page.getByRole('button',{name:'Accept change',exact:true}).first().click();
+ // Accepting a suggestion bumps the workflow version, and the brief PATCH carries a version the
+ // server checks. Clicking straight through to Edit brief races that refresh: roughly half the
+ // time the save went out stale and the server correctly refused it with
+ //   409 {"error":"Project changed or version missing. Reload before making this decision."}
+ // which surfaced as this journey timing out waiting for the updated heading. The reject above
+ // already waits for its button to detach; the accept did not, and that asymmetry was the bug.
+ const acceptChange = page.getByRole('button',{name:'Accept change',exact:true}).first();
+ await acceptChange.click();
+ await acceptChange.waitFor({state:'detached'});
  await page.getByRole('button',{name:'Edit brief',exact:true}).click();
  await page.getByRole('textbox',{name:'Business or project name',exact:true}).fill('Cedar Bakery Updated');
  await page.getByRole('button',{name:'Save and refresh preview'}).click();
