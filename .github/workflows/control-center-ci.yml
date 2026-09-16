@@ -128,8 +128,8 @@ jobs:
       # can tell a restored mode from an inherited one, and the C1 line terminators the control-character
       # sweep used to walk past. The skip count does NOT move: the one case that would have needed root is
       # written down as a comment in the suite instead of sitting there as a test that never runs.
-      # Foundry adds 16 API tests; capability skip expectations remain unchanged.
-      CI_EXPECTED_TESTS: "543"
+      # Foundry adds 16 API tests, plus 2 authorization/login regression tests; capability skips remain unchanged.
+      CI_EXPECTED_TESTS: "545"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
