@@ -9,7 +9,7 @@ import { decryptConfigurationValue, encryptConfigurationValue, valueFingerprint 
 import { enrollmentBootstrapScript } from "./enrollmentBootstrap.js";
 
 export const adminEnrollmentRouter = express.Router();
-adminEnrollmentRouter.use(requirePermission("servers:enroll"));
+adminEnrollmentRouter.use(["/admin/enrollment", "/admin/integrations/cloudflare-access"], requirePermission("servers:enroll"));
 
 function orgId(req: express.Request) { if (!req.orgId) throw new Error("Missing organization scope"); return req.orgId; }
 function actorId(req: express.Request) { if (!req.user?._id) throw new Error("Missing user"); return req.user._id; }

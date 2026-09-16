@@ -88,6 +88,11 @@ async function singleOrganization() {
   return organizations.length === 1 ? organizations[0] : null;
 }
 
+async function loginOrganization() {
+  const slug = process.env.CONTROL_CENTER_DEFAULT_ORGANIZATION_SLUG?.trim();
+  return slug ? collections.organizations.findOne({ slug }) : singleOrganization();
+}
+
 router.get("/auth/bootstrap", noStore, async (_req, res, next) => {
   try {
     const [available, replacementAvailable] = await Promise.all([bootstrapAvailable(), ownerReplacementAvailable()]);
@@ -177,7 +182,7 @@ router.post("/auth/login", noStore, async (req, res, next) => {
     }
     const org = body.organizationSlug
       ? await collections.organizations.findOne({ slug: body.organizationSlug })
-      : await singleOrganization();
+      : await loginOrganization();
     const user = org?._id ? await collections.users.findOne({ orgId: org._id, email: body.email.toLowerCase(), disabledAt: { $exists: false } }) : null;
     if (!org?._id || !user?._id || !verifyPassword(body.password, user.passwordHash)) {
       const failure = await registerLoginFailure(throttle);
@@ -231,7 +236,7 @@ router.post("/auth/google", noStore, async (req, res, next) => {
     // Authorization: the verified Google email MUST map to an existing, enabled
     // user in the org. A Google account with no matching user is DENIED — the
     // users collection is the allowlist. Identity (Google) ≠ authorization (us).
-    const org = await singleOrganization();
+    const org = await loginOrganization();
     const user = org?._id
       ? await collections.users.findOne({ orgId: org._id, email: identity.email, disabledAt: { $exists: false } })
       : null;

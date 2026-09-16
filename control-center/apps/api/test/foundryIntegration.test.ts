@@ -27,7 +27,7 @@ test("Foundry mounted API: isolation, replay, conflicts, decisions and approval"
     const value = await createSession(user);
     return { cookie: `cc_session=${value.sessionToken}`, "x-csrf-token": value.csrfToken };
   }
-  const owner = await session(); const other = await session(); const denied = await session("unknown");
+  const owner = await session(); const other = await session(); const denied = await session("unknown"); const viewer = await session("Viewer");
   async function request(path: string, method = "GET", body?: unknown, headers: Record<string, string> = owner) {
     const response = await fetch(origin + path, { method, headers: { "content-type": "application/json", ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const text = await response.text();
@@ -50,7 +50,32 @@ test("Foundry mounted API: isolation, replay, conflicts, decisions and approval"
   assert.equal((await request(base)).body.workflows.length, 1);
   assert.equal((await request(base, "GET", undefined, other)).body.workflows.length, 0);
   assert.equal((await request(project, "GET", undefined, other)).status, 404);
+  assert.equal((await request(base, "GET", undefined, viewer)).status, 200);
+  assert.equal((await request(project, "GET", undefined, viewer)).status, 404);
+  for (const path of ["/admin/enrollment", "/admin/integrations/cloudflare-access"]) {
+    assert.equal((await request(path, "GET", undefined, owner)).status, 200);
+    const deniedAdmin = await request(path, "GET", undefined, viewer);
+    assert.equal(deniedAdmin.status, 403); assert.equal(deniedAdmin.body.error, "Insufficient permission");
+  }
+  const ownViewerOrg = await collections.sessions.findOne({ csrfTokenHash: (await import("../src/crypto.js")).hashCsrfToken(viewer["x-csrf-token"]) });
+  const ownProject = await collections.websiteBuildWorkflows.findOne({ _id: new ObjectId(workflow.id) });
+  const viewerProjectId = new ObjectId();
+  await collections.websiteBuildWorkflows.insertOne({ ...ownProject!, _id: viewerProjectId, orgId: ownViewerOrg!.orgId });
+  assert.equal((await request(base + "/" + viewerProjectId, "GET", undefined, viewer)).status, 200);
+  for (const suffix of ["", "/from-prompt"]) {
+    const result = await request(base + suffix, "POST", suffix ? prompt : { websiteType: "business" }, { ...viewer, "idempotency-key": randomUUID() });
+    assert.equal(result.status, 403); assert.equal(result.body.error, "Insufficient permission");
+  }
   const mutationPaths = ["answers", "approve-brief", "approve-architecture", "select-brand", "approve-content", "approve-implementation", "prepare-preview", "approve-preview", "sections/hero/regenerate", "suggestions"];
+  for (const suffix of mutationPaths) {
+    const result = await request(base + "/" + viewerProjectId + "/" + suffix, "POST", {}, { ...viewer, "if-match": "1" });
+    assert.equal(result.status, 403, suffix); assert.equal(result.body.error, "Insufficient permission", suffix);
+  }
+  for (const suffix of ["brief", "sections/hero"]) {
+    const result = await request(base + "/" + viewerProjectId + "/" + suffix, "PATCH", { businessName: "Forbidden" }, { ...viewer, "if-match": "1" });
+    assert.equal(result.status, 403); assert.equal(result.body.error, "Insufficient permission");
+  }
+  assert.equal((await request(base + "/" + viewerProjectId + "/artifact", "GET", undefined, viewer)).status, 409);
   for (const path of mutationPaths) assert.equal((await request(project + "/" + path, "POST", {}, { ...other, "if-match": "1" })).status, 404, path);
   for (const path of ["brief", "sections/hero"]) assert.equal((await request(project + "/" + path, "PATCH", {}, { ...other, "if-match": "1" })).status, 404, path);
   assert.equal((await request(project + "/artifact", "GET", undefined, other)).status, 404);
@@ -59,6 +84,9 @@ test("Foundry mounted API: isolation, replay, conflicts, decisions and approval"
   let result = await request(project + "/prepare-preview", "POST", {}, headers());
   assert.equal(result.status, 200); workflow = result.body.workflow;
   assert.equal(workflow.stage, "preview_ready"); assert.equal(workflow.approvals.length, 0);
+  await collections.websiteBuildWorkflows.updateOne({ _id: viewerProjectId }, { $set: { artifact: workflow.artifact, stage: "preview_ready" } });
+  assert.equal((await request(base + "/" + viewerProjectId + "/artifact", "GET", undefined, viewer)).status, 200);
+  assert.equal((await request(project + "/artifact", "GET", undefined, viewer)).status, 404);
   assert.match(workflow.artifact.html, /default-src 'none'/);
   const stale = headers(); const previousDigest = workflow.artifact.sha256; const previousArtifactVersion = workflow.artifact.version;
   result = await request(project + "/brief", "PATCH", { businessName: "Updated Bakery" }, headers());

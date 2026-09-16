@@ -21,7 +21,7 @@ const VIEWPORTS: Array<{ id: Viewport; label: string; icon: any; width: string }
   { id: "mobile", label: "Mobile", icon: Smartphone, width: "375px" },
 ];
 
-export function FoundryStudio({ route, navigate }: { route: FoundryRoute; navigate: (path: string) => void }) {
+export function FoundryStudio({ route, navigate, canEdit = true }: { route: FoundryRoute; navigate: (path: string) => void; canEdit?: boolean }) {
   const [prompt, setPrompt] = useState(() => (route.kind === "new" ? readDraftPrompt() : ""));
   const [workflow, updateWorkflowState] = useState<FoundryWorkflow | null>(null);
   const setWorkflow = (next: FoundryWorkflow | null) => updateWorkflowState(current => current && next && current.id === next.id && current.version > next.version ? current : next);
@@ -59,7 +59,7 @@ export function FoundryStudio({ route, navigate }: { route: FoundryRoute; naviga
   // stop for human review. Guarded so it never double-fires or crosses a gated
   // boundary (nextAutoAction returns null at preview/staging/discovery).
   useEffect(() => {
-    if (!workflow || failed || (route.kind === "project" && workflow.id !== route.workflowId)) return;
+    if (!canEdit || !workflow || failed || (route.kind === "project" && workflow.id !== route.workflowId)) return;
     const action = nextAutoAction(workflow);
     if (!action || advanceRef.current) return;
     advanceRef.current = true;
@@ -72,7 +72,7 @@ export function FoundryStudio({ route, navigate }: { route: FoundryRoute; naviga
       })
       .catch((error) => setFailed(apiError(error)))
       .finally(() => { advanceRef.current = false; setAdvancing(false); });
-  }, [workflow, failed]);
+  }, [workflow, failed, canEdit]);
 
   const submit = async () => {
     if (creating || createdRef.current) return;
@@ -138,6 +138,7 @@ export function FoundryStudio({ route, navigate }: { route: FoundryRoute; naviga
   };
 
   // --- Composer (no workflow yet) --------------------------------------------
+  if (!canEdit && route.kind === "new") return <StudioNotice title="Read-only access" body="You can view your organization’s projects. Creating or changing projects requires a Developer or Administrator." action={{ label: "View projects", onClick: () => navigate("/foundry/projects") }} />;
   if (!workflow || (route.kind === "project" && workflow.id !== route.workflowId)) {
     if (route.kind === "project" && loadError) {
       return <StudioNotice title="We couldn't open this project" body={loadError} action={{ label: "Back to Foundry", onClick: () => navigate(foundryPath({ kind: "landing" })) }} />;
@@ -186,6 +187,7 @@ export function FoundryStudio({ route, navigate }: { route: FoundryRoute; naviga
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-5">
+        {!canEdit && <p role="status">Read-only access. Project changes and approval are unavailable for your role.</p>}
         <StudioHeader workflow={workflow} phase={phase} />
         <PreviewCanvas
           html={html} advancing={advancing} viewport={viewport} width={previewWidth}
@@ -195,9 +197,9 @@ export function FoundryStudio({ route, navigate }: { route: FoundryRoute; naviga
       </div>
       <aside className="space-y-5">
         <ActivityTimeline steps={timeline} advancing={advancing} phase={phase} failed={failed} onRetry={retryAdvance} />
-        {suggestions.length > 0 && <SuggestionsPanel suggestions={suggestions} onApply={applySuggestion} onDismiss={dismiss} error={actionError} />}
-        <section aria-label="Project history" className="rounded-2xl border border-border bg-panel p-4"><h2 className="font-semibold">Saved history</h2><ol className="mt-2 space-y-2 text-xs">{(workflow.timelineEvents || []).map((e, i) => <li key={i}>{e.message} <time dateTime={e.createdAt}>{new Date(e.createdAt).toLocaleString()}</time></li>)}</ol><p className="mt-2 text-xs text-muted">Archive, deletion and export: Upcoming.</p></section><ApprovalControls workflow={workflow} phase={phase} onApprove={approvePreview} error={actionError} />
-        <BriefPanel key={workflow.id} workflow={workflow} onUpdated={(next) => { setWorkflow(next); if (next.artifact?.html) setLastGoodHtml(next.artifact.html); }} />
+        {canEdit && suggestions.length > 0 && <SuggestionsPanel suggestions={suggestions} onApply={applySuggestion} onDismiss={dismiss} error={actionError} />}
+        <section aria-label="Project history" className="rounded-2xl border border-border bg-panel p-4"><h2 className="font-semibold">Saved history</h2><ol className="mt-2 space-y-2 text-xs">{(workflow.timelineEvents || []).map((e, i) => <li key={i}>{e.message} <time dateTime={e.createdAt}>{new Date(e.createdAt).toLocaleString()}</time></li>)}</ol><p className="mt-2 text-xs text-muted">Archive, deletion and export: Upcoming.</p></section>{canEdit && <ApprovalControls workflow={workflow} phase={phase} onApprove={approvePreview} error={actionError} />}
+        <BriefPanel key={workflow.id} readOnly={!canEdit} workflow={workflow} onUpdated={(next) => { setWorkflow(next); if (next.artifact?.html) setLastGoodHtml(next.artifact.html); }} />
       </aside>
     </div>
   );
@@ -401,7 +403,7 @@ export function FoundryProjectsPage({ navigate }: { navigate: (path: string) => 
   );
 }
 
-function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpdated: (workflow: FoundryWorkflow) => void }) {
+function BriefPanel({ workflow, onUpdated, readOnly = false }: { workflow: FoundryWorkflow; onUpdated: (workflow: FoundryWorkflow) => void; readOnly?: boolean }) {
   const brief = workflow.brief;
   if (!brief) return null;
   const description = brief.business?.description || "";
@@ -413,7 +415,7 @@ function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpda
   const [savedDraft] = useState(() => {
     try { const value = JSON.parse(sessionStorage.getItem(draftKey) || "null"); return Number.isInteger(value?.version) && ["businessName", "description", "websiteType", "primaryAction", "requiredPages"].every(key => typeof value?.form?.[key] === "string") ? value : null; } catch { return null; }
   });
-  const [editing, setEditing] = useState((Boolean(savedDraft) || !hasName) && !locked);
+  const [editing, setEditing] = useState((Boolean(savedDraft) || !hasName) && !locked && !readOnly);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(Boolean(savedDraft));
@@ -429,7 +431,7 @@ function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpda
     }
   }, [workflow.version, editing, dirty]);
   const save = async () => {
-    if (locked) return;
+    if (locked || readOnly) return;
     setSaving(true); setError(null);
     try {
       const res = await updateWorkflowBrief(workflow.id, { ...form, requiredPages: form.requiredPages.split(",").map((v: string) => v.trim()).filter(Boolean) }, baseVersion);
@@ -446,9 +448,9 @@ function BriefPanel({ workflow, onUpdated }: { workflow: FoundryWorkflow; onUpda
   ];
   return (
     <section aria-labelledby="foundry-brief-title" className="rounded-2xl border border-border bg-panel p-4">
-      <div className="flex items-center justify-between gap-2"><h2 id="foundry-brief-title" className="font-semibold">Project brief</h2><button type="button" disabled={locked || saving} onClick={() => { setDirty(false); setEditing((v) => !v); }} className="min-h-9 rounded-md border border-border px-3 py-1.5 text-sm">{editing ? "Cancel" : "Edit brief"}</button></div>
+      <div className="flex items-center justify-between gap-2"><h2 id="foundry-brief-title" className="font-semibold">Project brief</h2><button type="button" disabled={readOnly || locked || saving} onClick={() => { setDirty(false); setEditing((v) => !v); }} className="min-h-9 rounded-md border border-border px-3 py-1.5 text-sm">{editing ? "Cancel" : "Edit brief"}</button></div>
       <p className="mt-1 text-xs text-muted">Foundry filled in sensible defaults from your request. Values marked <span className="font-medium text-text">Suggested</span> are safe to change.</p>
-      {editing && !locked && <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
+      {editing && !locked && !readOnly && <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
         {!hasName && <p className="text-xs text-muted">Name this project (optional). You can leave it blank to use a neutral preview name.</p>}
         <label className="block text-xs font-medium">Business or project name<input aria-label="Business or project name" value={form.businessName} maxLength={80} onChange={(e) => { setDirty(true); setForm({ ...form, businessName: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>
         <label className="block text-xs font-medium">Purpose or description<textarea aria-label="Purpose or description" value={form.description} maxLength={4000} onChange={(e) => { setDirty(true); setForm({ ...form, description: e.target.value }); }} className="mt-1 w-full rounded-md border border-border bg-panel p-2 text-sm" /></label>

@@ -2117,7 +2117,7 @@ function FoundryWorkspacePage({ route, theme, onChangeTheme, navigate, onLogout,
     <FoundryWorkspaceChrome theme={theme} onChangeTheme={onChangeTheme} navigate={navigate} onLogout={onLogout} logoutPending={logoutPending}>
       {route.kind === "projects"
         ? <FoundryProjectsPage navigate={navigate} />
-        : <FoundryStudio key={`${scope}:${route.kind === "project" ? route.workflowId : route.kind}`} route={route} navigate={navigate} />}
+        : <FoundryStudio key={`${scope}:${route.kind === "project" ? route.workflowId : route.kind}`} route={route} navigate={navigate} canEdit={["Owner", "Administrator", "Developer"].includes(identity.data?.user?.role)} />}
     </FoundryWorkspaceChrome>
   );
 }
