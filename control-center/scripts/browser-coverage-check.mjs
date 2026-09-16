@@ -22,7 +22,7 @@
 // Run one check while proving it can go red:  BROWSER_CHECK_ONLY=failed-login node scripts/browser-coverage-check.mjs
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 import { resolveFoundryCheckConfig } from './foundry-check-config.mjs';
 
@@ -361,7 +361,23 @@ if (only.length && selected.length !== only.length) {
 }
 
 await fs.mkdir(out, { recursive: true });
-const browser = await chromium.launch({ channel: process.env.FOUNDRY_BROWSER_CHANNEL || 'msedge', headless: true });
+// FOUNDRY_BROWSER_ENGINE picks the rendering engine; FOUNDRY_BROWSER_CHANNEL picks an installed
+// Chromium build (the default, so no browser download is needed). firefox and webkit need
+// `npx playwright install <engine>` and are a second engine's opinion on the same markup.
+//
+// webkit cannot reach the local preview. The API's CSP includes upgrade-insecure-requests, and
+// webkit applies it to a loopback http origin where chromium and firefox treat 127.0.0.1 as
+// already trustworthy and skip the upgrade. Every asset request becomes https, fails to connect,
+// and the app renders an empty root -- the header doing its job, not a defect in either. Running
+// webkit needs an https origin, which the loopback preview does not provide.
+const engines = { chromium, firefox, webkit };
+const engineName = process.env.FOUNDRY_BROWSER_ENGINE || 'chromium';
+const engine = engines[engineName];
+if (!engine) throw new Error(`FOUNDRY_BROWSER_ENGINE must be one of ${Object.keys(engines).join(', ')}: ${engineName}`);
+const browser = await engine.launch({
+  headless: true,
+  ...(engineName === 'chromium' ? { channel: process.env.FOUNDRY_BROWSER_CHANNEL || 'msedge' } : {}),
+});
 const results = [];
 try {
   for (const definition of selected) {
@@ -410,5 +426,5 @@ if (failed.length) {
   process.exitCode = 1;
 } else {
   console.log(`\nPASS: ${results.length} checks, ${results.reduce((total, r) => total + r.assertions, 0)} assertions -- anonymous access, failed sign-in, direct URL entry, ${MOBILE_WIDTH}px viewport, mobile navigation, axe sweep`);
-  console.log(`      ${totalRequests} requests, ${pauses} pacing pauses, ${rateLimitedNavigations} rate-limited navigations retried`);
+  console.log(`      engine ${engineName}; ${totalRequests} requests, ${pauses} pacing pauses, ${rateLimitedNavigations} rate-limited navigations retried`);
 }
