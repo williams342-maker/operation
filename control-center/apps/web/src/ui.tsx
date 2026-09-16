@@ -44,5 +44,7 @@ export function Table({ columns, rows, empty = "No records" }: { columns: string
       </article>;
     })}</div>;
   }
-  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((column) => <th key={column} scope="col" className="border-b border-border px-2 py-2 font-medium">{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border/60">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>;
+  // tabIndex={0} so the horizontal scroll container is reachable by keyboard. Below ~768px these
+  // tables scroll sideways and a pointer was the only way to move them (axe: scrollable-region-focusable).
+  return <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" tabIndex={0}><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((column) => <th key={column} scope="col" className="border-b border-border px-2 py-2 font-medium">{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border/60">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>;
 }

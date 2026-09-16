@@ -295,13 +295,21 @@ function Centered({
   children,
 }: React.PropsWithChildren<{ title: string }>) {
   return (
+    // The card is sized by an outer w-full wrapper rather than by a fixed w-96 on its content.
+    // As a shrink-to-fit flex item the Card had no resolvable containing-block width, so the
+    // inner `max-w-full` resolved against the card's own content width and did nothing: at a
+    // 390px viewport the card measured 418px and the sign-in screen scrolled sideways.
+    // 26rem is exactly the previous desktop width (w-96 + the Card's p-4), so only the narrow
+    // case changes.
     <main className="flex min-h-screen items-center justify-center p-4">
-      <Card>
-        <div className="w-96 max-w-full space-y-3">
-          <h1 className="text-lg font-semibold">{title}</h1>
-          {children}
-        </div>
-      </Card>
+      <div className="w-full max-w-[26rem]">
+        <Card>
+          <div className="space-y-3">
+            <h1 className="text-lg font-semibold">{title}</h1>
+            {children}
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -455,10 +463,12 @@ function OrgSettings({ toast }: { toast: (m: string) => void }) {
     <div className="space-y-4"><Card>
       <h2 className="font-semibold">Organization Settings</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <Field value={name} onChange={(e) => setName(e.target.value)} />
-        <Field value={q.data.slug} disabled />
-        <Field value={timezone} onChange={(e) => setTimezone(e.target.value)} />
-        <Field value={q.data.status || "active"} disabled />
+        {/* These four inputs carry no visible label and no placeholder, so without aria-label they
+            are announced only as "edit text" (axe: label, critical). */}
+        <Field aria-label="Organization name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Field aria-label="Organization slug" value={q.data.slug} disabled />
+        <Field aria-label="Default timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+        <Field aria-label="Organization status" value={q.data.status || "active"} disabled />
         <div className="text-sm text-muted">
           Created {fmt(q.data.createdAt)}
         </div>
@@ -511,7 +521,7 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
       <div className="mb-4 grid gap-2 md:grid-cols-4">
         <Field placeholder="Email" {...f.field("email")} />
         <Field placeholder="Name" {...f.field("name")} />
-        <Select {...f.field("role")}>
+        <Select aria-label="Role" {...f.field("role")}>
           <option>Viewer</option>
           <option>Developer</option>
           <option>Administrator</option>
@@ -938,7 +948,7 @@ function ProjectsPage({ toast }: { toast: (m: string) => void }) {
       <div className="mb-4 mt-3 grid gap-2 md:grid-cols-4">
         <Field placeholder="Name" {...f.field("name")} />
         <Field placeholder="Slug" {...f.field("slug")} />
-        <Select {...f.field("primaryServerId")}>
+        <Select aria-label="Primary server" {...f.field("primaryServerId")}>
           <option value="">Server</option>
           {servers.data?.map((s: any) => (
             <option key={s._id} value={s._id}>
@@ -1473,7 +1483,7 @@ function HealthPage({ toast }: { toast: (m: string) => void }) {
     <Card>
       <h2 className="font-semibold">Health Checks</h2>
       <div className="mb-4 mt-3 grid gap-2 md:grid-cols-4">
-        <Select {...f.field("projectId")}>
+        <Select aria-label="Project" {...f.field("projectId")}>
           <option value="">Project</option>
           {projects.data?.map((p: any) => (
             <option key={p._id} value={p._id}>
@@ -1533,7 +1543,7 @@ function MongoPage({ toast }: { toast: (m: string) => void }) {
     <Card>
       <h2 className="font-semibold">Mongo Checks</h2>
       <div className="mb-4 mt-3 grid gap-2 md:grid-cols-4">
-        <Select {...f.field("projectId")}>
+        <Select aria-label="Project" {...f.field("projectId")}>
           <option value="">Project</option>
           {projects.data?.map((p: any) => (
             <option key={p._id} value={p._id}>
@@ -1646,7 +1656,7 @@ function TasksPage({ toast }: { toast: (m: string) => void }) {
       <Card>
         <Toolbar>
           <h2 className="mr-auto font-semibold">Tasks</h2>
-          <Select value={state} onChange={(e) => setState(e.target.value)}>
+          <Select aria-label="Task state" value={state} onChange={(e) => setState(e.target.value)}>
             <option value="">All states</option>
             <option>queued</option>
             <option>claimed</option>
@@ -1657,6 +1667,7 @@ function TasksPage({ toast }: { toast: (m: string) => void }) {
             <option>cancelled</option>
           </Select>
           <Select
+            aria-label="Server"
             value={serverId}
             onChange={(e) => setServerId(e.target.value)}
           >
@@ -1667,7 +1678,7 @@ function TasksPage({ toast }: { toast: (m: string) => void }) {
               </option>
             ))}
           </Select>
-          <Select value={type} onChange={(e) => setType(e.target.value)}>
+          <Select aria-label="Task type" value={type} onChange={(e) => setType(e.target.value)}>
             <option>collect.system</option>
             <option>inspect.docker</option>
             <option>inspect.compose</option>
@@ -1896,6 +1907,8 @@ function AppShell({ onLogout, logoutPending, logoutError, theme, onChangeTheme, 
     page === "enrollments"
       ? "Administration / Enrollment"
       : nav.find(([key]) => key === page)?.[1] || "Not Found";
+  // Pages whose content is a fixed light-palette design rather than the themed token set.
+  const lightSurface = page === "ai-builder" || page === "seo";
   const closeMobileNavigation = (restoreFocus = true) => {
     setMobileNavigationOpen(false);
     if (restoreFocus) window.setTimeout(() => mobileNavigationTrigger.current?.focus(), 0);
@@ -2009,13 +2022,18 @@ function AppShell({ onLogout, logoutPending, logoutError, theme, onChangeTheme, 
         </button>
         {Boolean(logoutError) && <p role="alert" className="mt-2 px-3 text-sm text-danger">{apiError(logoutError)}</p>}
       </aside>
-      <main className={page === "ai-builder" || page === "seo" ? "bg-slate-50 p-5" : "p-5"}>
-        <div className={`${page === "overview" ? "hidden" : "mb-5 flex"} items-center justify-between ${page === "ai-builder" ? "text-slate-950" : ""}`}>
+      {/* The guided builder and SEO pages are a fixed light-palette design, so their <main> paints a
+          hardcoded light background under the themed shell. The header above them must use light-surface
+          colors too. It previously did that only for ai-builder, and only for the heading: on seo the h1
+          kept the dark theme's text token (#e5edf7 on #f8fafc, 1.12:1 — effectively invisible), and the
+          breadcrumb/timestamp kept the dark muted token on both (2.46:1). */}
+      <main className={lightSurface ? "bg-slate-50 p-5" : "p-5"}>
+        <div className={`${page === "overview" ? "hidden" : "mb-5 flex"} items-center justify-between ${lightSurface ? "text-slate-950" : ""}`}>
           <div>
-            <div className="text-xs text-muted">OpsWorkbench / {pageTitle}</div>
+            <div className={`text-xs ${lightSurface ? "text-slate-600" : "text-muted"}`}>OpsWorkbench / {pageTitle}</div>
             <h1 className="text-xl font-semibold">{pageTitle}</h1>
           </div>
-          <div className="text-xs text-muted">
+          <div className={`text-xs ${lightSurface ? "text-slate-600" : "text-muted"}`}>
             Last updated {new Date().toLocaleTimeString()}
           </div>
         </div>
