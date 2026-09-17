@@ -15,6 +15,8 @@
     "smoke:staging": "node deploy/scripts/staging-smoke.mjs",
     "test:e2e:authenticated": "node deploy/scripts/authenticated-e2e.mjs",
     "verify:shells": "node scripts/verify-shell-scripts.mjs",
+    "check:browser": "node scripts/foundry-browser-check.mjs",
+    "check:browser-coverage": "node scripts/browser-coverage-check.mjs",
     "deployment:archive": "node scripts/build-deployment-archive.mjs",
     "deployment:verify": "node scripts/verify-deployment-archive.mjs",
     "release:build": "bash scripts/build-release-artifacts.sh",
