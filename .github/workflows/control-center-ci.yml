@@ -479,6 +479,38 @@ jobs:
             sleep 1
           done
           npm run test:e2e:authenticated
+          # The staging smoke runs against this same disposable deployment. It is the only
+          # thing that exercises the smoke script's selectors, and without it they drift:
+          # the Overview assertion was broken on 25 July and the sign-in assertion on
+          # 15 September, and neither was noticed because nothing ran this script. The
+          # authenticated e2e drops its database on the way out, so bootstrap a fresh owner
+          # first. The password is generated here and never leaves the runner.
+          # The API rate limiter is a fixed 60s window of 180 requests, shared by everything
+          # on this runner. The end-to-end run above has already spent part of the current
+          # window, and the smoke's four viewport passes need most of a full one, so starting
+          # immediately fails with 429 part way through. Wait for the window to roll over
+          # rather than raising the limit -- the limiter is a guard, and the point of this
+          # step is to exercise the app as it really behaves.
+          reset_at="$(curl --silent --show-error --dump-header - --output /dev/null \
+            "$E2E_API_URL/api/me" | tr -d '\r' \
+            | awk 'tolower($1) == "x-ratelimit-reset:" { print $2 }')"
+          now="$(date +%s)"
+          if [ -n "$reset_at" ] && [ "$reset_at" -gt "$now" ]; then
+            sleep "$((reset_at - now + 1))"
+          else
+            sleep 61
+          fi
+          smoke_password="smoke-$(openssl rand -hex 16)"
+          smoke_owner='{"organizationName":"Smoke Org","organizationSlug":"smoke",'
+          smoke_owner="${smoke_owner}\"ownerEmail\":\"smoke-owner@example.test\","
+          smoke_owner="${smoke_owner}\"ownerName\":\"Smoke Owner\",\"password\":\"${smoke_password}\"}"
+          curl --fail --silent --show-error -X POST "$E2E_API_URL/api/auth/bootstrap" \
+            -H 'content-type: application/json' \
+            -d "$smoke_owner" >/dev/null
+          STAGING_BASE_URL="$E2E_BASE_URL" \
+            STAGING_ADMIN_EMAIL="smoke-owner@example.test" \
+            STAGING_ADMIN_PASSWORD="$smoke_password" \
+            npm run smoke:staging
       - name: Retain authenticated browser failure screenshot
         if: failure()
         uses: actions/upload-artifact@v6
