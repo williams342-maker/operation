@@ -4,7 +4,10 @@ import { fetchEndpointJson, parseEndpointJson } from "./staging-smoke-response.m
 
 const baseUrl = (process.argv[2] || process.env.STAGING_BASE_URL || "").replace(/\/$/, "");
 const organizationSlug = process.env.STAGING_ORG_SLUG || ""; const email = process.env.STAGING_ADMIN_EMAIL || ""; const password = process.env.STAGING_ADMIN_PASSWORD || "";
-if (!baseUrl || !organizationSlug || !email || !password) throw new Error("Usage: STAGING_ORG_SLUG, STAGING_ADMIN_EMAIL, STAGING_ADMIN_PASSWORD and a base URL are required. No credential values are logged.");
+// STAGING_ORG_SLUG is optional: a single-organization deployment renders no slug field and
+// signs in with email and password alone. It is still required when the field IS present,
+// which is asserted at the point of use rather than guessed here.
+if (!baseUrl || !email || !password) throw new Error("Usage: STAGING_ADMIN_EMAIL, STAGING_ADMIN_PASSWORD and a base URL are required (STAGING_ORG_SLUG only when the deployment asks for one). No credential values are logged.");
 const checks = []; const check = (name, passed, detail) => { checks.push({ name, passed, detail }); if (!passed) throw new Error(`${name} failed${detail ? `: ${detail}` : ""}`); };
 async function json(path) { return fetchEndpointJson((endpoint) => fetch(`${baseUrl}${endpoint}`, { redirect: "manual" }), path); }
 const homepage = await fetch(baseUrl); check("Homepage", homepage.ok, `HTTP ${homepage.status}`);
@@ -16,7 +19,19 @@ async function browserPass(label, viewport) {
   const context = await browser.newContext({ viewport }); const page = await context.newPage(); const errors = [];
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); }); page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.getByPlaceholder("Organization slug").fill(organizationSlug); await page.getByPlaceholder("Email").fill(email); await page.getByPlaceholder("Password").fill(password); await page.getByRole("button", { name: "Sign in" }).click();
+  // The login form drops the organization field on a single-organization deployment. This
+  // script filled it unconditionally and therefore could not sign in at all against any
+  // build since that change -- including the release currently in production. Fill it only
+  // when it is actually rendered, and say which form was exercised so the evidence is not
+  // ambiguous about which path was taken.
+  const slugField = page.getByPlaceholder("Organization slug");
+  const scopedLogin = (await slugField.count()) > 0;
+  check(`${label} login form`, true, scopedLogin ? "organization-scoped" : "single-organization");
+  if (scopedLogin) {
+    check(`${label} organization slug supplied`, Boolean(organizationSlug), "set STAGING_ORG_SLUG: this deployment asks for one");
+    await slugField.fill(organizationSlug);
+  }
+  await page.getByPlaceholder("Email").fill(email); await page.getByPlaceholder("Password").fill(password); await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor({ state: "visible" });
   const mobile = viewport.width < 768;
   const openNavigation = async () => {
