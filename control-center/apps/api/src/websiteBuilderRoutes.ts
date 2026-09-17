@@ -12,6 +12,10 @@ import { resolveSiteGenerationProvider } from "./siteGenerationProvider.js";
 
 
 export const websiteBuilderRouter = express.Router();
+websiteBuilderRouter.use("/website-builder/workflows", (req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  return requirePermission("projects:manage")(req, res, next);
+});
 
 // A website build is the artifact the customer asked for, so the workflow is customer-billable. The
 // stages that merely check the work -- validation, regeneration of a section the platform got wrong --

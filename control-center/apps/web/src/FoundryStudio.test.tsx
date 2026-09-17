@@ -180,3 +180,28 @@ it("refreshes an untouched unnamed brief when automatic preparation advances the
   await waitFor(()=>expect(mocks.updateBrief).toHaveBeenCalledTimes(1));
   expect(mocks.updateBrief.mock.calls[0][2]).toBe(2);
 });
+
+
+describe("read-only Foundry", () => {
+  it("blocks the creation route without issuing a mutation", async () => {
+    render(<FoundryStudio route={{ kind: "new" }} navigate={vi.fn()} canEdit={false} />);
+    expect(screen.getByRole("heading", { name: "Read-only access" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Start Building/ })).toBeNull();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("shows an existing preview without edit, approval or automatic advancement", async () => {
+    mocks.get.mockResolvedValue({ workflow: wf("preview_ready", { artifact, validation, sections, architecture }) });
+    render(<FoundryStudio route={{ kind: "project", workflowId: "w1" }} navigate={vi.fn()} canEdit={false} />);
+    await screen.findByText(/Project changes and approval are unavailable/);
+    expect(screen.getByRole("button", { name: "Edit brief" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Approve preview" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Accept change" })).toBeNull();
+    expect(mocks.advance).not.toHaveBeenCalled();
+  });
+  it("does not prepare an unfinished project for a Viewer", async () => {
+    mocks.get.mockResolvedValue({ workflow: wf("brief_review") });
+    render(<FoundryStudio route={{ kind: "project", workflowId: "w1" }} navigate={vi.fn()} canEdit={false} />);
+    await screen.findByText(/Project changes and approval are unavailable/);
+    expect(mocks.advance).not.toHaveBeenCalled();
+  });
+});
