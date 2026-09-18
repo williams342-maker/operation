@@ -197,3 +197,52 @@ test("helmet states font-src explicitly so removing the second CSP cannot loosen
   assert.match(fontSrc[1], /'self'/);
   assert.doesNotMatch(fontSrc[1], /https:/, "font-src must not allow arbitrary https origins");
 });
+
+test("the served document carries no inline script the CSP would refuse", () => {
+  // A blocked inline script fails SILENTLY. The browser logs a console violation, the script
+  // never runs, and nothing else complains -- so the feature it implements is simply absent.
+  // That is what happened to the no-flash theme init: it shipped as an inline <script> under
+  // `script-src 'self' …` with no unsafe-inline, nonce or hash, was refused on every load, and
+  // the theme flash it exists to prevent happened every time. It reached production that way.
+  //
+  // This asserts the shape that cannot regress: if script-src permits neither 'unsafe-inline'
+  // nor a hash nor a nonce, then index.html must contain no inline script at all.
+  const csp = directives(read("web.conf")).find((line) => line.includes("Content-Security-Policy"));
+  const scriptSrc = csp.match(/script-src ([^;]*)/)[1];
+  const inlineAllowed = /'unsafe-inline'|'sha256-|'nonce-/.test(scriptSrc);
+
+  // Strip HTML comments first: a commented-out tag is not served as a script, and this file
+  // documents the rule in prose that mentions `<script src>` -- which the scan below would
+  // otherwise read as an inline block. The test caught exactly that on its first run.
+  const html = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "apps", "web", "index.html"), "utf8")
+    .replace(/<!--[\s\S]*?-->/g, "");
+  const inline = [...html.matchAll(/<script(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script>/g)]
+    .filter((match) => match[1].trim().length > 0);
+
+  if (!inlineAllowed) {
+    assert.equal(inline.length, 0,
+      `script-src is ${scriptSrc.trim()} -- an inline <script> here is refused by the browser ` +
+      `and never runs. Move it to apps/web/public/ and load it with <script src>.`);
+  }
+});
+
+test("the theme init still runs before first paint", () => {
+  // Moving it to a file is only correct if it still beats the first paint. `defer` and `async`
+  // both let the parser continue, so the paint can land before the theme is applied and the
+  // flash returns -- a regression that looks like nothing in any test that only checks the
+  // script is present.
+  const html = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "apps", "web", "index.html"), "utf8")
+    .replace(/<!--[\s\S]*?-->/g, "");
+  const tag = html.match(/<script[^>]*src="\/theme-init\.js"[^>]*>/);
+  assert.ok(tag, "index.html must load /theme-init.js");
+  assert.doesNotMatch(tag[0], /\sdefer\b/, "theme init must not be deferred");
+  assert.doesNotMatch(tag[0], /\sasync\b/, "theme init must not be async");
+  assert.ok(html.indexOf(tag[0]) < html.indexOf('src="/src/main.tsx"'),
+    "theme init must load before the application module");
+
+  const script = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "apps", "web", "public", "theme-init.js"), "utf8");
+  assert.match(script, /cc\.theme/, "must read the same storage key as src/theme.ts");
+});

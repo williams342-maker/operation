@@ -1,19 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OpsWorkbench — Foundry</title></head><body>
 <div id="root"></div>
-<script>
-  // No-flash theme init: apply the persisted theme before first paint so there is
-  // no light/dark flash on load. Mirrors DEFAULT_THEME/THEME_STORAGE_KEY in
-  // src/theme.ts (kept in sync deliberately — this runs before any module loads).
-  (function () {
-    try {
-      var stored = localStorage.getItem("cc.theme");
-      document.documentElement.dataset.theme = stored === "light" || stored === "dark" ? stored : "dark";
-    } catch (error) {
-      document.documentElement.dataset.theme = "dark";
-    }
-  })();
-</script>
+<!-- Theme init is a FILE, not an inline script: the CSP serving this app is
+     `script-src 'self' …` with no unsafe-inline, nonce or hash, so an inline block is refused
+     by the browser and never runs. Plain synchronous <script src> -- no defer, no async, or
+     the first paint can beat it and the flash returns. See public/theme-init.js. -->
+<script src="/theme-init.js"></script>
 <script type="module" src="/src/main.tsx"></script>
 
 </body></html>
