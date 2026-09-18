@@ -1,3 +1,4 @@
+/* global localStorage, document */
 // No-flash theme init: apply the persisted theme before first paint so there is no
 // light/dark flash on load. Mirrors DEFAULT_THEME/THEME_STORAGE_KEY in src/theme.ts (kept in
 // sync deliberately -- this runs before any module loads).
@@ -15,7 +16,7 @@
   try {
     var stored = localStorage.getItem("cc.theme");
     document.documentElement.dataset.theme = stored === "light" || stored === "dark" ? stored : "dark";
-  } catch (error) {
+  } catch {
     document.documentElement.dataset.theme = "dark";
   }
 })();
