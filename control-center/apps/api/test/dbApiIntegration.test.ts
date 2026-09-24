@@ -750,6 +750,37 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(sensitiveAuditSnapshot.includes("replacement-password-long"), false);
     assert.equal(sensitiveAuditSnapshot.includes(resetDisposable.body.oneTimePassword), false);
 
+    // Owner-targeting lifecycle actions need an Owner, like role change, reset and delete do. A second
+    // Owner exists so the final-Owner 409 cannot be what refuses the Administrator.
+    const secondOwner = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", { email: "owner-a2@example.test", name: "Owner A2", role: "Owner" }, jsonHeaders(ownerA));
+    assert.equal(secondOwner.status, 201);
+    await login("phase-1b-a", "owner-a2@example.test", secondOwner.body.oneTimePassword);
+    const secondOwnerId = new ObjectId(secondOwner.body.id);
+    const guardViewer = await request<{ id: string }>("POST", "/org/users", { email: "guard-viewer@example.test", name: "Guard Viewer", role: "Viewer" }, jsonHeaders(ownerA));
+    assert.equal(guardViewer.status, 201);
+    const adminDeactivatesViewer = await request("POST", `/org/users/${guardViewer.body.id}/deactivate`, {}, jsonHeaders(administratorA));
+    assert.equal(adminDeactivatesViewer.status, 200, "control: an Administrator can still deactivate a non-Owner");
+    const adminDeactivatesOwner = await request("POST", `/org/users/${secondOwner.body.id}/deactivate`, {}, jsonHeaders(administratorA));
+    assert.equal(adminDeactivatesOwner.status, 403);
+    assert.equal((await collections.users.findOne({ _id: secondOwnerId }))?.disabledAt, undefined);
+    const adminRevokesOwner = await request("POST", `/org/users/${secondOwner.body.id}/revoke-sessions`, {}, jsonHeaders(administratorA));
+    assert.equal(adminRevokesOwner.status, 403);
+    assert.ok(await collections.sessions.countDocuments({ userId: secondOwnerId }) > 0);
+    const ownerDeactivatesOwner = await request("POST", `/org/users/${secondOwner.body.id}/deactivate`, {}, jsonHeaders(ownerA));
+    assert.equal(ownerDeactivatesOwner.status, 200);
+    assert.equal(await collections.sessions.countDocuments({ userId: secondOwnerId }), 0);
+    const adminActivatesOwner = await request("POST", `/org/users/${secondOwner.body.id}/activate`, {}, jsonHeaders(administratorA));
+    assert.equal(adminActivatesOwner.status, 403);
+    assert.ok((await collections.users.findOne({ _id: secondOwnerId }))?.disabledAt);
+    const ownerActivatesOwner = await request("POST", `/org/users/${secondOwner.body.id}/activate`, {}, jsonHeaders(ownerA));
+    assert.equal(ownerActivatesOwner.status, 200);
+    assert.equal((await collections.users.findOne({ _id: secondOwnerId }))?.disabledAt, undefined);
+    const missingUser = new ObjectId().toHexString();
+    assert.equal((await request("POST", `/org/users/${missingUser}/activate`, {}, jsonHeaders(ownerA))).status, 404);
+    assert.equal((await request("POST", `/org/users/${missingUser}/revoke-sessions`, {}, jsonHeaders(ownerA))).status, 404);
+    assert.equal((await request("DELETE", `/org/users/${secondOwner.body.id}`, undefined, jsonHeaders(ownerA))).status, 200);
+    assert.equal((await request("DELETE", `/org/users/${guardViewer.body.id}`, undefined, jsonHeaders(ownerA))).status, 200);
+
     const auditFailure = await collections.auditEvents.findOne({ action: "authorization.failure", result: "denied" });
     assert.ok(auditFailure?.requestId);
     assert.equal(JSON.stringify(auditFailure).includes(credentials.agentSecret), false);
