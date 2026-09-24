@@ -42,6 +42,14 @@ export function GoogleSignInButton({
   onError?: (message: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // The callbacks are read through refs so the effect runs once per mount. With them as effect
+  // dependencies, a parent passing an inline callback re-ran it on every render -- every keystroke in the
+  // sign-in form -- and each run called /auth/google/start, spending the shared authentication rate-limit
+  // budget and replacing the nonce cookie that Google Identity Services had already been initialized with.
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  onSuccessRef.current = onSuccess;
+  onErrorRef.current = onError;
 
   useEffect(() => {
     let alive = true;
@@ -57,26 +65,26 @@ export function GoogleSignInButton({
           nonce: cfg.nonce,
           callback: async (resp: { credential?: string }) => {
             if (!resp?.credential) {
-              onError?.("Google sign-in was cancelled");
+              onErrorRef.current?.("Google sign-in was cancelled");
               return;
             }
             try {
               const data = await googleSignIn(resp.credential);
-              onSuccess(data);
+              onSuccessRef.current(data);
             } catch (e) {
-              onError?.(apiError(e));
+              onErrorRef.current?.(apiError(e));
             }
           }
         });
         gid.renderButton(ref.current, { theme: "outline", size: "large", width: 280, text: "signin_with" });
       } catch (e) {
-        onError?.(apiError(e));
+        onErrorRef.current?.(apiError(e));
       }
     })();
     return () => {
       alive = false;
     };
-  }, [onError, onSuccess]);
+  }, []);
 
   return <div ref={ref} data-testid="google-signin-button" />;
 }
