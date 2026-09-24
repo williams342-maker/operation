@@ -169,10 +169,10 @@ test("REGRESSION: every location in every config that sets any header restates t
   // which is precisely the mutation a bare count let through. Adding or removing a header-setting
   // location is a decision, and it should have to be made twice.
   assert.deepEqual(found, {
-    "admin-web.conf": ["= /admin-healthz", "/", "~* \\.(?:js|css|woff2?)$", "= /admin-healthz"],
+    "admin-web.conf": ["= /admin-healthz", "/", "= /theme-init.js", "~* \\.(?:js|css|woff2?)$", "= /admin-healthz"],
     "edge-container.conf": [],
     "staging.conf": [],
-    "web.conf": ["= /install.sh", "~* \\.(?:js|css|woff2?)$"]
+    "web.conf": ["= /install.sh", "= /theme-init.js", "~* \\.(?:js|css|woff2?)$"]
   });
 });
 
@@ -241,8 +241,41 @@ test("the theme init still runs before first paint", () => {
   assert.doesNotMatch(tag[0], /\sasync\b/, "theme init must not be async");
   assert.ok(html.indexOf(tag[0]) < html.indexOf('src="/src/main.tsx"'),
     "theme init must load before the application module");
+  // In <body> a classic script is parser-blocking but NOT render-blocking, so the browser may paint
+  // the default theme while the file is still in flight -- which it did with PR #94 as merged:
+  // first-paint 19.5ms, theme applied 30.5ms, on localhost. Only in <head> does it hold the paint.
+  assert.ok(html.indexOf("</head>") > 0 && html.indexOf(tag[0]) < html.indexOf("</head>"),
+    "theme init must be in <head>: a <body> script does not block the first paint");
 
   const script = fs.readFileSync(
     path.join(import.meta.dirname, "..", "..", "apps", "web", "public", "theme-init.js"), "utf8");
   assert.match(script, /cc\.theme/, "must read the same storage key as src/theme.ts");
+});
+
+test("the un-hashed theme init is revalidated, never cached as immutable", () => {
+  // /assets/* bundles carry a content hash in their name, so "immutable for a year" is safe for them:
+  // new bytes get a new URL. theme-init.js is copied from public/ under a FIXED name, so the same rule
+  // would pin whatever version a browser -- or Cloudflare, which caches .js by extension -- saw first,
+  // for a year, and a later edit to it would silently never arrive. Both configs serve this dist.
+  for (const file of ["web.conf", "admin-web.conf"]) {
+    const block = locationBlocks(read(file)).find((b) => locationName(b) === "= /theme-init.js");
+    assert.ok(block, `${file} must give /theme-init.js its own exact-match location (it beats the asset regex)`);
+    const cache = directives(block).find((line) => /^add_header\s+Cache-Control\s/.test(line));
+    assert.ok(cache, `${file}: /theme-init.js must state its own Cache-Control`);
+    assert.doesNotMatch(cache, /immutable|max-age=[1-9]/, `${file}: /theme-init.js must not be long-cached: ${cache}`);
+    assert.match(cache, /no-cache|no-store|max-age=0\b/, `${file}: /theme-init.js must be revalidated: ${cache}`);
+    assert.match(block, /try_files\s+\/theme-init\.js\s+=404/, `${file}: a missing theme init must 404, never fall back to index.html`);
+  }
+});
+
+test("a missing file is never marked immutable", () => {
+  // `always` puts a header on error responses too. On the long-cache rule that made a 404 for a file
+  // that did not exist YET cacheable for a year -- and production's Cloudflare edge cached exactly
+  // that for /theme-init.js, measured 2026-09-24 (404, max-age=31536000, cf-cache-status HIT), before
+  // the release that adds the file had shipped.
+  for (const file of configs()) {
+    for (const line of directives(read(file))) {
+      if (/immutable/.test(line)) assert.doesNotMatch(line, /\salways\s*;/, `${file}: ${line} -- an immutable Cache-Control must not be \`always\``);
+    }
+  }
 });
