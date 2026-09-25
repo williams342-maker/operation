@@ -169,10 +169,10 @@ test("REGRESSION: every location in every config that sets any header restates t
   // which is precisely the mutation a bare count let through. Adding or removing a header-setting
   // location is a decision, and it should have to be made twice.
   assert.deepEqual(found, {
-    "admin-web.conf": ["= /admin-healthz", "/", "= /theme-init.js", "~* \\.(?:js|css|woff2?)$", "= /admin-healthz"],
+    "admin-web.conf": ["= /admin-healthz", "/", "= /theme-init.v2.js", "~* \\.(?:js|css|woff2?)$", "= /admin-healthz"],
     "edge-container.conf": [],
     "staging.conf": [],
-    "web.conf": ["= /install.sh", "= /theme-init.js", "~* \\.(?:js|css|woff2?)$"]
+    "web.conf": ["= /install.sh", "= /theme-init.v2.js", "~* \\.(?:js|css|woff2?)$"]
   });
 });
 
@@ -235,8 +235,8 @@ test("the theme init still runs before first paint", () => {
   const html = fs.readFileSync(
     path.join(import.meta.dirname, "..", "..", "apps", "web", "index.html"), "utf8")
     .replace(/<!--[\s\S]*?-->/g, "");
-  const tag = html.match(/<script[^>]*src="\/theme-init\.js"[^>]*>/);
-  assert.ok(tag, "index.html must load /theme-init.js");
+  const tag = html.match(/<script[^>]*src="\/theme-init\.v2\.js"[^>]*>/);
+  assert.ok(tag, "index.html must load /theme-init.v2.js");
   assert.doesNotMatch(tag[0], /\sdefer\b/, "theme init must not be deferred");
   assert.doesNotMatch(tag[0], /\sasync\b/, "theme init must not be async");
   assert.ok(html.indexOf(tag[0]) < html.indexOf('src="/src/main.tsx"'),
@@ -248,8 +248,25 @@ test("the theme init still runs before first paint", () => {
     "theme init must be in <head>: a <body> script does not block the first paint");
 
   const script = fs.readFileSync(
-    path.join(import.meta.dirname, "..", "..", "apps", "web", "public", "theme-init.js"), "utf8");
+    path.join(import.meta.dirname, "..", "..", "apps", "web", "public", "theme-init.v2.js"), "utf8");
   assert.match(script, /cc\.theme/, "must read the same storage key as src/theme.ts");
+});
+
+test("the page never references the theme-init URL that Cloudflare poisoned", () => {
+  // Production's Cloudflare edge held a year-long 404 for /theme-init.js (measured 2026-09-24/25: 404,
+  // max-age=31536000, cf-cache-status HIT, Age rising continuously) through three purges, including
+  // Purge Everything on the zone. A page that loads that URL gets the 404 and the theme flash is back,
+  // with every origin-side check green. The file therefore lives at a versioned URL, and the old one
+  // must not come back -- as a script, a preload, or a stray copy in public/.
+  const html = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "apps", "web", "index.html"), "utf8")
+    .replace(/<!--[\s\S]*?-->/g, "");
+  assert.doesNotMatch(html, /["'(]\/theme-init\.js\b/, "index.html must not reference /theme-init.js");
+  const publicDir = path.join(import.meta.dirname, "..", "..", "apps", "web", "public");
+  assert.equal(fs.existsSync(path.join(publicDir, "theme-init.js")), false, "public/theme-init.js must not exist: the dist would serve it again");
+  for (const file of ["web.conf", "admin-web.conf"]) {
+    assert.doesNotMatch(read(file), /location\s*=\s*\/theme-init\.js\b/, `${file} must not serve the old theme-init URL`);
+  }
 });
 
 test("the un-hashed theme init is revalidated, never cached as immutable", () => {
@@ -258,13 +275,13 @@ test("the un-hashed theme init is revalidated, never cached as immutable", () =>
   // would pin whatever version a browser -- or Cloudflare, which caches .js by extension -- saw first,
   // for a year, and a later edit to it would silently never arrive. Both configs serve this dist.
   for (const file of ["web.conf", "admin-web.conf"]) {
-    const block = locationBlocks(read(file)).find((b) => locationName(b) === "= /theme-init.js");
-    assert.ok(block, `${file} must give /theme-init.js its own exact-match location (it beats the asset regex)`);
+    const block = locationBlocks(read(file)).find((b) => locationName(b) === "= /theme-init.v2.js");
+    assert.ok(block, `${file} must give /theme-init.v2.js its own exact-match location (it beats the asset regex)`);
     const cache = directives(block).find((line) => /^add_header\s+Cache-Control\s/.test(line));
-    assert.ok(cache, `${file}: /theme-init.js must state its own Cache-Control`);
-    assert.doesNotMatch(cache, /immutable|max-age=[1-9]/, `${file}: /theme-init.js must not be long-cached: ${cache}`);
-    assert.match(cache, /no-cache|no-store|max-age=0\b/, `${file}: /theme-init.js must be revalidated: ${cache}`);
-    assert.match(block, /try_files\s+\/theme-init\.js\s+=404/, `${file}: a missing theme init must 404, never fall back to index.html`);
+    assert.ok(cache, `${file}: /theme-init.v2.js must state its own Cache-Control`);
+    assert.doesNotMatch(cache, /immutable|max-age=[1-9]/, `${file}: /theme-init.v2.js must not be long-cached: ${cache}`);
+    assert.match(cache, /no-cache|no-store|max-age=0\b/, `${file}: /theme-init.v2.js must be revalidated: ${cache}`);
+    assert.match(block, /try_files\s+\/theme-init\.v2\.js\s+=404/, `${file}: a missing theme init must 404, never fall back to index.html`);
   }
 });
 

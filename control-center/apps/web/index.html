@@ -3,12 +3,15 @@
 <!-- Theme init is a FILE, not an inline script: the CSP serving this app is
      `script-src 'self' …` with no unsafe-inline, nonce or hash, so an inline block is refused
      by the browser and never runs. Plain synchronous <script src> -- no defer, no async, or
-     the first paint can beat it and the flash returns. See public/theme-init.js.
+     the first paint can beat it and the flash returns. See public/theme-init.v2.js.
+     The name is VERSIONED: Cloudflare kept a year-long 404 for the old /theme-init.js through
+     three purges, including Purge Everything, so the page must never reference that URL again.
+     Change the bytes, change the name (v3, ...), and update both nginx configs and the guard test.
      It must also stay in <head>. In <body> it is parser-blocking but NOT render-blocking: the
      browser painted the default (dark) theme while the file was still in flight, measured at
      first-paint 19.5ms vs theme applied 30.5ms on localhost. Only a head script holds the first
      paint until it has run. -->
-<script src="/theme-init.js"></script>
+<script src="/theme-init.v2.js"></script>
 </head><body>
 <div id="root"></div>
 <script type="module" src="/src/main.tsx"></script>
