@@ -1,10 +1,13 @@
 ﻿import axios from "axios";
 
 export const api = axios.create({ baseURL: import.meta.env?.VITE_API_URL || "/api", withCredentials: true });
+export const PASSWORD_CHANGE_REQUIRED_EVENT = "cc:password-change-required";
+export const PASSWORD_EXPIRED_MESSAGE = "This one-time password has expired. Ask an administrator to re-issue it.";
 export const SESSION_EXPIRED_EVENT = "cc:session-expired";
 let sessionExpiryReported = false;
 api.interceptors.request.use((config) => { const csrf = localStorage.getItem("cc.csrf"); if (csrf && config.method?.toUpperCase() !== "GET") config.headers["x-csrf-token"] = csrf; return config; });
 api.interceptors.response.use(undefined, (error) => {
+  if (axios.isAxiosError(error) && error.response?.status === 403 && error.response?.data?.code === "PASSWORD_CHANGE_REQUIRED") window.dispatchEvent(new Event(PASSWORD_CHANGE_REQUIRED_EVENT));
   if (axios.isAxiosError(error) && error.response?.status === 401 && localStorage.getItem("cc.csrf")) {
     localStorage.removeItem("cc.csrf");
     if (!sessionExpiryReported) {
@@ -14,7 +17,7 @@ api.interceptors.response.use(undefined, (error) => {
   }
   return Promise.reject(error);
 });
-export function apiError(error: unknown) { return axios.isAxiosError(error) ? String(error.response?.data?.error || error.message) : error instanceof Error ? error.message : "Unknown error"; }
+export function apiError(error: unknown) { if (axios.isAxiosError(error) && error.response?.data?.code === "PASSWORD_EXPIRED") return PASSWORD_EXPIRED_MESSAGE; return axios.isAxiosError(error) ? String(error.response?.data?.error || error.message) : error instanceof Error ? error.message : "Unknown error"; }
 export function isRecentAuthRequired(error: unknown) { return axios.isAxiosError(error) && error.response?.status === 403 && error.response?.data?.code === "RECENT_AUTH_REQUIRED"; }
 export async function bootstrapStatus() { return (await api.get("/auth/bootstrap")).data as { available: boolean; replacementAvailable?: boolean }; }
 export async function bootstrapOwner(input: { organizationName: string; organizationSlug: string; ownerEmail: string; ownerName: string; password: string }) { return (await api.post("/auth/bootstrap", input)).data; }

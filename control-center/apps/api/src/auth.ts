@@ -35,7 +35,14 @@ export function setSessionCookie(res: Response, sessionToken: string) {
   });
 }
 
+export function authenticationVersion(value: unknown): number | null {
+  if (value === undefined) return 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER ? value : null;
+}
+
 export async function createSession(user: UserDoc & { _id: ObjectId }) {
+  const version = authenticationVersion(user.authVersion);
+  if (version === null) throw new Error("Invalid authentication revision");
   const csrfToken = randomToken(24);
   // The session credential is a 256-bit CSPRNG token; only its hash is persisted, so a read of the
   // sessions collection cannot reconstruct a usable cookie, and the value is not derivable/guessable
@@ -45,6 +52,7 @@ export async function createSession(user: UserDoc & { _id: ObjectId }) {
   const result = await collections.sessions.insertOne({
     orgId: user.orgId,
     userId: user._id,
+    authVersion: version,
     tokenHash: hashSecret(sessionToken),
     csrfTokenHash: hashCsrfToken(csrfToken),
     authenticatedAt: now,
@@ -74,7 +82,7 @@ export async function allowExpiredLogout(req: Request, res: Response, next: Next
   }
   next();
 }
-export async function requireSession(req: Request, res: Response, next: NextFunction) {
+async function loadSession(req: Request, res: Response, next: NextFunction) {
   const cookies = parseCookies(req.headers.cookie);
   const sessionRaw = cookies.cc_session;
   if (!sessionRaw) {
@@ -85,6 +93,8 @@ export async function requireSession(req: Request, res: Response, next: NextFunc
   if (!session) return res.status(401).json({ error: "Session expired" });
   const user = await collections.users.findOne({ _id: session.userId, orgId: session.orgId, disabledAt: { $exists: false } });
   if (!user?._id) return res.status(401).json({ error: "User unavailable" });
+  const version = authenticationVersion(user.authVersion);
+  if (version === null || authenticationVersion(session.authVersion) !== version) return res.status(401).json({ error: "Session expired" });
   req.user = user as UserDoc & { _id: ObjectId };
   req.orgId = user.orgId;
   req.sessionId = session._id;
@@ -92,6 +102,18 @@ export async function requireSession(req: Request, res: Response, next: NextFunc
   await collections.sessions.updateOne({ _id: session._id, orgId: session.orgId }, { $set: { lastSeenAt: new Date(), updatedAt: new Date() } });
   next();
 }
+
+export function requirePasswordCurrent(req: Request, res: Response, next: NextFunction) {
+  if (req.user?.mustChangePassword === true) return res.status(403).json({ error: "Password change required before continuing", code: "PASSWORD_CHANGE_REQUIRED" });
+  next();
+}
+
+// Every session-authenticated route is restricted by default. Only the three
+// explicit recovery routes use the loader directly; they still check revocation.
+export function requireSession(req: Request, res: Response, next: NextFunction) {
+  return loadSession(req, res, () => requirePasswordCurrent(req, res, next));
+}
+export const requirePasswordChangeSession = loadSession;
 
 export async function requireCsrf(req: Request, res: Response, next: NextFunction) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();

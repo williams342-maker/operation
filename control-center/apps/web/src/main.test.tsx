@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  changePassword: vi.fn(),
   logout: vi.fn(),
   login: vi.fn(),
   replaceOwner: vi.fn(),
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./api", () => ({
   api: { get: mocks.apiGet, post: mocks.apiPost, patch: vi.fn() },
   apiError: (error: unknown) => error instanceof Error ? error.message : "Unexpected logout failure",
+  changePassword: mocks.changePassword,
   bootstrapOwner: vi.fn(),
   bootstrapStatus: mocks.bootstrapStatus,
   isRecentAuthRequired: vi.fn(() => false),
@@ -23,6 +25,7 @@ vi.mock("./api", () => ({
   logout: mocks.logout,
   reauthenticate: vi.fn(),
   replaceOwner: mocks.replaceOwner,
+  PASSWORD_CHANGE_REQUIRED_EVENT: "cc:password-change-required",
   SESSION_EXPIRED_EVENT: "cc:session-expired"
 }));
 
@@ -39,6 +42,66 @@ function authenticatedApi(path: string) {
   if (path === "/projects") return Promise.resolve({ data: { projects: [] } });
   return Promise.resolve({ data: { serverCount: 0, onlineServers: 0, projectCount: 0, recentAudit: [] } });
 }
+
+describe("Mandatory one-time password change", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    window.history.replaceState({}, "", "/");
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockImplementation(authenticatedApi);
+    mocks.changePassword.mockReset();
+    mocks.login.mockReset();
+  });
+  afterEach(() => { cleanup(); window.history.replaceState({}, "", "/"); });
+
+  it("blocks the admin shell on refresh before requesting protected resources", async () => {
+    localStorage.setItem("cc.csrf", "csrf");
+    mocks.apiGet.mockImplementation((path: string) => path === "/me" ? Promise.resolve({ data: { mustChangePassword: true, user: { role: "Owner" } } }) : authenticatedApi(path));
+    mocks.apiGet.mockClear();
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Change your one-time password" })).toBeInTheDocument();
+    expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+    expect(mocks.apiGet.mock.calls.every(([path]) => path === "/me")).toBe(true);
+  });
+
+  it("blocks alternate Foundry navigation on refresh", async () => {
+    localStorage.setItem("cc.csrf", "csrf");
+    window.history.replaceState({}, "", "/foundry/projects");
+    mocks.apiGet.mockResolvedValue({ data: { mustChangePassword: true, user: { role: "Developer" } } });
+    renderRoot();
+    expect(await screen.findByRole("heading", { name: "Change your one-time password" })).toBeInTheDocument();
+    expect(screen.queryByText("My Projects")).not.toBeInTheDocument();
+  });
+
+  it("honors the login flag and only leaves after a successful password change", async () => {
+    mocks.login.mockResolvedValue({ mustChangePassword: true });
+    renderRoot();
+    await userEvent.type(await screen.findByPlaceholderText("Email"), "invited@example.test");
+    await userEvent.type(screen.getByPlaceholderText("Password"), "issued-password-long");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByRole("heading", { name: "Change your one-time password" });
+    await userEvent.type(screen.getByPlaceholderText("One-time password"), "issued-password-long");
+    await userEvent.type(screen.getByPlaceholderText("New password"), "chosen-password-long");
+    await userEvent.type(screen.getByPlaceholderText("Confirm new password"), "chosen-password-long");
+    mocks.changePassword.mockRejectedValueOnce(new Error("This one-time password has expired. Ask an administrator to re-issue it."));
+    await userEvent.click(screen.getByRole("button", { name: "Change password" }));
+    expect(await screen.findByText(/This one-time password has expired/)).toBeInTheDocument();
+    expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+    mocks.changePassword.mockResolvedValueOnce({ ok: true });
+    await userEvent.click(screen.getByRole("button", { name: "Change password" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Change your one-time password" })).not.toBeInTheDocument());
+    expect(mocks.changePassword).toHaveBeenLastCalledWith("issued-password-long", "chosen-password-long");
+  });
+
+  it("a protected API gate event immediately replaces normal navigation", async () => {
+    localStorage.setItem("cc.csrf", "csrf");
+    renderRoot();
+    await screen.findByRole("button", { name: /sign out/i });
+    window.dispatchEvent(new Event("cc:password-change-required"));
+    expect(await screen.findByRole("heading", { name: "Change your one-time password" })).toBeInTheDocument();
+    expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+  });
+});
 
 describe("One-time Owner Registration", () => {
   beforeEach(() => {
