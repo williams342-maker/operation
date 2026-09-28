@@ -126,11 +126,17 @@ test("only one layer sets HSTS", () => {
 // The guard that would have caught `admin-web.conf` on the day it was written. A new config here is
 // either a layer of the public site or a separate origin, and BOTH answers are fine -- what is not
 // fine is a third file quietly inheriting neither set of rules because no test names it.
-test("every nginx config is classified as a public-site layer or a separate origin", () => {
+test("every nginx config is classified as a public-site layer, separate origin or directive-only include", () => {
   const SEPARATE_ORIGINS = ["admin-web.conf"];
-  const classified = [...PUBLIC_SITE_LAYERS, ...SEPARATE_ORIGINS].sort();
+  const DIRECTIVE_INCLUDES = ["cloudflare-real-ip.conf"];
+  const classified = [...PUBLIC_SITE_LAYERS, ...SEPARATE_ORIGINS, ...DIRECTIVE_INCLUDES].sort();
   assert.deepEqual(configs(), classified,
-    "an nginx config is present that no test has decided about; add it to PUBLIC_SITE_LAYERS if a response passes through it on its way out of another one, or to SEPARATE_ORIGINS if it is served on its own port");
+    "an nginx config is present that no test has decided about; classify each serving layer/origin or strictly validate a directive-only include");
+  for (const file of DIRECTIVE_INCLUDES) {
+    const lines = read(file).split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+    assert.ok(lines.length > 0, `${file}: include must not be empty`);
+    for (const line of lines) assert.match(line, /^set_real_ip_from [0-9a-f.:]+\/\d+;$/, `${file}: only real-IP trust directives belong in this include`);
+  }
 });
 
 test("no security header is set by more than one nginx layer", () => {
@@ -170,6 +176,7 @@ test("REGRESSION: every location in every config that sets any header restates t
   // location is a decision, and it should have to be made twice.
   assert.deepEqual(found, {
     "admin-web.conf": ["= /admin-healthz", "/", "= /theme-init.v2.js", "~* \\.(?:js|css|woff2?)$", "= /admin-healthz"],
+    "cloudflare-real-ip.conf": [],
     "edge-container.conf": [],
     "staging.conf": [],
     "web.conf": ["= /install.sh", "= /theme-init.v2.js", "~* \\.(?:js|css|woff2?)$"]
