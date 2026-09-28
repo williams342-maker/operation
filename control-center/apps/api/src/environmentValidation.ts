@@ -1,3 +1,4 @@
+import { parseTrustedProxies } from "./clientIdentity.js";
 export type EnvironmentDiagnostic = { level: "error" | "warning" | "info"; code: string; variable?: string; message: string };
 export type EnvironmentValidation = { valid: boolean; mode: string; required: string[]; optional: string[]; diagnostics: EnvironmentDiagnostic[]; ai: { enabled: boolean; provider: string | null; model: string | null; credentialPresent: boolean; state: "disabled" | "unconfigured" | "ready" | "invalid" } };
 
@@ -10,6 +11,7 @@ const list = (value = "") => value.split(",").map((item) => item.trim()).filter(
 
 export function validateEnvironment(env: NodeJS.ProcessEnv = process.env): EnvironmentValidation {
   const diagnostics: EnvironmentDiagnostic[] = []; const production = env.NODE_ENV === "production" || env.NODE_ENV === "staging"; const required = production ? requiredInProduction : [];
+  try { parseTrustedProxies(env.CONTROL_CENTER_TRUST_PROXY); } catch { diagnostics.push({ level: "error", code: "invalid_proxy_trust", variable: "CONTROL_CENTER_TRUST_PROXY", message: "Proxy trust must name individual proxy addresses; broad networks and hop counts are forbidden." }); }
   for (const variable of required) if (!present(env, variable)) diagnostics.push({ level: "error", code: "missing_required", variable, message: `${variable} is required for production/staging startup.` });
   for (const [oldName, replacement] of deprecated) if (present(env, oldName)) diagnostics.push({ level: "warning", code: "deprecated_variable", variable: oldName, message: `${oldName} is deprecated; use ${replacement}.` });
   for (const name of Object.keys(env).filter((name) => /^(CONTROL_CENTER_|AI_|OPENAI_|ANTHROPIC_|GEMINI_|OPENROUTER_)/.test(name) && !known.has(name)).sort()) diagnostics.push({ level: "warning", code: "unknown_variable", variable: name, message: `${name} is not recognized by OpsWorkbench.` });

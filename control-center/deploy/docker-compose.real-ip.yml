@@ -1,0 +1,17 @@
+# Apply LAST, after the candidate overlay that defines admin. Values must match
+# docker network inspect; migrating the network requires a planned staging outage.
+services:
+  edge:
+    networks:
+      internal:
+        ipv4_address: ${CONTROL_CENTER_EDGE_IP:?Set the measured reserved edge address}
+  admin:
+    networks:
+      internal:
+        ipv4_address: ${CONTROL_CENTER_ADMIN_IP:?Set the measured reserved admin address}
+networks:
+  internal:
+    ipam:
+      config:
+        - subnet: ${CONTROL_CENTER_PROXY_SUBNET:?Set the measured Docker subnet}
+          gateway: ${CONTROL_CENTER_PROXY_GATEWAY:?Set the measured gateway}
