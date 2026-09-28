@@ -15,7 +15,7 @@ await writeFile(join(dir, "test", "clientIdentity.test.ts"), tests);
 const mutants = [
   ["missing trust", "clientIdentity.ts", '  return entries;', '  return [];'],
   ["missing malformed chain check", "clientIdentity.ts", 'typeof forwarded !== "string" || forwarded.length > 2048 || !forwarded.split(",").every((ip) => Boolean(isIP(ip.trim())))', 'false'],
-  ["mapped IPv4 collapse", "ipRateLimits.ts", 'ipaddr.process(request.ip!).toString()', 'request.ip!']
+  ["raw noncanonical rate key", "ipRateLimits.ts", 'ipKeyGenerator(ipaddr.process(request.ip!).toString())', 'request.ip!']
 ];
 try {
   const control = spawnSync(process.execPath, ["--import", "tsx", "--test", join(dir, "test", "clientIdentity.test.ts")], { cwd: api, encoding: "utf8", timeout: 30_000, windowsHide: true });
