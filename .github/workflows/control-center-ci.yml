@@ -131,7 +131,8 @@ jobs:
       # Foundry adds 16 API tests, plus 2 authorization/login regression tests; capability skips remain unchanged.
       # api +1: the credential limiter counting the Google credential exchange but not the nonce request,
       # which the sign-in page re-requested on every keystroke and which locked out every login.
-      CI_EXPECTED_TESTS: "546"
+      # Q1 adds 14 API cases; Q4 adds 9 API cases. Capability skips are unchanged.
+      CI_EXPECTED_TESTS: "569"
       CI_EXPECTED_SKIPS: "3"
     steps:
       - uses: actions/checkout@v6
@@ -254,7 +255,8 @@ jobs:
       #   api +1          the credential limiter counting the Google credential exchange but not the
       #                   nonce request, which the sign-in page re-requested on every keystroke
       CI_EXPECTED_TEST_SUITES: "agent=240,api=153,review-gate=260,shared=153,web=34"
-      CI_EXPECTED_TESTS: "840"
+      # Q1 adds 14 API cases; Q4 adds 9 API cases. Both suites run with Mongo enabled.
+      CI_EXPECTED_TESTS: "863"
       # A single node IS a replica set: it elects itself primary and honours transactions. The suite
       # requires the string `replicaSet=` in the URI and refuses to run without it, so a green run can
       # no longer be mistaken for one that exercised the durable store.
