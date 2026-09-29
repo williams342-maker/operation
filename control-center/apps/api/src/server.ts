@@ -2,7 +2,8 @@
 import compression from "compression";
 import cors from "cors";
 import express from "express";
-import rateLimit from "express-rate-limit";
+import { clientIdentityGuard, parseTrustedProxies } from "./clientIdentity.js";
+import { createIpRateLimits } from "./ipRateLimits.js";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { CreditBlockedError } from "./creditLedger.js";
@@ -26,7 +27,9 @@ if (process.env.NODE_ENV === "production" && process.env.CONTROL_CENTER_ALLOW_IN
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-if (process.env.CONTROL_CENTER_TRUST_PROXY) app.set("trust proxy", process.env.CONTROL_CENTER_TRUST_PROXY);
+const trustedProxies = parseTrustedProxies(process.env.CONTROL_CENTER_TRUST_PROXY);
+app.set("trust proxy", trustedProxies);
+const ipRateLimits = createIpRateLimits();
 
 app.use((req, _res, next) => {
   req.requestId = req.header("x-request-id") || crypto.randomUUID();
@@ -57,7 +60,8 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use(cors({ origin: process.env.CONTROL_CENTER_WEB_ORIGIN || "http://localhost:5173", credentials: true }));
-app.use(rateLimit({ windowMs: 60_000, limit: 180 }));
+app.use(clientIdentityGuard(trustedProxies));
+app.use(ipRateLimits.global);
 app.use(express.json({ limit: "1mb", verify: captureRawBody }));
 // `source` is now three-valued: "manifest" (validated), "env" (development, self-declared), or
 // "unverified" (a manifest was configured and did not validate). runtimeDigest is measured over the
@@ -67,14 +71,7 @@ app.get("/readyz", async (_req, res) => { const health = await runtimeHealth(); 
 // Coarse per-IP cap on the credential endpoints, on top of the global limiter and the per-account
 // progressive lockout (authThrottle). Disabled under test so the integration suite's many logins from
 // a single loopback IP do not trip it; the per-account lockout is exercised by tests instead.
-const authLimiter = rateLimit({
-  windowMs: 15 * 60_000,
-  limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "staging",
-  message: { error: "Too many authentication attempts. Try again later.", code: "RATE_LIMITED" }
-});
+const authLimiter = ipRateLimits.auth;
 app.use(["/api/auth/login", "/api/auth/reauthenticate", "/api/auth/owner-replacement"], authLimiter);
 // GET /api/auth/google/start checks no credential -- it issues a nonce in a cookie -- but the prefix
 // mount below also matched it, so every sign-in page view spent the credential budget. It stays under the

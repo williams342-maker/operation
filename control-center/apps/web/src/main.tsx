@@ -58,6 +58,7 @@ import {
   reauthenticate,
   replaceOwner,
   SESSION_EXPIRED_EVENT,
+  PASSWORD_CHANGE_REQUIRED_EVENT,
 } from "./api";
 import { discoveryUiState } from "./discoveryState";
 import { DiscoveryStatusPanel } from "./DiscoveryStatusPanel";
@@ -248,7 +249,7 @@ function Bootstrap({ onComplete }: { onComplete: () => void }) {
     </Centered>
   );
 }
-function Login({ onLogin }: { onLogin: () => void }) {
+function Login({ onLogin }: { onLogin: (data?: { mustChangePassword?: boolean }) => void }) {
   const f = useForm({ email: "", password: "" });
   const [googleError, setGoogleError] = useState<string | null>(null);
   const mutation = useMutation({
@@ -261,7 +262,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
       {/* Google sign-in (primary). Renders only when the server reports it is
           configured; otherwise the password form below is the sole path. */}
       <div className="space-y-2">
-        <GoogleSignInButton onSuccess={() => onLogin()} onError={setGoogleError} />
+        <GoogleSignInButton onSuccess={(data) => onLogin(data as { mustChangePassword?: boolean })} onError={setGoogleError} />
         {googleError && <p className="text-sm text-danger" role="alert">{googleError}</p>}
         <div className="flex items-center gap-3 text-xs text-muted">
           <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
@@ -2158,22 +2159,47 @@ function FoundrySurface({ route, authed, theme, onChangeTheme, navigate, onLogou
   return <FoundryWorkspacePage route={route} theme={theme} onChangeTheme={onChangeTheme} navigate={navigate} onLogout={onLogout} logoutPending={logoutPending} />;
 }
 
+function MandatoryPasswordChange({ onComplete, onLogout, logoutPending, logoutError }: { onComplete: () => void; onLogout: () => void; logoutPending: boolean; logoutError: unknown }) {
+  const f = useForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const mutation = useMutation({ mutationFn: () => changePassword(f.values.currentPassword, f.values.newPassword), onSuccess: onComplete });
+  const valid = Boolean(f.values.currentPassword) && f.values.newPassword.length >= 12 && f.values.newPassword !== f.values.currentPassword && f.values.newPassword === f.values.confirmPassword;
+  return <Centered title="Change your one-time password">
+    <p>You must choose a new password before continuing. Enter the one-time password issued by your administrator, even if you signed in with Google.</p>
+    <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (valid && !mutation.isPending) mutation.mutate(); }}>
+      <PasswordField placeholder="One-time password" autoComplete="current-password" {...f.field("currentPassword")} />
+      <PasswordField placeholder="New password" autoComplete="new-password" {...f.field("newPassword")} />
+      <PasswordField placeholder="Confirm new password" autoComplete="new-password" {...f.field("confirmPassword")} />
+      <p className="text-sm text-muted">Use at least 12 characters and choose a different password.</p>
+      <Button type="submit" disabled={!valid || mutation.isPending}>Change password</Button>
+      <ErrorText error={mutation.error} />
+    </form>
+    <GhostButton disabled={logoutPending} onClick={onLogout}>Sign out</GhostButton>
+    <ErrorText error={logoutError} />
+  </Centered>;
+}
+
 export function Root() {
+  const qc = useQueryClient();
+  const [passwordRequired, setPasswordRequired] = useState(false);
   const [authed, setAuthed] = useState(
     Boolean(localStorage.getItem("cc.csrf")),
   );
+  const identity = useQuery({ queryKey: ["session-identity"], queryFn: () => api.get("/me").then(response => response.data), enabled: authed, retry: false, gcTime: 0 });
   const [bootstrapComplete, setBootstrapComplete] = useState(false);
   const [pathname, navigate] = useLocationPath();
   const [theme, setThemeValue] = useTheme();
   const foundryRoute = parseFoundryPath(pathname);
   React.useEffect(() => {
     const expireSession = () => {
-      queryClient.clear();
+      qc.clear();
+      setPasswordRequired(false);
       setAuthed(false);
     };
+    const requireChange = () => setPasswordRequired(true);
+    window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, requireChange);
     window.addEventListener(SESSION_EXPIRED_EVENT, expireSession);
-    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expireSession);
-  }, []);
+    return () => { window.removeEventListener(SESSION_EXPIRED_EVENT, expireSession); window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, requireChange); };
+  }, [qc]);
   const status = useQuery({
     queryKey: ["bootstrap-status", bootstrapComplete],
     queryFn: bootstrapStatus,
@@ -2183,7 +2209,8 @@ export function Root() {
     mutationFn: logout,
     onSuccess: () => {
       clearDraftPrompt();
-      queryClient.clear();
+      qc.clear();
+      setPasswordRequired(false);
       setAuthed(false);
     },
   });
@@ -2193,6 +2220,9 @@ export function Root() {
         <p className="text-sm text-muted">Loading</p>
       </Centered>
     );
+  if (authed && (passwordRequired || identity.data?.mustChangePassword === true)) return <MandatoryPasswordChange onComplete={() => { qc.setQueryData(["session-identity"], (data: any) => ({ ...data, mustChangePassword: false })); setPasswordRequired(false); void qc.invalidateQueries(); }} onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} />;
+  if (authed && identity.isPending) return <Centered title="OpsWorkbench"><p role="status">Checking your session…</p></Centered>;
+  if (authed && identity.error) return <Centered title="OpsWorkbench"><ErrorText error={identity.error} /><GhostButton onClick={() => logoutMutation.mutate()}>Sign out</GhostButton></Centered>;
   // Foundry is URL-routed and lives outside the ops shell. The public landing is
   // viewable without auth; the workspace requires sign-in. An anonymous visitor
   // heading into the workspace falls through to the auth flow below, then returns
@@ -2217,7 +2247,7 @@ export function Root() {
   return authed ? (
     <AppShell onLogout={() => logoutMutation.mutate()} logoutPending={logoutMutation.isPending} logoutError={logoutMutation.error} theme={theme} onChangeTheme={setThemeValue} onOpenFoundry={() => navigate("/foundry")} />
   ) : (
-    <Login onLogin={() => setAuthed(true)} />
+    <Login onLogin={(data) => { setPasswordRequired(data?.mustChangePassword === true); setAuthed(true); }} />
   );
 }
 

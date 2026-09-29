@@ -1,4 +1,4 @@
-﻿# Phase 1C Private Staging Deployment
+# Phase 1C Private Staging Deployment
 
 This runbook prepares a private HTTPS staging deployment only. It does not install an agent on any production server, does not connect to the Crafters Market MongoDB database, and does not expose the control center without an outer access layer.
 
@@ -227,3 +227,7 @@ After any rollback, rerun liveness, readiness, login, diagnostics, and smoke aut
 - [Readiness checklist](staging-readiness-checklist.md)
 - [Security review](staging-security-review.md)
 - [Architecture](architecture.md)
+
+## Real-client-IP migration
+
+Before deploying the Q4/D3 candidate, follow [real-client-IP qualification](real-client-ip.md) for pinned public/admin proxy identities, host header sanitation, Cloudflare range updates, staging ingress and rollback. A numeric trust-proxy string is not a hop-count setting; only individual reserved addresses are accepted.

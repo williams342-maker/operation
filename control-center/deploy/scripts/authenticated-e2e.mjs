@@ -45,7 +45,6 @@ const failedRequests = [];
 const browserErrors = createBrowserErrorTracker([
   { phase: "recent-auth enrollment", method: "POST", path: "/api/admin/enrollment/generate", status: 403, count: 1 },
   { phase: "expired session", method: "GET", path: "/api/me", status: 401, count: 1 },
-  { phase: "expired session", method: "GET", path: "/api/overview", status: 401, count: 1 },
 ]);
 page.on("console", (message) => {
   browserErrors.console({ type: message.type(), text: message.text() });

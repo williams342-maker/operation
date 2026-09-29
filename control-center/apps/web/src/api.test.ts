@@ -1,6 +1,24 @@
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, logout, SESSION_EXPIRED_EVENT } from "./api";
+import { api, apiError, logout, SESSION_EXPIRED_EVENT, PASSWORD_CHANGE_REQUIRED_EVENT, PASSWORD_EXPIRED_MESSAGE } from "./api";
+
+it("password-change 403 emits a recovery event without clearing the session", async () => {
+  localStorage.setItem("cc.csrf", "otp-csrf");
+  const required = vi.fn();
+  window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, required);
+  const error = new axios.AxiosError("Forbidden", "ERR_BAD_REQUEST", undefined, undefined, { status: 403, data: { code: "PASSWORD_CHANGE_REQUIRED" } } as never);
+  const adapter = api.defaults.adapter;
+  api.defaults.adapter = async () => { throw error; };
+  try { await expect(api.get("/servers")).rejects.toBe(error); }
+  finally { api.defaults.adapter = adapter; window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, required); }
+  expect(required).toHaveBeenCalledOnce();
+  expect(localStorage.getItem("cc.csrf")).toBe("otp-csrf");
+});
+
+it("expired OTP errors explain administrator reissue", () => {
+  const error = new axios.AxiosError("Forbidden", "ERR_BAD_REQUEST", undefined, undefined, { status: 403, data: { code: "PASSWORD_EXPIRED" } } as never);
+  expect(apiError(error)).toBe(PASSWORD_EXPIRED_MESSAGE);
+});
 
 describe("logout API", () => {
   beforeEach(() => {

@@ -17,7 +17,7 @@ import {
 } from "@control-center/shared";
 import { agentV2Enabled } from "./agentProtocolFlag.js";
 import { audit } from "./audit.js";
-import { allowExpiredLogout, clearSessionCookie, createSession, noStore, parseCookies, requireCsrf, requirePermission, requireRecentAuth, requireSession, setSessionCookie } from "./auth.js";
+import { authenticationVersion, allowExpiredLogout, clearSessionCookie, createSession, noStore, parseCookies, requireCsrf, requirePermission, requireRecentAuth, requirePasswordChangeSession, requireSession, setSessionCookie } from "./auth.js";
 import { verifyGoogleIdToken, googleAuthConfig } from "./googleAuth.js";
 import { requireSignedAgent } from "./agentAuth.js";
 import { collections, oid, scopedFilter } from "./db.js";
@@ -35,6 +35,7 @@ import { internalDiagnostics, runtimeHealth } from "./runtimeReadiness.js";
 import { configurationRouter } from "./configurationRoutes.js";
 import { ingestConfigurationDiscovery } from "./configurationDiscovery.js";
 import { agentUpgradeRouter } from "./agentUpgradeRoutes.js";
+import { oneTimePasswordExpired, PASSWORD_EXPIRED_MESSAGE } from "./passwordPolicy.js";
 import { websiteBuilderRouter } from "./websiteBuilderRoutes.js";
 
 import { seoAuditRouter } from "./seoAuditRoutes.js";
@@ -126,9 +127,8 @@ router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
     const now = new Date();
     const claimed = await collections.organizations.updateOne({ _id: org._id, ownerReplacementCompletedAt: { $exists: false } }, { $set: { ownerReplacementCompletedAt: now, updatedAt: now } });
     if (claimed.modifiedCount !== 1) return res.status(409).json({ error: "Owner replacement is unavailable" });
-    await collections.users.updateOne({ _id: owners[0]._id, orgId: org._id }, { $set: { email: body.ownerEmail.toLowerCase(), name: body.ownerName, passwordHash: hashPassword(body.password), updatedAt: now }, $unset: { disabledAt: "", inviteIssuedAt: "", mustChangePassword: "" } });
+    const user = await collections.users.findOneAndUpdate({ _id: owners[0]._id, orgId: org._id }, { $set: { email: body.ownerEmail.toLowerCase(), name: body.ownerName, passwordHash: hashPassword(body.password), updatedAt: now }, $inc: { authVersion: 1 }, $unset: { disabledAt: "", inviteIssuedAt: "", mustChangePassword: "" } }, { returnDocument: "after" });
     await collections.sessions.deleteMany({ orgId: org._id });
-    const user = await collections.users.findOne({ _id: owners[0]._id, orgId: org._id });
     if (!user) throw new Error("Replaced owner is unavailable");
     const session = await createSession(user);
     setSessionCookie(res, session.sessionToken);
@@ -189,11 +189,16 @@ router.post("/auth/login", noStore, async (req, res, next) => {
       await audit({ orgId: org?._id, actorType: "anonymous", action: "auth.login", result: "failure", requestId: req.requestId, metadata: { email: body.email.toLowerCase(), failures: failure.failures } });
       return res.status(401).json({ error: "Invalid credentials" });
     }
+    if (oneTimePasswordExpired(user)) {
+      await registerLoginFailure(throttle);
+      await audit({ orgId: org._id, actorType: "anonymous", action: "auth.login", result: "denied", requestId: req.requestId, metadata: { reason: "otp-expired" } });
+      return res.status(403).json({ error: PASSWORD_EXPIRED_MESSAGE, code: "PASSWORD_EXPIRED" });
+    }
     await clearLoginThrottle(throttle);
     const session = await createSession(user);
     setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId });
-    res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
+    res.json({ mustChangePassword: user.mustChangePassword === true, csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
 });
 
@@ -248,11 +253,11 @@ router.post("/auth/google", noStore, async (req, res, next) => {
     const session = await createSession(user);
     setSessionCookie(res, session.sessionToken);
     await audit({ orgId: org._id, actorType: "user", actorId: user._id, action: "auth.login", result: "success", requestId: req.requestId, metadata: { method: "google" } });
-    res.json({ csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
+    res.json({ mustChangePassword: user.mustChangePassword === true, csrfToken: session.csrfToken, user: { id: user._id, email: user.email, name: user.name, role: user.role }, organization: { id: org._id, name: org.name, slug: org.slug } });
   } catch (error) { next(error); }
 });
 
-router.use("/auth/logout", noStore, allowExpiredLogout, requireSession, requireCsrf);
+router.post("/auth/logout", noStore, allowExpiredLogout, requirePasswordChangeSession, requireCsrf);
 router.post("/auth/logout", async (req, res, next) => {
   try {
     if (req.sessionId && req.orgId) await collections.sessions.deleteOne({ _id: req.sessionId, orgId: req.orgId });
@@ -288,7 +293,7 @@ router.post("/auth/reauthenticate", noStore, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.use("/auth/change-password", noStore, requireSession, requireCsrf);
+router.post("/auth/change-password", noStore, requirePasswordChangeSession, requireCsrf);
 router.post("/auth/change-password", async (req, res, next) => {
   try {
     const body = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(12).max(256) }).parse(req.body);
@@ -296,16 +301,25 @@ router.post("/auth/change-password", async (req, res, next) => {
       await audit({ orgId: req.orgId, actorType: req.user ? "user" : "anonymous", actorId: req.user?._id, action: "auth.denied", result: "denied", requestId: req.requestId, metadata: { reason: "password-change-failed" } });
       return res.status(403).json({ error: "Current password is incorrect", code: "PASSWORD_CHANGE_FAILED" });
     }
+    if (oneTimePasswordExpired(req.user)) return res.status(403).json({ error: PASSWORD_EXPIRED_MESSAGE, code: "PASSWORD_EXPIRED" });
+    if (body.newPassword === body.currentPassword) return res.status(400).json({ error: "Choose a password different from your current password", code: "PASSWORD_UNCHANGED" });
     const now = new Date();
-    await collections.users.updateOne({ _id: req.user._id, orgId: req.orgId }, { $set: { passwordHash: hashPassword(body.newPassword), updatedAt: now }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } });
-    await collections.sessions.deleteMany({ orgId: req.orgId, userId: req.user._id, _id: { $ne: req.sessionId } });
+    const version = authenticationVersion(req.user.authVersion);
+    if (version === null) return res.status(401).json({ error: "Session expired" });
+    // Compare the credential and revision actually verified above. A concurrent reset,
+    // revocation, disable, or competing change must never be overwritten.
+    const changed = await collections.users.updateOne({ _id: req.user._id, orgId: req.orgId, passwordHash: req.user.passwordHash, authVersion: req.user.authVersion ?? { $exists: false }, disabledAt: { $exists: false } }, { $set: { passwordHash: hashPassword(body.newPassword), updatedAt: now }, $inc: { authVersion: 1 }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } });
+    if (changed.modifiedCount !== 1) return res.status(409).json({ error: "Credentials changed. Sign in again.", code: "PASSWORD_CHANGE_CONFLICT" });
+    const retained = await collections.sessions.updateOne({ _id: req.sessionId, orgId: req.orgId, userId: req.user._id, $or: [{ authVersion: version }, ...(version === 0 ? [{ authVersion: { $exists: false as const } }] : [])] }, { $set: { authVersion: version + 1, updatedAt: now } });
+    await collections.sessions.deleteMany({ orgId: req.orgId, userId: req.user._id, _id: { $ne: req.sessionId }, $or: [{ authVersion: { $lt: version + 1 } }, { authVersion: { $exists: false } }] });
+    if (retained.modifiedCount !== 1) { clearSessionCookie(res); return res.status(401).json({ error: "Session expired. Sign in with your new password." }); }
     await audit({ orgId: req.orgId, actorType: "user", actorId: req.user._id, action: "user.password.change", targetType: "user", targetId: req.user._id, result: "success", requestId: req.requestId });
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
-router.use("/me", requireSession);
+router.get("/me", noStore, requirePasswordChangeSession);
 router.get("/me", (req, res) => {
-  res.json({ user: { id: req.user!._id, email: req.user!.email, name: req.user!.name, role: req.user!.role }, orgId: req.orgId });
+  res.json({ mustChangePassword: req.user!.mustChangePassword === true, user: { id: req.user!._id, email: req.user!.email, name: req.user!.name, role: req.user!.role }, orgId: req.orgId });
 });
 
 function serverSlug(value: string) {

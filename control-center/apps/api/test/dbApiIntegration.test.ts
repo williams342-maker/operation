@@ -275,6 +275,10 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(createViewer.headers.get("cache-control")?.includes("no-store"));
     assert.ok(createViewer.body.oneTimePassword);
     const viewerA = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const viewerGate = await request<{ code: string }>("GET", "/servers", undefined, jsonHeaders(viewerA));
+    assert.equal(viewerGate.status, 403);
+    assert.equal(viewerGate.body.code, "PASSWORD_CHANGE_REQUIRED");
+    assert.equal((await request("POST", "/auth/change-password", { currentPassword: createViewer.body.oneTimePassword, newPassword: "viewer-chosen-password" }, jsonHeaders(viewerA))).status, 200);
     const createAdministrator = await request<{ oneTimePassword: string }>("POST", "/org/users", {
       email: "administrator-a@example.test",
       name: "Administrator A",
@@ -282,6 +286,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     }, jsonHeaders(ownerA));
     assert.equal(createAdministrator.status, 201);
     const administratorA = await login("phase-1b-a", "administrator-a@example.test", createAdministrator.body.oneTimePassword);
+    assert.equal((await request("POST", "/auth/change-password", { currentPassword: createAdministrator.body.oneTimePassword, newPassword: "administrator-chosen-password" }, jsonHeaders(administratorA))).status, 200);
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
@@ -299,7 +304,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.ok(lockedOut.body.retryAfterSeconds > 0);
     assert.ok(Number(lockedOut.headers.get("retry-after")) > 0);
 
-    const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const viewerLogout = await login("phase-1b-a", "viewer-a@example.test", "viewer-chosen-password");
     const viewerSessionId = await sessionIdFor(viewerLogout);
     const logoutWithoutCsrf = await request("POST", "/auth/logout", {}, { "content-type": "application/json", cookie: viewerLogout.cookie });
     assert.equal(logoutWithoutCsrf.status, 403);
@@ -310,7 +315,7 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     assert.equal(await collections.sessions.countDocuments({ _id: viewerSessionId }), 0);
     assert.match(activeLogout.headers.get("set-cookie") || "", /cc_session=;/);
 
-    const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", createViewer.body.oneTimePassword);
+    const expiredViewer = await login("phase-1b-a", "viewer-a@example.test", "viewer-chosen-password");
     const expiredViewerSessionId = await sessionIdFor(expiredViewer);
     await collections.sessions.updateOne({ _id: expiredViewerSessionId }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
     const expiredLogout = await request<{ ok: boolean }>("POST", "/auth/logout", {}, jsonHeaders(expiredViewer));

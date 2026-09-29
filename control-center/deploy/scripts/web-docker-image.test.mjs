@@ -105,6 +105,12 @@ test("all four production application images build cleanly with complete provena
     docker(["build", "--progress=plain", "--no-cache", "--build-arg", "VITE_API_URL=/api", ...provenanceArgs, "--file", "apps/web/Dockerfile.admin", "--tag", adminImage, "."]);
     docker(["build", "--progress=plain", "--no-cache", ...provenanceArgs, "--file", "apps/review-gate/Dockerfile", "--tag", gateImage, "."]);
 
+    // Building TypeScript does not prove runtime COPY preserved workspace dependencies.
+    // Run the shipped limiter module without network/DB access; v7 or omitted nested
+    // dependencies must fail here, before an image can qualify.
+    docker(["run", "--rm", "--network", "none", "--entrypoint", "node", apiImage, "--input-type=module", "-e",
+      "import assert from 'node:assert/strict'; import {createIpRateLimits} from './apps/api/dist/ipRateLimits.js'; import {ipKeyGenerator} from 'express-rate-limit'; const limits=createIpRateLimits(); assert.equal(typeof limits.global,'function'); assert.equal(typeof limits.auth,'function'); assert.equal(ipKeyGenerator('::ffff:198.51.100.1'),'198.51.100.1');"]);
+
     const command = JSON.parse(docker(["image", "inspect", "--format", "{{json .Config.Cmd}}", webImage]));
     assert.deepEqual(command, ["nginx", "-g", "daemon off;"]);
     docker(["run", "--rm", "--entrypoint", "sh", webImage, "-c", "test -f /usr/share/nginx/html/index.html && find /usr/share/nginx/html/assets -type f -print -quit | grep -q . && ! find /usr/share/nginx/html -type f \\( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' -o -name '*backup*' -o -name '*triage-report*' \\) | grep -q ."]);
