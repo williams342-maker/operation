@@ -51,10 +51,13 @@ managementRouter.get("/org/users", requirePermission("users:manage"), async (req
 
 managementRouter.post("/org/users", noStore, requirePermission("users:manage"), async (req, res, next) => {
   try {
-    const body = z.object({ email: z.string().email(), name: z.string().min(1).max(120), role: z.enum(roles) }).parse(req.body);
+    const body = z.object({ email: z.string().trim().email(), name: z.string().trim().min(1).max(120), role: z.enum(roles) }).parse(req.body);
     if (body.role === "Owner" && !requireOwner(req, res)) return;
     const oneTimePassword = randomToken(24); const now = new Date();
-    const result = await collections.users.insertOne({ orgId: orgId(req), email: body.email.toLowerCase(), name: body.name, role: body.role, passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, createdAt: now, updatedAt: now });
+    // The unique (orgId, email) index is the duplicate check: a pre-read would race a concurrent invite.
+    const result = await collections.users.insertOne({ orgId: orgId(req), email: body.email.toLowerCase(), name: body.name, role: body.role, passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, createdAt: now, updatedAt: now })
+      .catch((error: any) => { if (error?.code === 11000) return null; throw error; });
+    if (!result) return res.status(409).json({ error: "A user with this email already exists" });
     await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.create", targetType: "user", targetId: result.insertedId, result: "success", requestId: req.requestId, metadata: { role: body.role } });
     res.status(201).json({ id: result.insertedId, oneTimePassword });
   } catch (error) { next(error); }

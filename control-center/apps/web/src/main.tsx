@@ -41,6 +41,7 @@ import {
   Store,
   WalletCards,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -501,36 +502,30 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     queryFn: () =>
       api.get("/org/users", { params: { search } }).then((r) => r.data),
   });
-  const f = useForm({ email: "", name: "", role: "Viewer" });
+  const [adding, setAdding] = useState(false);
+  const role = me.data?.user?.role;
+  const canManage = role === "Owner" || role === "Administrator";
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["users"] });
     toast("User updated");
   };
-  const create = useMutation({
-    mutationFn: () => api.post("/org/users", f.values),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ["users"] });
-      toast(`One-time password: ${r.data.oneTimePassword}`);
-      f.setValues({ email: "", name: "", role: "Viewer" });
-    },
-  });
   return (
     <div className="space-y-4">
     <PasswordChangeCard toast={toast} />
     <Card>
       <Header title="Users" search={search} setSearch={setSearch} />
-      <div className="mb-4 grid gap-2 md:grid-cols-4">
-        <Field placeholder="Email" {...f.field("email")} />
-        <Field placeholder="Name" {...f.field("name")} />
-        <Select aria-label="Role" {...f.field("role")}>
-          <option>Viewer</option>
-          <option>Developer</option>
-          <option>Administrator</option>
-          <option>Owner</option>
-        </Select>
-        <Button onClick={() => create.mutate()}>Invite</Button>
-      </div>
-      <ErrorText error={create.error} />
+      {canManage && (
+        <Toolbar>
+          <Button onClick={() => setAdding(true)}><UserPlus className="h-4 w-4" />Add user</Button>
+        </Toolbar>
+      )}
+      {adding && (
+        <AddUserDialog
+          canAssignOwner={role === "Owner"}
+          onCreated={() => qc.invalidateQueries({ queryKey: ["users"] })}
+          onClose={() => setAdding(false)}
+        />
+      )}
       {q.isLoading ? (
         <Skeleton />
       ) : (
@@ -549,6 +544,118 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
         />
       )}
     </Card>
+    </div>
+  );
+}
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The one-time password exists only in this component's state: never in a toast, the URL, storage or the
+// user list. Closing the dialog unmounts it, and the API cannot return it again.
+function OneTimePasswordNotice({ email, password }: { email: string; password: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "manual">("idle");
+  const copy = () => {
+    const fallback = () => { box.current?.querySelector("input")?.select(); setCopyState("manual"); };
+    try { navigator.clipboard.writeText(password).then(() => setCopyState("copied"), fallback); } catch { fallback(); }
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-sm">
+        Give this one-time password to <strong>{email}</strong> through a secure channel. They must replace it
+        at first sign-in, and it expires if unused.
+      </p>
+      <div ref={box} className="flex gap-2">
+        <Field readOnly aria-label="One-time password" value={password} className="font-mono" onFocus={(e) => e.currentTarget.select()} />
+        <GhostButton onClick={copy}><Copy className="h-4 w-4" />Copy</GhostButton>
+      </div>
+      <p role="status" className="text-sm text-muted">
+        {copyState === "copied" ? "Copied to clipboard." : copyState === "manual" ? "Copy was blocked. The password is selected; copy it manually." : "This password is shown only once."}
+      </p>
+    </div>
+  );
+}
+function OneTimePasswordDialog({ title, email, password, onClose }: { title: string; email: string; password: string; onClose: () => void }) {
+  const dialogRef = useDialog(onClose);
+  return (
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="otp-dialog-title">
+      <Card>
+        <div className="w-[32rem] max-w-full space-y-4">
+          <h2 id="otp-dialog-title" className="text-lg font-semibold">{title}</h2>
+          <OneTimePasswordNotice email={email} password={password} />
+          <div className="flex justify-end"><Button onClick={onClose}>Done</Button></div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner: boolean; onCreated: () => void; onClose: () => void }) {
+  const f = useForm({ name: "", email: "", role: "Viewer" });
+  const [submitted, setSubmitted] = useState(false);
+  const [created, setCreated] = useState<{ email: string; oneTimePassword: string }>();
+  const name = f.values.name.trim();
+  const email = f.values.email.trim();
+  const nameError = !name ? "Enter a name." : "";
+  const emailError = !email ? "Enter an email address." : !emailPattern.test(email) ? "Enter a valid email address." : "";
+  const create = useMutation({
+    mutationFn: () => api.post("/org/users", { name, email, role: f.values.role }).then((r) => r.data as { oneTimePassword: string }),
+    onSuccess: (data) => {
+      setCreated({ email: email.toLowerCase(), oneTimePassword: data.oneTimePassword });
+      onCreated();
+    },
+  });
+  // A ref, not isPending: a second click can land before React re-renders the disabled button.
+  const inFlight = useRef(false);
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitted(true);
+    if (nameError || emailError || inFlight.current) return;
+    inFlight.current = true;
+    create.mutate(undefined, { onSettled: () => { inFlight.current = false; } });
+  };
+  const dialogRef = useDialog(onClose);
+  return (
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
+      <Card>
+        <div className="w-[32rem] max-w-full space-y-4">
+          <div className="flex justify-between">
+            <h2 id="add-user-title" className="text-lg font-semibold">{created ? "User added" : "Add user"}</h2>
+            <button aria-label="Close" onClick={onClose}><X className="h-5 w-5" /></button>
+          </div>
+          {created ? (
+            <>
+              <OneTimePasswordNotice email={created.email} password={created.oneTimePassword} />
+              <div className="flex justify-end"><Button onClick={onClose}>Done</Button></div>
+            </>
+          ) : (
+            <form className="space-y-4" onSubmit={submit} noValidate>
+              <label className="block text-sm">
+                Name
+                <Field className="mt-1" autoComplete="off" aria-invalid={submitted && !!nameError} {...f.field("name")} />
+                {submitted && nameError && <span role="alert" className="mt-1 block text-danger">{nameError}</span>}
+              </label>
+              <label className="block text-sm">
+                Email
+                <Field className="mt-1" type="email" autoComplete="off" aria-invalid={submitted && !!emailError} {...f.field("email")} />
+                {submitted && emailError && <span role="alert" className="mt-1 block text-danger">{emailError}</span>}
+              </label>
+              <label className="block text-sm">
+                Role
+                <Select className="mt-1" {...f.field("role")}>
+                  <option>Viewer</option>
+                  <option>Developer</option>
+                  <option>Administrator</option>
+                  {canAssignOwner && <option>Owner</option>}
+                </Select>
+              </label>
+              <p className="text-sm text-muted">A one-time password is generated. The user must replace it at first sign-in.</p>
+              <ErrorText error={create.error} />
+              <div className="flex justify-end gap-2">
+                <GhostButton type="button" onClick={onClose}>Cancel</GhostButton>
+                <Button type="submit" disabled={create.isPending}>{create.isPending ? "Adding…" : "Add user"}</Button>
+              </div>
+            </form>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }
@@ -596,7 +703,7 @@ function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
     </Card>
   );
 }
-function UserActions({ user, currentUser, onDone, toast }: { user: any; currentUser?: any; onDone: () => void; toast: (m: string) => void }) {
+function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: any; onDone: () => void; toast: (m: string) => void }) {
   const toggle = useMutation({
     mutationFn: () =>
       api.post(
@@ -608,12 +715,10 @@ function UserActions({ user, currentUser, onDone, toast }: { user: any; currentU
     mutationFn: () => api.post(`/org/users/${user._id}/revoke-sessions`),
     onSuccess: onDone,
   });
+  const [issuedPassword, setIssuedPassword] = useState("");
   const resetPassword = useMutation({
     mutationFn: () => api.post(`/org/users/${user._id}/reset-password`),
-    onSuccess: (response) => {
-      toast(`One-time password: ${response.data.oneTimePassword}`);
-      onDone();
-    },
+    onSuccess: (response) => setIssuedPassword(response.data.oneTimePassword),
   });
   const remove = useMutation({
     mutationFn: () => api.delete(`/org/users/${user._id}`),
@@ -630,6 +735,7 @@ function UserActions({ user, currentUser, onDone, toast }: { user: any; currentU
       {canReset && <GhostButton onClick={() => confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`) && resetPassword.mutate()}>Reset password</GhostButton>}
       {canDelete && <DangerButton onClick={() => confirm(`Permanently delete ${user.email}? This cannot be undone.`) && remove.mutate()}><Trash2 className="h-4 w-4" />Delete</DangerButton>}
       <ErrorText error={toggle.error || revoke.error || resetPassword.error || remove.error} />
+      {issuedPassword && <OneTimePasswordDialog title="Password reset" email={user.email} password={issuedPassword} onClose={() => { setIssuedPassword(""); onDone(); }} />}
     </div>
   );
 }
