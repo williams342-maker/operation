@@ -627,16 +627,16 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
             </>
           ) : (
             <form className="space-y-4" onSubmit={submit} noValidate>
-              <label className="block text-sm">
-                Name
-                <Field className="mt-1" autoComplete="off" aria-invalid={submitted && !!nameError} {...f.field("name")} />
-                {submitted && nameError && <span role="alert" className="mt-1 block text-danger">{nameError}</span>}
-              </label>
-              <label className="block text-sm">
-                Email
-                <Field className="mt-1" type="email" autoComplete="off" aria-invalid={submitted && !!emailError} {...f.field("email")} />
-                {submitted && emailError && <span role="alert" className="mt-1 block text-danger">{emailError}</span>}
-              </label>
+              <div className="text-sm">
+                <label htmlFor="add-user-name">Name</label>
+                <Field id="add-user-name" className="mt-1" autoComplete="off" aria-invalid={submitted && !!nameError} aria-describedby={submitted && nameError ? "add-user-name-error" : undefined} {...f.field("name")} />
+                {submitted && nameError && <p id="add-user-name-error" role="alert" className="mt-1 text-danger">{nameError}</p>}
+              </div>
+              <div className="text-sm">
+                <label htmlFor="add-user-email">Email</label>
+                <Field id="add-user-email" className="mt-1" type="email" autoComplete="off" aria-invalid={submitted && !!emailError} aria-describedby={submitted && emailError ? "add-user-email-error" : undefined} {...f.field("email")} />
+                {submitted && emailError && <p id="add-user-email-error" role="alert" className="mt-1 text-danger">{emailError}</p>}
+              </div>
               <label className="block text-sm">
                 Role
                 <Select className="mt-1" {...f.field("role")}>

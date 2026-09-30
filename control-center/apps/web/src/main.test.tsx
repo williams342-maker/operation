@@ -436,8 +436,8 @@ describe("Users: Add user", () => {
     for (const role of ["Viewer", "Developer"]) {
       mocks.apiGet.mockImplementation(usersApi(role));
       await openUsers();
-      await screen.findByRole("heading", { name: "Users" });
-      await waitFor(() => expect(mocks.apiGet).toHaveBeenCalledWith("/me"));
+      // The user table rendering proves both /me and /org/users resolved, so the role is known.
+      expect(await screen.findByText("owner@example.test")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Add user" })).not.toBeInTheDocument();
       cleanup();
     }
