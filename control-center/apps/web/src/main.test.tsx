@@ -423,6 +423,41 @@ describe("Users: Add user", () => {
     expect(window.location.href).not.toContain("otp-value-shown-once");
   });
 
+  it("binds the returned password to the submitted recipient while a request is pending", async () => {
+    let resolvePost: (value: unknown) => void = () => {};
+    mocks.apiPost.mockImplementation(() => new Promise((resolve) => { resolvePost = resolve; }));
+    await openUsers();
+    await userEvent.click(await screen.findByRole("button", { name: "Add user" }));
+    const dialog = screen.getByRole("dialog", { name: "Add user" });
+    const name = within(dialog).getByLabelText("Name");
+    const email = within(dialog).getByLabelText("Email");
+    const role = within(dialog).getByLabelText("Role");
+    await userEvent.type(name, "First recipient");
+    await userEvent.type(email, "first@example.test");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add user" }));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/org/users", { name: "First recipient", email: "first@example.test", role: "Viewer" }));
+    // Dispatch changes directly to exercise snapshot safety independently of the disabled controls.
+    fireEvent.change(name, { target: { value: "Later recipient" } });
+    fireEvent.change(email, { target: { value: "later@example.test" } });
+    fireEvent.change(role, { target: { value: "Administrator" } });
+    resolvePost({ data: { id: "new", oneTimePassword: "synthetic-recipient-bound-password" } });
+    const done = await screen.findByRole("dialog", { name: "User added" });
+    expect(within(done).getByText("first@example.test")).toBeInTheDocument();
+    expect(within(done).queryByText("later@example.test")).not.toBeInTheDocument();
+    expect(within(done).getByLabelText("One-time password")).toHaveValue("synthetic-recipient-bound-password");
+    expect(mocks.apiPost).toHaveBeenCalledTimes(1);
+    expect(name).toBeDisabled();
+    expect(email).toBeDisabled();
+    expect(role).toBeDisabled();
+    await userEvent.click(within(done).getByRole("button", { name: "Done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add user" }));
+    const reopened = screen.getByRole("dialog", { name: "Add user" });
+    expect(within(reopened).getByLabelText("Name")).toHaveValue("");
+    expect(within(reopened).getByLabelText("Email")).toHaveValue("");
+    expect(within(reopened).getByLabelText("Role")).toHaveValue("Viewer");
+    expect(screen.queryByDisplayValue("synthetic-recipient-bound-password")).not.toBeInTheDocument();
+  });
+
   it("shows duplicate-email and server errors without issuing a password", async () => {
     mocks.apiPost.mockRejectedValueOnce(new Error("A user with this email already exists")).mockRejectedValueOnce(new Error("Internal server error"));
     await openUsers();

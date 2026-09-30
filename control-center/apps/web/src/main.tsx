@@ -596,11 +596,12 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
   const nameError = !name ? "Enter a name." : "";
   const emailError = !email ? "Enter an email address." : !emailPattern.test(email) ? "Enter a valid email address." : "";
   const create = useMutation({
-    mutationFn: () => api.post("/org/users", { name, email, role: f.values.role }).then((r) => r.data as { oneTimePassword: string }),
+    mutationFn: (submitted: { name: string; email: string; role: string }) => api.post("/org/users", submitted).then((r) => r.data as { oneTimePassword: string }),
     // Don't keep the one-time password in the mutation cache after the dialog closes.
     gcTime: 0,
-    onSuccess: (data) => {
-      setCreated({ email: email.toLowerCase(), oneTimePassword: data.oneTimePassword });
+    onSuccess: (data, submitted) => {
+      // Bind the credential to the submitted recipient, even if form state changes before the response.
+      setCreated({ email: submitted.email.toLowerCase(), oneTimePassword: data.oneTimePassword });
       onCreated();
     },
   });
@@ -611,7 +612,7 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
     setSubmitted(true);
     if (nameError || emailError || inFlight.current) return;
     inFlight.current = true;
-    create.mutate(undefined, { onSettled: () => { inFlight.current = false; } });
+    create.mutate({ name, email, role: f.values.role }, { onSettled: () => { inFlight.current = false; } });
   };
   // Closing mid-request would still create the user but lose its only copy of the password.
   const close = () => { if (!inFlight.current) onClose(); };
@@ -633,17 +634,17 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
             <form className="space-y-4" onSubmit={submit} noValidate>
               <div className="text-sm">
                 <label htmlFor="add-user-name">Name</label>
-                <Field id="add-user-name" className="mt-1" autoComplete="off" aria-invalid={submitted && !!nameError} aria-describedby={submitted && nameError ? "add-user-name-error" : undefined} {...f.field("name")} />
+                <Field id="add-user-name" className="mt-1" autoComplete="off" disabled={create.isPending} aria-invalid={submitted && !!nameError} aria-describedby={submitted && nameError ? "add-user-name-error" : undefined} {...f.field("name")} />
                 {submitted && nameError && <p id="add-user-name-error" role="alert" className="mt-1 text-danger">{nameError}</p>}
               </div>
               <div className="text-sm">
                 <label htmlFor="add-user-email">Email</label>
-                <Field id="add-user-email" className="mt-1" type="email" autoComplete="off" aria-invalid={submitted && !!emailError} aria-describedby={submitted && emailError ? "add-user-email-error" : undefined} {...f.field("email")} />
+                <Field id="add-user-email" className="mt-1" type="email" autoComplete="off" disabled={create.isPending} aria-invalid={submitted && !!emailError} aria-describedby={submitted && emailError ? "add-user-email-error" : undefined} {...f.field("email")} />
                 {submitted && emailError && <p id="add-user-email-error" role="alert" className="mt-1 text-danger">{emailError}</p>}
               </div>
               <label className="block text-sm">
                 Role
-                <Select className="mt-1" {...f.field("role")}>
+                <Select className="mt-1" disabled={create.isPending} {...f.field("role")}>
                   <option>Viewer</option>
                   <option>Developer</option>
                   <option>Administrator</option>
