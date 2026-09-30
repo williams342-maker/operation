@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -362,7 +362,13 @@ describe("Users: Add user", () => {
     mocks.apiGet.mockImplementation(usersApi("Owner"));
     mocks.apiPost.mockReset();
   });
-  afterEach(() => cleanup());
+  const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+    else delete (navigator as { clipboard?: unknown }).clipboard;
+  });
 
   it("validates required fields and email format before calling the API", async () => {
     await openUsers();
@@ -388,13 +394,20 @@ describe("Users: Add user", () => {
     const dialog = screen.getByRole("dialog", { name: "Add user" });
     expect(within(dialog).getByLabelText("Role")).toHaveValue("Viewer");
     await userEvent.type(within(dialog).getByLabelText("Name"), " QA Smoke Test (automated) ");
-    await userEvent.type(within(dialog).getByLabelText("Email"), "williams342+opsworkbench-qa@gmail.com");
-    const submit = within(dialog).getByRole("button", { name: "Add user" });
-    await userEvent.click(submit);
-    expect(within(dialog).getByRole("button", { name: "Adding…" })).toBeDisabled();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Adding…" }));
+    await userEvent.type(within(dialog).getByLabelText("Email"), "qa-smoke@example.test");
+    // Two submits in the same tick, before React can re-render the button as disabled.
+    const form = within(dialog).getByRole("button", { name: "Add user" }).closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(await within(dialog).findByRole("button", { name: "Adding…" })).toBeDisabled();
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalled());
     expect(mocks.apiPost).toHaveBeenCalledTimes(1);
-    expect(mocks.apiPost).toHaveBeenCalledWith("/org/users", { name: "QA Smoke Test (automated)", email: "williams342+opsworkbench-qa@gmail.com", role: "Viewer" });
+    // Closing mid-request would lose the only copy of the password, so it is refused.
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeDisabled();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "Add user" })).toBeInTheDocument();
+    expect(mocks.apiPost).toHaveBeenCalledWith("/org/users", { name: "QA Smoke Test (automated)", email: "qa-smoke@example.test", role: "Viewer" });
     const listCallsBefore = mocks.apiGet.mock.calls.filter(([path]) => path === "/org/users").length;
     resolvePost({ data: { id: "new", oneTimePassword: "otp-value-shown-once" } });
     const done = await screen.findByRole("dialog", { name: "User added" });
@@ -436,11 +449,15 @@ describe("Users: Add user", () => {
     for (const role of ["Viewer", "Developer"]) {
       mocks.apiGet.mockImplementation(usersApi(role));
       await openUsers();
-      // The user table rendering proves both /me and /org/users resolved, so the role is known.
+      await waitFor(() => expect(mocks.apiGet).toHaveBeenCalledWith("/me"));
       expect(await screen.findByText("owner@example.test")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Add user" })).not.toBeInTheDocument();
       cleanup();
     }
+    // Control: the same render path does show the button once the role allows it.
+    mocks.apiGet.mockImplementation(usersApi("Administrator"));
+    await openUsers();
+    expect(await screen.findByRole("button", { name: "Add user" })).toBeInTheDocument();
   });
 
   it("shows a reset password in a dialog instead of a toast", async () => {
@@ -454,6 +471,5 @@ describe("Users: Add user", () => {
     expect(within(dialog).getByLabelText("One-time password")).toHaveValue("reset-otp-value");
     await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
     expect(document.body.textContent).not.toContain("reset-otp-value");
-    vi.unstubAllGlobals();
   });
 });

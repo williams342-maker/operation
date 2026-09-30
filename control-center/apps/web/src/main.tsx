@@ -539,7 +539,7 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
               {u.disabledAt ? "inactive" : "active"}
             </Badge>,
             fmt(u.createdAt),
-            <UserActions key={u._id} user={u} currentUser={me.data?.user} onDone={refresh} toast={toast} />,
+            <UserActions key={u._id} user={u} currentUser={me.data?.user} onDone={refresh} />,
           ])}
         />
       )}
@@ -597,6 +597,8 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
   const emailError = !email ? "Enter an email address." : !emailPattern.test(email) ? "Enter a valid email address." : "";
   const create = useMutation({
     mutationFn: () => api.post("/org/users", { name, email, role: f.values.role }).then((r) => r.data as { oneTimePassword: string }),
+    // Don't keep the one-time password in the mutation cache after the dialog closes.
+    gcTime: 0,
     onSuccess: (data) => {
       setCreated({ email: email.toLowerCase(), oneTimePassword: data.oneTimePassword });
       onCreated();
@@ -611,14 +613,16 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
     inFlight.current = true;
     create.mutate(undefined, { onSettled: () => { inFlight.current = false; } });
   };
-  const dialogRef = useDialog(onClose);
+  // Closing mid-request would still create the user but lose its only copy of the password.
+  const close = () => { if (!inFlight.current) onClose(); };
+  const dialogRef = useDialog(close);
   return (
     <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
       <Card>
         <div className="w-[32rem] max-w-full space-y-4">
           <div className="flex justify-between">
             <h2 id="add-user-title" className="text-lg font-semibold">{created ? "User added" : "Add user"}</h2>
-            <button aria-label="Close" onClick={onClose}><X className="h-5 w-5" /></button>
+            <button aria-label="Close" onClick={close} disabled={create.isPending}><X className="h-5 w-5" /></button>
           </div>
           {created ? (
             <>
@@ -649,7 +653,7 @@ function AddUserDialog({ canAssignOwner, onCreated, onClose }: { canAssignOwner:
               <p className="text-sm text-muted">A one-time password is generated. The user must replace it at first sign-in.</p>
               <ErrorText error={create.error} />
               <div className="flex justify-end gap-2">
-                <GhostButton type="button" onClick={onClose}>Cancel</GhostButton>
+                <GhostButton type="button" onClick={close} disabled={create.isPending}>Cancel</GhostButton>
                 <Button type="submit" disabled={create.isPending}>{create.isPending ? "Adding…" : "Add user"}</Button>
               </div>
             </form>
@@ -703,7 +707,7 @@ function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
     </Card>
   );
 }
-function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: any; onDone: () => void; toast: (m: string) => void }) {
+function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: any; onDone: () => void }) {
   const toggle = useMutation({
     mutationFn: () =>
       api.post(
@@ -718,6 +722,7 @@ function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: a
   const [issuedPassword, setIssuedPassword] = useState("");
   const resetPassword = useMutation({
     mutationFn: () => api.post(`/org/users/${user._id}/reset-password`),
+    gcTime: 0,
     onSuccess: (response) => setIssuedPassword(response.data.oneTimePassword),
   });
   const remove = useMutation({
@@ -735,7 +740,7 @@ function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: a
       {canReset && <GhostButton onClick={() => confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`) && resetPassword.mutate()}>Reset password</GhostButton>}
       {canDelete && <DangerButton onClick={() => confirm(`Permanently delete ${user.email}? This cannot be undone.`) && remove.mutate()}><Trash2 className="h-4 w-4" />Delete</DangerButton>}
       <ErrorText error={toggle.error || revoke.error || resetPassword.error || remove.error} />
-      {issuedPassword && <OneTimePasswordDialog title="Password reset" email={user.email} password={issuedPassword} onClose={() => { setIssuedPassword(""); onDone(); }} />}
+      {issuedPassword && <OneTimePasswordDialog title="Password reset" email={user.email} password={issuedPassword} onClose={() => { setIssuedPassword(""); resetPassword.reset(); onDone(); }} />}
     </div>
   );
 }
