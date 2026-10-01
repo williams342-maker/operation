@@ -801,6 +801,15 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const resetPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: resetDisposable.body.oneTimePassword }, { "content-type": "application/json" });
     assert.equal(resetPasswordRejected.status, 401);
     await login("phase-1b-a", "disposable@example.test", "replacement-password-long");
+    // Truly concurrent resets for the same observed version: the conditional update lets exactly one win.
+    const raceVersion = await userVersion(disposableId);
+    const auditsBeforeRace = await resetAudits();
+    const race = await Promise.all([0, 1].map(() => request<{ oneTimePassword?: string; code?: string }>("POST", resetRoute, { expectedUpdatedAt: raceVersion.expectedUpdatedAt }, jsonHeaders(ownerA))));
+    assert.deepEqual(race.map((response) => response.status).sort(), [200, 409]);
+    assert.equal(race.filter((response) => response.body.oneTimePassword).length, 1);
+    assert.equal(race.find((response) => response.status === 409)?.body.code, "USER_CHANGED");
+    assert.equal(await resetAudits(), auditsBeforeRace + 1);
+    await login("phase-1b-a", "disposable@example.test", race.find((response) => response.status === 200)!.body.oneTimePassword!);
     const selfDeleteDenied = await request("DELETE", `/org/users/${ownerUserA._id}`, undefined, jsonHeaders(ownerA));
     assert.equal(selfDeleteDenied.status, 403);
     const deleteDisposable = await request("DELETE", `/org/users/${disposable.body.id}`, undefined, jsonHeaders(ownerA));

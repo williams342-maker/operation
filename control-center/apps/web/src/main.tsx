@@ -519,6 +519,10 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     gcTime: 0,
     // Bind the credential to the user the request was made for, not to whatever the list shows now.
     onSuccess: (data, target) => setResetResult({ userId: target.userId, email: target.email, oneTimePassword: data.oneTimePassword }),
+    // A 409 means the row's updatedAt is stale; refresh it so the retry sends the current value.
+    onError: (error) => {
+      if ((error as { response?: { status?: number } })?.response?.status === 409) qc.invalidateQueries({ queryKey: ["users"] });
+    },
   });
   // A ref, not isPending: a second click can land before React re-renders the disabled buttons. Each
   // reset issues a new password and invalidates the previous one, so exactly one request per confirmation.
