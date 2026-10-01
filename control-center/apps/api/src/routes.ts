@@ -127,7 +127,7 @@ router.post("/auth/owner-replacement", noStore, async (req, res, next) => {
     const now = new Date();
     const claimed = await collections.organizations.updateOne({ _id: org._id, ownerReplacementCompletedAt: { $exists: false } }, { $set: { ownerReplacementCompletedAt: now, updatedAt: now } });
     if (claimed.modifiedCount !== 1) return res.status(409).json({ error: "Owner replacement is unavailable" });
-    const user = await collections.users.findOneAndUpdate({ _id: owners[0]._id, orgId: org._id }, { $set: { email: body.ownerEmail.toLowerCase(), name: body.ownerName, passwordHash: hashPassword(body.password), updatedAt: now }, $inc: { authVersion: 1 }, $unset: { disabledAt: "", inviteIssuedAt: "", mustChangePassword: "" } }, { returnDocument: "after" });
+    const user = await collections.users.findOneAndUpdate({ _id: owners[0]._id, orgId: org._id }, { $set: { email: body.ownerEmail.toLowerCase(), name: body.ownerName, passwordHash: hashPassword(body.password) }, $max: { updatedAt: now }, $inc: { authVersion: 1 }, $unset: { disabledAt: "", inviteIssuedAt: "", mustChangePassword: "" } }, { returnDocument: "after" });
     await collections.sessions.deleteMany({ orgId: org._id });
     if (!user) throw new Error("Replaced owner is unavailable");
     const session = await createSession(user);
@@ -308,7 +308,7 @@ router.post("/auth/change-password", async (req, res, next) => {
     if (version === null) return res.status(401).json({ error: "Session expired" });
     // Compare the credential and revision actually verified above. A concurrent reset,
     // revocation, disable, or competing change must never be overwritten.
-    const changed = await collections.users.updateOne({ _id: req.user._id, orgId: req.orgId, passwordHash: req.user.passwordHash, authVersion: req.user.authVersion ?? { $exists: false }, disabledAt: { $exists: false } }, { $set: { passwordHash: hashPassword(body.newPassword), updatedAt: now }, $inc: { authVersion: 1 }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } });
+    const changed = await collections.users.updateOne({ _id: req.user._id, orgId: req.orgId, passwordHash: req.user.passwordHash, authVersion: req.user.authVersion ?? { $exists: false }, disabledAt: { $exists: false } }, { $set: { passwordHash: hashPassword(body.newPassword) }, $max: { updatedAt: now }, $inc: { authVersion: 1 }, $unset: { mustChangePassword: "", inviteIssuedAt: "" } });
     if (changed.modifiedCount !== 1) return res.status(409).json({ error: "Credentials changed. Sign in again.", code: "PASSWORD_CHANGE_CONFLICT" });
     const retained = await collections.sessions.updateOne({ _id: req.sessionId, orgId: req.orgId, userId: req.user._id, $or: [{ authVersion: version }, ...(version === 0 ? [{ authVersion: { $exists: false as const } }] : [])] }, { $set: { authVersion: version + 1, updatedAt: now } });
     await collections.sessions.deleteMany({ orgId: req.orgId, userId: req.user._id, _id: { $ne: req.sessionId }, $or: [{ authVersion: { $lt: version + 1 } }, { authVersion: { $exists: false } }] });

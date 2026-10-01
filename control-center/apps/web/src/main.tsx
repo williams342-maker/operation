@@ -524,7 +524,7 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
   // reset issues a new password and invalidates the previous one, so exactly one request per confirmation.
   const resetInFlight = useRef(false);
   const requestReset = (user: any) => {
-    if (resetInFlight.current) return;
+    if (resetInFlight.current || resetResult) return;
     if (!confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`)) return;
     resetInFlight.current = true;
     resetPassword.mutate(
@@ -574,7 +574,7 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
               currentUser={me.data?.user}
               onDone={refresh}
               onResetPassword={requestReset}
-              resetPending={resetPassword.isPending}
+              resetPending={resetPassword.isPending || !!resetResult}
               resetError={resetPassword.variables?.userId === String(u._id) ? resetPassword.error : null}
             />,
           ])}

@@ -511,7 +511,7 @@ describe("Users: Reset password", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
     await userEvent.click(screen.getByRole("button", { name: /^Users$/ }));
   };
-  const rowFor = async (email: string) => (await screen.findByText(email)).closest("tr") as HTMLElement;
+  const rowFor = async (email: string) => (await within(await screen.findByRole("table")).findByText(email)).closest("tr") as HTMLElement;
   const resetButtonFor = async (email: string) => within(await rowFor(email)).getByRole("button", { name: "Reset password" });
   const usersFetches = () => mocks.apiGet.mock.calls.filter(([path]) => path === "/org/users").length;
   // The owner switches tabs and comes back: TanStack Query refetches stale queries on visibilitychange.
@@ -564,11 +564,13 @@ describe("Users: Reset password", () => {
   it("keeps the dialog when a tab-return refetch inserts a newer user above the row", async () => {
     mocks.apiPost.mockResolvedValue({ data: { oneTimePassword: "reset-otp-value" } });
     await openUsers();
+    const originalRow = await rowFor("viewer@example.test");
     await userEvent.click(await resetButtonFor("viewer@example.test"));
     await screen.findByRole("dialog", { name: "Password reset" });
     users.unshift({ _id: "u3", name: "Newer", email: "newer@example.test", role: "Viewer", createdAt: "2026-09-30T00:00:00Z", updatedAt: "2026-09-30T00:00:00.000Z" });
     await returnToTab();
     await screen.findByText("newer@example.test");
+    expect(await rowFor("viewer@example.test")).toBe(originalRow);
     const dialog = screen.getByRole("dialog", { name: "Password reset" });
     expect(within(dialog).getByLabelText("One-time password")).toHaveValue("reset-otp-value");
     expect(within(dialog).getByText("viewer@example.test")).toBeInTheDocument();
@@ -651,5 +653,43 @@ describe("Users: Reset password", () => {
     expect(await within(await rowFor("viewer@example.test")).findByText("Recent reauthentication required")).toBeInTheDocument();
     expect(screen.queryByLabelText("One-time password")).not.toBeInTheDocument();
     expect(mocks.apiPost).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps other resets disabled until Escape clears the credential, then binds a new reset to its recipient", async () => {
+    mocks.apiPost.mockResolvedValueOnce({ data: { oneTimePassword: "viewer-only-password" } });
+    await openUsers();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    const dialog = await screen.findByRole("dialog", { name: "Password reset" });
+    const ownerButton = await resetButtonFor("owner@example.test");
+    expect(ownerButton).toBeDisabled();
+    fireEvent.click(ownerButton);
+    expect(mocks.apiPost).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByDisplayValue("viewer-only-password")).not.toBeInTheDocument();
+    const resolve = pendingPost();
+    await userEvent.click(await resetButtonFor("owner@example.test"));
+    expect(screen.queryByRole("dialog", { name: "Password reset" })).not.toBeInTheDocument();
+    await resolve("owner-only-password");
+    const second = screen.getByRole("dialog", { name: "Password reset" });
+    expect(within(second).getByText("owner@example.test")).toBeInTheDocument();
+    expect(within(second).queryByText("viewer@example.test")).not.toBeInTheDocument();
+    expect(within(second).getByLabelText("One-time password")).toHaveValue("owner-only-password");
+    expect(screen.queryByDisplayValue("viewer-only-password")).not.toBeInTheDocument();
+  });
+
+  it("does not revive a credential from a stale response after leaving and reopening Users", async () => {
+    const resolve = pendingPost();
+    await openUsers();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    expect(mocks.apiPost).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Overview$/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Users$/ }));
+    await resetButtonFor("viewer@example.test");
+    await resolve("stale-response-password");
+    expect(screen.queryByRole("dialog", { name: "Password reset" })).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("stale-response-password")).not.toBeInTheDocument();
+    expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain("stale-response-password");
   });
 });

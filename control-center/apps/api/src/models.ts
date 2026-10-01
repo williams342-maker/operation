@@ -6,7 +6,7 @@ export type BaseDoc = { _id?: ObjectId; orgId: ObjectId; createdAt: Date; update
 
 export type AiOrganizationSettings = { enabled: boolean; provider?: string; model?: string; monthlyRequestLimit?: number; monthlyTokenLimit?: number; maximumRequestsPerUserPerHour: number; maximumRequestsPerOrganizationPerDay: number; maximumConcurrentRequests: number; allowedScopeTypes: Array<"server" | "application">; dataRetentionMode: "provider-dependent"; providerDataRetentionAcknowledgedAt?: Date; providerDataRetentionAcknowledgedBy?: ObjectId; updatedAt: Date; updatedBy: ObjectId };
 export type OrganizationDoc = { _id?: ObjectId; name: string; slug: string; defaultTimezone?: string; status?: "active" | "suspended"; ownerReplacementCompletedAt?: Date; aiAssistant?: AiOrganizationSettings; createdAt: Date; updatedAt: Date };
-export type UserDoc = BaseDoc & { email: string; name: string; role: Role; passwordHash: string; disabledAt?: Date; inviteIssuedAt?: Date; mustChangePassword?: boolean; authVersion?: number };
+export type UserDoc = BaseDoc & { email: string; name: string; role: Role; passwordHash: string; disabledAt?: Date; inviteIssuedAt?: Date; mustChangePassword?: boolean; authVersion?: number; passwordResetConsumedAt?: Date };
 export type SessionDoc = BaseDoc & { userId: ObjectId; authVersion?: number; tokenHash: string; csrfTokenHash: string; authenticatedAt: Date; expiresAt: Date; lastSeenAt: Date };
 export type LoginThrottleDoc = { _id?: ObjectId; key: string; failures: number; lockedUntil: Date | null; updatedAt: Date; expiresAt: Date };
 export type EnrollmentUsage = { usedAt: Date; serverId: ObjectId; agentId: string; hostname: string };
