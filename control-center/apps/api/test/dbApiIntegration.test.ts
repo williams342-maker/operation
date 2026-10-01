@@ -290,6 +290,20 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const deniedEnrollment = await request("POST", "/enrollments", { expiresInMinutes: 60 }, jsonHeaders(viewerA));
     assert.equal(deniedEnrollment.status, 403);
 
+    // Add-user boundaries: duplicates are a 409 (not a 500) and never issue a password; Viewers cannot
+    // create users; Administrators cannot create Owners; blank names are rejected after trimming.
+    const usersBefore = await collections.users.countDocuments({});
+    const duplicateInvite = await request<{ error: string; oneTimePassword?: string }>("POST", "/org/users", { email: "  VIEWER-A@example.test ", name: "Viewer A again", role: "Viewer" }, jsonHeaders(ownerA));
+    assert.equal(duplicateInvite.status, 409);
+    assert.equal(duplicateInvite.body.error, "A user with this email already exists");
+    assert.equal(duplicateInvite.body.oneTimePassword, undefined);
+    assert.equal((await request("POST", "/org/users", { email: "viewer-made@example.test", name: "Viewer Made", role: "Viewer" }, jsonHeaders(viewerA))).status, 403);
+    assert.equal((await request("POST", "/org/users", { email: "admin-made-owner@example.test", name: "Admin Made Owner", role: "Owner" }, jsonHeaders(administratorA))).status, 403);
+    assert.equal((await request("POST", "/org/users", { email: "blank-name@example.test", name: "   ", role: "Viewer" }, jsonHeaders(ownerA))).status, 400);
+    assert.equal((await request("POST", "/org/users", { email: "not-an-email", name: "Bad Email", role: "Viewer" }, jsonHeaders(ownerA))).status, 400);
+    assert.equal((await request("POST", "/org/users", { email: "no-csrf@example.test", name: "No Csrf", role: "Viewer" }, { "content-type": "application/json", cookie: ownerA.cookie })).status, 403);
+    assert.equal(await collections.users.countDocuments({}), usersBefore);
+
     // Progressive per-account login lockout: five wrong-password attempts lock the account, after which
     // even the correct password is refused with 429 ACCOUNT_LOCKED until the backoff window elapses.
     const lockUser = await request<{ oneTimePassword: string }>("POST", "/org/users", { email: "lock-a@example.test", name: "Lock A", role: "Viewer" }, jsonHeaders(ownerA));
