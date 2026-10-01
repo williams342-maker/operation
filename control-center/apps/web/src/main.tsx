@@ -509,6 +509,38 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
     qc.invalidateQueries({ queryKey: ["users"] });
     toast("User updated");
   };
+  // The issued password lives here, not in a table row: a list refetch that reorders or remounts rows
+  // (tab return, a newer user) must not destroy the only copy. Never in a toast, the URL or storage.
+  const [resetResult, setResetResult] = useState<{ userId: string; email: string; oneTimePassword: string }>();
+  const resetPassword = useMutation({
+    mutationFn: (target: { userId: string; email: string; expectedUpdatedAt: string }) =>
+      api.post(`/org/users/${target.userId}/reset-password`, { expectedUpdatedAt: target.expectedUpdatedAt }).then((r) => r.data as { oneTimePassword: string }),
+    // Don't keep the one-time password in the mutation cache after the dialog closes.
+    gcTime: 0,
+    // Bind the credential to the user the request was made for, not to whatever the list shows now.
+    onSuccess: (data, target) => setResetResult({ userId: target.userId, email: target.email, oneTimePassword: data.oneTimePassword }),
+    // A 409 means the row's updatedAt is stale; refresh it so the retry sends the current value.
+    onError: (error) => {
+      if ((error as { response?: { status?: number } })?.response?.status === 409) qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+  // A ref, not isPending: a second click can land before React re-renders the disabled buttons. Each
+  // reset issues a new password and invalidates the previous one, so exactly one request per confirmation.
+  const resetInFlight = useRef(false);
+  const requestReset = (user: any) => {
+    if (resetInFlight.current || resetResult) return;
+    if (!confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`)) return;
+    resetInFlight.current = true;
+    resetPassword.mutate(
+      { userId: String(user._id), email: user.email, expectedUpdatedAt: user.updatedAt },
+      { onSettled: () => { resetInFlight.current = false; } },
+    );
+  };
+  const closeReset = () => {
+    setResetResult(undefined);
+    resetPassword.reset();
+    qc.invalidateQueries({ queryKey: ["users"] });
+  };
   return (
     <div className="space-y-4">
     <PasswordChangeCard toast={toast} />
@@ -531,6 +563,7 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
       ) : (
         <Table
           columns={["Name", "Email", "Role", "Status", "Created", "Actions"]}
+          rowKeys={q.data?.users?.map((u: any) => String(u._id))}
           rows={q.data?.users?.map((u: any) => [
             u.name,
             u.email,
@@ -539,10 +572,19 @@ function UsersPage({ toast }: { toast: (m: string) => void }) {
               {u.disabledAt ? "inactive" : "active"}
             </Badge>,
             fmt(u.createdAt),
-            <UserActions key={u._id} user={u} currentUser={me.data?.user} onDone={refresh} />,
+            <UserActions
+              key={u._id}
+              user={u}
+              currentUser={me.data?.user}
+              onDone={refresh}
+              onResetPassword={requestReset}
+              resetPending={resetPassword.isPending || !!resetResult}
+              resetError={resetPassword.variables?.userId === String(u._id) ? resetPassword.error : null}
+            />,
           ])}
         />
       )}
+      {resetResult && <OneTimePasswordDialog title="Password reset" email={resetResult.email} password={resetResult.oneTimePassword} onClose={closeReset} />}
     </Card>
     </div>
   );
@@ -708,7 +750,7 @@ function PasswordChangeCard({ toast }: { toast: (m: string) => void }) {
     </Card>
   );
 }
-function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: any; onDone: () => void }) {
+function UserActions({ user, currentUser, onDone, onResetPassword, resetPending, resetError }: { user: any; currentUser?: any; onDone: () => void; onResetPassword: (user: any) => void; resetPending: boolean; resetError: unknown }) {
   const toggle = useMutation({
     mutationFn: () =>
       api.post(
@@ -719,12 +761,6 @@ function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: a
   const revoke = useMutation({
     mutationFn: () => api.post(`/org/users/${user._id}/revoke-sessions`),
     onSuccess: onDone,
-  });
-  const [issuedPassword, setIssuedPassword] = useState("");
-  const resetPassword = useMutation({
-    mutationFn: () => api.post(`/org/users/${user._id}/reset-password`),
-    gcTime: 0,
-    onSuccess: (response) => setIssuedPassword(response.data.oneTimePassword),
   });
   const remove = useMutation({
     mutationFn: () => api.delete(`/org/users/${user._id}`),
@@ -738,10 +774,9 @@ function UserActions({ user, currentUser, onDone }: { user: any; currentUser?: a
         {user.disabledAt ? "Activate" : "Deactivate"}
       </GhostButton>
       <GhostButton onClick={() => revoke.mutate()}>Revoke sessions</GhostButton>
-      {canReset && <GhostButton onClick={() => confirm(`Reset the password for ${user.email}? Their sessions will be revoked.`) && resetPassword.mutate()}>Reset password</GhostButton>}
+      {canReset && <GhostButton onClick={() => onResetPassword(user)} disabled={resetPending}>Reset password</GhostButton>}
       {canDelete && <DangerButton onClick={() => confirm(`Permanently delete ${user.email}? This cannot be undone.`) && remove.mutate()}><Trash2 className="h-4 w-4" />Delete</DangerButton>}
-      <ErrorText error={toggle.error || revoke.error || resetPassword.error || remove.error} />
-      {issuedPassword && <OneTimePasswordDialog title="Password reset" email={user.email} password={issuedPassword} onClose={() => { setIssuedPassword(""); resetPassword.reset(); onDone(); }} />}
+      <ErrorText error={toggle.error || revoke.error || resetError || remove.error} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSign, generateKeyPairSync, randomBytes } from "node:crypto";
+import crypto, { createSign, generateKeyPairSync, randomBytes } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { isolatedTestMongoUrl } from "../src/testDbGuard.js";
 
@@ -41,6 +41,8 @@ test("OTP enforcement across authentication, authorization, and credential races
     assert.equal(response.status, 201);
     return { email, id: new ObjectId(response.body.id), otp: response.body.oneTimePassword as string };
   }
+  // The reset is conditional on the version the caller last saw, as the Users page sends it.
+  const resetBody = async (id: ObjectId) => ({ expectedUpdatedAt: (await collections.users.findOne({ _id: id }))!.updatedAt.toISOString() });
   const change = (session: Session, currentPassword: string, newPassword = "chosen-password-long") => request("/auth/change-password", "POST", { currentPassword, newPassword }, session);
   try {
     await t.test("every role is gated on direct and alternate endpoints until a different password is chosen", async () => {
@@ -108,11 +110,102 @@ test("OTP enforcement across authentication, authorization, and credential races
       const u = await invite(); const session = sessionOf(await login(u.email, u.otp));
       assert.equal((await change(session, u.otp)).status, 200);
       assert.equal((await request("/org/users", "GET", undefined, session)).status, 403);
-      const reset = await request(`/org/users/${u.id}/reset-password`, "POST", {}, owner);
+      const reset = await request(`/org/users/${u.id}/reset-password`, "POST", await resetBody(u.id), owner);
       assert.equal(reset.status, 200);
       assert.equal((await request("/me", "GET", undefined, session)).status, 401);
       assert.equal((await login(u.email, "chosen-password-long")).status, 401);
       assert.equal((await login(u.email, reset.body.oneTimePassword)).body.mustChangePassword, true);
+    });
+    await t.test("parallel same-millisecond resets generate exactly one credential and reject consumed timestamp replay", async () => {
+      const u = await invite(); const body = await resetBody(u.id);
+      const originalUpdate = collections.users.updateOne.bind(collections.users);
+      let arrived = 0; let release!: () => void;
+      const barrier = new Promise<void>(resolve => { release = resolve; });
+      collections.users.updateOne = (async (filter: any, update: any, options?: any) => {
+        if (String(filter._id) === String(u.id) && update.$set?.passwordResetConsumedAt) {
+          if (++arrived === 2) release();
+          await barrier;
+        }
+        return originalUpdate(filter, update, options);
+      }) as typeof collections.users.updateOne;
+      const originalRandom = crypto.randomBytes;
+      let generated = 0;
+      const randomMock = t.mock.method(crypto, "randomBytes", ((size: number) => { if (size === 24) generated++; return originalRandom(size); }) as typeof crypto.randomBytes);
+      const clock = t.mock.method(Date, "now", () => new Date(body.expectedUpdatedAt).getTime());
+      let results;
+      try { results = await Promise.all([request(`/org/users/${u.id}/reset-password`, "POST", body, owner), request(`/org/users/${u.id}/reset-password`, "POST", body, owner)]); }
+      finally { collections.users.updateOne = originalUpdate; clock.mock.restore(); randomMock.mock.restore(); }
+      assert.deepEqual(results.map(r => r.status).sort(), [200, 409]);
+      assert.equal(generated, 1);
+      const winner = results.find(r => r.status === 200)!;
+      const after = (await collections.users.findOne({ _id: u.id }))!;
+      assert.equal(after.updatedAt.getTime(), new Date(body.expectedUpdatedAt).getTime() + 1);
+      assert.equal(after.authVersion, 1);
+      assert.equal(verifyPassword(winner.body.oneTimePassword, after.passwordHash), true);
+      assert.equal(await collections.auditEvents.countDocuments({ targetId: u.id, action: "user.password.reset" }), 1);
+      assert.equal(JSON.stringify(await collections.auditEvents.find({ targetId: u.id }).toArray()).includes(winner.body.oneTimePassword), false);
+      const session = sessionOf(await login(u.email, winner.body.oneTimePassword));
+      // Simulate a same-tick unrelated writer restoring the consumed timestamp: the watermark defeats ABA.
+      await originalUpdate({ _id: u.id }, { $set: { updatedAt: new Date(body.expectedUpdatedAt) } });
+      const duplicate = await request(`/org/users/${u.id}/reset-password`, "POST", body, owner);
+      assert.equal(duplicate.status, 409); assert.equal(duplicate.body.oneTimePassword, undefined);
+      assert.equal((await collections.users.findOne({ _id: u.id }))?.passwordHash, after.passwordHash);
+      assert.equal((await request("/me", "GET", undefined, session)).status, 200);
+    });
+    await t.test("application user mutations preserve reset versions when the clock moves backwards", async () => {
+      const u = await invite(); const before = await resetBody(u.id);
+      t.mock.timers.enable({ apis: ["Date"], now: Date.now() - 1_000 });
+      try {
+        const reset = await request(`/org/users/${u.id}/reset-password`, "POST", before, owner);
+        assert.equal(reset.status, 200);
+        const reserved = (await collections.users.findOne({ _id: u.id }))!.updatedAt.getTime();
+        assert.ok(reserved > new Date(before.expectedUpdatedAt).getTime());
+        assert.equal((await request(`/org/users/${u.id}/deactivate`, "POST", {}, owner)).status, 200);
+        assert.equal((await collections.users.findOne({ _id: u.id }))!.updatedAt.getTime(), reserved);
+        assert.equal((await request(`/org/users/${u.id}/activate`, "POST", {}, owner)).status, 200);
+        assert.equal((await collections.users.findOne({ _id: u.id }))!.updatedAt.getTime(), reserved);
+        const session = sessionOf(await login(u.email, reset.body.oneTimePassword));
+        assert.equal((await change(session, reset.body.oneTimePassword)).status, 200);
+        assert.equal((await collections.users.findOne({ _id: u.id }))!.updatedAt.getTime(), reserved);
+        const patch = await request(`/org/users/${u.id}`, "PATCH", { name: "Renamed", ...await resetBody(u.id) }, owner);
+        assert.equal(patch.status, 200);
+        assert.equal((await collections.users.findOne({ _id: u.id }))!.updatedAt.getTime(), reserved + 1);
+        assert.equal((await request(`/org/users/${u.id}/reset-password`, "POST", before, owner)).status, 409);
+        assert.equal((await request(`/org/users/${u.id}/reset-password`, "POST", await resetBody(u.id), owner)).status, 200);
+      } finally { t.mock.timers.reset(); }
+    });
+    await t.test("reset rechecks role and credential revision at claim and finalization", async () => {
+      const admin = await invite("Administrator"); const adminSession = sessionOf(await login(admin.email, admin.otp));
+      assert.equal((await change(adminSession, admin.otp)).status, 200);
+      for (const stage of ["claim", "finalize"]) for (const transition of ["role", "revoke", "password", "disable"]) {
+        const u = await invite(); const body = await resetBody(u.id);
+        const original = collections.users.updateOne.bind(collections.users);
+        collections.users.updateOne = (async (filter: any, update: any, options?: any) => {
+          if (String(filter._id) === String(u.id) && (stage === "claim" ? update.$set?.passwordResetConsumedAt : update.$set?.passwordHash)) {
+            // Deliberately retain updatedAt to exercise snapshot protection independent of timestamp precision.
+            await original({ _id: u.id }, transition === "role" ? { $set: { role: "Owner" } } : transition === "revoke" ? { $inc: { authVersion: 1 } } : transition === "password" ? { $set: { passwordHash: hashPassword("racing-password-long") } } : { $set: { disabledAt: new Date() } });
+          }
+          return original(filter, update, options);
+        }) as typeof collections.users.updateOne;
+        try { assert.equal((await request(`/org/users/${u.id}/reset-password`, "POST", body, adminSession)).status, 409); }
+        finally { collections.users.updateOne = original; }
+        const after = (await collections.users.findOne({ _id: u.id }))!;
+        assert.equal(verifyPassword(transition === "password" ? "racing-password-long" : u.otp, after.passwordHash), true);
+        assert.equal(await collections.auditEvents.countDocuments({ targetId: u.id, action: "user.password.reset" }), 0);
+      }
+    });
+    await t.test("interrupted reset claim preserves credentials and permits a refreshed retry", async () => {
+      const u = await invite(); const body = await resetBody(u.id);
+      const original = collections.users.updateOne.bind(collections.users);
+      collections.users.updateOne = (async (filter: any, update: any, options?: any) => {
+        if (String(filter._id) === String(u.id) && update.$set?.passwordHash) throw new Error("injected reset interruption");
+        return original(filter, update, options);
+      }) as typeof collections.users.updateOne;
+      try { assert.equal((await request(`/org/users/${u.id}/reset-password`, "POST", body, owner)).status, 500); }
+      finally { collections.users.updateOne = original; }
+      assert.equal((await login(u.email, u.otp)).status, 200);
+      assert.equal((await request(`/org/users/${u.id}/reset-password`, "POST", body, owner)).status, 409);
+      assert.equal((await request(`/org/users/${u.id}/reset-password`, "POST", await resetBody(u.id), owner)).status, 200);
     });
     await t.test("session inserted after a reset from a stale credential snapshot remains revoked, including recovery routes", async () => {
       const u = await invite();
@@ -120,7 +213,7 @@ test("OTP enforcement across authentication, authorization, and credential races
       let resetPassword = "";
       collections.sessions.insertOne = (async (doc: any, options?: any) => {
         if (String(doc.userId) === String(u.id)) {
-          const reset = await request(`/org/users/${u.id}/reset-password`, "POST", {}, owner);
+          const reset = await request(`/org/users/${u.id}/reset-password`, "POST", await resetBody(u.id), owner);
           assert.equal(reset.status, 200); resetPassword = reset.body.oneTimePassword;
         }
         return original(doc, options);
@@ -204,6 +297,8 @@ test("OTP enforcement across authentication, authorization, and credential races
     await collections.sessions.updateOne({ tokenHash: hashSecret(token) }, { $unset: { authVersion: "" } });
     assert.equal((await request("/me", "GET", undefined, owner)).body.mustChangePassword, false);
     await t.test("owner replacement snapshots its revision before a racing reset", async () => {
+      const futureVersion = new Date(Date.now() + 60_000);
+      await collections.users.updateOne({ _id: ownerId }, { $set: { updatedAt: futureVersion } });
       await collections.users.updateMany({ orgId, role: "Owner", _id: { $ne: ownerId } }, { $set: { disabledAt: new Date() } });
       process.env.CONTROL_CENTER_BOOTSTRAP_MODE = "replacement";
       process.env.CONTROL_CENTER_OWNER_REPLACEMENT_TOKEN = "test-recovery-secret-012345678901234567890";
@@ -217,6 +312,7 @@ test("OTP enforcement across authentication, authorization, and credential races
       try { replacement = await request("/auth/owner-replacement", "POST", { ownerEmail: "replacement@otp.test", ownerName: "New owner", password: "replacement-password", recoveryToken: process.env.CONTROL_CENTER_OWNER_REPLACEMENT_TOKEN }); }
       finally { collections.sessions.deleteMany = original; }
       assert.equal(replacement.status, 201);
+      assert.equal((await collections.users.findOne({ _id: ownerId }))!.updatedAt.getTime(), futureVersion.getTime());
       assert.equal((await collections.users.findOne({ _id: ownerId }))?.authVersion, 2);
       assert.equal((await request("/me", "GET", undefined, sessionOf(replacement))).status, 401);
     });

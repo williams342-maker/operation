@@ -19,7 +19,7 @@ export function StatusDot({ tone = "neutral", label }: { tone?: "neutral" | "suc
 export function Empty({ title }: { title: string }) { return <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted">{title}</div>; }
 export function Skeleton() { return <div className="h-24 animate-pulse rounded-md bg-border/40 motion-reduce:animate-none" role="status" aria-label="Loading" />; }
 export function Toolbar({ children }: PropsWithChildren) { return <div className="mb-3 flex flex-wrap items-center gap-2">{children}</div>; }
-export function Table({ columns, rows, empty = "No records" }: { columns: string[]; rows?: ReactNode[][]; empty?: string }) {
+export function Table({ columns, rows, rowKeys, empty = "No records" }: { columns: string[]; rows?: ReactNode[][]; rowKeys?: string[]; empty?: string }) {
   if (!rows?.length) return <Empty title={empty} />;
   if (columns.join("|") === "Display name|Website|Hostname|Agent|Enrollment|Last seen|Actions") {
     return <div className="grid gap-4">{rows.map((row, index) => {
@@ -46,5 +46,5 @@ export function Table({ columns, rows, empty = "No records" }: { columns: string
   }
   // tabIndex={0} so the horizontal scroll container is reachable by keyboard. Below ~768px these
   // tables scroll sideways and a pointer was the only way to move them (axe: scrollable-region-focusable).
-  return <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" tabIndex={0}><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((column) => <th key={column} scope="col" className="border-b border-border px-2 py-2 font-medium">{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-border/60">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" tabIndex={0}><table className="w-full text-left text-sm"><thead className="text-muted"><tr>{columns.map((column) => <th key={column} scope="col" className="border-b border-border px-2 py-2 font-medium">{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowKeys?.[rowIndex] ?? rowIndex} className="border-b border-border/60">{row.map((cell, cellIndex) => <td key={cellIndex} className="px-2 py-2 align-top">{cell}</td>)}</tr>)}</tbody></table></div>;
 }

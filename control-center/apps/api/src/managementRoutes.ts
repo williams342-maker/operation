@@ -73,7 +73,7 @@ managementRouter.patch("/org/users/:id", requirePermission("users:manage"), requ
       if (String(req.user?._id) === String(id) && body.role !== target.role) return deny(res, "Users cannot change their own role");
       if (target.role === "Owner" && body.role !== "Owner" && await activeOwners(org) <= 1) return res.status(409).json({ error: "Cannot remove the final active Owner" });
     }
-    const set: Record<string, unknown> = { updatedAt: new Date() }; if (body.name) set.name = body.name; if (body.role) set.role = body.role;
+    const set: Record<string, unknown> = { updatedAt: new Date(Math.max(Date.now(), new Date(body.expectedUpdatedAt).getTime() + 1)) }; if (body.name) set.name = body.name; if (body.role) set.role = body.role;
     const result = await collections.users.findOneAndUpdate({ _id: id, orgId: org, updatedAt: new Date(body.expectedUpdatedAt) }, { $set: set }, { returnDocument: "after" });
     if (!result) return res.status(409).json({ error: "User was modified by another request" });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.update", targetType: "user", targetId: id, result: "success", requestId: req.requestId, metadata: body.role ? { role: body.role } : undefined });
@@ -82,9 +82,9 @@ managementRouter.patch("/org/users/:id", requirePermission("users:manage"), requ
 });
 
 managementRouter.post("/org/users/:id/deactivate", requirePermission("users:manage"), async (req, res, next) => {
-  try { const id = oid(String(req.params.id)); const org = orgId(req); const target = await collections.users.findOne({ _id: id, orgId: org }); if (!target) return res.status(404).json({ error: "User not found" }); if (target.role === "Owner" && !requireOwner(req, res)) return; if (target.role === "Owner" && await activeOwners(org) <= 1) return res.status(409).json({ error: "Cannot deactivate the final active Owner" }); await collections.users.updateOne({ _id: id, orgId: org }, { $set: { disabledAt: new Date(), updatedAt: new Date() }, $inc: { authVersion: 1 } }); await collections.sessions.deleteMany({ orgId: org, userId: id }); await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.deactivate", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ ok: true }); } catch (error) { next(error); }
+  try { const id = oid(String(req.params.id)); const org = orgId(req); const target = await collections.users.findOne({ _id: id, orgId: org }); if (!target) return res.status(404).json({ error: "User not found" }); if (target.role === "Owner" && !requireOwner(req, res)) return; if (target.role === "Owner" && await activeOwners(org) <= 1) return res.status(409).json({ error: "Cannot deactivate the final active Owner" }); await collections.users.updateOne({ _id: id, orgId: org }, { $set: { disabledAt: new Date() }, $max: { updatedAt: new Date() }, $inc: { authVersion: 1 } }); await collections.sessions.deleteMany({ orgId: org, userId: id }); await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.deactivate", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ ok: true }); } catch (error) { next(error); }
 });
-managementRouter.post("/org/users/:id/activate", requirePermission("users:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const target = await collections.users.findOne({ _id: id, orgId: orgId(req) }); if (!target) return res.status(404).json({ error: "User not found" }); if (target.role === "Owner" && !requireOwner(req, res)) return; await collections.users.updateOne({ _id: id, orgId: orgId(req) }, { $unset: { disabledAt: "" }, $set: { updatedAt: new Date() } }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.activate", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ ok: true }); } catch (error) { next(error); } });
+managementRouter.post("/org/users/:id/activate", requirePermission("users:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const target = await collections.users.findOne({ _id: id, orgId: orgId(req) }); if (!target) return res.status(404).json({ error: "User not found" }); if (target.role === "Owner" && !requireOwner(req, res)) return; await collections.users.updateOne({ _id: id, orgId: orgId(req) }, { $unset: { disabledAt: "" }, $max: { updatedAt: new Date() } }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.activate", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ ok: true }); } catch (error) { next(error); } });
 managementRouter.post("/org/users/:id/revoke-sessions", requirePermission("users:manage"), async (req, res, next) => { try { const id = oid(String(req.params.id)); const target = await collections.users.findOne({ _id: id, orgId: orgId(req) }); if (!target) return res.status(404).json({ error: "User not found" }); if (target.role === "Owner" && !requireOwner(req, res)) return; await collections.users.updateOne({ _id: id, orgId: orgId(req) }, { $inc: { authVersion: 1 } }); const deleted = await collections.sessions.deleteMany({ orgId: orgId(req), userId: id }); await audit({ orgId: orgId(req), actorType: "user", actorId: actorId(req), action: "user.sessions.revoke", targetType: "user", targetId: id, result: "success", requestId: req.requestId }); res.json({ revoked: deleted.deletedCount }); } catch (error) { next(error); } });
 
 managementRouter.post("/org/users/:id/reset-password", noStore, requirePermission("users:manage"), requireRecentAuth, async (req, res, next) => {
@@ -93,8 +93,20 @@ managementRouter.post("/org/users/:id/reset-password", noStore, requirePermissio
     const target = await collections.users.findOne({ _id: id, orgId: org });
     if (!target) return res.status(404).json({ error: "User not found" });
     if (target.role === "Owner" && !requireOwner(req, res)) return;
+    const body = z.object({ expectedUpdatedAt: z.string().datetime() }).parse(req.body);
+    const expectedUpdatedAt = new Date(body.expectedUpdatedAt);
+    // Consume the observed version BEFORE generating a secret. A durable watermark prevents replay
+    // even if another writer sets updatedAt back within the same millisecond (or the clock moves back).
+    // This is not a lock: interruption leaves the old credential intact and a refreshed version can retry.
+    const reservedAt = new Date(Math.max(Date.now(), expectedUpdatedAt.getTime() + 1));
+    const snapshot = { _id: id, orgId: org, role: target.role, passwordHash: target.passwordHash, authVersion: target.authVersion ?? { $exists: false }, disabledAt: target.disabledAt ?? { $exists: false } };
+    const claimed = await collections.users.updateOne({ ...snapshot, updatedAt: expectedUpdatedAt, $or: [{ passwordResetConsumedAt: { $exists: false } }, { passwordResetConsumedAt: { $lt: expectedUpdatedAt } }] }, { $set: { updatedAt: reservedAt, passwordResetConsumedAt: expectedUpdatedAt } });
+    if (claimed.matchedCount === 0) return res.status(409).json({ error: "User changed. Refresh and try again.", code: "USER_CHANGED" });
     const oneTimePassword = randomToken(24); const now = new Date();
-    await collections.users.updateOne({ _id: id, orgId: org }, { $set: { passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, updatedAt: now }, $inc: { authVersion: 1 } });
+    // Recheck the authorization/credential snapshot so a role change, disable, password change or
+    // newer reset while the claim was in flight cannot be overwritten or return an invalid credential.
+    const updated = await collections.users.updateOne({ ...snapshot, updatedAt: reservedAt, passwordResetConsumedAt: expectedUpdatedAt }, { $set: { passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, updatedAt: reservedAt }, $inc: { authVersion: 1 } });
+    if (updated.matchedCount === 0) return res.status(409).json({ error: "User changed. Refresh and try again.", code: "USER_CHANGED" });
     await collections.sessions.deleteMany({ orgId: org, userId: id });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.password.reset", targetType: "user", targetId: id, result: "success", requestId: req.requestId });
     res.json({ oneTimePassword });
