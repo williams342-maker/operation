@@ -741,14 +741,56 @@ test("database-backed Phase 1B API and fake-agent verification", { skip: !enable
     const disposable = await request<{ id: string; oneTimePassword: string }>("POST", "/org/users", { email: "disposable@example.test", name: "Disposable User", role: "Viewer" }, jsonHeaders(ownerA));
     assert.equal(disposable.status, 201);
     await login("phase-1b-a", "disposable@example.test", disposable.body.oneTimePassword);
-    const resetDisposable = await request<{ oneTimePassword: string }>("POST", `/org/users/${disposable.body.id}/reset-password`, {}, jsonHeaders(ownerA));
+    const disposableId = new ObjectId(disposable.body.id);
+    const resetRoute = `/org/users/${disposable.body.id}/reset-password`;
+    const userVersion = async (id: ObjectId) => {
+      const doc = await collections.users.findOne({ _id: id });
+      assert.ok(doc?.updatedAt && doc.passwordHash);
+      return { expectedUpdatedAt: doc.updatedAt.toISOString(), passwordHash: doc.passwordHash };
+    };
+    const resetAudits = () => collections.auditEvents.countDocuments({ orgId: orgA._id, action: "user.password.reset", targetId: disposableId });
+    const beforeGuards = await userVersion(disposableId);
+    const ownerVersion = await userVersion(ownerUserA._id);
+    // Every refused reset leaves the password, the sessions and the audit trail untouched.
+    const resetWithoutCsrf = await request("POST", resetRoute, { expectedUpdatedAt: beforeGuards.expectedUpdatedAt }, { "content-type": "application/json", cookie: ownerA.cookie });
+    assert.equal(resetWithoutCsrf.status, 403);
+    const viewerReset = await request("POST", resetRoute, { expectedUpdatedAt: beforeGuards.expectedUpdatedAt }, jsonHeaders(viewerA));
+    assert.equal(viewerReset.status, 403);
+    assert.equal((await request("POST", "/auth/reauthenticate", { password: "administrator-chosen-password" }, jsonHeaders(administratorA))).status, 200);
+    const adminResetsOwner = await request<{ error: string }>("POST", `/org/users/${ownerUserA._id}/reset-password`, { expectedUpdatedAt: ownerVersion.expectedUpdatedAt }, jsonHeaders(administratorA));
+    assert.equal(adminResetsOwner.status, 403);
+    assert.equal(adminResetsOwner.body.error, "Owner role required");
+    assert.deepEqual(await userVersion(ownerUserA._id), ownerVersion);
+    assert.equal((await request("POST", resetRoute, {}, jsonHeaders(ownerA))).status, 400);
+    assert.equal((await request("POST", resetRoute, { expectedUpdatedAt: "not-a-timestamp" }, jsonHeaders(ownerA))).status, 400);
+    await collections.sessions.updateOne({ _id: await sessionIdFor(ownerA) }, { $set: { authenticatedAt: new Date(Date.now() - 11 * 60_000) } });
+    const staleReset = await request<{ error: string; code: string }>("POST", resetRoute, { expectedUpdatedAt: beforeGuards.expectedUpdatedAt }, jsonHeaders(ownerA));
+    assert.equal(staleReset.status, 403);
+    assert.equal(staleReset.body.code, "RECENT_AUTH_REQUIRED");
+    assert.equal((await request("POST", "/auth/reauthenticate", { password: "owner-a-password" }, jsonHeaders(ownerA))).status, 200);
+    assert.deepEqual(await userVersion(disposableId), beforeGuards);
+    assert.ok(await collections.sessions.countDocuments({ userId: disposableId }) > 0);
+    assert.equal(await resetAudits(), 0);
+
+    const resetDisposable = await request<{ oneTimePassword: string }>("POST", resetRoute, { expectedUpdatedAt: beforeGuards.expectedUpdatedAt }, jsonHeaders(ownerA));
     assert.equal(resetDisposable.status, 200);
     assert.ok(resetDisposable.headers.get("cache-control")?.includes("no-store"));
     assert.ok(resetDisposable.body.oneTimePassword);
-    assert.equal(await collections.sessions.countDocuments({ userId: new ObjectId(disposable.body.id) }), 0);
+    assert.equal(await collections.sessions.countDocuments({ userId: disposableId }), 0);
     const oldPasswordRejected = await request("POST", "/auth/login", { organizationSlug: "phase-1b-a", email: "disposable@example.test", password: disposable.body.oneTimePassword }, { "content-type": "application/json" });
     assert.equal(oldPasswordRejected.status, 401);
     const resetLogin = await login("phase-1b-a", "disposable@example.test", resetDisposable.body.oneTimePassword);
+    // A repeated reset for the same observed version (double click, retry) is refused without side effects:
+    // the first password stays valid, the session it opened survives, and only one reset is audited.
+    const afterFirstReset = await userVersion(disposableId);
+    const duplicateReset = await request<{ error: string; code: string; oneTimePassword?: string }>("POST", resetRoute, { expectedUpdatedAt: beforeGuards.expectedUpdatedAt }, jsonHeaders(ownerA));
+    assert.equal(duplicateReset.status, 409);
+    assert.equal(duplicateReset.body.code, "USER_CHANGED");
+    assert.equal(duplicateReset.body.oneTimePassword, undefined);
+    assert.deepEqual(await userVersion(disposableId), afterFirstReset);
+    assert.equal(await collections.sessions.countDocuments({ _id: await sessionIdFor(resetLogin) }), 1);
+    assert.equal(await resetAudits(), 1);
+    await login("phase-1b-a", "disposable@example.test", resetDisposable.body.oneTimePassword);
     const badPasswordChange = await request("POST", "/auth/change-password", { currentPassword: "wrong-current-password", newPassword: "replacement-password-long" }, jsonHeaders(resetLogin));
     assert.equal(badPasswordChange.status, 403);
     const changedPassword = await request("POST", "/auth/change-password", { currentPassword: resetDisposable.body.oneTimePassword, newPassword: "replacement-password-long" }, jsonHeaders(resetLogin));

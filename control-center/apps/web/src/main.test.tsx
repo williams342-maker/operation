@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -495,16 +495,161 @@ describe("Users: Add user", () => {
     expect(await screen.findByRole("button", { name: "Add user" })).toBeInTheDocument();
   });
 
-  it("shows a reset password in a dialog instead of a toast", async () => {
-    const reset = [{ _id: "u2", name: "Viewer", email: "viewer@example.test", role: "Viewer", createdAt: "2026-09-01T00:00:00Z" }];
-    mocks.apiGet.mockImplementation((path: string) => path === "/org/users" ? Promise.resolve({ data: { users: reset, total: 1 } }) : usersApi("Owner")(path));
-    mocks.apiPost.mockResolvedValue({ data: { oneTimePassword: "reset-otp-value" } });
+});
+
+describe("Users: Reset password", () => {
+  const viewerUpdatedAt = "2026-09-02T00:00:00.000Z";
+  let users: Array<Record<string, string>>;
+  const usersApi = (path: string) => {
+    if (path === "/me") return Promise.resolve({ data: { user: { role: "Owner", id: "u1" } } });
+    // Fresh objects per fetch, like a real response.
+    if (path === "/org/users") return Promise.resolve({ data: { users: users.map((user) => ({ ...user })), total: users.length } });
+    return authenticatedApi(path);
+  };
+  const openUsers = async () => {
+    renderRoot();
+    await userEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Users$/ }));
+  };
+  const rowFor = async (email: string) => (await screen.findByText(email)).closest("tr") as HTMLElement;
+  const resetButtonFor = async (email: string) => within(await rowFor(email)).getByRole("button", { name: "Reset password" });
+  const usersFetches = () => mocks.apiGet.mock.calls.filter(([path]) => path === "/org/users").length;
+  // The owner switches tabs and comes back: TanStack Query refetches stale queries on visibilitychange.
+  const returnToTab = async () => { await act(async () => { window.dispatchEvent(new Event("visibilitychange")); }); };
+  const pendingPost = () => {
+    let resolvePost: (value: unknown) => void = () => {};
+    mocks.apiPost.mockImplementation(() => new Promise((resolve) => { resolvePost = resolve; }));
+    return (oneTimePassword: string) => act(async () => { resolvePost({ data: { oneTimePassword } }); });
+  };
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("cc.csrf", "csrf-token");
+    users = [
+      { _id: "u2", name: "Viewer", email: "viewer@example.test", role: "Viewer", createdAt: "2026-09-02T00:00:00Z", updatedAt: viewerUpdatedAt },
+      { _id: "u1", name: "Existing Owner", email: "owner@example.test", role: "Owner", createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00.000Z" },
+    ];
+    mocks.bootstrapStatus.mockResolvedValue({ available: false });
+    mocks.apiGet.mockReset();
+    mocks.apiGet.mockImplementation(usersApi);
+    mocks.apiPost.mockReset();
     vi.stubGlobal("confirm", vi.fn(() => true));
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a reset password in a dialog instead of a toast, conditional on the version the list showed", async () => {
+    mocks.apiPost.mockResolvedValue({ data: { oneTimePassword: "reset-otp-value" } });
     await openUsers();
-    await userEvent.click(await screen.findByRole("button", { name: "Reset password" }));
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
     const dialog = await screen.findByRole("dialog", { name: "Password reset" });
     expect(within(dialog).getByLabelText("One-time password")).toHaveValue("reset-otp-value");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(within(dialog).getByText("viewer@example.test")).toBeInTheDocument();
+    expect(mocks.apiPost).toHaveBeenCalledWith("/org/users/u2/reset-password", { expectedUpdatedAt: viewerUpdatedAt });
     expect(document.body.textContent).not.toContain("reset-otp-value");
+    const fetchesBeforeClose = usersFetches();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog", { name: "Password reset" })).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("reset-otp-value")).not.toBeInTheDocument();
+    await waitFor(() => expect(usersFetches()).toBeGreaterThan(fetchesBeforeClose));
+    expect(document.body.textContent).not.toContain("reset-otp-value");
+    expect(JSON.stringify(localStorage)).not.toContain("reset-otp-value");
+    expect(JSON.stringify(sessionStorage)).not.toContain("reset-otp-value");
+    expect(Object.values({ ...localStorage, ...sessionStorage }).join("")).not.toContain("reset-otp-value");
+    expect(window.location.href).not.toContain("reset-otp-value");
+  });
+
+  it("keeps the dialog when a tab-return refetch inserts a newer user above the row", async () => {
+    mocks.apiPost.mockResolvedValue({ data: { oneTimePassword: "reset-otp-value" } });
+    await openUsers();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    await screen.findByRole("dialog", { name: "Password reset" });
+    users.unshift({ _id: "u3", name: "Newer", email: "newer@example.test", role: "Viewer", createdAt: "2026-09-30T00:00:00Z", updatedAt: "2026-09-30T00:00:00.000Z" });
+    await returnToTab();
+    await screen.findByText("newer@example.test");
+    const dialog = screen.getByRole("dialog", { name: "Password reset" });
+    expect(within(dialog).getByLabelText("One-time password")).toHaveValue("reset-otp-value");
+    expect(within(dialog).getByText("viewer@example.test")).toBeInTheDocument();
+  });
+
+  it("sends exactly one reset for a double click, and none from other rows while it is pending", async () => {
+    const resolve = pendingPost();
+    await openUsers();
+    const button = await resetButtonFor("viewer@example.test");
+    // Two clicks in the same tick, before React can re-render the button as disabled.
+    act(() => { button.click(); button.click(); });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(await resetButtonFor("owner@example.test")).toBeDisabled();
+    fireEvent.click(button);
+    fireEvent.click(await resetButtonFor("owner@example.test"));
+    expect(mocks.apiPost).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    await resolve("single-reset-password");
+    expect(within(screen.getByRole("dialog", { name: "Password reset" })).getByLabelText("One-time password")).toHaveValue("single-reset-password");
+    expect(mocks.apiPost).toHaveBeenCalledTimes(1);
+  });
+
+  it("binds the password to the user it was requested for even if the list changes before the response", async () => {
+    const resolve = pendingPost();
+    await openUsers();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith("/org/users/u2/reset-password", { expectedUpdatedAt: viewerUpdatedAt }));
+    // A refetch while the request is in flight replaces the row the reset started from.
+    users = [
+      { _id: "u3", name: "Other", email: "other@example.test", role: "Viewer", createdAt: "2026-09-30T00:00:00Z", updatedAt: "2026-09-30T00:00:00.000Z" },
+      users[1],
+    ];
+    await returnToTab();
+    await screen.findByText("other@example.test");
+    expect(screen.queryByText("viewer@example.test")).not.toBeInTheDocument();
+    await resolve("recipient-bound-password");
+    const dialog = screen.getByRole("dialog", { name: "Password reset" });
+    expect(within(dialog).getByText("viewer@example.test")).toBeInTheDocument();
+    expect(within(dialog).queryByText("other@example.test")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("One-time password")).toHaveValue("recipient-bound-password");
+  });
+
+  it("clears the credential on close and never shows it again for the next reset", async () => {
+    mocks.apiPost.mockResolvedValueOnce({ data: { oneTimePassword: "first-reset-password" } });
+    await openUsers();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    const first = await screen.findByRole("dialog", { name: "Password reset" });
+    expect(within(first).getByLabelText("One-time password")).toHaveValue("first-reset-password");
+    // The reset changed the user, so the refreshed list carries a new version for the next request.
+    users[0] = { ...users[0], updatedAt: "2026-10-01T00:00:00.000Z" };
+    const fetchesBeforeClose = usersFetches();
+    await userEvent.click(within(first).getByRole("button", { name: "Done" }));
+    expect(screen.queryByDisplayValue("first-reset-password")).not.toBeInTheDocument();
+    await waitFor(() => expect(usersFetches()).toBeGreaterThan(fetchesBeforeClose));
+    await act(async () => {});
+    const resolve = pendingPost();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledTimes(2));
+    expect(mocks.apiPost).toHaveBeenLastCalledWith("/org/users/u2/reset-password", { expectedUpdatedAt: "2026-10-01T00:00:00.000Z" });
+    expect(screen.queryByRole("dialog", { name: "Password reset" })).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("first-reset-password")).not.toBeInTheDocument();
+    await resolve("second-reset-password");
+    const second = screen.getByRole("dialog", { name: "Password reset" });
+    expect(within(second).getByLabelText("One-time password")).toHaveValue("second-reset-password");
+    expect(screen.queryByDisplayValue("first-reset-password")).not.toBeInTheDocument();
+  });
+
+  it("shows conflict and reauthentication errors without a password dialog, and allows a retry", async () => {
+    mocks.apiPost
+      .mockRejectedValueOnce(new Error("User changed. Refresh and try again."))
+      .mockRejectedValueOnce(new Error("Recent reauthentication required"));
+    await openUsers();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    expect(await within(await rowFor("viewer@example.test")).findByText("User changed. Refresh and try again.")).toBeInTheDocument();
+    expect(within(await rowFor("owner@example.test")).queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Password reset" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("One-time password")).not.toBeInTheDocument();
+    await waitFor(async () => expect(await resetButtonFor("viewer@example.test")).toBeEnabled());
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    expect(await within(await rowFor("viewer@example.test")).findByText("Recent reauthentication required")).toBeInTheDocument();
+    expect(screen.queryByLabelText("One-time password")).not.toBeInTheDocument();
+    expect(mocks.apiPost).toHaveBeenCalledTimes(2);
   });
 });

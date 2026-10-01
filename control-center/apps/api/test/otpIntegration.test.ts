@@ -41,6 +41,8 @@ test("OTP enforcement across authentication, authorization, and credential races
     assert.equal(response.status, 201);
     return { email, id: new ObjectId(response.body.id), otp: response.body.oneTimePassword as string };
   }
+  // The reset is conditional on the version the caller last saw, as the Users page sends it.
+  const resetBody = async (id: ObjectId) => ({ expectedUpdatedAt: (await collections.users.findOne({ _id: id }))!.updatedAt.toISOString() });
   const change = (session: Session, currentPassword: string, newPassword = "chosen-password-long") => request("/auth/change-password", "POST", { currentPassword, newPassword }, session);
   try {
     await t.test("every role is gated on direct and alternate endpoints until a different password is chosen", async () => {
@@ -108,7 +110,7 @@ test("OTP enforcement across authentication, authorization, and credential races
       const u = await invite(); const session = sessionOf(await login(u.email, u.otp));
       assert.equal((await change(session, u.otp)).status, 200);
       assert.equal((await request("/org/users", "GET", undefined, session)).status, 403);
-      const reset = await request(`/org/users/${u.id}/reset-password`, "POST", {}, owner);
+      const reset = await request(`/org/users/${u.id}/reset-password`, "POST", await resetBody(u.id), owner);
       assert.equal(reset.status, 200);
       assert.equal((await request("/me", "GET", undefined, session)).status, 401);
       assert.equal((await login(u.email, "chosen-password-long")).status, 401);
@@ -120,7 +122,7 @@ test("OTP enforcement across authentication, authorization, and credential races
       let resetPassword = "";
       collections.sessions.insertOne = (async (doc: any, options?: any) => {
         if (String(doc.userId) === String(u.id)) {
-          const reset = await request(`/org/users/${u.id}/reset-password`, "POST", {}, owner);
+          const reset = await request(`/org/users/${u.id}/reset-password`, "POST", await resetBody(u.id), owner);
           assert.equal(reset.status, 200); resetPassword = reset.body.oneTimePassword;
         }
         return original(doc, options);

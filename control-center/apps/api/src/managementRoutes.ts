@@ -93,8 +93,14 @@ managementRouter.post("/org/users/:id/reset-password", noStore, requirePermissio
     const target = await collections.users.findOne({ _id: id, orgId: org });
     if (!target) return res.status(404).json({ error: "User not found" });
     if (target.role === "Owner" && !requireOwner(req, res)) return;
-    const oneTimePassword = randomToken(24); const now = new Date();
-    await collections.users.updateOne({ _id: id, orgId: org }, { $set: { passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, updatedAt: now }, $inc: { authVersion: 1 } });
+    const body = z.object({ expectedUpdatedAt: z.string().datetime() }).parse(req.body);
+    const expectedUpdatedAt = new Date(body.expectedUpdatedAt);
+    // One reset per observed version: a repeated or stale request matches nothing and has no side effects,
+    // so a double submit cannot issue two passwords of which only the second works. The new updatedAt is
+    // forced past the expected one so a same-millisecond repeat cannot match again.
+    const oneTimePassword = randomToken(24); const now = new Date(Math.max(Date.now(), expectedUpdatedAt.getTime() + 1));
+    const updated = await collections.users.updateOne({ _id: id, orgId: org, updatedAt: expectedUpdatedAt }, { $set: { passwordHash: hashPassword(oneTimePassword), inviteIssuedAt: now, mustChangePassword: true, updatedAt: now }, $inc: { authVersion: 1 } });
+    if (updated.matchedCount === 0) return res.status(409).json({ error: "User changed. Refresh and try again.", code: "USER_CHANGED" });
     await collections.sessions.deleteMany({ orgId: org, userId: id });
     await audit({ orgId: org, actorType: "user", actorId: actorId(req), action: "user.password.reset", targetType: "user", targetId: id, result: "success", requestId: req.requestId });
     res.json({ oneTimePassword });
