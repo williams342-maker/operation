@@ -692,4 +692,23 @@ describe("Users: Reset password", () => {
     expect(screen.queryByDisplayValue("stale-response-password")).not.toBeInTheDocument();
     expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain("stale-response-password");
   });
+
+  it("refreshes the list after a 409 so the retry sends the current version and succeeds", async () => {
+    const conflict = Object.assign(new Error("User changed. Refresh and try again."), { response: { status: 409, data: { code: "USER_CHANGED" } } });
+    mocks.apiPost.mockRejectedValueOnce(conflict).mockResolvedValueOnce({ data: { oneTimePassword: "retry-password" } });
+    await openUsers();
+    await resetButtonFor("viewer@example.test");
+    // Someone else changed the user after this list was loaded.
+    users[0] = { ...users[0], updatedAt: "2026-10-01T12:00:00.000Z" };
+    const fetchesBefore = usersFetches();
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    expect(await within(await rowFor("viewer@example.test")).findByText("User changed. Refresh and try again.")).toBeInTheDocument();
+    await waitFor(() => expect(usersFetches()).toBeGreaterThan(fetchesBefore));
+    await act(async () => {});
+    await userEvent.click(await resetButtonFor("viewer@example.test"));
+    await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledTimes(2));
+    expect(mocks.apiPost).toHaveBeenNthCalledWith(1, "/org/users/u2/reset-password", { expectedUpdatedAt: viewerUpdatedAt });
+    expect(mocks.apiPost).toHaveBeenNthCalledWith(2, "/org/users/u2/reset-password", { expectedUpdatedAt: "2026-10-01T12:00:00.000Z" });
+    expect(within(await screen.findByRole("dialog", { name: "Password reset" })).getByLabelText("One-time password")).toHaveValue("retry-password");
+  });
 });
